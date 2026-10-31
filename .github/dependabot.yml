@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# Keeps the pinned GitHub Actions current; there are no other dependencies to watch.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,0 +1,5 @@
+# Real captures stay private; only anonymized fixtures under tests/fixtures/ are committed
+*.local.json
+captures/
+__pycache__/
+node_modules/

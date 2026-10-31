@@ -1,0 +1,18 @@
+Meshroute Topology Explorer
+Copyright (c) 2026 Fabian Schwamborn
+Licensed under the MIT License, see LICENSE.
+
+Third-party components
+  None yet. lit-core (https://lit.dev, BSD-3-Clause, Copyright Google LLC) will be
+  added with the panel; its licence text will be reproduced here and next to the file.
+
+Acknowledgements (ideas only, no code taken, no source read)
+  The force-directed layout follows published methods: the spring-electrical model
+  (Eades 1984; Fruchterman and Reingold 1991) and Barnes-Hut approximation (1986), as
+  also popularised by d3-force (Mike Bostock, ISC License).
+
+Trademarks
+  Zigbee and Matter are trademarks of the Connectivity Standards Alliance. Thread is a
+  trademark of the Thread Group, Inc. Home Assistant is a trademark of its owner. This
+  project names them only to describe what it shows; it is not affiliated with,
+  certified by or endorsed by any of them.
