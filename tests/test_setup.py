@@ -33,6 +33,17 @@ class SetupTest(unittest.TestCase):
             "meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set",
             "meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set"])
 
+    def test_panel_and_static_path_details(self):
+        const = ha_stubs.load(".const")
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
+        url, path, cache = self.hass.http.async_register_static_paths.await_args.args[0][0]
+        self.assertIn(const.VERSION, url)  # a new version is a new address, so caching is safe
+        self.assertTrue(cache)
+        self.assertTrue(path.endswith("frontend"))
+        panel = self.rec.panels[0]
+        self.assertEqual(panel["webcomponent_name"], "meshroute-topology-explorer")
+        self.assertEqual(panel["module_url"], f"{url}/panel.js")
+
     def test_unload_removes_panel_only(self):
         ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
         self.assertTrue(ha_stubs.run(self.comp.async_unload_entry(self.hass, None)))

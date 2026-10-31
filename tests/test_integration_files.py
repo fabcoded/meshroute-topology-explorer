@@ -36,6 +36,14 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertTrue(m["config_flow"] and m["single_config_entry"])
         self.assertIn("github.com/fabcoded/meshroute-topology-explorer", m["documentation"])
 
+    def test_manifest_key_order_and_required_fields(self):
+        # hassfest wants domain and name first, the rest alphabetical; custom integrations also need these keys.
+        keys = list(load(COMP / "manifest.json"))
+        self.assertEqual(keys[:2], ["domain", "name"])
+        self.assertEqual(keys[2:], sorted(keys[2:]))
+        for required in ("version", "documentation", "issue_tracker", "codeowners"):
+            self.assertIn(required, keys)
+
     def test_translations_have_same_keys(self):
         def keys(d, prefix=""):
             return {f"{prefix}{k}" for k, v in d.items() if not isinstance(v, dict)} | {
