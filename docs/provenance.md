@@ -6,9 +6,31 @@ each work package once.
 | Package | Date | Written by | Inputs | Review |
 |---|---|---|---|---|
 | A0 repository setup | 2026-10-31 | Claude Opus 5.5 in Claude Code, directed by Fabian Schwamborn | project plan (private), a capture of the author's own network (anonymized here), HACS, Home Assistant and GitHub documentation | Claude Opus 5.5 (separate agent): legal, privacy and setup review; findings applied before the first public commit |
+| A1 specification | 2026-10-31 | Claude Opus 5.5 in Claude Code, decisions by Fabian Schwamborn | the author's notes on his own network (private, in his words), anonymized sample, Home Assistant documentation and source | Claude Opus 5.5 (clean room, implementability) and Claude Fable 5.1 (overall); both reviews applied |
 
 - Earlier, unpublished experiments by the author were discarded with all their code on 2026-10-31; this repository
   starts from scratch.
 - Implementers of later packages are fresh agents that get the specification, the Home Assistant docs and anonymized
   captures only; they have no contact with earlier code.
 - Model training was switched off for the author's Claude account before work began (2026-10-31).
+
+## Numbers in the specification and where they come from
+
+| Number | Where | Origin |
+|---|---|---|
+| f(q) = 1 + 5 (1 − q)², unknown 1.5; correlation −0.82 vs −0.35 | 7.1 | own measurement on the author's network (2026-10-31), best of constant, linear, quadratic, logarithmic, path-loss and vendor-normalised curves |
+| repulsion scales with (L0 × D)² | 7.1 | own derivation: keeps the force balance scale-free; confirmed in the same measurement |
+| densities 0.7 / 1.0 / 1.5; L0 = node diameter + mean label width | 7.1 | own choice, checked by the fidelity target |
+| medians 22 and 44–167, caps 16–26 and 31, reciprocity 85 %, pair difference median 8 and > 60 in a tenth | 3.1, 4.3, 5.4 | measured on the anonymized sample fixture |
+| paths 42 / 29 / 20 of 29, 2 routes to unavailable devices | 12 | computed on the sample fixture with the rules of 5.1 |
+| lowest tenth and below half the reporter's median; at least 10 values per pool | 5.4, 5.6 | own rule from the review (rank is not health) |
+| very low reading 1–10 LQI | 5.6 | decision by Fabian Schwamborn |
+| completeness banner below 90 % | 6 | own choice |
+| scan re-read 15 s for 2 min, then 60 s up to 15 min | 6 | own choice from scans taking minutes on the sample network |
+| ZHA scans every 4 hours by default | 3.1 | ZHA / zigpy default setting |
+| playback 0.6 s per hop | 7.2 | own choice |
+| tap below 8 px, long press 500 ms, wheel × 1.2 per notch | 9.3 | common platform conventions |
+| zoom 0.1–8 × fit, payload limit 256 KiB | 9.3, 10 | own choice |
+| hit area 24 px, 3:1 contrast | 8, 9.3 | WCAG 2.2, success criteria 2.5.8 and 1.4.11 |
+| Okabe–Ito and cividis palettes | 8 | published palettes (Okabe and Ito 2008; Nuñez, Anderton and Renslow 2018) |
+| 300 devices, 3 000 readings, 5 s, 30 frames per second | 12 | own targets |
