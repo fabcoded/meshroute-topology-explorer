@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Development page (not shipped): every device symbol as the map draws it (graph/symbols.js drawSymbol), at 32, 48
+     and 96 px, with the states at 48 px, to compare with the design board. Any static server on the repository root:
+       python3 -m http.server 8824 --bind 127.0.0.1   then open   http://127.0.0.1:8824/dev/symbols.html
+     Query: theme=dark; fill=<css colour> for the symbols' background (default: the theme's grey for "no value"). -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Symbols (dev)</title>
+  <style>
+    :root { --bg: #ffffff; --fg: #212121; --line: #e6e6e6; }
+    :root[data-theme="dark"] { --bg: #111111; --fg: #e1e1e1; --line: #333333; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px sans-serif; }
+    main { padding: 16px 24px; }
+    .row { display: flex; align-items: center; gap: 24px; min-height: 104px; border-top: 1px solid var(--line); }
+    .row span { width: 280px; font-weight: 600; }
+    .states { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; }
+    .states figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 150px;
+      font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+<main id="main"></main>
+<script type="module">
+  import { drawSymbol, symbolLayers, symbolParts } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
+  import { resolveTheme, lineColorOn } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
+
+  const q = new URLSearchParams(location.search);
+  const dark = q.get("theme") === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const theme = resolveTheme({ background: dark ? "#111111" : "#ffffff" });
+  const fill = q.get("fill") || theme.node;
+  const main = document.getElementById("main");
+
+  /** One symbol on its own canvas, drawn by the map's function. */
+  function canvas(device, px, state = {}) {
+    const dpr = window.devicePixelRatio || 1;
+    const c = document.createElement("canvas");
+    c.width = px * dpr;
+    c.height = px * dpr;
+    c.style.width = `${px}px`;
+    c.style.height = `${px}px`;
+    const bg = state.offline ? theme.background : fill;
+    drawSymbol(c.getContext("2d"), symbolLayers(symbolParts(device), state), px / 2, px / 2, px, dpr,
+      { fill: bg, stroke: lineColorOn(bg, theme), slash: Boolean(state.slash) });
+    return c;
+  }
+
+  // The catalogue of the design board (round 6): what the data model can say today, plus later sources.
+  const catalogue = [
+    ["Light · router", { role: "router", kind: "light" }],
+    ["Outlet · router", { role: "router", kind: "outlet" }],
+    ["Relay · router", { role: "router", kind: "relay" }],
+    ["Coordinator · C (radio + cable)", { role: "coordinator" }],
+    ["Border router", { role: "border router", kind: "hub" }],
+    ["Border router + leader · L", { role: "border router", kind: "hub", leader: true }],
+    ["Button · sleepy", { role: "end device", kind: "button", sleepy: true }],
+    ["Motion · sleepy", { role: "end device", kind: "motion", sleepy: true }],
+    ["Contact · sleepy", { role: "end device", kind: "contact", sleepy: true }],
+    ["Contact · awake", { role: "end device", kind: "contact", sleepy: false }],
+    ["Thermostat · end device", { role: "end device", kind: "thermostat" }],
+    ["Home Assistant (cable)", { role: "unknown", kind: "home-assistant", radio: false }],
+    ["Switch (cable)", { role: "unknown", kind: "switch", radio: false }],
+    ["Access point (radio + cable)", { role: "unknown", kind: "access-point", wired: true }],
+    ["Unknown device", { role: "unknown", kind: "unknown" }],
+  ];
+  for (const [label, device] of catalogue) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const name = document.createElement("span");
+    name.textContent = label;
+    row.append(name, canvas(device, 32), canvas(device, 48), canvas(device, 96));
+    main.append(row);
+  }
+  const states = document.createElement("div");
+  states.className = "states";
+  const lamp = { role: "router", kind: "light" };
+  for (const [label, device, state] of [
+    ["online", lamp, {}], ["offline: no fill", lamp, { offline: true }], ["selected: thick frame", lamp, { selected: true }],
+    ["pinned", lamp, { pinned: true }], ["offline + selected + pinned", lamp, { offline: true, selected: true, pinned: true }],
+    ["no value: slash", lamp, { slash: true }], ["pinned · sleepy", { role: "end device", kind: "button", sleepy: true }, { pinned: true }],
+    ["selected · coordinator", { role: "coordinator" }, { selected: true }],
+  ]) {
+    const fig = document.createElement("figure");
+    const cap = document.createElement("figcaption");
+    cap.textContent = label;
+    fig.append(canvas(device, 48, state), cap);
+    states.append(fig);
+  }
+  main.append(states);
+</script>
+</body>
+</html>

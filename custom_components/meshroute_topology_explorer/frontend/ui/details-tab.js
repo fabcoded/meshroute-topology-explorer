@@ -63,6 +63,8 @@ export function renderDetails(container, ctx) {
   const row = (label, ...value) => rows.push(h("dt", { text: label }), h("dd", {}, ...value));
   if (d.vendor) row(t("details.vendor"), d.vendor);
   if (d.model) row(t("details.model"), d.model);
+  // The picture of the map's symbol and its bed, as text (spec 9.3).
+  row(t("details.kind"), t(`device_kind.${d.kind || "unknown"}`));
   row(t("details.ieee"), h("span", { class: "mono", text: d.id }));
   row(t("details.nwk"), h("span", { class: "mono", text: d.nwk === null ? "?" : `${formatNwk(d.nwk)} (${d.nwk})` }));
   if (d.area) row(t("details.area"), d.area);
@@ -77,6 +79,7 @@ export function renderDetails(container, ctx) {
     row(t("details.table"), d.hasTable ? t("details.table_yes") : t("details.table_no"));
   }
   if (d.role === "end device") {
+    row(t("details.sleepy"), t(d.sleepy === true ? "details.sleepy_yes" : d.sleepy === false ? "details.sleepy_no" : "details.sleepy_unknown"));
     if (info.parent) {
       const notes = [];
       if (!info.parent.available) notes.push(t("details.parent_unavailable"));

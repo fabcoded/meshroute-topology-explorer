@@ -5,8 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { hitRadius, MARKERS, MIN_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { FakeCanvas, fakeEnv, domEvent, labelWidth } from "./graph-fakes.mjs";
+import { hitRadius, MIN_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { symbolSize } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
+import { FakeCanvas, fakeEnv, domEvent, drawnSymbols, labelWidth } from "./graph-fakes.mjs";
 
 const NETWORK = {
   source: "zha",
@@ -155,12 +156,15 @@ test("dragging the background pans; the wheel zooms x 1.2 around the pointer wit
   assert.ok(Math.abs(view.cam.k - 0.1 * view.fitK) < 1e-9);
 });
 
-test("hit areas are at least 24 px across, at every zoom and for every role", () => {
-  for (const role of Object.keys(MARKERS)) {
-    for (const k of [0.001, 0.01, 0.1, 0.5, 1, 4, 100]) assert.ok(2 * hitRadius(role, k) >= MIN_HIT, `${role} ${k}`);
+test("hit areas are at least 24 px across at every zoom and cover the whole symbol", () => {
+  for (const k of [0.001, 0.01, 0.1, 0.5, 1, 4, 100]) {
+    assert.ok(2 * hitRadius(k) >= MIN_HIT, `${k}`);
+    // The symbol's farthest point is a rounded corner: (half - r) * sqrt 2 + r on the 24 grid.
+    const size = symbolSize(k);
+    assert.ok(hitRadius(k) >= (size * ((11.3 - 5.05) * Math.SQRT2 + 5.05)) / 24, `corner covered at ${k}`);
   }
   const { view, events, at, tap } = setup();
-  view.zoomBy(1e-6, { animate: false }); // smallest zoom: markers at their minimum size
+  view.zoomBy(1e-6, { animate: false }); // smallest zoom: symbols at their minimum size
   const [x, y] = at("e1");
   tap(x + 11.5, y);
   assert.deepEqual(events.at(-1), ["select", { id: "e1" }]);
@@ -200,12 +204,12 @@ function viewAt(density, size = [800, 600]) {
   return { canvas, env, view };
 }
 
-/** Distinct radii of the circles drawn in the last frame (markers by role), sorted. Distinct, because a spread map
- *  reaches past the window and devices outside it are not drawn. */
-function drawnRadii(canvas, view) {
+/** Distinct sizes of the symbols drawn in the last frame, sorted. Distinct, because a spread map reaches past the
+ *  window and devices outside it are not drawn. */
+function drawnSizes(canvas, view) {
   canvas.ctx.calls.length = 0;
   view.draw();
-  return [...new Set(canvas.ctx.calls.filter((c) => c[0] === "arc").map((c) => c[3]))].sort((a, b) => a - b);
+  return [...new Set(drawnSymbols(canvas.ctx.calls, view.dpr).map((s) => s.size))].sort((a, b) => a - b);
 }
 
 test("density only scales the drawn positions: no new layout, positions at base x D", () => {
@@ -225,7 +229,7 @@ test("density only scales the drawn positions: no new layout, positions at base 
   }
 });
 
-test("fit and marker sizes do not depend on the density", () => {
+test("fit and symbol sizes do not depend on the density", () => {
   const views = [0.7, 1, 1.5].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
   const [dense, medium, spread] = views;
   for (const { d, view } of views) {
@@ -233,11 +237,13 @@ test("fit and marker sizes do not depend on the density", () => {
     assert.ok(Math.abs(view.cam.cx - medium.view.cam.cx * d) < 1e-9, "centred on the same map point");
     assert.equal(view.fitK, medium.view.fitK);
   }
-  assert.deepEqual(drawnRadii(dense.canvas, dense.view), drawnRadii(spread.canvas, spread.view));
-  // A density change keeps the zoom, and with it every marker size.
-  const before = drawnRadii(medium.canvas, medium.view);
+  const sizes = drawnSizes(dense.canvas, dense.view);
+  assert.equal(sizes.length, 1, "one symbol size for every role");
+  assert.deepEqual(drawnSizes(spread.canvas, spread.view), sizes);
+  // A density change keeps the zoom, and with it every symbol size.
+  const before = drawnSizes(medium.canvas, medium.view);
   medium.view.setDensity(1.5);
-  assert.deepEqual(drawnRadii(medium.canvas, medium.view), before);
+  assert.deepEqual(drawnSizes(medium.canvas, medium.view), before);
   // Fit after a change still fits the medium layout: it does not undo the density.
   medium.view.fit({ animate: false });
   assert.equal(medium.view.cam.k, dense.view.cam.k);

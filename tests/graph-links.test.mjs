@@ -6,8 +6,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, CLASSES, DIM, laneGeometry, laneStyle, legendEntries, unknownGlyph, widthStep, textBeside, WIDTHS,
+  BAND, CLASSES, DIM, LANE_GAP, laneGeometry, laneStyle, legendEntries, unknownGlyph, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { recordingContext, labelWidth } from "./graph-fakes.mjs";
@@ -15,22 +16,35 @@ import { recordingContext, labelWidth } from "./graph-fakes.mjs";
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
 const theme = resolveTheme({});
 
-test("a lane lies on the right of its direction of travel in all four quadrants, shortened to the markers", () => {
+/** Signed distance of a point (relative to a symbol's centre) to the symbol's rounded-square contour. */
+function contourDistance(px, py, size) {
+  const h = (size * (GRID / 2 - OUTER)) / GRID;
+  const r = (size * OUTER_RADIUS) / GRID;
+  const qx = Math.abs(px) - (h - r);
+  const qy = Math.abs(py) - (h - r);
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+}
+
+test("a lane lies on the right of its direction of travel in all four quadrants, ending at the symbols' contours", () => {
   for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [-1, -1], [1, -1], [3, -7]]) {
-    const lane = laneGeometry(100, 100, 100 + 200 * dx, 100 + 200 * dy, 8, 5, 3);
+    const [x2, y2] = [100 + 200 * dx, 100 + 200 * dy];
+    const lane = laneGeometry(100, 100, x2, y2, 32, 48, 3);
     // Offset of the lane from the centre line, seen along the travel: positive cross product = right (y down).
-    const ox = lane.x0 - (100 + lane.ux * 9);
-    const oy = lane.y0 - (100 + lane.uy * 9);
-    assert.ok(cross(lane.ux, lane.uy, ox, oy) > 0, `right of (${dx}, ${dy})`);
-    assert.ok(Math.abs(Math.hypot(ox, oy) - 3) < 1e-9, "3 px from the centre line");
-    const full = Math.hypot(200 * dx, 200 * dy);
-    assert.ok(Math.abs(lane.len - (full - 9 - 6)) < 1e-9, "stops at both marker edges (radius + 1)");
+    const side = cross(lane.ux, lane.uy, lane.x0 - 100, lane.y0 - 100);
+    assert.ok(side > 0, `right of (${dx}, ${dy})`);
+    assert.ok(Math.abs(side - 3) < 1e-9, "3 px from the centre line");
+    // Each end lies LANE_GAP beyond its symbol's contour: the sender's (32 px) and the hearer's (48 px).
+    const start = contourDistance(lane.x0 - lane.ux * LANE_GAP - 100, lane.y0 - lane.uy * LANE_GAP - 100, 32);
+    const end = contourDistance(lane.x1 + lane.ux * LANE_GAP - x2, lane.y1 + lane.uy * LANE_GAP - y2, 48);
+    assert.ok(Math.abs(start) < 1e-9 && Math.abs(end) < 1e-9, `on the contours (${dx}, ${dy}): ${start}, ${end}`);
   }
+  // Along an axis the contour is the straight side: half the silhouette (11.3 of 24) plus the gap from each centre.
+  const east = laneGeometry(0, 0, 100, 0, 32, 32, 3);
+  const west = laneGeometry(100, 0, 0, 0, 32, 32, 3);
+  assert.ok(Math.abs(east.len - (100 - 2 * (32 * 11.3 / 24 + LANE_GAP))) < 1e-9);
   // East: right is down on screen; the opposite direction of the same pair runs on the other side.
-  const east = laneGeometry(0, 0, 100, 0, 5, 5, 3);
-  const west = laneGeometry(100, 0, 0, 0, 5, 5, 3);
   assert.ok(east.y0 > 0 && west.y0 < 0);
-  assert.equal(laneGeometry(0, 0, 8, 0, 5, 5, 3), null, "overlapping markers leave no lane");
+  assert.equal(laneGeometry(0, 0, 33, 0, 32, 32, 3), null, "touching symbols leave no lane");
 });
 
 test("classes are told apart by dash and weight, not colour; widths follow the lane's rating in three steps", () => {
@@ -102,7 +116,7 @@ test("classes on a small network; a direction without a reading gets a glyph mid
   assert.deepEqual(cls, { "c-r1": "up", "e1-r1": "up", "r1-r2": "route", "r2-r3": "heard" });
   assert.equal(stats.glyphs, 1);
   // r2 -> r3 is unknown (r3 hears r2: not listed): travel from r2 (300, 0) down to r3 (300, 250); right of "down"
-  // is to the left on screen, so the glyph sits at x = 500 + 300 - 3 = 797, half way between the marker edges.
+  // is to the left on screen, so the glyph sits at x = 500 + 300 - 3 = 797, half way between the symbol contours.
   const glyph = ctx.calls.find((c) => c[0] === "fillText" && c[1] === "–");
   assert.ok(glyph, "the glyph is drawn");
   assert.ok(Math.abs(glyph[2] - 797) < 1e-9 && Math.abs(glyph[3] - (400 + 125)) < 1e-9, `${glyph[2]}, ${glyph[3]}`);
@@ -154,7 +168,7 @@ test("hover previews the same without the band; debug shows every value", () => 
 
 test("text beside a lane stays clear of it, on its right", () => {
   for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [2, 1]]) {
-    const lane = laneGeometry(0, 0, 300 * dx, 300 * dy, 5, 5, 3);
+    const lane = laneGeometry(0, 0, 300 * dx, 300 * dy, 32, 32, 3);
     const [tx, ty] = textBeside(lane, 40, 14);
     assert.ok(cross(lane.ux, lane.uy, tx - lane.mx, ty - lane.my) > 0);
     // The text box does not reach the lane: its half extent along the normal is less than the distance.

@@ -6,10 +6,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveTheme, ratingColor, parseColor, contrastRatio, cividis, toHex, MIN_CONTRAST, OKABE_ITO, CATEGORY_FILLS,
-  fillColor, powerCategory, FILLS, toLab, deltaE,
+  fillColor, lineColorOn, powerCategory, FILLS, toLab, deltaE,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { recordingContext } from "./graph-fakes.mjs";
+import { SLASH } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
+import { drawnSymbols, recordingContext } from "./graph-fakes.mjs";
 
 test("cividis passes through the 17 published values at t = 0, 1/16, ..., 1", () => {
   const published = ["#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073",
@@ -123,12 +124,24 @@ test("a device without a value under the fill is grey with a slash; rated and of
   const pos = { x: [0, 100, 200], y: [0, 0, 0], pinned: [0, 0, 0], mesh: [1, 1, 1] };
   drawScene(ctx, scene, pos, { cam: { k: 1, cx: 100, cy: 0 }, width: 400, height: 200, dpr: 1, labelZoom: 1,
     debug: false, selected: -1, hovered: -1, fps: null, fill: "reception" }, theme, (text) => text.length * 7);
-  // A slash runs from lower left to upper right inside the marker: moveTo(x - q, y + q), lineTo(x + q, y - q).
-  const slashes = [];
-  ctx.calls.forEach((c, j) => {
-    const next = ctx.calls[j + 1];
-    if (c[0] === "moveTo" && next && next[0] === "lineTo" && next[1] - c[1] > 0
-      && Math.abs((next[1] - c[1]) - (c[2] - next[2])) < 1e-9) slashes.push(Math.round((c[1] + next[1]) / 2));
-  });
+  // The slash runs from lower left to upper right across the symbol's background (symbols.js SLASH, grid units).
+  const slashes = drawnSymbols(ctx.calls, 1).filter((sym) => sym.calls.some((c, j) => c[0] === "moveTo"
+    && c[1] === SLASH[0] && c[2] === SLASH[1] && sym.calls[j + 1][0] === "lineTo" && sym.calls[j + 1][1] === SLASH[2]))
+    .map((sym) => Math.round(sym.x));
   assert.deepEqual(slashes.map((x) => x - 200), [0], "only the unrated device (drawn at x = 200) has a slash");
+});
+
+test("symbol lines keep 3:1 against every fill the map uses, in light and dark themes", () => {
+  // Pictures sit on the fill (spec 8): the lines take the theme's foreground or background, whichever is clearer.
+  for (const background of ["#ffffff", "#fafafa", "#111111", "#1c1c1c"]) {
+    const theme = resolveTheme({ background });
+    const fills = [theme.node, theme.background, ...Object.values(theme.categories).flatMap(Object.values)];
+    for (let r = 0; r <= 1.0001; r += 0.01) fills.push(ratingColor(r, theme));
+    for (const fill of fills) {
+      const line = lineColorOn(fill, theme);
+      assert.ok([theme.foreground, theme.background].includes(line));
+      assert.ok(contrastRatio(parseColor(line), parseColor(fill)) >= 3, `${background}: ${line} on ${fill}`);
+    }
+  }
+  assert.equal(lineColorOn("#00204d", resolveTheme({})), resolveTheme({}).background, "light lines on navy");
 });

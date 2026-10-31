@@ -100,3 +100,23 @@ export function domEvent(type, fields = {}) {
   for (const [key, value] of Object.entries(fields)) Object.defineProperty(e, key, { value });
   return e;
 }
+
+/** Symbols in a recorded frame (graph/symbols.js drawSymbol sets one transform per symbol and resets it to dpr
+ *  afterwards): [{ x, y, size, calls }] with the centre and size in CSS pixels and the calls drawn inside. */
+export function drawnSymbols(calls, dpr = 1) {
+  const out = [];
+  let current = null;
+  for (const c of calls) {
+    if (c[0] === "setTransform") {
+      if (current) out.push(current);
+      current = null;
+      const [, a, , , , e, f] = c;
+      if (!(a === dpr && e === 0 && f === 0)) {
+        const size = (a / dpr) * 24;
+        current = { x: e / dpr + size / 2, y: f / dpr + size / 2, size, calls: [] };
+      }
+    } else if (current) current.calls.push(c);
+  }
+  if (current) out.push(current);
+  return out;
+}

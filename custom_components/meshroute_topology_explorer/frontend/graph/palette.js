@@ -58,7 +58,7 @@ export function contrastRatio(a, b) {
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 /** Shift a colour towards black or white (whichever the background is further from) until it reaches the minimum
- *  contrast. Theme colours come from users' themes; this keeps markers visible whatever they chose. */
+ *  contrast. Theme colours come from users' themes; this keeps symbols visible whatever they chose. */
 export function ensureContrast(color, background, min = MIN_CONTRAST) {
   if (contrastRatio(color, background) >= min) return color;
   const target = luminance(background) > 0.18 ? [0, 0, 0] : [255, 255, 255];
@@ -129,7 +129,7 @@ export function deltaE(a, b) {
  *  theme's stretch of the rating scale and the background (lighter than every rating colour on a light theme, darker
  *  on a dark one), as far (ΔE) from both as possible. A fixed grey sat inside the scale: #707070 matched the weakest
  *  tenth on dark themes, #a3a3a3 the strongest on light ones, so weak reception looked unrated. Black or white would
- *  be further in ΔE but read like the scale's navy or yellow end at marker size. Returns the grey and its smallest
+ *  be further in ΔE but read like the scale's navy or yellow end at symbol size. Returns the grey and its smallest
  *  distance to scale and background. */
 export function noValueGrey(background, range) {
   const scale = [];
@@ -221,6 +221,17 @@ export function resolveTheme(input = {}) {
     categories,
     dark: luminance(bg) < 0.18,
   };
+}
+
+/** Line colour of a symbol on a background fill (spec 8): the theme's foreground or background, whichever contrasts
+ *  more with the fill. Device pictures are drawn on the fill, so dark lines vanish on the navy end of the rating scale
+ *  and light lines on its yellow end; the frame flips with them, while the fill keeps the outline against the map. */
+export function lineColorOn(fill, theme) {
+  const f = parseColor(fill);
+  if (!f) return theme.foreground;
+  const fg = parseColor(theme.foreground);
+  const bg = parseColor(theme.background);
+  return contrastRatio(fg, f) >= contrastRatio(bg, f) ? theme.foreground : theme.background;
 }
 
 /** Colour of a rating (0..1, spec 5.4) inside the theme's contrast-safe stretch of cividis; null for unknown. Lines,

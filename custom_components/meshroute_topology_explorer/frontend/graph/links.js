@@ -10,14 +10,18 @@
 import { computePairs } from "../model/pairs.js";
 import { upPath } from "../model/paths.js";
 import { isActive } from "../model/normalize.js";
+import { contourExit } from "./symbols.js";
 
 /** Classes in drawing order: the more a link carries, the later (higher) it is drawn. */
 export const CLASSES = Object.freeze(["heard", "route", "up"]);
 /** Heard-only pairs shown by default per device: its best by the pair's better rating (decision 2026-10-31). */
 export const BEST_HEARD = 3;
-/** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the markers, lanes stay at least
+/** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
  *  2 px apart. */
 export const LANE_OFFSET = 3;
+/** Room between a lane's end (or its arrowhead's tip) and the symbol's contour, CSS pixels: the tip stays readable
+ *  against the frame. Own choice. */
+export const LANE_GAP = 1;
 /** The selected device's up path: a band in the foreground colour under its lanes. */
 export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
@@ -98,9 +102,9 @@ export function classifyPairs(network) {
 
 /** Geometry of one lane from sender (x1, y1) to hearer (x2, y2) on screen: shifted by `offset` to the right of the
  *  direction of travel (y points down, so the right-hand normal of (ux, uy) is (-uy, ux)) and shortened to the
- *  markers' edges (radii r1, r2). Returns { x0, y0, x1, y1, ux, uy, nx, ny, mx, my, len } or null if the markers
- *  leave no room. (mx, my) is the middle of the lane. */
-export function laneGeometry(x1, y1, x2, y2, r1, r2, offset) {
+ *  symbols' contours (rounded squares of sizes s1, s2, symbols.js) plus LANE_GAP. Returns { x0, y0, x1, y1, ux, uy,
+ *  nx, ny, mx, my, len } or null if the symbols leave no room. (mx, my) is the middle of the lane. */
+export function laneGeometry(x1, y1, x2, y2, s1, s2, offset) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const d = Math.hypot(dx, dy);
@@ -109,9 +113,10 @@ export function laneGeometry(x1, y1, x2, y2, r1, r2, offset) {
   const uy = dy / d;
   const nx = -uy;
   const ny = ux;
-  // Along the shifted line the marker edge is a little closer than its radius; the radius plus 1 px is near enough.
-  const a = r1 + 1;
-  const b = r2 + 1;
+  // The shifted line leaves the sender's contour going forwards and meets the hearer's coming in, i.e. leaving it
+  // backwards; both measured from the foot of the line beside each centre.
+  const a = contourExit(nx * offset, ny * offset, ux, uy, s1) + LANE_GAP;
+  const b = contourExit(nx * offset, ny * offset, -ux, -uy, s2) + LANE_GAP;
   const len = d - a - b;
   if (len < 4) return null;
   const x0 = x1 + ux * a + nx * offset;

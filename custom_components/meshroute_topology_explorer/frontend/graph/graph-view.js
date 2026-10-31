@@ -7,7 +7,7 @@
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:
 // "long-press" | "context-menu" | "key" }, hover { id|null }, pin-change { id, pinned, x, y }.
 // Density (decision by Fabian Schwamborn, 2026-10-31) only lengthens or shortens the lines: the layout is computed
-// once in base units (D = 1) and drawn at base × D; markers, labels, fit and the working scale never depend on D.
+// once in base units (D = 1) and drawn at base × D; symbols, labels, fit and the working scale never depend on D.
 // Pinned positions (events, pin(), setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
 // stored pin keeps its place in the picture whatever the density or the label font.
 // node --test tests/
@@ -133,7 +133,7 @@ export class GraphView extends EventTarget {
   }
 
   /** Change the density (spec 7.1): every position is drawn at base × D, so all lines get longer or shorter while
-   *  markers, labels and the zoom stay as they are. No new layout. The selection keeps its place on screen; without
+   *  symbols, labels and the zoom stay as they are. No new layout. The selection keeps its place on screen; without
    *  one, the point at the centre of the view stays there. */
   setDensity(density) {
     if (!(density > 0) || density === this.density) return;

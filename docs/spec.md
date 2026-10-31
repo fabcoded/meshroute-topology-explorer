@@ -45,6 +45,14 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   relationship `Sibling` / `Child` / `Parent` / `PreviousChild` / `NoneOfTheAbove`, depth, device type,
   receiver-on-when-idle, permit-joining) and a **routing table** (destination and next hop as hex text, status,
   many-to-one, route record required, memory constrained).
+- Each device also carries its **signature**: the node descriptor, whose MAC capability flags say in bit 3 whether
+  the receiver stays on when idle, and its endpoints with profile (Zigbee Home Automation 0x0104, Zigbee Light Link
+  0xc05e), device type and input and output clusters. The **kind** of a device (4.2) comes from its endpoints' device
+  types, the more specific kind winning when endpoints disagree (a remote with a sensor endpoint is a button); if no
+  device type is known, from a server cluster that names one function (lock, cover, thermostat, colour control,
+  occupancy, temperature, IAS zone and other measurements); otherwise the kind is unknown. The coordinator is a hub.
+  Sleep comes from the MAC capability flags, else from a neighbour entry's receiver-on-when-idle, else it is unknown.
+  On the sample every device has a kind and the 12 end devices sleep.
 - Names and areas: `config/area_registry/list`, `config/device_registry/list`; ZHA loaded: `config_entries/get`.
 - `zha/topology/update` starts a **scan**: the coordinator asks every router for its tables, one after another,
   about a second per table page; on the sample network a scan takes minutes. The command never answers: send it
@@ -125,8 +133,10 @@ newest data, completeness (6).
 
 ### 4.2 Device
 Key: the IEEE / extended address, never a name. Network address, **role** (`coordinator`, `router`, `end device`,
-`border router`, `unknown`), power source, vendor, model, display name, area, available, last seen. "Battery
-device" in the interface means an end device whose power source is a battery.
+`border router`, `unknown`), power source, **kind** (light, outlet, relay, button, sensor, motion, temperature,
+thermostat, blind, lock, hub or unknown; the picture of its symbol, 8), **sleepy** (receiver off when idle: yes, no or
+unknown), vendor, model, display name, area, available, last seen. "Battery device" in the interface means an end
+device whose power source is a battery.
 
 ### 4.3 Radio link
 A directed reading "reporter R hears subject S": quality value, scale (`zigbee-lqi` 0–255, `thread-lqi` 0–3,
@@ -263,7 +273,7 @@ the centre).
   and LQI of −0.82, against −0.35 for constant springs.
 - Links (decision by Fabian Schwamborn, 2026-10-31): each pair (4.3) is two lanes, one per direction from sender to
   hearer, each on the right of its own direction of travel (3 px from the centre line at zoom 1, growing with the
-  markers), ending at the markers' edges with an arrowhead at the hearer.
+  symbols), ending 1 px outside the symbols' contour (the rounded square, 8) with an arrowhead at the hearer.
 - Pairs fall into three classes, drawn without colour: up path (a hop of any device's up path, 5.1: solid,
   foreground, strongest), other route (an active, current route's next hop on no up path: round dots, foreground)
   and heard only (readings, no route: dashed, grey); a lane's width follows its own reading's rating in three steps.
@@ -278,12 +288,13 @@ the centre).
   (raw LQI; "Parent" or "Route" on a lane a parent link or route implies) beside the lane, and dims everything that
   does not touch it to about 20 %; hover previews the same without the band.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
-  Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, markers, labels and
-  shapes keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
+  Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
+  keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
   spread one reaches past it), the selection or else the centre of the view stays in place, and the stored density
   (11) applies when the panel loads.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
-  plus L0 / 2, in the layout before D is applied), outlined "unknown".
+  plus L0 / 2, in the layout before D is applied); the ring and the details ("No readings") say so, the symbol does
+  not change (8).
 - Dragging a device pins it (pin mark); "release" in the details or a double click unpins it. Pinned positions are
   stored (11).
 
@@ -311,11 +322,27 @@ user-supplied image, or map tiles from an address the user configured.
 
 ## 8. Visual language [v1]
 
-- Nodes are grey. **Shape** encodes role (circle router, square coordinator, small circle end device, diamond border
-  router); the **outline** encodes state (dashed: unknown; hollow: offline; pin mark: pinned).
-- A device without a value under the current fill (not rated, no category) is grey with a slash across it; per
-  theme the grey lies beyond the rating scale's lightness, on the background's side, at least 15 ΔE from the scale
-  and from the background.
+- **Device symbols** (design by Fabian Schwamborn, 2026-10-31): every device is one symbol, a rounded square on a
+  24-unit grid (outer edge 0.7, corner radius 5.05, frame 1.1) that holds everything about the device; nothing sticks
+  out of it. Inside, scaled 0.92 about the centre: the device's **picture** (its kind, 4.2; the coordinator a hub,
+  "unknown" a question mark), radio arcs above it for radio devices, a cable (plug and bend) below it for wired or also
+  wired devices (the coordinator, border routers); on the right a bed for a sleepy end device, or a crown with "C"
+  (coordinator) or "L" (Thread leader), and then picture, arcs and cable move 3 units left together. Unknown sleep
+  shows no bed.
+- **Role:** a router's frame (coordinators and border routers are routers too) is open at 8 places, two per side at 8
+  and 16, gaps 2.6 wide, each with a short stroke from the outer edge inwards to 2.75; its fill reaches the outer
+  edge, so the outline stays closed and links end at one contour. The strokes mean the role, not a neighbour count.
+  Every other role, unknown included, has a closed frame.
+- **State:** offline has no fill (the map's background), selected a frame of 2.2 grown inwards (the outer edge
+  stays), pinned a small pin inside at the top left. Hover changes only the highlighting (7.1). A dashed outline
+  means nothing: beside the gapped router frame it would be ambiguous; devices without readings show it by their
+  place on the ring (7.1).
+- **Size:** one size for every device, 32 px at zoom 1, growing with the zoom up to 1.5 times (48 px), never below a
+  minimum on screen of 20 px (provisional: the minimum is not decided yet). Symbols never change with the density.
+- The symbol's background carries the fill; its lines take the theme's foreground or background, whichever contrasts
+  more with that fill (at least 3:1 on every fill the map uses). A device without a value under the current fill
+  (not rated, no category) is grey with a slash across its background; per theme the grey lies beyond the rating
+  scale's lightness, on the background's side, at least 15 ΔE from the scale and from the background.
 - One selectable **fill**: reception (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
@@ -327,8 +354,7 @@ user-supplied image, or map tiles from an address the user configured.
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
   smaller zoom) only the coordinator, the selection and its neighbours carry labels; a label tries four places
   around its device before it is left out.
-- Markers keep a minimum size in screen pixels and never change with the density. A legend explains the current view
-  and fill.
+- A legend explains the current view, the fill and the symbols: their signs, the pictures present and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
   per theme: role (coordinator vermillion, router bluish green, end device blue, border router reddish purple) and
   power source (mains blue, battery reddish purple, DC bluish green); devices without a category are grey with a
@@ -368,8 +394,8 @@ user-supplied image, or map tiles from an address the user configured.
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
   (route view). Clicking the background or Esc clears it.
-- **Details** (tab of the drawer): name, vendor, model, addresses, area, role, parent and its availability, LQI at
-  the parent, end-device children, relay load, readings in both directions with their reporters and ratings,
+- **Details** (tab of the drawer): name, vendor, model, device type (kind), addresses, area, role, for end devices
+  whether the receiver is off when idle, parent and its availability, LQI at the parent, end-device children, relay load, readings in both directions with their reporters and ratings,
   routes, findings with evidence, last seen, link to the Home Assistant device page.
 - "Open details on select" defaults to on for wide screens and off for narrow ones. Details also open with
   right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or

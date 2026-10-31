@@ -4,9 +4,9 @@
 // serialized. Tested in Node: node --test tests/
 //
 // Network = { source: 'zha', id, devices, readings, routes, pairs, status, findings, unresolved }
-// Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
-//             children, relayLoad, rating, hasTable, tableSize, tableCapacity, tableCapacitySource, tableFull, parentLqi,
-//             parentFromStaleTable, possiblyStaleParents }
+// Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, kind, sleepy, battery,
+//             available, lastSeen, parent, children, relayLoad, rating, hasTable, tableSize, tableCapacity,
+//             tableCapacitySource, tableFull, parentLqi, parentFromStaleTable, possiblyStaleParents }
 // Reading = { reporter, subject, lqi, measured, scale, relationship, rating, pool, poolMedian }
 // Pair    = { a, b, ab, ba }, direction = { state, lqi, rating, source, reason } (pairs.js)
 // Route   = { owner, destination, nextHop, status, direct, stale }

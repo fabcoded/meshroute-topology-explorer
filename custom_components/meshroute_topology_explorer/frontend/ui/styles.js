@@ -54,8 +54,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 
 /* Map and what floats on it */
 .map { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--mte-bg); }
-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--mte-fg); }
+.map > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+.map > canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--mte-fg); }
 .float { background: var(--mte-card); color: var(--mte-fg); border: 1px solid var(--mte-divider); border-radius: 10px;
   box-shadow: var(--mte-float-shadow); }
 /* Floating groups (decision by Fabian Schwamborn, 2026-10-31): no header bar; places from geometry.js floatingLayout. */
@@ -221,6 +221,8 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
 .row-meta { color: var(--mte-muted); font-size: 12px; }
 .swatches { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .swatches li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.swatches.symbols li, .swatches.pictures li { gap: 12px; }
+.swatches.pictures { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 .scale { margin: 6px 0 10px; }
 .scale p { display: flex; align-items: center; gap: 6px; }
 .small svg { vertical-align: middle; }

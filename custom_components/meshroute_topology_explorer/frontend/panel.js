@@ -468,7 +468,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "list") });
     } else if (d.tab === "legend") {
       renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
-        links: this._view ? this._view.legend() : [], debug: this._debug });
+        devices: this._network ? this._network.devices : [], links: this._view ? this._view.legend() : [], debug: this._debug });
     } else if (d.tab === "settings") {
       keepFocus(this._root, panel, () => renderSettings(panel, { t, settings: this._settings.settings, wide: this._wide,
         pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings, idPrefix: "mte-settings",
