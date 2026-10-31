@@ -3,19 +3,23 @@
 // derived facts (5) and findings (5.6). No DOM, no Home Assistant objects. Plain objects, so a Network can be
 // serialized. Tested in Node: node --test tests/
 //
-// Network = { source: 'zha', id, devices, readings, routes, status, findings, unresolved }
+// Network = { source: 'zha', id, devices, readings, routes, pairs, status, findings, unresolved }
 // Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
-//             children, relayLoad, rating, hasTable, parentLqi, parentFromStaleTable, possiblyStaleParents }
-// Reading = { reporter, subject, lqi, scale, relationship, rating, pool, poolMedian }
+//             children, relayLoad, rating, hasTable, tableSize, tableCapacity, tableFull, parentLqi,
+//             parentFromStaleTable, possiblyStaleParents }
+// Reading = { reporter, subject, lqi, measured, scale, relationship, rating, pool, poolMedian }
+// Pair    = { a, b, ab, ba }, direction = { state, lqi, rating, source, reason } (pairs.js)
 // Route   = { owner, destination, nextHop, status, direct, stale }
 import { normalize } from "./normalize.js";
 import { applyRatings } from "./ratings.js";
 import { relayLoads } from "./paths.js";
+import { computePairs, pairEvidence } from "./pairs.js";
 import { computeFindings, computeStatus } from "./findings.js";
 
 export { parseAddress, parseLqi, normalizeIeee } from "./parse.js";
 export { upPath, downPath } from "./paths.js";
 export { fingerprints, updateObservations, newestChange } from "./observations.js";
+export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";
 
 /** Build a Network from the answer of `zha/devices` and, optionally, the registry answers and the ZHA config entry
@@ -30,6 +34,7 @@ export function buildNetwork(rawDevices, { deviceRegistry, areaRegistry, configE
     source: "zha",
     id: entry ? entry.entry_id : "zha",
     devices, readings, routes,
+    pairs: computePairs({ devices, readings, routes }),
     status: computeStatus({ devices, readings }),
     findings: computeFindings({ devices, readings, routes }),
     unresolved,

@@ -69,7 +69,8 @@ function followRoutes(c, id) {
 }
 
 /** Path from the coordinator to `id`: { ids, complete }. For an end device that the coordinator's routes do not
- *  reach, the path to its parent plus the parent link (the parent's listing of the child is the evidence). */
+ *  reach, the path to its parent plus the parent link (the parent's listing of the child is the evidence), but only
+ *  when the path to the parent is complete; else the incomplete path to the parent is returned as it is. */
 export function downPath(network, id) {
   const c = lookups(network);
   const target = c.byId.get(id);
@@ -78,8 +79,9 @@ export function downPath(network, id) {
   const direct = followRoutes(c, id);
   if (direct.complete || target.role !== "end device" || !target.parent) return direct;
   const viaParent = downPath(network, target.parent);
-  const ids = [...viaParent.ids, id];
-  return { ids, complete: viaParent.complete && target.available };
+  // Delivery to a child is the last hop only when the way to its parent is known; otherwise nothing is appended.
+  if (!viaParent.complete) return viaParent;
+  return { ids: [...viaParent.ids, id], complete: target.available };
 }
 
 /** Relay load per router id (spec 5.2): active routes in available tables that use it as next hop towards another

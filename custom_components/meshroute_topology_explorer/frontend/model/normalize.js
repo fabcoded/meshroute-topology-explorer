@@ -49,6 +49,24 @@ function disambiguate(devices) {
   }
 }
 
+/** Table capacity per model: the largest router-entry count seen in any table of the same manufacturer and model,
+ *  needing at least two devices of that model with a table (one device proves nothing about the limit). Fills
+ *  `tableCapacity` and `tableFull` (true at capacity; null when the capacity or the table is unknown). */
+function applyCapacity(devices) {
+  const peers = new Map();
+  for (const d of devices) {
+    if (d.tableSize === null || !d.vendor || !d.model) continue;
+    const key = `${d.vendor}\u0000${d.model}`;
+    if (!peers.has(key)) peers.set(key, []);
+    peers.get(key).push(d);
+  }
+  for (const list of peers.values()) {
+    if (list.length < 2) continue;
+    const capacity = Math.max(...list.map((d) => d.tableSize));
+    for (const d of list) { d.tableCapacity = capacity; d.tableFull = d.tableSize >= capacity; }
+  }
+}
+
 /** Normalize the raw `zha/devices` list. Returns { devices, readings, routes, unresolved }.
  *  Every device has parent/children fields; ratings and relayLoad are filled in later (ratings.js, paths.js, index.js). */
 export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
@@ -76,6 +94,7 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       battery: role === "end device" && /battery/i.test(powerSource || ""),
       available: Boolean(r.available), lastSeen: text(r.last_seen),
       parent: null, children: [], relayLoad: 0, rating: null, hasTable: false,
+      tableSize: null, tableCapacity: null, tableFull: null,
       parentLqi: null, parentFromStaleTable: false, possiblyStaleParents: [],
     };
     Object.assign(device, baseLabel(device, userName));
@@ -97,11 +116,16 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
   const readings = [];
   const routes = [];
   const candidates = new Map(); // end device id -> [{ reporter, lqi, stale }]
-  const unresolved = { neighbours: 0, routes: 0 };
+  const unresolved = { neighbours: 0, routes: 0, duplicates: 0 };
+  const seenPair = new Map(); // "reporter|subject" -> the reading kept
   for (const [id, r] of raws) {
     const owner = byId.get(id);
     const neighbours = Array.isArray(r.neighbors) ? r.neighbors : [];
     owner.hasTable = owner.available && neighbours.length > 0;
+    // Router entries (routers and the coordinator) are what fills the table; spec 3.1 "table capacity per model".
+    if (owner.hasTable) {
+      owner.tableSize = neighbours.filter((n) => n && (n.device_type === "Router" || n.device_type === "Coordinator")).length;
+    }
     for (const n of neighbours) {
       const subject = n && resolveNeighbour(n);
       if (!subject) { unresolved.neighbours += 1; continue; }
@@ -109,14 +133,28 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       const lqi = parseLqi(n.lqi);
       const relationship = text(n.relationship);
       if (owner.available) {
-        readings.push({ reporter: id, subject, lqi, scale: "zigbee-lqi", relationship, rating: null });
+        // The same neighbour can be listed twice in one table; keep the higher LQI and count the duplicate.
+        const key = `${id}|${subject}`;
+        const kept = seenPair.get(key);
+        if (kept) {
+          unresolved.duplicates += 1;
+          if ((lqi ?? -1) > (kept.lqi ?? -1)) Object.assign(kept, { lqi, measured: lqi > 0, relationship });
+        } else {
+          const reading = { reporter: id, subject, lqi, measured: lqi !== null && lqi > 0, scale: "zigbee-lqi",
+            relationship, rating: null };
+          seenPair.set(key, reading);
+          readings.push(reading);
+        }
       }
       // Child entries between routers record joining, not routing (spec 3.1); only end devices get a parent.
       const subjectDevice = byId.get(subject);
       if (relationship === "Child" && subjectDevice.role === "end device" && owner.role !== "end device"
         && owner.role !== "unknown") {
         if (!candidates.has(subject)) candidates.set(subject, []);
-        candidates.get(subject).push({ reporter: id, lqi, stale: !owner.available });
+        const list = candidates.get(subject);
+        const same = list.find((c) => c.reporter === id);
+        if (!same) list.push({ reporter: id, lqi, stale: !owner.available });
+        else if ((lqi ?? -1) > (same.lqi ?? -1)) same.lqi = lqi;
       }
     }
     for (const e of Array.isArray(r.routes) ? r.routes : []) {
@@ -144,6 +182,7 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
     if (d.parent) byId.get(d.parent).children.push(d.id);
   }
   for (const d of devices) d.children.sort();
+  applyCapacity(devices);
 
   return { devices, readings, routes, unresolved };
 }
