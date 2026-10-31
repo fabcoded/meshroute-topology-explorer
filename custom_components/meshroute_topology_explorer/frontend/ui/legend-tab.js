@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// The legend (spec 8: it explains the current view and fill): the full Legend tab and the small one that sits on the
-// map by default (spec 9.1). Colours come from the resolved map theme, so legend and map always agree. Swatches are
-// small SVG drawings of the map's own shapes. Runs in the browser.
-import { h, svg } from "./dom.js";
+// The legend (spec 8: it explains the current view and fill): the full Legend tab and the legend pill on the map
+// (spec 9.1), collapsed to "Legend ›" or expanded to the fill and the three link classes. Colours come from the
+// resolved map theme and the links part from the graph's own legend entries (link-legend.js), so legend and map always
+// agree. Swatches are small SVG drawings of the map's own shapes. Runs in the browser.
+import { h, svg, icon } from "./dom.js";
 import { ratingColor, CATEGORY_FILLS } from "../graph/palette.js";
+import { linkLegendList } from "./link-legend.js";
 
 /** CSS gradient of the rating scale as the map draws it (the theme's contrast-safe part of cividis). */
 export function ratingGradient(theme) {
@@ -54,14 +56,9 @@ function marker({ shape = "circle", fill, outline, dashed = false, hollow = fals
   return el;
 }
 
-function lineSample(color, dashed, width = 2) {
-  const el = svg("svg", { viewBox: "0 0 32 12", width: 32, height: 12, "aria-hidden": "true" });
-  el.append(svg("path", { d: "M2 6H30", stroke: color, "stroke-width": width, ...(dashed ? { "stroke-dasharray": "4 4" } : {}) }));
-  return el;
-}
-
-/** The Legend tab. ctx: { t, theme (resolved), fill, roles (Set of roles in the network), debug }. */
-export function renderLegend(container, { t, theme, fill, roles, debug }) {
+/** The Legend tab. ctx: { t, theme (resolved), fill, roles (Set of roles in the network), links (GraphView.legend()),
+ *  debug }. */
+export function renderLegend(container, { t, theme, fill, roles, links, debug }) {
   container.replaceChildren();
   container.append(h("h3", { text: t(`legend.fill_${fill}`) }));
   if (fill === "reception") {
@@ -73,9 +70,11 @@ export function renderLegend(container, { t, theme, fill, roles, debug }) {
       h("li", {}, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size, slash: e.slash }), h("span", { text: e.label })))));
   }
 
-  container.append(h("h3", { text: t("legend.lines_title") }),
-    h("p", { class: "small" }, lineSample(ratingColor(0.8, theme), false, 2.2), " ", lineSample(theme.muted, true, 1), " ", t("legend.lines")),
-    h("p", { class: "small", text: t("legend.lanes") }));
+  // Links: what the graph says it draws (three classes without colour, implied lanes, widths, glyphs, band).
+  container.append(h("h3", { text: t("legend.links_title") }),
+    h("p", { class: "small", text: t("legend.links_intro") }),
+    linkLegendList(links || [], t),
+    h("p", { class: "small", text: t("legend.links_default") }));
   if (fill !== "reception") container.append(h("p", { class: "small", text: t("legend.rank") }));
   if (debug) container.append(h("p", { class: "small", text: t("legend.debug") }));
 
@@ -103,19 +102,30 @@ function scale(theme, t) {
     h("p", { class: "small muted" }, marker({ fill: theme.node, outline: theme.outline, size: 10, slash: true }), t("legend.unrated")));
 }
 
-/** The small legend on the map: the current fill in one glance; pressing it opens the Legend tab. */
-export function renderMiniLegend(button, { t, theme, fill, roles }) {
-  button.replaceChildren();
-  button.setAttribute("aria-label", `${t(`legend.fill_${fill}`)}. ${t("legend.open")}`);
-  button.title = t("legend.open");
-  if (fill === "reception") {
-    button.append(h("span", { class: "mini-title", text: t(`legend.fill_${fill}`) }),
-      h("span", { class: "scale-bar mini", style: { background: ratingGradient(theme) } }),
-      h("span", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })));
-  } else {
-    button.append(h("span", { class: "mini-title", text: t(`legend.fill_${fill}`) }),
-      h("span", { class: "mini-swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
+/** The legend pill on the map (spec 9.1): collapsed, a button "Legend ›"; expanded, the current fill and the three
+ *  link classes with a button back to the pill and one to the Legend tab. ctx: { t, theme, fill, roles, links, open,
+ *  onToggle(), onMore() }. Focus stays on the toggle when it flips. */
+export function renderLegendPill(box, { t, theme, fill, roles, links, open, onToggle, onMore }) {
+  const hadFocus = box.contains(box.getRootNode().activeElement);
+  box.replaceChildren();
+  box.classList.toggle("open", open);
+  const toggle = h("button", { type: "button", class: "legend-toggle", "aria-expanded": String(open),
+    "aria-label": open ? t("legend.collapse") : t("legend.expand"), title: open ? t("legend.collapse") : t("legend.expand"),
+    on: { click: onToggle } }, icon("legend", 18), h("span", { text: open ? t(`legend.fill_${fill}`) : t("legend.pill") }),
+  icon(open ? "down" : "right", 16));
+  box.append(toggle);
+  if (open) {
+    if (fill === "reception") {
+      box.append(h("span", { class: "scale-bar mini", style: { background: ratingGradient(theme) } }),
+        h("span", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })));
+    } else {
+      box.append(h("span", { class: "mini-swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
         h("span", { class: "mini-swatch" }, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size ? e.size - 2 : 10, slash: e.slash }),
           h("span", { text: e.label.replace(/ \(.*\)$/, "") })))));
+    }
+    box.append(linkLegendList(links || [], t, { short: true }),
+      h("button", { type: "button", class: "link legend-more", text: t("legend.more"), "aria-label": t("legend.more_label"),
+        on: { click: onMore } }));
   }
+  if (hadFocus) toggle.focus();
 }

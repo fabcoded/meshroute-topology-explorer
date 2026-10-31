@@ -48,6 +48,16 @@ const ICONS = {
   info: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M12 11v6" }],
     ["circle", { cx: 12, cy: 7.5, r: 1.2, fill: "currentColor", stroke: "none" }]],
   link: [["path", { d: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" }]],
+  right: [["path", { d: "M9 6l6 6-6 6" }]],
+  // A list with markers: the legend.
+  legend: [["path", { d: "M10 6h10M10 12h10M10 18h10" }], ["circle", { cx: 5, cy: 6, r: 1.6, fill: "currentColor", stroke: "none" }],
+    ["circle", { cx: 5, cy: 12, r: 1.6, fill: "currentColor", stroke: "none" }], ["circle", { cx: 5, cy: 18, r: 1.6, fill: "currentColor", stroke: "none" }]],
+  // A flag: findings.
+  findings: [["path", { d: "M5 21V4M5 4h11l-2 4 2 4H5" }]],
+  // Two devices pushed apart: density.
+  density: [["circle", { cx: 5, cy: 12, r: 2.5 }], ["circle", { cx: 19, cy: 12, r: 2.5 }], ["path", { d: "M8 12h8M13 9l3 3-3 3M11 9l-3 3 3 3" }]],
+  // A half-filled circle: fill.
+  fill: [["circle", { cx: 12, cy: 12, r: 8 }], ["path", { d: "M12 4a8 8 0 0 1 0 16Z", fill: "currentColor", stroke: "none" }]],
 };
 
 export function icon(name, size = 20) {

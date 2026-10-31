@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const VARIANTS = [
   ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German", "lang=de"], ["Dark", "dark=1"],
     ["German + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
-    ["Debug", "debug=1"]]],
+    ["Debug", "debug=1"], ["Legend collapsed", "legend=closed"], ["Narrow, legend open", "phone=1&legend=open"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
     ["without-coordinator", "variant=without-coordinator"]]],
   ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
@@ -179,6 +179,7 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
+if (q.get("legend")) initial.legendOpen = q.get("legend") === "open";
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
 
@@ -295,7 +296,8 @@ async function replay() {
       if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
     }
     await sleep(op === "wait" ? Number(arg) : 150);
-    log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; drawer ${el._drawer.isOpen ? el._drawer.tab : "closed"}; path ${location.pathname}`);
+    log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; drawer ${el._drawer.isOpen ? el._drawer.tab : "closed"}; path ${location.pathname}; `
+      + `density ${el._settings && el._settings.settings.density}; legendOpen ${el._settings && el._settings.settings.legendOpen}`);
   }
   document.body.dataset.log = log.join(" | ");
 }
