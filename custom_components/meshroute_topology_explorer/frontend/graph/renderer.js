@@ -1,41 +1,31 @@
 // SPDX-License-Identifier: MIT
-// Canvas 2D drawing of the quality view (spec 7.1, 8): grey devices shaped by role, outlined by state, filled by
-// reception (default), role or power source; links as two lanes per pair in three colour-free classes (links.js):
+// Canvas 2D drawing of the quality view (spec 7.1, 8): devices as symbols (symbols.js: role, picture, state) whose
+// background carries the fill, reception (default), role or power source; links as two lanes per pair in three
+// colour-free classes (links.js):
 // up-path and route pairs always, heard-only pairs as each device's best three, everything for the focus and in
 // debug mode; the selection's up path as a band, its lanes with their values; labels as canvas text placed around
-// obstacles. Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
+// obstacles. Also hit testing, which shares the symbols' size. Pure except for the context passed in.
 // node --test tests/
 
 import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
-import { fillColor, powerCategory } from "./palette.js";
+import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
   BAND, BEST_HEARD, CLASSES, DIM, LANE_OFFSET, classifyPairs, laneGeometry, laneStyle, textBeside, unknownGlyph,
 } from "./links.js";
+import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 
-/** Marker sizes in layout units at zoom 1 (diameter or side) and their minimum on screen in CSS pixels (spec 8:
- *  markers keep a minimum size). Markers grow with zoom up to 1.5 times their size, so they never hide the lanes.
- *  Own choice. */
-export const MARKERS = Object.freeze({
-  coordinator: { size: 20, min: 12 },
-  router: { size: 16, min: 10 },
-  "end device": { size: 10, min: 7 },
-  "border router": { size: 18, min: 12 },
-  unknown: { size: 14, min: 9 },
-});
-/** The node diameter in L0 (spec 7.1): a router, the most common device. */
-export const NODE_DIAMETER = MARKERS.router.size;
+/** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
+const ROLES = new Set(["coordinator", "router", "end device", "border router", "unknown"]);
+/** The node diameter in L0 (spec 7.1): every device has the same symbol size. */
+export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
 const LINE_HEIGHT = 14;
 
-export function markerRadius(role, k) {
-  const m = MARKERS[role] || MARKERS.unknown;
-  return Math.max(m.min / 2, Math.min((m.size / 2) * k, (m.size / 2) * 1.5));
-}
-
-export function hitRadius(role, k) {
-  return Math.max(markerRadius(role, k) + 4, MIN_HIT / 2);
+/** Hit radius at zoom k: the symbol and 4 px around it (this covers its rounded corners), at least MIN_HIT across. */
+export function hitRadius(k) {
+  return Math.max(symbolSize(k) / 2 + 4, MIN_HIT / 2);
 }
 
 /** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1; the panel passes its translation),
@@ -63,7 +53,8 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const labels = displayLabels(devices, measure, maxLabelWidth);
   const nodes = devices.map((d, i) => ({
     id: d.id,
-    role: MARKERS[d.role] ? d.role : "unknown",
+    role: ROLES.has(d.role) ? d.role : "unknown",
+    parts: symbolParts({ ...d, role: ROLES.has(d.role) ? d.role : "unknown" }),
     label: labels[i],
     available: d.available !== false,
     rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
@@ -100,23 +91,12 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
 export function hitTest(scene, sx, sy, k, px, py) {
   let best = -1;
   let bestD = Infinity;
+  const reach = hitRadius(k);
   for (let i = 0; i < scene.nodes.length; i++) {
     const d = Math.hypot(sx[i] - px, sy[i] - py);
-    if (d <= hitRadius(scene.nodes[i].role, k) && d < bestD) { best = i; bestD = d; }
+    if (d <= reach && d < bestD) { best = i; bestD = d; }
   }
   return best;
-}
-
-function shapePath(ctx, role, x, y, r) {
-  ctx.beginPath();
-  if (role === "coordinator") {
-    ctx.rect(x - r, y - r, 2 * r, 2 * r);
-  } else if (role === "border router") {
-    const s = r * 1.25;
-    ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath();
-  } else {
-    ctx.arc(x, y, r, 0, 2 * Math.PI);
-  }
 }
 
 /** Text with a halo in the background colour, readable over lines. */
@@ -187,7 +167,7 @@ class RectGrid {
     this._keys(r, (key) => {
       if (hit) return;
       for (const q of this.cells.get(key) || []) {
-        if (q.owner !== undefined && q.owner === r.owner) continue; // a label may touch its own marker
+        if (q.owner !== undefined && q.owner === r.owner) continue; // a label may touch its own symbol
         if (r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) { hit = true; return; }
       }
     });
@@ -199,7 +179,7 @@ class RectGrid {
  *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), texts ({ uncertain, parent, route },
  *  words drawn on lanes) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
- *  class), order (class of each pair in drawing order) }. */
+ *  class), order (class of each pair in drawing order), symbols (devices drawn), size (symbol size on screen) }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -226,8 +206,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // and its own rating; a direction without a reading gets a glyph instead. While something is in focus, the pairs
   // that do not touch it are drawn first and dimmed, then the selection's up path as a band, then the focus's pairs.
   // Within a layer: heard only, other route, up path, so the links that carry traffic lie on top.
-  const growth = markerRadius("router", k) / (MARKERS.router.size / 2);
-  const offset = Math.max(1, LANE_OFFSET * growth);
+  const size = symbolSize(k);
+  const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   const touches = (p) => focusSet.has(p.a) || focusSet.has(p.b);
   const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b) && (view.debug || p.shown || touches(p)));
   const dimming = focus.length > 0;
@@ -249,8 +229,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
         const withValues = view.debug || touches(pair);
         const directions = [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]];
         for (const [from, to, dir, reporter] of directions) {
-          const lane = laneGeometry(sx[from], sy[from], sx[to], sy[to], markerRadius(scene.nodes[from].role, k),
-            markerRadius(scene.nodes[to].role, k), offset);
+          const lane = laneGeometry(sx[from], sy[from], sx[to], sy[to], size, size, offset);
           if (!lane) continue;
           const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
           if (state === "unknown") {
@@ -302,60 +281,29 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (let i = 0; i < n; i++) if (!near.has(i)) nodeOrder.push(i);
   for (const i of near) if (!focusSet.has(i)) nodeOrder.push(i);
   for (const i of focus) nodeOrder.push(i);
+  // Everything about a device stays inside its symbol (spec 8): offline is no fill (the background keeps lines from
+  // showing through), the selection a thicker frame, a pin a mark inside. Hover changes only the highlighting.
   const obstacles = new RectGrid();
+  const half = size / 2;
+  const lineColors = new Map(); // per fill colour: the reception fill has few distinct colours per frame
+  const lineOn = (fill) => {
+    if (!lineColors.has(fill)) lineColors.set(fill, lineColorOn(fill, theme));
+    return lineColors.get(fill);
+  };
+  let symbols = 0;
   for (const i of nodeOrder) {
     if (!onScreen(i)) continue;
     const node = scene.nodes[i];
-    const r = markerRadius(node.role, k);
     const x = sx[i];
     const y = sy[i];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
-    obstacles.add({ x: x - r - 1, y: y - r - 1, w: 2 * r + 2, h: 2 * r + 2, owner: i });
-    shapePath(ctx, node.role, x, y, r);
-    // Offline devices are hollow; a background fill keeps lines from showing through.
-    const fill = node.available ? fillColor(node, view.fill, theme) : null;
-    ctx.fillStyle = node.available ? fill || theme.node : theme.background;
-    ctx.fill();
-    if (node.available && !fill) {
-      // No value under this fill (not rated, no category): grey plus a slash, so colour is not the only sign.
-      const q = r * 0.6;
-      ctx.beginPath();
-      ctx.moveTo(x - q, y + q);
-      ctx.lineTo(x + q, y - q);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = theme.outline;
-      ctx.stroke();
-      shapePath(ctx, node.role, x, y, r); // the outline below strokes the marker again, not the slash
-    }
-    const unknown = !pos.mesh[i] || node.role === "unknown";
-    ctx.setLineDash(unknown ? [3, 2] : []);
-    ctx.lineWidth = focusSet.has(i) ? 2.5 : 1.5;
-    ctx.strokeStyle = theme.outline;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (pos.pinned[i]) {
-      // Pin mark: a short needle from the upper right of the marker with a round head.
-      const px = x + r * 0.7;
-      const py = y - r * 0.7;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + 5, py - 5);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = theme.foreground;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(px + 6, py - 6, 3, 0, 2 * Math.PI);
-      ctx.fillStyle = theme.foreground;
-      ctx.fill();
-    }
-    if (i === view.selected || i === view.hovered) {
-      shapePath(ctx, node.role, x, y, r + 4);
-      ctx.lineWidth = i === view.selected ? 2.5 : 1.5;
-      ctx.setLineDash(i === view.selected ? [] : [3, 3]);
-      ctx.strokeStyle = theme.accent;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i });
+    const value = node.available ? fillColor(node, view.fill, theme) : null;
+    const fill = node.available ? value || theme.node : theme.background;
+    const layers = symbolLayers(node.parts, { selected: i === view.selected, pinned: Boolean(pos.pinned[i]) });
+    // No value under this fill (not rated, no category): grey plus a slash, so colour is not the only sign.
+    drawSymbol(ctx, layers, x, y, size, dpr, { fill, stroke: lineOn(fill), slash: node.available && !value });
+    symbols++;
   }
 
   // Text, in order of importance. A label tries below, above, right and left of its device and is left out if all
@@ -374,7 +322,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!onScreen(i)) return;
     const node = scene.nodes[i];
     const w = measure(node.label) + 4;
-    const r = markerRadius(node.role, k);
+    const r = half;
     const h = LINE_HEIGHT;
     const spots = [
       [sx[i], sy[i] + r + 3 + h / 2], [sx[i], sy[i] - r - 3 - h / 2],
@@ -421,5 +369,6 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, 8, theme);
   }
   const classes = Object.fromEntries(CLASSES.map((c) => [c, drawn.filter((p) => p.cls === c).length]));
-  return { sx, sy, lines: drawn.length, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order };
+  return { sx, sy, lines: drawn.length, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+    symbols, size };
 }

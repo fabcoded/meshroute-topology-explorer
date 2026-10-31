@@ -11,6 +11,11 @@ Acknowledgements (ideas only, no code taken, no source read)
   also popularised by d3-force (Mike Bostock, ISC License).
   The seeded random generator follows mulberry32 by Tommy Ettinger (public domain).
 
+Design input
+  The device symbols (custom_components/meshroute_topology_explorer/frontend/graph/
+  symbols.js) were designed by Fabian Schwamborn with design input from ChatGPT (OpenAI),
+  passed on by him, and completed by Claude (Anthropic). No icon set or logo was used.
+
 Data
   The cividis colour values in custom_components/meshroute_topology_explorer/frontend/
   graph/palette.js are 17 entries of the table published by Nuñez, Anderton and Renslow
