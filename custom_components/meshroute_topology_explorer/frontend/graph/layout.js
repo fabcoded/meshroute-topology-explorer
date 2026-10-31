@@ -12,8 +12,6 @@ import { buildQuadtree, quadtreeForce } from "./quadtree.js";
 
 /** Densities of spec 7.1. */
 export const DENSITY = Object.freeze({ dense: 0.7, medium: 1, spread: 1.5 });
-/** Spring factor of a reading without a usable value (LQI 0 or none), spec 7.1. */
-export const UNKNOWN_FACTOR = 1.5;
 /** Settled: the largest move of a step is below this many layout units (spec 12). */
 export const SETTLE_MOVE = 0.5;
 
@@ -31,9 +29,10 @@ export const PARAMS = Object.freeze({
   theta: 0.8, // Barnes-Hut opening criterion
 });
 
-/** f(q) of spec 7.1 for an LQI of 0..255; unknown (0, null, not a number) gives 1.5. */
+/** f(q) of spec 7.1 for a measured LQI of 1..255. A reading of 0 or without a value is no spring (spec 7.1), so it
+ *  has no factor: null. */
 export function springFactor(lqi) {
-  if (typeof lqi !== "number" || !(lqi > 0)) return UNKNOWN_FACTOR;
+  if (typeof lqi !== "number" || !(lqi > 0)) return null;
   const q = Math.min(lqi, 255) / 255;
   return 1 + 5 * (1 - q) * (1 - q); // a product, not **: Math.pow may be approximated per engine
 }
@@ -86,16 +85,19 @@ export class Layout {
     this.placeRing();
   }
 
-  /** One spring per distinct (reporter, subject); a duplicate keeps the better value. Readings that name unknown
-   *  devices or a device hearing itself are dropped. */
+  /** One spring per distinct (reporter, subject) with a measured value; a duplicate keeps the better value. Readings
+   *  of LQI 0 or without a value (the model marks them measured: false) are no springs: 0 may mean unmeasured, and
+   *  the links view draws such a direction as unknown (decision 2026-10-31). Readings that name unknown devices or a
+   *  device hearing itself are dropped. */
   _buildSprings(readings) {
     const best = new Map();
     for (const r of readings) {
       const a = this.index.get(r && r.reporter);
       const b = this.index.get(r && r.subject);
       if (a === undefined || b === undefined || a === b) continue;
+      if (r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) continue;
       const key = a * this.ids.length + b;
-      const lqi = typeof r.lqi === "number" && r.lqi > 0 ? r.lqi : null;
+      const lqi = r.lqi;
       if (!best.has(key) || (lqi !== null && (best.get(key).lqi === null || lqi > best.get(key).lqi))) {
         best.set(key, { a, b, lqi });
       }

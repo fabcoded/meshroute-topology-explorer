@@ -251,8 +251,9 @@ Two core views, switchable; the choice is stored per network.
 ### 7.1 Quality view [v1]
 Radio readings laid out by a force-directed model (springs along readings, repulsion between all devices, a pull to
 the centre).
-- Every reading is a spring of rest length L = L0 × D × f(q), with q = LQI / 255 and f(q) = 1 + 5 (1 − q)²; a
-  reading of 0 or no value counts as unknown, f = 1.5. A pair with two readings therefore has two springs.
+- Every measured reading is a spring of rest length L = L0 × D × f(q), with q = LQI / 255 and f(q) = 1 + 5 (1 − q)²;
+  a reading of 0 or without a value (unmeasured or very weak, 3.1) is no spring (decision by Fabian Schwamborn,
+  2026-10-31). A pair with two readings therefore has two springs.
 - L0 is the base length: node diameter plus the mean label width in the label font, at zoom 1. D is the density:
   0.7 dense, 1.0 medium (default), 1.5 spread. Repulsion scales with (L0 × D)², so the balance of springs and
   repulsion, and with it the meaning of the picture, is the same in every density: the layout is therefore computed
@@ -260,11 +261,22 @@ the centre).
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
   fidelity and speed targets (12). On the sample network this curve gave a rank correlation between drawn length
   and LQI of −0.82, against −0.35 for constant springs.
-- Pairs are drawn as one line, coloured by the better rating of its readings (5.4). For the selected device, under
-  the pointer, and in debug mode a pair splits into two lanes, each right of its direction of travel, with its value.
-- By default each device shows the lines of its 3 best pairs (by the pair's better rating), plus all pairs of the
-  selection and of the device under the pointer; debug mode shows all, and every reading still shapes the layout
-  (decision by Fabian Schwamborn, 2026-10-31).
+- Links (decision by Fabian Schwamborn, 2026-10-31): each pair (4.3) is two lanes, one per direction from sender to
+  hearer, each on the right of its own direction of travel (3 px from the centre line at zoom 1, growing with the
+  markers), ending at the markers' edges with an arrowhead at the hearer.
+- Pairs fall into three classes, drawn without colour: up path (a hop of any device's up path, 5.1: solid,
+  foreground, strongest), other route (an active, current route's next hop on no up path: round dots, foreground)
+  and heard only (readings, no route: dashed, grey); a lane's width follows its own reading's rating in three steps.
+- A direction without a reading has no lane but a glyph where its lane's middle would be: "–" when the hearer's
+  table does not list the sender (table full, nearly full or with space), "?" when there is no table to ask (end
+  device, missing or stale table) or it says LQI 0. A direction only a route or a parent link proves is a thin dotted
+  grey lane without a head.
+- By default all up-path and route pairs are drawn, heard-only pairs as each device's 3 best (by the pair's better
+  rating), and all pairs of the selection and of the device under the pointer; debug mode draws all. Order: heard
+  only, other route, up path on top.
+- Selecting a device draws its up path as a wide translucent band under its lanes, puts each of its lanes' values
+  (raw LQI; "Parent" or "Route" on a lane a parent link or route implies) beside the lane, and dims everything that
+  does not touch it to about 20 %; hover previews the same without the band.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, markers, labels and
   shapes keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
@@ -307,8 +319,9 @@ user-supplied image, or map tiles from an address the user configured.
 - One selectable **fill**: reception (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
-  dark Home Assistant themes. Colour never carries meaning alone. Lines, lanes and the reception fill share one
-  rating scale: the part of cividis that keeps 3:1 against the theme's background.
+  dark Home Assistant themes. Colour never carries meaning alone. The reception fill uses the part of cividis that
+  keeps 3:1 against the theme's background. Links carry no colour: their class shows by dash (solid, dots, dashes)
+  and the foreground or grey, their rating by width (7.1).
 - Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
   shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
@@ -369,6 +382,8 @@ user-supplied image, or map tiles from an address the user configured.
   (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
   keeps the device clear of the drawer (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
+- A value on a lane sits on the right of its lane at the lane's middle, with a halo, so the two values of a pair
+  never share a side (7.1).
 - Keys: arrows and Enter in the device list (the keyboard path to every device; a text filter above it matches
   words in any order in name, model, vendor, area and addresses); Esc clears selection and stops
   playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was

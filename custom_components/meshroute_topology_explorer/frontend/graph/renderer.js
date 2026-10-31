@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): grey devices shaped by role, outlined by state, filled by
-// reception (default), role or power source; by default each device's 3 best pairs as lines coloured by the pair's
-// better rating, all pairs of the focus as two lanes with their values, all pairs in debug mode; labels as canvas
-// text placed around obstacles.
-// Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
+// reception (default), role or power source; links as two lanes per pair in three colour-free classes (links.js):
+// up-path and route pairs always, heard-only pairs as each device's best three, everything for the focus and in
+// debug mode; the selection's up path as a band, its lanes with their values; labels as canvas text placed around
+// obstacles. Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
 // node --test tests/
 
 import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
-import { ratingColor, fillColor, powerCategory } from "./palette.js";
+import { fillColor, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
+import {
+  BAND, BEST_HEARD, CLASSES, DIM, LANE_OFFSET, classifyPairs, laneGeometry, laneStyle, textBeside, unknownGlyph,
+} from "./links.js";
 
 /** Marker sizes in layout units at zoom 1 (diameter or side) and their minimum on screen in CSS pixels (spec 8:
  *  markers keep a minimum size). Markers grow with zoom up to 1.5 times their size, so they never hide the lanes.
@@ -24,12 +27,6 @@ export const MARKERS = Object.freeze({
 export const NODE_DIAMETER = MARKERS.router.size;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
-/** Lines per device in the default view: its best pairs by rating (decision by Fabian Schwamborn, 2026-10-31). */
-export const BEST_PAIRS = 3;
-/** Distance of each lane from the pair's centre line, CSS pixels. */
-const LANE_OFFSET = 3;
-/** Rating steps for line colours: strokes are grouped by step, weak below strong. */
-const COLOR_STEPS = 32;
 const LINE_HEIGHT = 14;
 
 export function markerRadius(role, k) {
@@ -49,11 +46,12 @@ export function valueText(lqi, uncertain = "0 (uncertain)") {
 }
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-/** Order of two readings of one direction or of a pair: higher rating first, then higher LQI; unknown last. */
+/** Order of two pairs for the default view: higher rating first, then higher LQI; unknown last. */
 const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
 
-/** Static part of the picture for one network: nodes with display labels, pairs with both readings, the pairs shown
- *  by default, neighbours. In a pair, ab is "a hears b" and ba "b hears a", each { lqi, rating } or undefined. */
+/** Static part of the picture for one network: nodes with display labels; pairs with their evidence per direction
+ *  (ab: a hears b, ba: b hears a; { state, lqi, rating, source, reason } from the data model), class and whether the
+ *  default view shows them; every device's up path as node indices; neighbours. */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const seen = new Set();
   const devices = [];
@@ -72,36 +70,30 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     power: powerCategory(d.powerSource),
   }));
   const index = new Map(nodes.map((n, i) => [n.id, i]));
-  const byKey = new Map();
   const neighbours = nodes.map(() => new Set());
-  for (const r of network.readings || []) {
-    const rep = index.get(r && r.reporter);
-    const sub = index.get(r && r.subject);
-    if (rep === undefined || sub === undefined || rep === sub) continue;
-    const a = Math.min(rep, sub);
-    const b = Math.max(rep, sub);
-    const key = a * nodes.length + b;
-    if (!byKey.has(key)) byKey.set(key, { a, b, ab: undefined, ba: undefined });
-    const pair = byKey.get(key);
-    const reading = { lqi: num(r.lqi), rating: num(r.rating) };
-    const side = rep === a ? "ab" : "ba";
-    if (!pair[side] || better(reading, pair[side]) < 0) pair[side] = reading;
+  const { pairs: classed, upPaths } = classifyPairs({ ...network, devices });
+  const pairs = [];
+  for (const p of classed) {
+    const a = index.get(p.a);
+    const b = index.get(p.b);
+    if (a === undefined || b === undefined || a === b) continue;
+    const measured = [p.ab, p.ba].filter((d) => d && d.state === "measured").sort(better)[0] || {};
+    pairs.push({ a, b, ab: p.ab, ba: p.ba, cls: p.cls, index: pairs.length, rating: num(measured.rating),
+      lqi: num(measured.lqi), shown: p.cls !== "heard" });
     neighbours[a].add(b);
     neighbours[b].add(a);
   }
-  const pairs = [...byKey.keys()].sort((p, q) => p - q).map((key, i) => {
-    const pair = byKey.get(key);
-    const best = [pair.ab, pair.ba].filter(Boolean).sort(better)[0];
-    return { ...pair, index: i, rating: best.rating, lqi: best.lqi, best: false };
-  });
-  // Default lines: each device's best pairs; a pair stays if it is among the best of either end.
+  // Heard-only pairs by default: each device's best ones; a pair stays if it is among the best of either end.
   const perNode = nodes.map(() => []);
-  for (const p of pairs) { perNode[p.a].push(p); perNode[p.b].push(p); }
+  for (const p of pairs) if (p.cls === "heard") { perNode[p.a].push(p); perNode[p.b].push(p); }
   for (const list of perNode) {
     list.sort((p, q) => better(p, q) || p.index - q.index);
-    for (const p of list.slice(0, BEST_PAIRS)) p.best = true;
+    for (const p of list.slice(0, BEST_HEARD)) p.shown = true;
   }
-  return { nodes, index, pairs, neighbours, labels, bestCount: pairs.filter((p) => p.best).length };
+  const paths = nodes.map((n) => (upPaths.get(n.id) || []).map((id) => index.get(id)).filter((i) => i !== undefined));
+  const classes = Object.fromEntries(CLASSES.map((c) => [c, pairs.filter((p) => p.cls === c).length]));
+  return { nodes, index, pairs, neighbours, labels, upPaths: paths, classes,
+    shownCount: pairs.filter((p) => p.shown).length };
 }
 
 /** Nearest device whose hit area contains (px, py), as a node index, or -1. sx, sy: screen positions. */
@@ -128,12 +120,51 @@ function shapePath(ctx, role, x, y, r) {
 }
 
 /** Text with a halo in the background colour, readable over lines. */
-function haloText(ctx, text, x, y, theme) {
+function haloText(ctx, text, x, y, theme, color = theme.foreground) {
   ctx.lineWidth = 3;
   ctx.strokeStyle = theme.background;
   ctx.strokeText(text, x, y);
-  ctx.fillStyle = theme.foreground;
+  ctx.fillStyle = color;
   ctx.fillText(text, x, y);
+}
+
+/** One lane (links.js laneGeometry) with the current stroke style; with a head, the stroke stops at the head's base
+ *  and a filled triangle points at the hearer. */
+function drawLane(ctx, lane, style) {
+  const headLen = 4 + style.width * 1.5;
+  const head = style.head && lane.len > headLen + 2;
+  const end = head ? lane.len - headLen : lane.len;
+  ctx.beginPath();
+  ctx.moveTo(lane.x0, lane.y0);
+  ctx.lineTo(lane.x0 + lane.ux * end, lane.y0 + lane.uy * end);
+  ctx.stroke();
+  if (!head) return;
+  const half = 2 + style.width * 0.75;
+  const bx = lane.x1 - lane.ux * headLen;
+  const by = lane.y1 - lane.uy * headLen;
+  ctx.beginPath();
+  ctx.moveTo(lane.x1, lane.y1);
+  ctx.lineTo(bx + lane.nx * half, by + lane.ny * half);
+  ctx.lineTo(bx - lane.nx * half, by - lane.ny * half);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** The selected device's up path as a wide translucent band through its hops (spec 7.1), under its lanes. */
+function drawBand(ctx, path, sx, sy, theme) {
+  if (!path || path.length < 2) return;
+  ctx.globalAlpha = BAND.alpha;
+  ctx.setLineDash([]);
+  ctx.lineWidth = BAND.width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = theme.foreground;
+  ctx.beginPath();
+  ctx.moveTo(sx[path[0]], sy[path[0]]);
+  for (const i of path.slice(1)) ctx.lineTo(sx[i], sy[i]);
+  ctx.stroke();
+  ctx.lineJoin = "miter";
+  ctx.globalAlpha = 1;
 }
 
 /** Rectangles on a coarse grid, so each label checks only what is near it (thousands of lane values in debug mode). */
@@ -165,10 +196,10 @@ class RectGrid {
 }
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), uncertain (text for LQI 0) };
- *  pos: { x, y, pinned, mesh }
- *  arrays by node index; measure(text) for the label font.
- *  Returns what was drawn: { sx, sy, lines, lanes, labels, dropped }. */
+ *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), texts ({ uncertain, parent, route },
+ *  words drawn on lanes) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
+ *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
+ *  class), order (class of each pair in drawing order) }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -191,114 +222,94 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     !(Math.max(sx[a], sx[b]) < -margin || Math.min(sx[a], sx[b]) > width + margin ||
       Math.max(sy[a], sy[b]) < -margin || Math.min(sy[a], sy[b]) > height + margin);
 
-  // Lines: unknown first, then by rating step from weak to strong, so the strong links lie on top; within a step in
-  // pair order. One stroke per line: in Chromium's software rasterizer 2 259 lines took 12 ms stroked one by one
-  // against 38 ms as one path per colour; GPU canvases are fast either way.
-  const lines = [];
-  const lanes = [];
-  for (const pair of scene.pairs) {
-    if (!segmentVisible(pair.a, pair.b)) continue;
-    if (view.debug || focusSet.has(pair.a) || focusSet.has(pair.b)) lanes.push(pair);
-    else if (pair.best) lines.push(pair);
-  }
-  const step = (p) => (p.rating === null ? -1 : Math.round(p.rating * (COLOR_STEPS - 1)));
-  lines.sort((p, q) => step(p) - step(q) || p.index - q.index);
-  ctx.lineCap = "butt";
-  let current = null;
-  for (const p of lines) {
-    const s = step(p);
-    if (s !== current) {
-      current = s;
-      const unknown = s < 0;
-      ctx.setLineDash(unknown ? [4, 4] : []);
-      ctx.lineWidth = unknown ? 1 : 1 + (s / (COLOR_STEPS - 1)) * 1.5;
-      ctx.strokeStyle = unknown ? theme.muted : ratingColor(s / (COLOR_STEPS - 1), theme);
-    }
-    if (theme.lineRange.casing) {
-      // A mid-grey background leaves no contrast-safe colours: give each line a casing in the outline colour.
-      const style = ctx.strokeStyle;
-      const width = ctx.lineWidth;
-      ctx.strokeStyle = theme.outline;
-      ctx.lineWidth = width + 2;
-      ctx.beginPath(); ctx.moveTo(sx[p.a], sy[p.a]); ctx.lineTo(sx[p.b], sy[p.b]); ctx.stroke();
-      ctx.strokeStyle = style;
-      ctx.lineWidth = width;
-    }
-    ctx.beginPath();
-    ctx.moveTo(sx[p.a], sy[p.a]);
-    ctx.lineTo(sx[p.b], sy[p.b]);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-
-  // Lanes: each reading "R hears S" travels from S to R and runs on the right of that direction (y points down, so
-  // the right-hand normal of (ux, uy) is (-uy, ux)); coloured by its own rating, labelled with its raw LQI. Geometry
-  // first, then strokes grouped by style: switching the dash pattern per lane cost more than the lanes themselves.
+  // Links: each direction "R hears S" is a lane from S to R on the right of its travel, styled by the pair's class
+  // and its own rating; a direction without a reading gets a glyph instead. While something is in focus, the pairs
+  // that do not touch it are drawn first and dimmed, then the selection's up path as a band, then the focus's pairs.
+  // Within a layer: heard only, other route, up path, so the links that carry traffic lie on top.
+  const growth = markerRadius("router", k) / (MARKERS.router.size / 2);
+  const offset = Math.max(1, LANE_OFFSET * growth);
+  const touches = (p) => focusSet.has(p.a) || focusSet.has(p.b);
+  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b) && (view.debug || p.shown || touches(p)));
+  const dimming = focus.length > 0;
+  const layers = dimming ? [drawn.filter((p) => !touches(p)), drawn.filter(touches)] : [drawn];
+  const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(view.texts || {}) };
   const laneTexts = [];
-  const laneGroups = new Map(); // colour or "" (unknown rating, dashed) -> lanes
+  const glyphs = [];
+  const order = [];
+  let lanes = 0;
   ctx.font = theme.font;
-  for (const pair of lanes) {
-    const focused = focusSet.has(pair.a) || focusSet.has(pair.b);
-    const directions = [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]];
-    for (const [from, to, reading, reporter] of directions) {
-      const dx = sx[to] - sx[from];
-      const dy = sy[to] - sy[from];
-      const len = Math.hypot(dx, dy);
-      if (len < 1) continue;
-      const ux = dx / len;
-      const uy = dy / len;
-      const ox = -uy * LANE_OFFSET;
-      const oy = ux * LANE_OFFSET;
-      const color = (reading && ratingColor(reading.rating, theme)) || "";
-      if (!laneGroups.has(color)) laneGroups.set(color, []);
-      laneGroups.get(color).push({ x0: sx[from] + ox, y0: sy[from] + oy, dx, dy, ux, uy, len });
-      let text = valueText(reading ? reading.lqi : undefined, view.uncertain);
-      if (view.debug) text += ` ← ${scene.nodes[reporter].label}`;
-      const w = measure(text);
-      if (len < w + 2 * markerRadius("router", k) + 12) continue; // no room on this lane: the details list it
-      // At the middle, beside its own lane: the two values of a pair sit on opposite sides of the line.
-      laneTexts.push({ text, x: sx[from] + dx * 0.5 + ox * 3.5, y: sy[from] + dy * 0.5 + oy * 3.5, w, focused });
+  layers.forEach((layer, li) => {
+    const alpha = dimming && li === 0 ? DIM : 1;
+    if (li === 1 && view.selected >= 0) drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
+    for (const cls of CLASSES) {
+      const items = [];
+      for (const pair of layer) {
+        if (pair.cls !== cls) continue;
+        order.push(cls);
+        const withValues = view.debug || touches(pair);
+        const directions = [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]];
+        for (const [from, to, dir, reporter] of directions) {
+          const lane = laneGeometry(sx[from], sy[from], sx[to], sy[to], markerRadius(scene.nodes[from].role, k),
+            markerRadius(scene.nodes[to].role, k), offset);
+          if (!lane) continue;
+          const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
+          if (state === "unknown") {
+            glyphs.push({ text: unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha });
+            continue;
+          }
+          const style = laneStyle(cls, state, dir.rating, theme);
+          items.push({ lane, style, key: `${style.color}|${style.width}|${style.dash.join(",")}|${style.head}` });
+          if (!withValues) continue;
+          let text = state === "implied" ? (dir.source === "parent" ? texts.parent : texts.route)
+            : valueText(dir.lqi, texts.uncertain);
+          if (view.debug && state === "measured") text += ` \u2190 ${scene.nodes[reporter].label}`;
+          const w = measure(text);
+          if (lane.len < w * Math.abs(lane.ux) + 12) continue; // no room beside this lane: the details list it
+          const [tx, ty] = textBeside(lane, w + 4, LINE_HEIGHT, 1);
+          laneTexts.push({ text, x: tx, y: ty, w, focused: touches(pair), alpha });
+        }
+      }
+      // Grouped by style so the dash pattern changes once per group, not per lane.
+      items.sort((p, q) => (p.key < q.key ? -1 : p.key > q.key ? 1 : 0));
+      ctx.globalAlpha = alpha;
+      let current = null;
+      for (const { lane, style, key } of items) {
+        if (key !== current) {
+          current = key;
+          ctx.setLineDash(style.dash);
+          ctx.lineCap = style.cap;
+          ctx.lineWidth = style.width;
+          ctx.strokeStyle = style.color;
+          ctx.fillStyle = style.color;
+        }
+        drawLane(ctx, lane, style);
+        lanes++;
+      }
     }
-  }
-  ctx.lineWidth = 2;
-  const byStyle = [...laneGroups].sort((p, q) => (p[0] === "") - (q[0] === "") || (p[0] < q[0] ? -1 : 1));
-  for (const [color, group] of byStyle) {
-    ctx.setLineDash(color ? [] : [4, 4]);
-    ctx.strokeStyle = color || theme.muted;
-    ctx.fillStyle = color || theme.muted;
-    for (const l of group) {
-      ctx.beginPath();
-      ctx.moveTo(l.x0, l.y0);
-      ctx.lineTo(l.x0 + l.dx, l.y0 + l.dy);
-      ctx.stroke();
-    }
-    // Arrowheads at 60 % of the way, pointing in the direction of travel, where the lane is long enough to show one.
-    for (const l of group) {
-      if (l.len < 24) continue;
-      const ax = l.x0 + l.dx * 0.6;
-      const ay = l.y0 + l.dy * 0.6;
-      ctx.beginPath();
-      ctx.moveTo(ax + l.ux * 4, ay + l.uy * 4);
-      ctx.lineTo(ax - l.ux * 3 - l.uy * 3.5, ay - l.uy * 3 + l.ux * 3.5);
-      ctx.lineTo(ax - l.ux * 3 + l.uy * 3.5, ay - l.uy * 3 - l.ux * 3.5);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
+  });
   ctx.setLineDash([]);
+  ctx.lineCap = "butt";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const g of glyphs) {
+    ctx.globalAlpha = g.alpha;
+    haloText(ctx, g.text, g.x, g.y, theme, theme.muted);
+  }
+  ctx.globalAlpha = 1;
 
   // Devices: plain ones first, the neighbourhood of the focus above them, the focus on top.
-  const order = [];
-  for (let i = 0; i < n; i++) if (!near.has(i)) order.push(i);
-  for (const i of near) if (!focusSet.has(i)) order.push(i);
-  for (const i of focus) order.push(i);
+  const nodeOrder = [];
+  for (let i = 0; i < n; i++) if (!near.has(i)) nodeOrder.push(i);
+  for (const i of near) if (!focusSet.has(i)) nodeOrder.push(i);
+  for (const i of focus) nodeOrder.push(i);
   const obstacles = new RectGrid();
-  for (const i of order) {
+  for (const i of nodeOrder) {
     if (!onScreen(i)) continue;
     const node = scene.nodes[i];
     const r = markerRadius(node.role, k);
     const x = sx[i];
     const y = sy[i];
+    ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
     obstacles.add({ x: x - r - 1, y: y - r - 1, w: 2 * r + 2, h: 2 * r + 2, owner: i });
     shapePath(ctx, node.role, x, y, r);
     // Offline devices are hollow; a background fill keeps lines from showing through.
@@ -351,10 +362,12 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // four would cover another device or text already placed (the details list everything); the coordinator and the
   // focus are always labelled, below if nothing else is free. Order: coordinator and focus, neighbours of the
   // focus, values on the focus's lanes, everyone else from LABEL_SCALE up, values on other lanes (debug).
+  ctx.globalAlpha = 1;
   ctx.font = theme.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const placed = obstacles; // labels become obstacles for later labels
+  let values = 0;
   let shown = 0;
   let dropped = 0;
   const label = (i, forced) => {
@@ -374,14 +387,19 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!spot && !forced) { dropped++; return; }
     if (!spot) spot = spots[0];
     placed.add({ x: spot[0] - w / 2, y: spot[1] - h / 2, w, h });
+    ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
     haloText(ctx, node.label, spot[0], spot[1], theme);
+    ctx.globalAlpha = 1;
     shown++;
   };
   const value = (t) => {
     const rect = { x: t.x - t.w / 2 - 2, y: t.y - LINE_HEIGHT / 2, w: t.w + 4, h: LINE_HEIGHT };
     if (placed.hits(rect)) return;
     placed.add(rect);
+    ctx.globalAlpha = t.alpha;
     haloText(ctx, t.text, t.x, t.y, theme);
+    ctx.globalAlpha = 1;
+    values++;
   };
   const always = [];
   for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
@@ -402,5 +420,6 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.textBaseline = "top";
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, 8, theme);
   }
-  return { sx, sy, lines: lines.length, lanes: lanes.length, labels: shown, dropped };
+  const classes = Object.fromEntries(CLASSES.map((c) => [c, drawn.filter((p) => p.cls === c).length]));
+  return { sx, sy, lines: drawn.length, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order };
 }

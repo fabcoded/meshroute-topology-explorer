@@ -22,11 +22,11 @@ const sample = buildNetwork(responses["zha/devices"], { deviceRegistry: response
 const l0Of = (network) => baseLength(displayLabels(network.devices, measure), measure, NODE_DIAMETER);
 const report = (t, msg) => (t.diagnostic ? t.diagnostic(msg) : console.log(msg));
 
-test("spring factor follows f(q) = 1 + 5 (1 - q)^2, unknown 1.5", () => {
+test("spring factor follows f(q) = 1 + 5 (1 - q)^2; LQI 0 or no value has none", () => {
   assert.equal(springFactor(255), 1);
   assert.equal(springFactor(127.5), 1 + 5 * 0.25);
   assert.ok(Math.abs(springFactor(1) - (1 + 5 * (254 / 255) ** 2)) < 1e-12);
-  for (const unknown of [0, null, undefined, NaN, "157", -3]) assert.equal(springFactor(unknown), 1.5);
+  for (const unknown of [0, null, undefined, NaN, "157", -3]) assert.equal(springFactor(unknown), null, "no spring");
   for (let v = 1; v < 255; v++) assert.ok(springFactor(v) > springFactor(v + 1), "strictly falling");
 });
 
@@ -106,7 +106,7 @@ test("devices without readings sit evenly on an ellipse just outside the mesh, i
     devices: ["a", "b", "c", "d", "e", "x3", "x1", "x2", "x4"].map((id) => ({ id })),
     readings: [
       { reporter: "a", subject: "b", lqi: 200 }, { reporter: "b", subject: "c", lqi: 90 },
-      { reporter: "c", subject: "d", lqi: 0 }, { reporter: "d", subject: "e", lqi: null },
+      { reporter: "c", subject: "d", lqi: 30 }, { reporter: "d", subject: "e", lqi: 140 },
       { reporter: "a", subject: "ghost", lqi: 50 }, // unknown device: ignored
     ],
   };
@@ -168,6 +168,18 @@ test("pinned devices stay where they are, the others still settle", () => {
     Math.hypot(layout.position(id).x - before[i].x, layout.position(id).y - before[i].y) > 1));
   layout.unpin(ids[10]);
   assert.equal(layout.isPinned(ids[10]), false);
+});
+
+test("LQI 0, no value and readings marked unmeasured are no springs: such devices go to the ring", () => {
+  const layout = new Layout({
+    devices: ["a", "b", "c", "d"].map((id) => ({ id })),
+    readings: [
+      { reporter: "a", subject: "b", lqi: 120 }, { reporter: "b", subject: "c", lqi: 0 },
+      { reporter: "c", subject: "d", lqi: null }, { reporter: "d", subject: "a", lqi: 80, measured: false },
+    ],
+  }, { baseLength: 100 });
+  assert.equal(layout.rest.length, 1);
+  assert.deepEqual(layout.ringIds(), ["c", "d"]);
 });
 
 test("duplicate readings keep the better value; self and unknown readings are dropped", () => {
