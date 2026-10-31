@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part.
-// Pure functions, no DOM. The panel passes theme colours in; nothing here depends on Home Assistant.
+// Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part, the
+// Okabe–Ito colours of the category fills (role, power source) and the grey for "no value". Pure functions, no DOM.
+// The panel passes theme colours in; nothing here depends on Home Assistant.
 // Tested in Node: node --test tests/
 
 /** cividis at t = 0, 1/16, ..., 1: 17 values of the published table (Nuñez, Anderton and Renslow 2018, PLOS ONE,
@@ -13,12 +14,10 @@ const CIVIDIS = [
 
 /** Light and dark defaults, used for anything the caller leaves out. */
 export const LIGHT = Object.freeze({
-  background: "#ffffff", foreground: "#212121", muted: "#6b6b6b", node: "#a3a3a3", accent: "#0b62a4",
-  font: "12px sans-serif",
+  background: "#ffffff", foreground: "#212121", muted: "#6b6b6b", accent: "#0b62a4", font: "12px sans-serif",
 });
 export const DARK = Object.freeze({
-  background: "#111111", foreground: "#e1e1e1", muted: "#9a9a9a", node: "#707070", accent: "#4fb3f0",
-  font: "12px sans-serif",
+  background: "#111111", foreground: "#e1e1e1", muted: "#9a9a9a", accent: "#4fb3f0", font: "12px sans-serif",
 });
 
 /** Minimum contrast of graphic elements against the background (WCAG 2.2, 1.4.11). */
@@ -105,8 +104,98 @@ export function contrastRange(background, min = MIN_CONTRAST) {
   return hi - lo >= 1 / 3 ? { lo, hi, casing: false } : { lo: 0, hi: 1, casing: true };
 }
 
+/** CIELAB of an sRGB colour (D65 white; IEC 61966-2-1 matrix, CIE 15 formulas), for colour distances. */
+export function toLab([r, g, b]) {
+  const lin = (v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [R, G, B] = [lin(r), lin(g), lin(b)];
+  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : t / (3 * (6 / 29) ** 2) + 4 / 29);
+  const fx = f((0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047);
+  const fy = f(0.2126729 * R + 0.7151522 * G + 0.072175 * B);
+  const fz = f((0.0193339 * R + 0.119192 * G + 0.9503041 * B) / 1.08883);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** Colour distance ΔE (CIE 1976) between two sRGB colours. */
+export function deltaE(a, b) {
+  const p = toLab(a);
+  const q = toLab(b);
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+
+/** The grey for "no value under this fill" (not rated, no category). It lies in the lightness gap between the
+ *  theme's stretch of the rating scale and the background (lighter than every rating colour on a light theme, darker
+ *  on a dark one), as far (ΔE) from both as possible. A fixed grey sat inside the scale: #707070 matched the weakest
+ *  tenth on dark themes, #a3a3a3 the strongest on light ones, so weak reception looked unrated. Black or white would
+ *  be further in ΔE but read like the scale's navy or yellow end at marker size. Returns the grey and its smallest
+ *  distance to scale and background. */
+export function noValueGrey(background, range) {
+  const scale = [];
+  for (let t = range.lo; t <= range.hi + 1e-9; t += (range.hi - range.lo) / 64) scale.push(toLab(cividis(t)));
+  const bg = toLab(background);
+  const lightest = Math.max(...scale.map((c) => c[0]));
+  const darkest = Math.min(...scale.map((c) => c[0]));
+  const inGap = (l) => {
+    if (bg[0] > lightest) return l > lightest && l < bg[0];
+    if (bg[0] < darkest) return l < darkest && l > bg[0];
+    return true; // a background inside the scale's lightness: no gap, take the best grey anywhere
+  };
+  let best = { grey: [128, 128, 128], gap: -1 };
+  for (let v = 0; v <= 255; v++) {
+    const lab = toLab([v, v, v]);
+    if (!inGap(lab[0])) continue;
+    let gap = Math.hypot(lab[0] - bg[0], lab[1] - bg[1], lab[2] - bg[2]);
+    for (const s of scale) gap = Math.min(gap, Math.hypot(lab[0] - s[0], lab[1] - s[1], lab[2] - s[2]));
+    if (gap > best.gap) best = { grey: [v, v, v], gap };
+  }
+  return best;
+}
+
+/** Okabe–Ito colours for categories (Okabe and Ito 2008, "Color Universal Design"), spec 8. */
+export const OKABE_ITO = Object.freeze({
+  black: "#000000", orange: "#e69f00", skyBlue: "#56b4e9", bluishGreen: "#009e73", yellow: "#f0e442",
+  blue: "#0072b2", vermillion: "#d55e00", reddishPurple: "#cc79a7",
+});
+
+/** Fills a user can choose (spec 8); reception is the default. Relay load arrives with the route view (v1.1). */
+export const FILLS = Object.freeze(["reception", "role", "power"]);
+
+/** Category -> Okabe–Ito colour per fill. Only the four colours that come close to 3:1 on white and on near-black
+ *  are used (blue, bluish green, vermillion, reddish purple), so one mapping serves light and dark themes and the
+ *  legend means the same in both; resolveTheme nudges the rest of the way. Devices without a category stay grey.
+ *  Shape and outline still carry role and state, and the text views list both, so colour never carries meaning
+ *  alone. */
+export const CATEGORY_FILLS = Object.freeze({
+  role: Object.freeze({ coordinator: "vermillion", router: "bluishGreen", "end device": "blue",
+    "border router": "reddishPurple" }),
+  power: Object.freeze({ mains: "blue", battery: "reddishPurple", dc: "bluishGreen" }),
+});
+
+/** Power category from ZHA's power source text: "Mains (single phase)" and "Emergency Mains ..." are mains;
+ *  "Battery" and "Battery or Unknown" (ZHA's word for anything not mains powered) are battery; "DC Source" is dc;
+ *  anything else, or nothing, has no category. */
+export function powerCategory(text) {
+  if (typeof text !== "string") return null;
+  if (/battery/i.test(text)) return "battery";
+  if (/mains/i.test(text)) return "mains";
+  if (/\bdc\b/i.test(text)) return "dc";
+  return null;
+}
+
+/** Fill colour of a node { role, rating, power } under a fill; null means the theme's grey node colour. */
+export function fillColor(node, fill, theme) {
+  if (fill === "role" || fill === "power") {
+    const key = fill === "role" ? node.role : node.power;
+    return (key && theme.categories[fill][key]) || null;
+  }
+  return ratingColor(node.rating, theme);
+}
+
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
- *  default, picked by the background's luminance. */
+ *  default, picked by the background's luminance. The grey of devices without a value (node) is always derived
+ *  (noValueGrey), so it cannot be mistaken for a rating. */
 export function resolveTheme(input = {}) {
   const bgIn = parseColor(input.background);
   const base = bgIn && luminance(bgIn) < 0.18 ? DARK : LIGHT;
@@ -115,15 +204,21 @@ export function resolveTheme(input = {}) {
   const fg = ensureContrast(pick("foreground"), bg, 4.5);
   const muted = ensureContrast(pick("muted"), bg);
   const range = contrastRange(bg);
+  const categories = {};
+  for (const [fill, map] of Object.entries(CATEGORY_FILLS)) {
+    categories[fill] = Object.fromEntries(Object.entries(map).map(([key, name]) =>
+      [key, toHex(ensureContrast(parseColor(OKABE_ITO[name]), bg))]));
+  }
   return {
     background: toHex(bg),
     foreground: toHex(fg),
     outline: toHex(fg),
     muted: toHex(muted),
-    node: toHex(pick("node")),
+    node: toHex(noValueGrey(bg, range).grey),
     accent: toHex(ensureContrast(pick("accent"), bg)),
     font: typeof input.font === "string" && input.font ? input.font : base.font,
     lineRange: range,
+    categories,
     dark: luminance(bg) < 0.18,
   };
 }

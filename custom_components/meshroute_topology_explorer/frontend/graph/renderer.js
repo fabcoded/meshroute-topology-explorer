@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): grey devices shaped by role, outlined by state, filled by
-// reception; by default each device's 3 best pairs as lines coloured by the pair's better rating, all pairs of the
-// focus as two lanes with their values, all pairs in debug mode; labels as canvas text placed around obstacles.
+// reception (default), role or power source; by default each device's 3 best pairs as lines coloured by the pair's
+// better rating, all pairs of the focus as two lanes with their values, all pairs in debug mode; labels as canvas
+// text placed around obstacles.
 // Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
 // node --test tests/
 
 import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
-import { ratingColor } from "./palette.js";
+import { ratingColor, fillColor, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 
 /** Marker sizes in layout units at zoom 1 (diameter or side) and their minimum on screen in CSS pixels (spec 8:
@@ -40,9 +41,10 @@ export function hitRadius(role, k) {
   return Math.max(markerRadius(role, k) + 4, MIN_HIT / 2);
 }
 
-/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1), "?" for no value or no entry. */
-export function valueText(lqi) {
-  if (lqi === 0) return "0 (uncertain)";
+/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1; the panel passes its translation),
+ *  "?" for no value or no entry. */
+export function valueText(lqi, uncertain = "0 (uncertain)") {
+  if (lqi === 0) return uncertain;
   return typeof lqi === "number" && lqi > 0 ? String(lqi) : "?";
 }
 
@@ -67,6 +69,7 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     label: labels[i],
     available: d.available !== false,
     rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
+    power: powerCategory(d.powerSource),
   }));
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const byKey = new Map();
@@ -162,7 +165,9 @@ class RectGrid {
 }
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
+ *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), uncertain (text for LQI 0) };
+ *  pos: { x, y, pinned, mesh }
+ *  arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines, lanes, labels, dropped }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
@@ -234,7 +239,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   ctx.font = theme.font;
   for (const pair of lanes) {
     const focused = focusSet.has(pair.a) || focusSet.has(pair.b);
-    for (const [from, to, reading, reporter] of [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]]) {
+    const directions = [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]];
+    for (const [from, to, reading, reporter] of directions) {
       const dx = sx[to] - sx[from];
       const dy = sy[to] - sy[from];
       const len = Math.hypot(dx, dy);
@@ -246,7 +252,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const color = (reading && ratingColor(reading.rating, theme)) || "";
       if (!laneGroups.has(color)) laneGroups.set(color, []);
       laneGroups.get(color).push({ x0: sx[from] + ox, y0: sy[from] + oy, dx, dy, ux, uy, len });
-      let text = valueText(reading ? reading.lqi : undefined);
+      let text = valueText(reading ? reading.lqi : undefined, view.uncertain);
       if (view.debug) text += ` ← ${scene.nodes[reporter].label}`;
       const w = measure(text);
       if (len < w + 2 * markerRadius("router", k) + 12) continue; // no room on this lane: the details list it
@@ -255,7 +261,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
   }
   ctx.lineWidth = 2;
-  for (const [color, group] of [...laneGroups].sort((p, q) => (p[0] === "") - (q[0] === "") || (p[0] < q[0] ? -1 : 1))) {
+  const byStyle = [...laneGroups].sort((p, q) => (p[0] === "") - (q[0] === "") || (p[0] < q[0] ? -1 : 1));
+  for (const [color, group] of byStyle) {
     ctx.setLineDash(color ? [] : [4, 4]);
     ctx.strokeStyle = color || theme.muted;
     ctx.fillStyle = color || theme.muted;
@@ -295,8 +302,20 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     obstacles.add({ x: x - r - 1, y: y - r - 1, w: 2 * r + 2, h: 2 * r + 2, owner: i });
     shapePath(ctx, node.role, x, y, r);
     // Offline devices are hollow; a background fill keeps lines from showing through.
-    ctx.fillStyle = node.available ? ratingColor(node.rating, theme) || theme.node : theme.background;
+    const fill = node.available ? fillColor(node, view.fill, theme) : null;
+    ctx.fillStyle = node.available ? fill || theme.node : theme.background;
     ctx.fill();
+    if (node.available && !fill) {
+      // No value under this fill (not rated, no category): grey plus a slash, so colour is not the only sign.
+      const q = r * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x - q, y + q);
+      ctx.lineTo(x + q, y - q);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = theme.outline;
+      ctx.stroke();
+      shapePath(ctx, node.role, x, y, r); // the outline below strokes the marker again, not the slash
+    }
     const unknown = !pos.mesh[i] || node.role === "unknown";
     ctx.setLineDash(unknown ? [3, 2] : []);
     ctx.lineWidth = focusSet.has(i) ? 2.5 : 1.5;

@@ -8,12 +8,12 @@ hass.data and the panel is simply gone, so nobody calls them.
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.json import json_bytes
 
 from .const import DOMAIN, MAX_PAYLOAD_BYTES, NETWORK_ID_PATTERN
 from .store import KINDS, PanelStore, StoreUnavailable
@@ -37,8 +37,14 @@ def _passthrough(msg: dict[str, Any]) -> dict[str, Any]:
 
 
 def _serialized_size(value: Any) -> int:
-    """UTF-8 size of the compact JSON form; raises ValueError for NaN/Infinity or unserializable values."""
-    return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8"))
+    """UTF-8 size of the payload as Home Assistant's own JSON writer sees it; raises if that writer would fail.
+
+    The store is written with orjson (helpers/json.py:189-196, prepare_save_json 199-233); a payload orjson cannot
+    write (nesting beyond its limit, unserializable values) would make every later save of the whole file fail,
+    and storage.py:588-589 only logs that and drops the data. json_bytes (helpers/json.py:61-66) is the same
+    orjson with the same options, minus indentation, so it fails exactly when the store write would.
+    """
+    return len(json_bytes(value))
 
 
 def _make_handler(kind: str, writing: bool):
@@ -66,7 +72,7 @@ def _make_handler(kind: str, writing: bool):
                 return
             try:
                 size = _serialized_size(payload)
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, RecursionError):  # orjson.JSONEncodeError is a TypeError
                 connection.send_error(msg_id, websocket_api.ERR_INVALID_FORMAT, f"{kind} is not valid JSON")
                 return
             if size > MAX_PAYLOAD_BYTES:
@@ -86,6 +92,11 @@ def _get_store(hass: HomeAssistant) -> PanelStore:
     if _STORE_KEY not in hass.data:
         hass.data[_STORE_KEY] = PanelStore(hass)
     return hass.data[_STORE_KEY]
+
+
+async def async_remove_data(hass: HomeAssistant) -> None:
+    """Delete everything the panel stored; called when the integration is removed."""
+    await _get_store(hass).async_remove()
 
 
 def async_register_commands(hass: HomeAssistant) -> None:

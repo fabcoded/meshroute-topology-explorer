@@ -227,7 +227,8 @@ the centre).
   reading of 0 or no value counts as unknown, f = 1.5. A pair with two readings therefore has two springs.
 - L0 is the base length: node diameter plus the mean label width in the label font, at zoom 1. D is the density:
   0.7 dense, 1.0 medium (default), 1.5 spread. Repulsion scales with (L0 × D)², so the balance of springs and
-  repulsion, and with it the meaning of the picture, is the same in every density.
+  repulsion, and with it the meaning of the picture, is the same in every density: the layout is therefore computed
+  once with D = 1 and drawn at D times its positions.
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
   fidelity and speed targets (12). On the sample network this curve gave a rank correlation between drawn length
   and LQI of −0.82, against −0.35 for constant springs.
@@ -236,12 +237,13 @@ the centre).
 - By default each device shows the lines of its 3 best pairs (by the pair's better rating), plus all pairs of the
   selection and of the device under the pointer; debug mode shows all, and every reading still shapes the layout
   (decision by Fabian Schwamborn, 2026-10-31).
-- The density sets the working scale (decision by Fabian Schwamborn, 2026-10-31): overview and "fit" stay as they are,
-  and zooming to a device goes to the scale at which the median distance from each device to its nearest neighbour
-  on screen equals D × the mean label width (dense keeps context, medium lets labels fit, spread gives lane values
-  room); the stored density (11) applies when the panel loads.
+- The density changes only the distances between connected devices, never the devices themselves (decision by
+  Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, markers, labels and
+  shapes keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
+  spread one reaches past it), the selection or else the centre of the view stays in place, and the stored density
+  (11) applies when the panel loads.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
-  plus L0 × D / 2), outlined "unknown".
+  plus L0 / 2, in the layout before D is applied), outlined "unknown".
 - Dragging a device pins it (pin mark); "release" in the details or a double click unpins it. Pinned positions are
   stored (11).
 
@@ -271,6 +273,9 @@ user-supplied image, or map tiles from an address the user configured.
 
 - Nodes are grey. **Shape** encodes role (circle router, square coordinator, small circle end device, diamond border
   router); the **outline** encodes state (dashed: unknown; hollow: offline; pin mark: pinned).
+- A device without a value under the current fill (not rated, no category) is grey with a slash across it; per
+  theme the grey lies beyond the rating scale's lightness, on the background's side, at least 15 ΔE from the scale
+  and from the background.
 - One selectable **fill**: reception (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
@@ -278,19 +283,39 @@ user-supplied image, or map tiles from an address the user configured.
   rating scale: the part of cividis that keeps 3:1 against the theme's background.
 - Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
   shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
-  tied to the working scale (7.1: devices half a label width from their nearest neighbour) only the coordinator,
-  the selection and its neighbours carry labels; a label tries four places around its device before it is left out.
-- Markers keep a minimum size in screen pixels. A legend explains the current view and fill.
+  measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
+  smaller zoom) only the coordinator, the selection and its neighbours carry labels; a label tries four places
+  around its device before it is left out.
+- Markers keep a minimum size in screen pixels and never change with the density. A legend explains the current view
+  and fill.
+- Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
+  per theme: role (coordinator vermillion, router bluish green, end device blue, border router reddish purple) and
+  power source (mains blue, battery reddish purple, DC bluish green); devices without a category are grey with a
+  slash. ZHA's
+  "Battery or Unknown" counts as battery, and the legend says so.
 
 ## 9. Interaction [v1]
 
 ### 9.1 What is on screen
-- **Default:** map, legend, status line, view switch, density, a findings badge with a count. Nothing else.
+- **Default:** map, legend, status line, view switch **[v1.1]** (v1 has one view), density, a findings badge with a
+  count. Nothing else.
 - **One drawer** (side on wide screens; bottom sheet on narrow ones, opened collapsed to one line) with the tabs
   Details, Devices, Findings, Legend, Settings; at most one drawer open; it never covers the selected device (the
   map pans if needed).
 - **Debug mode** (menu, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since".
+- Wide means a panel at least 720 px wide; the side drawer takes 36 % of it within 320–400 px. The expanded sheet
+  takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
+  sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
+  button) it starts expanded, since a list in one line shows nothing.
+- The findings badge counts findings without hints ("very low reading") and each missing table once (decision
+  2026-10-31). "Data incomplete" and the hedged "parent unknown (tables of … missing)" are consequences of missing
+  tables, not verdicts: the Findings tab lists them together by the table they name (a finding that lacks several
+  tables under each of them, a table only one device misses flat), and the badge counts them only through that
+  table. The unhedged "no parent" is a finding of its own. Hints sit in their own collapsed group.
+- The legend on the map is a small summary of the current fill that opens the Legend tab. The header carries the
+  menu (devices, legend, settings, debug mode, fit, release all pins, read data again) and, on narrow screens, the
+  sidebar button.
 
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
@@ -301,16 +326,22 @@ user-supplied image, or map tiles from an address the user configured.
 - "Open details on select" defaults to on for wide screens and off for narrow ones. Details also open with
   right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or
   the menu key.
+- The info button sits in a small chip on the map (name, Details, clear) while a device is selected and the drawer
+  is not on Details. "Open details on select" applies to selections on the map: it opens a closed drawer or follows
+  on the Details tab, never takes another tab away; selecting from a list (Devices, Findings, a device named in
+  Details) zooms to the device and keeps the list.
 
 ### 9.3 Gestures and keys
 - One gesture model: a press that moves less than 8 px is a tap; more is a drag (node: pin and move; background:
   pan). Long press: 500 ms without moving 8 px. Pinch zooms. Wheel: × 1.2 per notch around the pointer. Zoom range
   0.1 to 8 times the fitted view. Buttons +, −, fit.
 - Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
-  scale (7.1; never out past the overview) and keeps the device clear of the drawer (decision by Fabian
-  Schwamborn, 2026-10-31).
+  scale, a fixed zoom at which devices of the medium layout sit one mean label width from their nearest neighbour
+  (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
+  keeps the device clear of the drawer (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
-- Keys: arrows and Enter in the device list (the keyboard path to every device); Esc clears selection and stops
+- Keys: arrows and Enter in the device list (the keyboard path to every device; a text filter above it matches
+  words in any order in name, model, vendor, area and addresses); Esc clears selection and stops
   playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was
   opened. Hit areas are at least 24 px on screen.
 - Every value on the canvas also exists as text; the canvas is described by the status line; playback is announced
@@ -318,7 +349,8 @@ user-supplied image, or map tiles from an address the user configured.
 
 ### 9.4 Errors and empty states
 Clear messages for: ZHA not loaded; user not an administrator; connection lost (retry automatically); Home
-Assistant too old for a source; no devices yet; scan running.
+Assistant too old for a source; no devices yet; scan running. A connection lost while the map is shown keeps the last
+picture under a banner and reads again when the connection is back.
 
 ## 10. Integration [v1]
 
@@ -336,6 +368,10 @@ Assistant too old for a source; no devices yet; scan running.
   Errors: `unauthorized` (not an administrator), `invalid_format` (bad `network`, field missing or not an object),
   `payload_too_large`, `storage_unavailable` (the stored file cannot be read; nothing is written then).
   Registered once per run on entry setup; they keep answering after unload.
+  A corrupt store file is moved aside by Home Assistant itself and counts as never set; `storage_unavailable` appears
+  only for a newer store version or I/O errors. Payload validity is checked with Home Assistant's JSON writer, so
+  anything the store could not write (for example nesting deeper than 254 levels) is `invalid_format`. Removing the
+  integration deletes the store file.
 - Serves the panel files from a path that contains the version, so caching is safe; registers the path once.
 - The panel defines its custom element only if it is free, compares its version with the integration's and asks
   for a reload when they differ; it does not reload data when Home Assistant pushes a new state object; it
@@ -346,6 +382,13 @@ Assistant too old for a source; no devices yet; scan running.
 
 View, direction (v1.1), density, fill, "open details on select", pinned positions; later geo positions and map
 background address (empty by default).
+
+The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
+reads the stored object and writes back only what it changed, so last write wins per key and pins merge per device;
+keys it does not know are kept. Stored settings are untrusted input: pins only under device addresses, coordinates
+within ±1000 base lengths. If the integration lacks the commands or the stored object cannot be read, the settings
+live in memory and the Settings tab says so; nothing stored is then overwritten. After a lost connection the panel
+reads them again on reconnect.
 
 ## 12. Acceptance [v1]
 

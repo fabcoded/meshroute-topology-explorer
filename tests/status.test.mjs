@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { deviceRows, blockingState } from "../custom_components/meshroute_topology_explorer/frontend/status.js";
+import { blockingState, statusParts, isIncomplete, completenessPercent } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { deviceRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 
 const sample = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8"));
@@ -24,9 +25,25 @@ test("status counts on the sample: only available routers count (spec 6), the co
 test("deviceRows are sorted text rows; blockingState follows spec 9.4", () => {
   const rows = deviceRows(buildNetwork(sample.responses["zha/devices"]));
   assert.equal(rows.length, 45);
-  assert.ok(rows.every((r) => typeof r.name === "string" && r.name));
+  assert.ok(rows.every((r) => typeof r.label === "string" && r.label));
   assert.equal(blockingState({ isAdmin: false, configEntries: [] }), "not_admin");
   assert.equal(blockingState({ isAdmin: true, configEntries: [] }), "zha_not_loaded");
   assert.equal(blockingState({ isAdmin: true, configEntries: [{ domain: "zha", state: "setup_error" }] }), "zha_not_loaded");
   assert.equal(blockingState({ isAdmin: true, configEntries: sample.responses["config_entries/get"] }), null);
+});
+
+test("status line parts on the sample and a network below 90 %", () => {
+  const network = buildNetwork(sample.responses["zha/devices"]);
+  const parts = statusParts(network);
+  assert.deepEqual(parts.map(([key]) => key),
+    ["status.source", "status.tables", "status.listed", "status.complete", "status.scan_hint"]);
+  assert.deepEqual(parts[1][1], { x: 29, y: 29 });
+  assert.equal(isIncomplete(network.status), false);
+  const low = { ...network.status, completeness: 26 / 29 };
+  assert.equal(completenessPercent(low), 89, "rounded down: 89.7 % is not shown as 90 %");
+  assert.equal(isIncomplete(low), true);
+  assert.equal(completenessPercent({ completeness: 0.9 }), 90);
+  assert.equal(isIncomplete({ completeness: 0.9 }), false);
+  const later = statusParts(network, { unchangedSince: "2026-01-01 11:30" }).map(([key]) => key);
+  assert.ok(later.indexOf("status.unchanged") === 4, "the seam for observations sits before the scan hint");
 });

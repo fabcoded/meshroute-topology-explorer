@@ -9,7 +9,8 @@
   through `zha/topology/update`.
 - Files Home Assistant serves (everything under custom_components/, any text format) must not contain outside URLs,
   including ws://, wss:// and protocol-relative ones; a map background URL comes from user configuration, never from
-  code. URL_ALLOW is matched exactly up to a path boundary.
+  code. URL_ALLOW is matched exactly up to a path boundary. NAMESPACES are XML namespace names, matched exactly: they
+  name a vocabulary and are never fetched, and document.createElementNS() needs the SVG one to draw icons.
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
 - Shipped files (everything under custom_components/ except vendor/) may only have the extensions in SHIPPED_EXT.
@@ -60,13 +61,14 @@ SHIPPED_EXT = {".png", ".json", ".js", ".mjs", ".py", ".css", ".svg", ".html", "
 TEXT = SOURCE + (".html", ".css", ".json", ".svg", ".yaml", ".yml", ".md", ".txt")
 URL = re.compile(r"""(?:(?:https?|wss?):|(?<=['"`(=\s]))//[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?[^\s'"`)<>]*""", re.IGNORECASE)
 URL_ALLOW = ("https://github.com/fabcoded/meshroute-topology-explorer",)
+NAMESPACES = ("http://www.w3.org/2000/svg",)
 SELF = {"tools/guard.py", "tests/test_guard.py"}  # they have to spell out the deny-list
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 
 
 def allowed(url: str) -> bool:
     """True if url is an allow-listed address or a path below it (no lookalike hosts or names)."""
-    return any(url == base or url.startswith(base + "/") for base in URL_ALLOW)
+    return url in NAMESPACES or any(url == base or url.startswith(base + "/") for base in URL_ALLOW)
 
 
 def content_findings(line: str) -> list[str]:
