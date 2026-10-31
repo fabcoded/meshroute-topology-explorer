@@ -1,9 +1,9 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MIT -->
-<!-- Prototype (not shipped): seven ways to draw directed, asymmetric radio readings on the quality view's layout, to
+<!-- Prototype (not shipped): eight ways to draw directed, asymmetric radio readings on the quality view's layout, to
      compare side by side. Serve the repository root and open the page:
        python3 -m http.server 8826 --bind 127.0.0.1   then open   http://127.0.0.1:8826/dev/links.html
-     Query keys: option=1..7, select=<label>, implied=1 (show implied links), all=1 (all pairs instead of each
+     Query keys: option=1..8, select=<label>, implied=1 (show implied links), all=1 (all pairs instead of each
      device's 3 best), theme=dark, reveal=1 (centre the selection at the panel's working scale), zoom=<factor> (with
      reveal), pair=<label>,<label> (highlight a pair, option 6). Click a device to select it, drag to pan, wheel to
      zoom, Esc clears. -->
@@ -58,6 +58,7 @@
         <option value="5">5 Hearing fan on selection</option>
         <option value="6">6 Adjacency matrix</option>
         <option value="7">7 Asymmetry ring at the node</option>
+        <option value="8">8 Used green, unused grey (Fabian's default)</option>
       </select>
     </label>
     <label><input type="checkbox" id="implied"> show implied links</label>

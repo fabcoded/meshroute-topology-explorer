@@ -1,35 +1,40 @@
 // SPDX-License-Identifier: MIT
 // Prototype behind dev/links.html (not shipped): the sample network on the quality view's layout (computed once at
-// D = 1 with seed 1, as the panel does), drawn in one of seven ways that show both directions of a pair and how well
-// each direction is evidenced. Evidence per pair: "both" (a reading in each direction), "one" (a reading in one
-// direction only), "implied" (no reading, but an active route's next hop or a parent proves the link). A reading
-// "R hears S" belongs to R, the reporter (spec 4.3). See dev/links.html for serving and the query keys.
+// D = 1 with seed 1, as the panel does), drawn in one of eight ways that show both directions of a pair and how well
+// each direction is evidenced; option 8 is the default Fabian Schwamborn chose after options 1-7 (used links green).
+// Evidence per pair: "both" (a reading in each direction), "one" (a reading in one direction only), "implied" (no
+// reading, but an active route's next hop or a parent proves the link). A reading "R hears S" belongs to R, the
+// reporter (spec 4.3). See dev/links.html for serving and the query keys.
 
 import { Layout, baseLength } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 import {
   buildScene, hitTest, markerRadius, valueText, NODE_DIAMETER,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import {
-  LIGHT, DARK, OKABE_ITO, resolveTheme, ratingColor, fillColor, ensureContrast, parseColor, toHex,
+  LIGHT, DARK, OKABE_ITO, resolveTheme, ratingColor, fillColor, ensureContrast, parseColor, toHex, luminance,
+  contrastRatio,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import {
   bounds, fitCamera, toScreen, zoomAt, panBy,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/camera.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork, upPath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 
 const q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
 const canvas = $("map");
 const ctx = canvas.getContext("2d");
 const S = {
-  option: Math.min(7, Math.max(1, Number(q.get("option")) || 1)), implied: q.get("implied") === "1",
+  option: Math.min(8, Math.max(1, Number(q.get("option")) || 1)), implied: q.get("implied") === "1",
   all: q.get("all") === "1", selected: -1, pair: null, cam: null, moved: false, w: 0, h: 0, dpr: 1,
+  path: [], faded: new Set(),
 };
 let theme; let net; let scene; let ev; let pos; let sx; let sy;
 
 const DASHED = [4, 4];
 const DOTTED = [1.5, 4];
 const LINE_HEIGHT = 14;
+/** Option 8: contrast of the four strength steps against the background; 3.2:1 keeps a margin over WCAG's 3:1. */
+const STEPS = [3.2, 4.5, 6.5, 9];
 
 // ---- data -----------------------------------------------------------------------------------------------------------
 
@@ -57,6 +62,16 @@ const valueOf = (p, reporter) => {
   const rd = hears(p, reporter);
   return rd ? valueText(rd.lqi, "0?") : missingText(reporter);
 };
+
+/** Strength step 0..3 of a reading (the quarter of its rating), null without a rating (no reading, or LQI 0). */
+const stepOf = (rd) => {
+  const r = rating(rd);
+  return r === null ? null : Math.min(3, Math.floor(r * 4));
+};
+/** Used: on an up path or an active route's next hop, or an end device's parent link. Up path hops are route next hops
+ *  or parent links, so this is every pair an active, current route or a parent proves. */
+const isUsed = (p) => p.via.size > 0;
+const pathOf = (i) => upPath(net, scene.nodes[i].id);
 
 /** Evidence pairs from the scene's reading pairs plus links proven by routes and parents. */
 function evidence() {
@@ -216,20 +231,25 @@ function baseline(pairs, texts) {
   });
 }
 
+/** The two halves of a pair, fn(end, x0, y0, x1, y1) per half; a small break marks the middle, where two similar
+ *  colours would otherwise run into each other. */
+function eachHalf(p, fn) {
+  const g = way(p.a, p.b);
+  if (!g) return;
+  const gap = Math.min(2, g.len / 8) / g.len;
+  for (const [end, t0, t1] of [[p.a, 0, 0.5 - gap], [p.b, 0.5 + gap, 1]]) {
+    fn(end, g.x0 + g.dx * t0, g.y0 + g.dy * t0, g.x0 + g.dx * t1, g.y0 + g.dy * t1);
+  }
+}
+
 /** 2: two halves per pair; the half at each end shows what that end hears, a missing half is dashed grey. */
 function halves(pairs, texts) {
-  eachPair(pairs, texts, (p, focus) => {
-    const g = way(p.a, p.b);
-    if (!g) return;
-    const gap = Math.min(2, g.len / 8) / g.len; // a small break marks the middle where two similar colours meet
-    for (const [end, t0, t1] of [[p.a, 0, 0.5 - gap], [p.b, 0.5 + gap, 1]]) {
-      const r = rating(hears(p, end));
-      const width = r === null ? (focus ? 2 : 1) : focus ? 3 : 1 + r * 1.5;
-      seg(ctx, g.x0 + g.dx * t0, g.y0 + g.dy * t0, g.x0 + g.dx * t1, g.y0 + g.dy * t1, colorOf(r), width,
-        r === null ? DASHED : []);
-      if (focus) textNear(texts, p, end);
-    }
-  });
+  eachPair(pairs, texts, (p, focus) => eachHalf(p, (end, x0, y0, x1, y1) => {
+    const r = rating(hears(p, end));
+    const width = r === null ? (focus ? 2 : 1) : focus ? 3 : 1 + r * 1.5;
+    seg(ctx, x0, y0, x1, y1, colorOf(r), width, r === null ? DASHED : []);
+    if (focus) textNear(texts, p, end);
+  }));
 }
 
 /** 3: one wedge per reading, wide at the device that hears, width by rating (tapered edges after Holten and van Wijk
@@ -264,6 +284,23 @@ function evidenceStyle(pairs, texts) {
   });
 }
 
+/** The two arcs of a pair of the selection s: "in" (s hears x, travelling x -> s) and "out" (x hears s, travelling
+ *  s -> x), each bulging right of its way, with an arrowhead and the value at its apex. paint(reading) gives
+ *  { color, width, dash }. */
+function arcPair(p, s, texts, paint) {
+  const x = other(p, s);
+  for (const [from, to] of [[x, s], [s, x]]) {
+    const g = way(from, to);
+    if (!g) continue;
+    const rd = hears(p, to);
+    const { color, width, dash } = paint(rd);
+    const at = arc(ctx, g.x0, g.y0, g.x1, g.y1, Math.max(8, Math.min(22, g.len * 0.15)), color, width, dash);
+    if (rd && g.len >= 36) { const a = at(0.75); arrow(ctx, a.x, a.y, a.ux, a.uy, color); }
+    const mid = at(0.5);
+    if (g.len >= 40) texts.push({ text: valueOf(p, to), x: mid.x + g.nx * 8, y: mid.y + g.ny * 8 });
+  }
+}
+
 /** 5: calm grey lines; the selection fans out into arcs: into it what it hears, out of it who hears it. */
 function fan(pairs, texts) {
   const s = S.selected;
@@ -271,22 +308,13 @@ function fan(pairs, texts) {
     const g = !isFocus(p) && way(p.a, p.b);
     if (g) seg(ctx, g.x0, g.y0, g.x1, g.y1, theme.muted, 1, p.cls === "implied" ? DOTTED : [], s >= 0 ? 0.3 : 0.6);
   }
+  const paint = (rd) => {
+    const r = rating(rd);
+    return { color: colorOf(r), width: rd ? 2.5 : 1.5, dash: r === null ? [3, 3] : [] };
+  };
   for (const p of pairs) {
     if (!isFocus(p)) continue;
-    if (p.cls === "implied") { impliedLine(p, true, texts); continue; }
-    const x = other(p, s);
-    // "in": s hears x, travelling x -> s; "out": x hears s, travelling s -> x. Each bulges right of its way.
-    for (const [from, to] of [[x, s], [s, x]]) {
-      const g = way(from, to);
-      if (!g) continue;
-      const rd = hears(p, to);
-      const r = rating(rd);
-      const b = Math.max(8, Math.min(22, g.len * 0.15));
-      const at = arc(ctx, g.x0, g.y0, g.x1, g.y1, b, colorOf(r), rd ? 2.5 : 1.5, r === null ? [3, 3] : []);
-      if (rd && g.len >= 36) { const a = at(0.75); arrow(ctx, a.x, a.y, a.ux, a.uy, colorOf(r)); }
-      const mid = at(0.5);
-      if (g.len >= 40) texts.push({ text: valueOf(p, to), x: mid.x + g.nx * 8, y: mid.y + g.ny * 8 });
-    }
+    if (p.cls === "implied") impliedLine(p, true, texts); else arcPair(p, s, texts, paint);
   }
 }
 
@@ -323,6 +351,39 @@ function rings() {
   }
 }
 
+/** Option 8 paint of one half or arc: used links green, unused grey, both in the equal-contrast steps of the theme
+ *  (darker on light themes, lighter on dark ones) and wider with strength; without a rating dashed in the weakest
+ *  step. strong: on the selection's up path. */
+function paint8(p, rd, strong) {
+  const k = stepOf(rd);
+  const used = isUsed(p);
+  const width = (used ? 2 : 1) + (k ?? 0) * (used ? 0.5 : 0.3) + (strong ? 1.5 : 0) - (k === null ? 0.5 : 0);
+  return { color: (used ? theme.green : theme.grey)[k ?? 0], width, dash: k === null ? DASHED : [] };
+}
+
+/** 8, the default Fabian Schwamborn chose (2026-10-31): used links always, green; unused ones grey under the line
+ *  filter (3 best per device, or all); both as half-lines. With a selection: its up path to the coordinator on a
+ *  green band with each hop's values, its pairs as the arcs of option 5, everything else dimmed. */
+function usedLinks(pairs, texts) {
+  const s = S.selected;
+  const onPath = new Set(S.path.slice(1).map((j, n) => ev.pairOf(S.path[n], j)).filter(Boolean));
+  for (const p of onPath) {
+    const g = way(p.a, p.b);
+    if (g) seg(ctx, g.x0, g.y0, g.x1, g.y1, theme.green[1], 11, [], 0.3);
+  }
+  const plain = [...pairs.filter((p) => !isUsed(p)), ...ev.pairs.filter(isUsed)].filter((p) => !isFocus(p));
+  for (const p of plain) {
+    const path = onPath.has(p);
+    const dim = s >= 0 && !path; // dimmed: thin and faint, a backdrop for the selection rather than a picture
+    eachHalf(p, (end, x0, y0, x1, y1) => {
+      const { color, width, dash } = paint8(p, hears(p, end), path);
+      seg(ctx, x0, y0, x1, y1, color, dim ? Math.min(width, 1.5) : width, dash, dim ? 0.15 : 1);
+      if (path) textNear(texts, p, end);
+    });
+  }
+  if (s >= 0) for (const p of ev.neighbours[s]) arcPair(p, s, texts, (rd) => paint8(p, rd, onPath.has(p)));
+}
+
 // ---- legends --------------------------------------------------------------------------------------------------------
 
 /** Legend swatches are 40 x 14 CSS pixels; m is the middle line. */
@@ -334,6 +395,8 @@ const SCALE = [(c) => {
 }, "rating: weakest → strongest of what the reporter hears"];
 const IMPLIED = [line(() => theme.muted, 1.5, DOTTED), "implied: no reading, a route or parent proves it"];
 const MISSING = [null, "– its table does not list the other (may be full) · ? it has no table"];
+/** Four equal-contrast steps side by side. */
+const ramp = (colors) => (c) => colors().forEach((col, i) => { c.fillStyle = col; c.fillRect(i * 10, 2, 10, 10); });
 const LEGENDS = {
   1: [SCALE, [line(() => ratingColor(0.8, theme), 2.2), "one line per pair, better rating"],
     [(c) => {
@@ -379,13 +442,21 @@ const LEGENDS = {
       c.lineWidth = 4; c.strokeStyle = theme.one; c.beginPath(); c.arc(W / 2, m, 5, 3.0, 4.6); c.stroke();
     }, "ring: share of pairs heard both ways (thin, text colour) and one way (thick, vermillion)"],
     [null, "grey arc: implied · no ring: no table"]],
+  8: [[ramp(() => theme.green), "used (up path, route next hop, parent), always drawn: weakest → strongest of what " +
+    "that end hears"], [ramp(() => theme.grey), "unused: the same steps in grey"],
+  [(c) => {
+    seg(c, 2, m, W / 2 - 2, m, theme.green[2], 3);
+    seg(c, W / 2 + 2, m, W - 2, m, theme.green[0], 1.5, DASHED);
+  }, "dashed half: that end has no reading"], MISSING,
+  [(c) => { seg(c, 2, m, W - 2, m, theme.green[1], 11, [], 0.3); seg(c, 2, m, W - 2, m, theme.green[3], 3.5); },
+    "selection: its path to the coordinator; its pairs as arcs (in: it hears, out: it is heard)"]],
 };
 
 function renderLegend() {
   const box = $("legend");
   box.replaceChildren();
   const items = [...LEGENDS[S.option]];
-  if (S.implied && S.option !== 4) items.push(IMPLIED);
+  if (S.implied && S.option !== 4 && S.option !== 8) items.push(IMPLIED); // option 8 draws them anyway, as used
   const dpr = window.devicePixelRatio || 1;
   for (const [drawSwatch, text] of items) {
     const span = document.createElement("span");
@@ -490,6 +561,8 @@ function drawNodes(near) {
   for (const i of order) {
     const node = scene.nodes[i];
     const r = markerRadius(node.role, S.cam.k);
+    const alpha = S.faded.has(i) ? 0.35 : 1;
+    ctx.globalAlpha = alpha;
     shape(ctx, node.role, sx[i], sy[i], r);
     const fill = node.available ? fillColor(node, "reception", theme) : null;
     ctx.fillStyle = node.available ? fill || theme.node : theme.background;
@@ -500,8 +573,9 @@ function drawNodes(near) {
     ctx.stroke();
     ctx.setLineDash([]);
     if (node.available && !fill) {
-      seg(ctx, sx[i] - r * 0.6, sy[i] + r * 0.6, sx[i] + r * 0.6, sy[i] - r * 0.6, theme.outline, 1.5);
+      seg(ctx, sx[i] - r * 0.6, sy[i] + r * 0.6, sx[i] + r * 0.6, sy[i] - r * 0.6, theme.outline, 1.5, [], alpha);
     }
+    ctx.globalAlpha = 1;
     if (i === S.selected || (S.pair && (S.pair.a === i || S.pair.b === i))) {
       shape(ctx, node.role, sx[i], sy[i], r + (S.option === 7 ? 9 : 4)); // option 7: outside its ring
       ctx.lineWidth = 2.5;
@@ -534,6 +608,7 @@ function drawTexts(near, texts) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const label = (i, forced) => {
+    if (S.faded.has(i) && !forced) return;
     const node = scene.nodes[i];
     const w = measure(node.label) + 4;
     const r = markerRadius(node.role, S.cam.k) + (S.option === 7 ? 7 : 0);
@@ -560,7 +635,7 @@ function drawTexts(near, texts) {
   for (let i = 0; i < n; i++) if (!first.includes(i) && !near.has(i)) label(i, false);
 }
 
-const DRAW = { 1: baseline, 2: halves, 3: wedges, 4: evidenceStyle, 5: fan, 6: matrixMap, 7: baseline };
+const DRAW = { 1: baseline, 2: halves, 3: wedges, 4: evidenceStyle, 5: fan, 6: matrixMap, 7: baseline, 8: usedLinks };
 
 function draw() {
   if (!pos || !S.w) return;
@@ -577,6 +652,10 @@ function draw() {
     for (const p of ev.neighbours[S.selected]) if (p.cls !== "implied" || S.implied) near.add(other(p, S.selected));
   }
   if (S.pair) { near.add(S.pair.a); near.add(S.pair.b); }
+  // Option 8: the selection's up path joins its neighbourhood; the rest of the map is dimmed.
+  S.path = S.option === 8 && S.selected >= 0 ? pathOf(S.selected).ids.map((id) => scene.index.get(id)) : [];
+  for (const i of S.path) near.add(i);
+  S.faded = new Set(S.option === 8 && S.selected >= 0 ? [...Array(n).keys()].filter((i) => !near.has(i)) : []);
   const texts = [];
   DRAW[S.option](shownPairs(), texts);
   drawNodes(near);
@@ -621,9 +700,17 @@ function status(text) { $("status").textContent = text; }
 
 function summary() {
   const c = ev.count;
+  const used = ev.pairs.filter(isUsed).length;
+  const grey = shownPairs().filter((p) => !isUsed(p)).length;
+  const drawn = S.option === 8 ? `${used} used (green), ${grey} of ${ev.pairs.length - used} unused (grey)`
+    : shownPairs().length;
   let text = `${scene.nodes.length} devices. Pairs: both ways ${c.both}, one way ${c.one} (other end has a table ` +
-    `${c.oneTable}, has none ${c.one - c.oneTable}), implied ${c.implied}, none ${c.none}. ` +
-    `Drawn: ${shownPairs().length}.`;
+    `${c.oneTable}, has none ${c.one - c.oneTable}), implied ${c.implied}, none ${c.none}. Drawn: ${drawn}.`;
+  if (S.option === 8 && S.selected >= 0) {
+    const up = pathOf(S.selected);
+    const names = up.ids.map((id) => scene.nodes[scene.index.get(id)].label).join(" → ");
+    text = `Up path: ${names} (${up.complete ? "complete" : "incomplete"}). ${text}`;
+  }
   if (S.selected >= 0) {
     const s = S.selected;
     const k = (cls) => ev.neighbours[s].filter((p) => p.cls === cls).length;
@@ -635,10 +722,29 @@ function summary() {
   status(text);
 }
 
+/** base moved towards black or white until its contrast against bg reaches target (WCAG 2.2 contrast ratio), so a
+ *  step carries the same weight on light and dark themes: darker than the base on a light background, lighter on a
+ *  dark one, or the other way where the base is already past the target. */
+function atContrast(base, bg, target) {
+  const away = luminance(bg) > 0.18 ? [0, 0, 0] : [255, 255, 255];
+  const toward = away[0] ? [0, 0, 0] : [255, 255, 255];
+  const at = (t) => base.map((v, i) => Math.round(v + ((t >= 0 ? away : toward)[i] - v) * Math.abs(t)));
+  let lo = -1;
+  let hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (contrastRatio(at(mid), bg) >= target) hi = mid; else lo = mid;
+  }
+  return at(hi);
+}
+
 function setTheme(dark) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   theme = resolveTheme(dark ? DARK : LIGHT);
-  theme.one = toHex(ensureContrast(parseColor(OKABE_ITO.vermillion), parseColor(theme.background)));
+  const bg = parseColor(theme.background);
+  theme.one = toHex(ensureContrast(parseColor(OKABE_ITO.vermillion), bg));
+  theme.green = STEPS.map((c) => toHex(atContrast(parseColor(OKABE_ITO.bluishGreen), bg, c)));
+  theme.grey = STEPS.map((c) => toHex(atContrast([128, 128, 128], bg, c)));
   widths.clear();
 }
 
