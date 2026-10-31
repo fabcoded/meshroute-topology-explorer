@@ -11,6 +11,11 @@ device names, area ids and names, entity ids, registry and config-entry ids; ent
 entries that are not ZHA devices are left out; times are shifted so the newest is 2026-01-01T12:00:00, gaps kept.
 Kept for testing: device types, vendors, models, NWK addresses, LQI, relationships, routes, clusters.
 Before writing, the output is searched for every replaced value; any hit aborts and nothing is written.
+
+Allow-list: only the fields listed in SCHEMAS below survive, per response and per nested object (device, neighbour,
+route, entity, signature, registry entry, area, config entry). Anything else, including fields a future Home
+Assistant adds, is dropped before the replacement runs, so a new field that holds a name or address can never slip
+into a fixture unseen. A new field the panel needs is added to the list on purpose.
 """
 
 import argparse
@@ -23,6 +28,64 @@ from pathlib import Path
 EUI64 = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){7}$", re.IGNORECASE)
 ANCHOR = dt.datetime(2026, 1, 1, 12, 0, 0)
 ROLE = {"Coordinator": "Coordinator", "Router": "Router", "EndDevice": "End device"}
+
+
+# Allow-list per response. A schema is a dict {field: sub-schema | None}; None keeps a plain value (a scalar, or a list
+# of scalars and lists). Free text in kept fields is still covered by the replacement and the leak check.
+_ENDPOINT = {"profile_id": None, "device_type": None, "input_clusters": None, "output_clusters": None}
+_SIGNATURE = {
+    "node_descriptor": {k: None for k in (
+        "logical_type", "complex_descriptor_available", "user_descriptor_available", "reserved", "aps_flags",
+        "frequency_band", "mac_capability_flags", "manufacturer_code", "maximum_buffer_size",
+        "maximum_incoming_transfer_size", "server_mask", "maximum_outgoing_transfer_size",
+        "descriptor_capability_field")},
+    "endpoints": ("map", _ENDPOINT),  # keyed by endpoint id
+    "manufacturer": None,
+    "model": None,
+}
+SCHEMAS = {
+    "zha/devices": ("list", {
+        **{k: None for k in (
+            "ieee", "nwk", "manufacturer", "model", "name", "quirk_applied", "quirk_class", "exposes_features",
+            "manufacturer_code", "power_source", "lqi", "rssi", "last_seen", "available", "device_type",
+            "active_coordinator", "user_given_name", "device_reg_id", "area_id")},
+        "signature": _SIGNATURE,
+        "entities": ("list", {"entity_id": None}),  # entity names may be typed by the user: not kept
+        "endpoint_names": ("list", {"name": None}),
+        "neighbors": ("list", {k: None for k in (
+            "ieee", "nwk", "lqi", "relationship", "depth", "device_type", "rx_on_when_idle", "permit_joining",
+            "extended_pan_id")}),
+        "routes": ("list", {k: None for k in (
+            "dest_nwk", "next_hop", "route_status", "many_to_one", "route_record_required", "memory_constrained")}),
+    }),
+    "config/device_registry/list": ("list", {k: None for k in ("id", "identifiers", "area_id", "name", "manufacturer", "model")}),
+    "config/area_registry/list": ("list", {k: None for k in ("area_id", "name")}),
+    "config_entries/get": ("list", {k: None for k in ("entry_id", "domain", "title", "state")}),
+}
+
+
+def _plain(value) -> bool:
+    """A scalar, or a list made of scalars and such lists (identifiers, cluster ids); never a dict."""
+    return not isinstance(value, dict) and (not isinstance(value, list) or all(_plain(v) for v in value))
+
+
+def apply_schema(value, schema):
+    """Copy of `value` reduced to the fields in `schema`; ('list'|'map', fields) applies fields to each item."""
+    if schema is None:
+        return value if _plain(value) else None
+    if isinstance(schema, tuple):
+        kind, fields = schema
+        if kind == "list":
+            return [apply_schema(v, fields) for v in value if isinstance(v, dict)] if isinstance(value, list) else []
+        return {k: apply_schema(v, fields) for k, v in value.items() if isinstance(v, dict)} if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        return {}
+    return {k: apply_schema(v, schema[k]) for k, v in value.items() if k in schema}
+
+
+def allow_list(responses: dict) -> dict:
+    """Keep only known responses and, inside them, only known fields; everything else is dropped."""
+    return {name: apply_schema(responses[name], schema) for name, schema in SCHEMAS.items() if name in responses}
 
 
 def fake_eui(n: int) -> str:
@@ -92,16 +155,12 @@ def shift_times(responses: dict) -> dict:
 
 def anonymize(capture: dict) -> dict:
     """Return an anonymized copy of the capture; raises ValueError if any replaced value survives."""
-    responses = json.loads(json.dumps(capture["responses"]))
+    responses = allow_list(capture["responses"])
     zha_ids = {d.get("device_reg_id") for d in responses.get("zha/devices", [])}
+    # Only ZHA devices stay in the registry (name_by_user and everything not allow-listed is already gone).
     responses["config/device_registry/list"] = [
-        {k: v for k, v in d.items() if k != "name_by_user"}
-        for d in responses.get("config/device_registry/list", [])
-        if d.get("id") in zha_ids
+        d for d in responses.get("config/device_registry/list", []) if d.get("id") in zha_ids
     ]
-    for device in responses.get("zha/devices", []):
-        for entity in device.get("entities") or []:
-            entity.pop("name", None)  # may be a name the user typed; the entity id says enough
     for entry in responses.get("config_entries/get", []):
         entry["title"] = ""
 

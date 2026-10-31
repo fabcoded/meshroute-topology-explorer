@@ -85,5 +85,38 @@ class AnonymizeTest(unittest.TestCase):
             anon.anonymize(capture)
 
 
+class AllowListTest(unittest.TestCase):
+    def test_unknown_fields_are_dropped_at_every_level(self):
+        capture = json.loads(json.dumps(CAPTURE))
+        r = capture["responses"]
+        r["zha/devices"][1]["owner_note"] = "Anna's flat"
+        r["zha/devices"][1]["neighbors"][0]["vendor_secret"] = "x"
+        r["zha/devices"][1]["entities"][0]["original_name"] = "Anna's lamp"
+        r["zha/devices"][0]["routes"][0]["comment"] = "x"
+        r["zha/devices"][0]["signature"] = {"endpoints": {"1": {"profile_id": "0x0104", "label": "Anna"}}, "note": "Anna"}
+        r["config/device_registry/list"][0]["serial_number"] = "SN-4711"
+        r["config/area_registry/list"][0]["aliases"] = ["Anna's room"]
+        r["config_entries/get"][0]["data"] = {"device": "/dev/ttyUSB0"}
+        r["config/entity_registry/list"] = [{"entity_id": "light.x", "original_name": "Anna"}]  # unknown response
+        out = anon.anonymize(capture)
+        text = json.dumps(out)
+        for leaked in ("Anna", "SN-4711", "ttyUSB0", "vendor_secret", "owner_note", "original_name", "entity_registry"):
+            self.assertNotIn(leaked, text)
+        self.assertNotIn("config/entity_registry/list", out["responses"])
+        self.assertEqual(out["responses"]["zha/devices"][0]["signature"], {"endpoints": {"1": {"profile_id": "0x0104"}}})
+
+    def test_known_fields_are_kept_and_nested_dicts_in_plain_fields_are_dropped(self):
+        capture = json.loads(json.dumps(CAPTURE))
+        capture["responses"]["zha/devices"][0]["lqi"] = {"nested": "Anna"}  # a plain field must not carry an object
+        out = anon.anonymize(capture)["responses"]["zha/devices"][0]
+        self.assertIsNone(out["lqi"])
+        self.assertEqual(out["neighbors"][0]["relationship"], "Sibling")
+        self.assertEqual(out["routes"][0]["route_status"], "Active")
+
+    def test_committed_sample_passes_the_allow_list_unchanged(self):
+        sample = json.loads((Path(__file__).parent / "fixtures" / "zha-sample.json").read_text(encoding="utf-8"))
+        self.assertEqual(anon.allow_list(sample["responses"]), sample["responses"])
+
+
 if __name__ == "__main__":
     unittest.main()
