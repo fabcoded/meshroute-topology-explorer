@@ -104,7 +104,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.equal(server.sets().length, 1);
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
-  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, legendOpen: null, extra: 1,
+  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, legendOpen: null, links: { up: true, route: true, heard: true }, extra: 1,
     pins: { [A]: [1.235, -2] } });
   await c.flush();
   assert.equal(server.sets().length, 1, "nothing pending, nothing sent");

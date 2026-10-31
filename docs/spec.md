@@ -284,6 +284,10 @@ the centre).
 - By default all up-path and route pairs are drawn, heard-only pairs as each device's 3 best (by the pair's better
   rating), and all pairs of the selection and of the device under the pointer; debug mode draws all. Order: heard
   only, other route, up path on top.
+- Switches choose the classes of the overview (decision by Fabian Schwamborn, 2026-11-01): Up path, Other routes,
+  Heard only, all on by default. A switched-off class is not drawn, except around the selection and the device under
+  the pointer and in debug mode; heard only keeps its 3-best rule when on. The switches only filter the drawing:
+  springs, positions and fitting stay as they are, and a class that is off leaves the legend (debug mode keeps it).
 - Selecting a device draws its up path as a wide translucent band under its lanes, puts each of its lanes' values
   (raw LQI; "Parent" or "Route" on a lane a parent link or route implies) beside the lane, and dims everything that
   does not touch it to about 20 %; hover previews the same without the band.
@@ -385,8 +389,9 @@ user-supplied image, or map tiles from an address the user configured.
   edges (rounded, light shadow, theme surface, targets of 44 px) that move out of the drawer's way: the title pill
   "Meshroute" top left (with the sidebar button on narrow screens); the options group top right, labelled rows on
   wide panels (Options: the menu with devices, legend, settings, debug mode, fit, release all pins, read data again;
-  Findings with the badge; Density and Fill with their current value) and one row of icons on narrow ones (menu,
-  findings count, density value, fit); the zoom group bottom right; the legend bottom left, a pill "Legend ›" that
+  Findings with the badge; Links; Fill with its current value) and one row of icons on narrow ones (menu, findings
+  count, links, fit). Links opens a popover that stays open while switching: a checkbox per link class (7.1) and
+  below them the density (7.1) as a single choice, real checkboxes and radios with 44 px rows; the zoom group bottom right; the legend bottom left, a pill "Legend ›" that
   expands to the current fill and the three link classes. The links part of every legend comes from the graph's
   own legend entries (7.1). The reception fill is named "Receive" (German "Empfang"): how well the neighbours receive
   the device, its best rank at a neighbour.
@@ -457,7 +462,8 @@ picture under a banner and reads again when the connection is back.
 
 ## 11. Settings per network [v1]
 
-View, direction (v1.1), density, fill, "open details on select", whether the legend is expanded (`legendOpen`; by
+View, direction (v1.1), density, link class switches (`links`: `{ up, route, heard }`, booleans, a bad or missing
+value counts as on), fill, "open details on select", whether the legend is expanded (`legendOpen`; by
 default expanded on wide panels, collapsed on narrow ones), pinned positions; later geo positions and map background
 address (empty by default).
 

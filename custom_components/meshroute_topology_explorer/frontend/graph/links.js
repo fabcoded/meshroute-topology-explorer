@@ -16,6 +16,17 @@ import { contourExit } from "./symbols.js";
 export const CLASSES = Object.freeze(["heard", "route", "up"]);
 /** Heard-only pairs shown by default per device: its best by the pair's better rating (decision 2026-10-31). */
 export const BEST_HEARD = 3;
+/** Class switches (spec 9.1): which classes the overview draws. Selection and debug mode override them. */
+export const DEFAULT_LINKS = Object.freeze({ up: true, route: true, heard: true });
+
+/** Whether a pair is drawn: debug mode and pairs touching the selection or hover always; otherwise its class must be
+ *  switched on, and a heard-only pair must also be among its devices' best (pair.shown). Drawing only: the layout
+ *  never looks at this, so toggling cannot move a device. */
+export function pairDrawn(pair, links, { debug = false, touched = false } = {}) {
+  if (debug || touched) return true;
+  return Boolean((links || DEFAULT_LINKS)[pair.cls]) && Boolean(pair.shown);
+}
+
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
  *  2 px apart. */
 export const LANE_OFFSET = 3;
@@ -133,10 +144,10 @@ export function textBeside(lane, w, h, gap = 2) {
 }
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations):
- *  the three classes and the implied lane with their stroke samples, the width steps, the two glyphs and the band. */
-export function legendEntries(theme) {
+ *  the switched-on classes (all in debug mode) and the implied lane with their stroke samples, the width steps, the two glyphs and the band. */
+export function legendEntries(theme, { links = DEFAULT_LINKS, debug = false } = {}) {
   const sample = (cls, state, rating) => laneStyle(cls, state, rating, theme);
-  return [
+  const all = [
     { id: "up", kind: "lane", style: sample("up", "measured", 1), widths: [...WIDTHS.up] },
     { id: "route", kind: "lane", style: sample("route", "measured", 1), widths: [...WIDTHS.route] },
     { id: "heard", kind: "lane", style: sample("heard", "measured", 1), widths: [...WIDTHS.heard] },
@@ -146,4 +157,6 @@ export function legendEntries(theme) {
     { id: "no-table", kind: "glyph", text: "?", color: theme.muted },
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
   ];
+  // A switched-off class leaves the legend (debug mode draws all, so it keeps all).
+  return all.filter((e) => debug || !CLASSES.includes(e.id) || links[e.id]);
 }
