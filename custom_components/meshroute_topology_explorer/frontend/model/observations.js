@@ -3,7 +3,9 @@
 // neighbour and routing tables (with LQI) and the time it first saw that fingerprint. This file is the pure part;
 // storing the result through the integration comes later. "Unchanged since" thus means "observed unchanged since".
 
-/** FNV-1a over two seeds, 64 bits as hex. Not cryptographic: it only has to notice that a table changed. */
+/** 64-bit hex hash from two 32-bit lanes: FNV-1a (prime 0x01000193) and a second lane with the same loop but the
+ *  multiplier 0x85ebca6b (a MurmurHash3 mixing constant). Not cryptographic and not a standard hash: it only has to
+ *  notice that a table changed. */
 function hash(textValue) {
   let a = 0x811c9dc5;
   let b = 0x01000193 ^ 0x9e3779b9;

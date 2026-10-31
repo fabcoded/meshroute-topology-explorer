@@ -70,6 +70,7 @@ test("derived variants drop these routers (pins the rule in tests/derive.mjs)", 
   assert.deepEqual(removed.minus1, [ieee(7)]);
   assert.deepEqual(removed.minus3, [ieee(7), ieee(8), ieee(9)]);
   assert.equal(removed["coordinator-only"].length, 32);
+  assert.deepEqual(removed["without-coordinator"], [ieee(1)]);
   const devices = load("zha-sample.json")["zha/devices"];
   const coordinatorOnly = withoutTables(devices, removed["coordinator-only"]);
   assert.ok(coordinatorOnly.filter((d) => d.device_type === "Router").every((d) => !d.neighbors.length && !d.routes.length));
@@ -322,8 +323,11 @@ test("labels: identical names get the network address; names and areas come from
     areaRegistry: [{ area_id: "a1", name: "Hall" }, { area_id: "a2", name: "Cellar" }] });
   assert.equal(n.devices[1].label, "Lamp (0x1001)");
   assert.equal(n.devices[2].label, "Lamp (0x1002)");
-  assert.equal(n.devices[1].name, "Lamp");
-  assert.equal(n.devices[0].name, "Main stick");
+  assert.equal(n.devices[1].labelKind, "user");
+  assert.equal(n.devices[0].label, "Main stick");   // registry name_by_user counts as a user-given name
+  assert.equal(n.devices[0].name, "dev0");          // the ZHA name stays in `name`
+  assert.equal(n.devices[0].registryId, "reg0");
+  assert.equal(n.devices[1].registryId, null);
   assert.equal(n.devices[0].area, "Cellar");   // the registry's area wins over the one in the ZHA answer
 });
 
@@ -354,4 +358,32 @@ test("observations: fingerprint ignores order and spelling, notices LQI changes,
 
 test("network is plain data: it survives a JSON round trip", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(sample)), sample);
+});
+
+test("labels: user name, else Coordinator, else model; duplicates get the address, or the IEEE tail without one", () => {
+  const raw = synth([[0, C], [1, R], [2, R], [3, E]]);
+  raw[1].model = "RODRET Dimmer"; raw[1].name = "IKEA of Sweden RODRET Dimmer";
+  raw[2].model = "RODRET Dimmer"; raw[2].nwk = 0xabc;
+  raw[3].model = ""; raw[3].name = "Odd device";
+  const n = buildNetwork(raw);
+  assert.deepEqual(n.devices.map((d) => [d.label, d.labelKind]), [["Coordinator", "coordinator"],
+    ["RODRET Dimmer (0x1001)", "model"], ["RODRET Dimmer (0x0ABC)", "model"], ["Odd device", "model"]]);
+  assert.equal(n.devices[1].name, "IKEA of Sweden RODRET Dimmer");
+  raw[1].nwk = null; raw[2].nwk = null;
+  assert.deepEqual(buildNetwork(raw).devices.slice(1, 3).map((d) => d.label), ["RODRET Dimmer (00:01)", "RODRET Dimmer (00:02)"]);
+});
+
+test("an offline start device has an incomplete up path, even with a stale route", () => {
+  const n = buildNetwork(synth([[0, C], [1, E, { avail: false }], [2, R, { avail: false, rt: [[0, 0]] }]]));
+  assert.deepEqual(upPath(n, ieee(2)), { ids: [ieee(2)], complete: false });
+  assert.equal(upPath(n, ieee(1)).complete, false);
+});
+
+test("without the coordinator's table nothing is a verdict: hedged parent unknown, no isolated, data incomplete", () => {
+  const raw = synth([[0, C], [1, R, { nb: [[0, 100]] }], [2, E], [3, R, { nb: [[1, 100]] }]]);
+  const net = buildNetwork(raw);
+  const kinds = net.findings.map((f) => [f.kind, f.device, f.missing]);
+  assert.deepEqual(kinds.filter((k) => k[0] === "parent unknown"), [["parent unknown", ieee(2), [ieee(0)]]]);
+  assert.equal(net.findings.some((f) => f.kind === "isolated"), false);
+  assert.deepEqual(kinds.filter((k) => k[0] === "data incomplete"), [["data incomplete", ieee(0), [ieee(0)]]]);
 });

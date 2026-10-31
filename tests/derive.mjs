@@ -14,12 +14,14 @@ export function rankRouters(devices) {
     .map((d) => d.ieee);
 }
 
-/** Addresses whose tables each variant removes: minus1, minus3, coordinator-only (every router, available or not). */
+/** Addresses whose tables each variant removes: minus1, minus3, without-coordinator (only the coordinator),
+ *  coordinator-only (every router, available or not). */
 export function removedTables(devices) {
   const ranked = rankRouters(devices);
   return {
     minus1: ranked.slice(0, 1),
     minus3: ranked.slice(0, 3),
+    "without-coordinator": devices.filter((d) => d.device_type === "Coordinator").map((d) => d.ieee),
     "coordinator-only": devices.filter((d) => d.device_type === "Router").map((d) => d.ieee).sort(),
   };
 }

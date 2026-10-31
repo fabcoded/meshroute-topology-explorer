@@ -38,6 +38,7 @@ export function upPath(network, id) {
   const start = c.byId.get(id);
   if (!start || !c.coordinator) return { ids: [], complete: false };
   const ids = [id];
+  if (!start.available) return { ids, complete: false }; // like downPath: an offline device has no usable path
   const seen = new Set(ids);
   let cur = start;
   while (cur.id !== c.coordinator) {

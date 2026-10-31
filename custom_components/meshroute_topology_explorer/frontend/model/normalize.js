@@ -31,15 +31,26 @@ function indexRegistries(deviceRegistry, areaRegistry) {
   return { byRegId, byIeee, areas };
 }
 
-/** Make labels unique: identical names get the network address appended (spec 8). */
+/** The one display text for list and map: the user's name; else "Coordinator"; else the model ("RODRET Dimmer"),
+ *  which tells devices apart better than the full ZHA name. `labelKind` lets the panel translate "Coordinator". */
+function baseLabel(device, userName) {
+  if (userName) return { label: userName, labelKind: "user" };
+  if (device.role === "coordinator") return { label: "Coordinator", labelKind: "coordinator" };
+  return { label: device.model || device.name, labelKind: "model" };
+}
+
+/** Make labels unique (spec 8): identical labels get the network address appended in upper-case hex, or the IEEE
+ *  tail when the address is unknown. */
 function disambiguate(devices) {
   const count = new Map();
-  for (const d of devices) count.set(d.name, (count.get(d.name) || 0) + 1);
-  for (const d of devices) d.label = count.get(d.name) > 1 ? `${d.name} (${formatNwk(d.nwk)})` : d.name;
+  for (const d of devices) count.set(d.label, (count.get(d.label) || 0) + 1);
+  for (const d of devices) {
+    if (count.get(d.label) > 1) d.label += ` (${d.nwk === null ? d.id.slice(-5) : formatNwk(d.nwk)})`;
+  }
 }
 
 /** Normalize the raw `zha/devices` list. Returns { devices, readings, routes, unresolved }.
- *  Every device has parent/children fields; ratings and relayLoad are filled in later (derive.js). */
+ *  Every device has parent/children fields; ratings and relayLoad are filled in later (ratings.js, paths.js, index.js). */
 export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
   const raws = new Map();
   for (const r of Array.isArray(rawDevices) ? rawDevices : []) {
@@ -55,9 +66,10 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
     const areaId = (entry && entry.area_id) || r.area_id || null;
     const role = ROLES[r.device_type] || "unknown";
     const powerSource = text(r.power_source);
-    const name = text(r.user_given_name) || text(entry && entry.name_by_user) || text(entry && entry.name) || text(r.name) || id;
+    const name = text(r.name) || id;  // the full ZHA name ("IKEA of Sweden RODRET Dimmer"); the label is shorter
+    const userName = text(r.user_given_name) || text(entry && entry.name_by_user);
     const device = {
-      id, nwk: parseAddress(r.nwk), role, label: name, name,
+      id, registryId: (entry && entry.id) || null, nwk: parseAddress(r.nwk), role, label: name, labelKind: "model", name,
       area: (areaId && reg.areas.get(areaId)) || null,
       vendor: text(r.manufacturer), model: text(r.model), powerSource,
       // ZHA reports unknown power as "Battery or Unknown"; the interface calls an end device with it a battery device.
@@ -66,6 +78,7 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       parent: null, children: [], relayLoad: 0, rating: null, hasTable: false,
       parentLqi: null, parentFromStaleTable: false, possiblyStaleParents: [],
     };
+    Object.assign(device, baseLabel(device, userName));
     devices.push(device);
     byId.set(id, device);
   }

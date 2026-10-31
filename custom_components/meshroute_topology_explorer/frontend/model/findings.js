@@ -30,7 +30,9 @@ export function computeStatus({ devices, readings }) {
 /** All findings of a network, ordered by kind (table order) and device id. */
 export function computeFindings({ devices, readings, routes }) {
   const byId = new Map(devices.map((d) => [d.id, d]));
-  const missingAll = devices.filter((d) => d.role === "router" && d.available && !d.hasTable).map((d) => d.id).sort();
+  // The coordinator's table counts like a router's: without it "no parent" and "isolated" would be guesses.
+  const missingAll = devices.filter((d) => (d.role === "router" || d.role === "coordinator") && d.available && !d.hasTable)
+    .map((d) => d.id).sort();
   const out = [];
   const add = (kind, device, evidence, missing = []) => out.push({ kind, device, evidence, missing });
 
@@ -73,8 +75,8 @@ export function computeFindings({ devices, readings, routes }) {
 
   for (const d of devices) {
     if (!d.available) continue;
-    if (d.role === "router" && !d.hasTable) {
-      add("data incomplete", d.id, { reason: "router without table" }, [d.id]);
+    if ((d.role === "router" || d.role === "coordinator") && !d.hasTable) {
+      add("data incomplete", d.id, { reason: `${d.role} without table` }, [d.id]);
       continue;
     }
     const lacking = expectedReporters(d).filter((id) => !byId.get(id).hasTable);

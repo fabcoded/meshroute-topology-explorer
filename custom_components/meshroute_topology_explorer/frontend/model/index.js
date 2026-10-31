@@ -4,7 +4,7 @@
 // serialized. Tested in Node: node --test tests/
 //
 // Network = { source: 'zha', id, devices, readings, routes, status, findings, unresolved }
-// Device  = { id, nwk, role, label, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
+// Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
 //             children, relayLoad, rating, hasTable, parentLqi, parentFromStaleTable, possiblyStaleParents }
 // Reading = { reporter, subject, lqi, scale, relationship, rating, pool, poolMedian }
 // Route   = { owner, destination, nextHop, status, direct, stale }
