@@ -19,6 +19,11 @@ Data
 
 Trademarks
   Zigbee and Matter are trademarks of the Connectivity Standards Alliance. Thread is a
-  trademark of the Thread Group, Inc. Home Assistant is a trademark of its owner. This
-  project names them only to describe what it shows; it is not affiliated with,
-  certified by or endorsed by any of them.
+  trademark of the Thread Group, Inc. Wi-Fi is a trademark of the Wi-Fi Alliance.
+  Bluetooth is a trademark of the Bluetooth SIG, Inc. Z-Wave is a trademark of the
+  Z-Wave Alliance. Home Assistant is a trademark of its owner. This project names them
+  only to describe what it shows; it is not affiliated with, certified by or endorsed
+  by any of them and claims no certification. The symbols in the panel are the
+  project's own generic drawings, not reproductions of official logos or badges
+  (the alliances reserve those for members and certified products, see their brand
+  guidelines; checked 2026-10-31).
