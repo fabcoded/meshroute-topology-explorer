@@ -7,6 +7,7 @@
 // stale: its readings are dropped; its routes are kept but flagged `stale` and never followed by path walks
 // (a later "last known" view may use them).
 import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "./parse.js";
+import { deviceKind, receiverOffWhenIdle } from "./kinds.js";
 
 const ROLES = { Coordinator: "coordinator", Router: "router", EndDevice: "end device" };
 const isActive = (status) => typeof status === "string" && status.trim().toLowerCase() === "active";
@@ -107,6 +108,8 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       id, registryId: (entry && entry.id) || null, nwk: parseAddress(r.nwk), role, label: name, labelKind: "model", name,
       area: (areaId && reg.areas.get(areaId)) || null,
       vendor: text(r.manufacturer), model: text(r.model), powerSource,
+      // Picture and sleep from the device's own signature (kinds.js); sleep may also come from a parent's entry below.
+      kind: deviceKind(r.signature, role), sleepy: receiverOffWhenIdle(r.signature),
       // ZHA reports unknown power as "Battery or Unknown"; the interface calls an end device with it a battery device.
       battery: role === "end device" && /battery/i.test(powerSource || ""),
       available: Boolean(r.available), lastSeen: text(r.last_seen),
@@ -149,6 +152,10 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       if (subject === id) continue;
       const lqi = parseLqi(n.lqi);
       const relationship = text(n.relationship);
+      const subjectDevice = byId.get(subject);
+      // A signature without MAC capability flags: the neighbour entry's "receiver on when idle" tells sleep instead.
+      const rx = text(n.rx_on_when_idle);
+      if (subjectDevice.sleepy === null && (rx === "On" || rx === "Off")) subjectDevice.sleepy = rx === "Off";
       if (owner.available) {
         // The same neighbour can be listed twice in one table; keep the higher LQI and count the duplicate.
         const key = `${id}|${subject}`;
@@ -164,7 +171,6 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
         }
       }
       // Child entries between routers record joining, not routing (spec 3.1); only end devices get a parent.
-      const subjectDevice = byId.get(subject);
       if (relationship === "Child" && subjectDevice.role === "end device" && owner.role !== "end device"
         && owner.role !== "unknown") {
         if (!candidates.has(subject)) candidates.set(subject, []);
