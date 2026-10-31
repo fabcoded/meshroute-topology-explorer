@@ -39,12 +39,31 @@ function show(network) {
     // Demonstrate a pinned device: settle first, then move it a little and pin it there.
     while (!view.layout.settled) view.layout.run({ budgetMs: 50 });
     const at = view.layout.position(pinId);
-    view.pin(pinId, at.x + 120, at.y - 80);
+    const K = view.layout.K; // pin() takes base lengths
+    view.pin(pinId, (at.x + 120) / K, (at.y - 80) / K);
   }
   view.select(findId(network, q.get("select")));
   const zoom = Number(q.get("zoom"));
   if (zoom) view.zoomBy(zoom, { animate: false });
   log(`${network.devices.length} devices, ${network.readings.length} readings`);
+  if (q.get("bench") === "1") bench(network);
+}
+
+/** Pan in 60 steps and time each full frame (spec 12: 30 frames per second while panning). */
+function bench(network) {
+  while (!view.layout.settled) view.layout.run({ budgetMs: 50 });
+  view.draw(); // warm-up: the first frame pays for fonts and caches
+  const times = [];
+  for (let i = 0; i < 60; i++) {
+    view.cam = { ...view.cam, cx: view.cam.cx + 5 / view.cam.k };
+    const t0 = performance.now();
+    view.draw();
+    view.ctx.getImageData(0, 0, 1, 1); // wait until the frame is really drawn, not just queued
+    times.push(performance.now() - t0);
+  }
+  times.sort((a, b) => a - b);
+  log(`${network.devices.length} devices, ${network.readings.length} readings; pan: draw median ` +
+    `${times[30].toFixed(1)} ms, 90th percentile ${times[54].toFixed(1)} ms over 60 frames (dpr ${devicePixelRatio})`);
 }
 
 async function loadInitial() {

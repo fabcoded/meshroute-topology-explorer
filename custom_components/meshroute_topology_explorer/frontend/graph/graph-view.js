@@ -6,6 +6,8 @@
 //        view.addEventListener("select", (e) => e.detail.id)
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:
 // "long-press" | "context-menu" | "key" }, hover { id|null }, pin-change { id, pinned, x, y }.
+// Pinned positions (events, pin(), setNetwork's pinned) are in base lengths K = L0 × D from the centre, so a stored
+// pin keeps its place in the picture when the density or the label font changes.
 // node --test tests/
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
@@ -89,8 +91,8 @@ export class GraphView extends EventTarget {
 
   // ---- public API -------------------------------------------------------------------------------------------
 
-  /** Show a network. pinned: Map or object id -> { x, y } of stored positions (spec 11). The layout starts from
-   *  the seed every time, so the same data always gives the same picture. */
+  /** Show a network. pinned: Map or object id -> { x, y } of stored positions in base lengths (spec 11). The layout
+   *  starts from the seed every time, so the same data always gives the same picture. */
   setNetwork(network, { pinned } = {}) {
     if (pinned) this.pinned = new Map(pinned instanceof Map ? pinned : Object.entries(pinned));
     const keep = this.scene ? this.selectedId : null;
@@ -102,11 +104,18 @@ export class GraphView extends EventTarget {
     this._relayout();
   }
 
+  /** Change the density, keeping the zoom: the model is scale-free, so refitting would show the same picture
+   *  again; at the same zoom the map visibly tightens or spreads around the centre of the view. */
   setDensity(density) {
     if (density === this.density) return;
+    const ratio = density / this.density;
     this.density = density;
-    this.autoFit = true;
-    if (this.scene) this._relayout();
+    if (!this.scene) return;
+    const keep = { k: this.cam.k, cx: this.cam.cx * ratio, cy: this.cam.cy * ratio };
+    this._relayout();
+    this.autoFit = false;
+    this._anim = null;
+    this.cam = keep;
   }
 
   setDebug(on) {
@@ -131,9 +140,10 @@ export class GraphView extends EventTarget {
   /** Stored positions of pinned devices, for the settings (spec 11). */
   pinnedPositions() { return new Map(this.pinned); }
 
+  /** Pin a device at (x, y) in base lengths. */
   pin(id, x, y) {
     if (!this.layout || !this.layout.has(id)) return;
-    this.layout.pin(id, x, y);
+    this.layout.pin(id, x * this.layout.K, y * this.layout.K);
     this.pinned.set(id, { x, y });
     this.layout.reheat();
     this._invalidate();
@@ -204,7 +214,9 @@ export class GraphView extends EventTarget {
   _relayout() {
     const scene = this.scene;
     const l0 = baseLength(scene.labels, this._measure, NODE_DIAMETER);
-    this.layout = new Layout(this.network, { baseLength: l0, density: this.density, seed: this.seed, pinned: this.pinned });
+    const K = l0 * this.density;
+    const pinned = new Map([...this.pinned].map(([id, p]) => [id, { x: p.x * K, y: p.y * K }]));
+    this.layout = new Layout(this.network, { baseLength: l0, density: this.density, seed: this.seed, pinned });
     const n = scene.nodes.length;
     this._toLayout = Int32Array.from(scene.nodes, (node) => this.layout.index.get(node.id));
     this.pos = { x: new Float64Array(n), y: new Float64Array(n), pinned: new Uint8Array(n), mesh: new Uint8Array(n) };
@@ -356,8 +368,9 @@ export class GraphView extends EventTarget {
       dragEnd: (t) => {
         if (!isNode(t)) return;
         const at = this.layout.position(t.id);
-        this.pinned.set(t.id, at);
-        this._emit("pin-change", { id: t.id, pinned: true, x: at.x, y: at.y });
+        const stored = { x: at.x / this.layout.K, y: at.y / this.layout.K };
+        this.pinned.set(t.id, stored);
+        this._emit("pin-change", { id: t.id, pinned: true, ...stored });
       },
       pinch: (factor, cx, cy, dx, dy) => {
         this.autoFit = false;

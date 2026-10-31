@@ -224,8 +224,9 @@ export class Layout {
     }
     const { springA, springB, rest } = this;
     // Relative stretch: a long weak spring at twice its length pulls as hard as a short strong one at twice its
-    // length. Measured on the sample (seeds 1-8, medium density): rank correlation -0.85 to -0.87 for this law,
-    // -0.68 to -0.84 for logarithmic springs and -0.80 to -0.88 for plain Hooke springs (docs/provenance.md, A2).
+    // length. Measured on the sample (seeds 1-8, medium density, other settings equal): rank correlation -0.85 to
+    // -0.86 for this law, -0.78 to -0.85 for logarithmic and -0.80 to -0.88 for plain Hooke springs; this one was
+    // the steadiest across seeds (docs/provenance.md, A2).
     const sk = p.spring * K;
     for (let s = 0; s < rest.length; s++) {
       const a = springA[s];

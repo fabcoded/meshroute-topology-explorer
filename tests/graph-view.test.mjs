@@ -126,8 +126,10 @@ test("dragging a device pins it where it is dropped; a double tap releases it", 
   assert.ok(pin && pin[1].id === "r1" && pin[1].pinned === true);
   assert.ok(view.layout.isPinned("r1"));
   const k = view.cam.k;
-  assert.ok(Math.abs(pin[1].x - (before.x + 40 / k)) < 1e-6 && Math.abs(pin[1].y - (before.y + 30 / k)) < 1e-6);
-  assert.deepEqual(view.layout.position("r1"), { x: pin[1].x, y: pin[1].y }, "stays after the layout settles again");
+  const K = view.layout.K; // events carry base lengths
+  assert.ok(Math.abs(pin[1].x * K - (before.x + 40 / k)) < 1e-6 && Math.abs(pin[1].y * K - (before.y + 30 / k)) < 1e-6);
+  const now = view.layout.position("r1");
+  assert.ok(Math.abs(now.x - pin[1].x * K) < 1e-9 && Math.abs(now.y - pin[1].y * K) < 1e-9, "stays after the layout settles again");
   assert.ok(view.pinnedPositions().has("r1"));
   advanceTime(1000);
   tap(...at("r1"));
@@ -186,4 +188,34 @@ test("a data refresh keeps the selection; hover is reported for the mouse", () =
   assert.deepEqual(events.at(-1), ["hover", { id: "r1" }]);
   fire("pointerleave", 0, 0, { buttons: 0, pointerId: 7 });
   assert.deepEqual(events.at(-1), ["hover", { id: null }]);
+});
+
+test("a density change keeps the zoom and scales pinned devices with the map", () => {
+  const { view } = setup();
+  view.pin("r2", 1, -2);
+  const k = view.cam.k;
+  const K = view.layout.K;
+  view.setDensity(1.5);
+  assert.equal(view.cam.k, k, "same zoom: the map spreads on screen instead of being refitted");
+  assert.ok(Math.abs(view.layout.K / K - 1.5) < 1e-12);
+  assert.deepEqual(view.layout.position("r2"), { x: view.layout.K, y: -2 * view.layout.K });
+  view.fit({ animate: false });
+  assert.notEqual(view.cam.k, k);
+});
+
+test("an empty network and one without any readings draw without errors", () => {
+  const canvas = new FakeCanvas(400, 300);
+  const env = fakeEnv();
+  const view = new GraphView(canvas, { env });
+  view.setNetwork({ source: "zha", id: "empty", devices: [], readings: [] });
+  env.flush();
+  assert.equal(view.layout.settled, true);
+  view.setNetwork({ source: "zha", id: "lonely", devices: [{ id: "a", role: "router" }, { id: "b", role: "bogus" }],
+    readings: [] });
+  env.flush();
+  assert.deepEqual(view.layout.ringIds(), ["a", "b"]);
+  const pa = view.layout.position("a");
+  const pb = view.layout.position("b");
+  assert.ok(Math.hypot(pa.x - pb.x, pa.y - pb.y) > 0, "apart on the ring");
+  assert.equal(view.scene.nodes[1].role, "unknown", "an unknown role is drawn as unknown");
 });

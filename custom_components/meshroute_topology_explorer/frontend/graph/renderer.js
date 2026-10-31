@@ -164,31 +164,44 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!buckets.has(bucket)) buckets.set(bucket, []);
     buckets.get(bucket).push(pair);
   }
-  ctx.lineCap = "round";
+  // One stroke per line, styles set once per bucket: measured in Chromium's software rasterizer, 2 259 lines took
+  // 12 ms stroked one by one against 38 ms as one path per colour (overlap handling of large paths); GPU canvases
+  // are fast either way.
+  ctx.lineCap = "butt";
   ctx.globalAlpha = focus.length ? FADED : 1;
+  const strokeEach = (list) => {
+    for (const p of list) {
+      ctx.beginPath();
+      ctx.moveTo(sx[p.a], sy[p.a]);
+      ctx.lineTo(sx[p.b], sy[p.b]);
+      ctx.stroke();
+    }
+  };
   for (const [bucket, list] of buckets) {
     const unknown = bucket < 0;
     const value = unknown ? null : Math.max(1, (bucket / (COLOR_BUCKETS - 1)) * 255);
-    ctx.beginPath();
-    for (const p of list) { ctx.moveTo(sx[p.a], sy[p.a]); ctx.lineTo(sx[p.b], sy[p.b]); }
     if (theme.lineRange.casing) {
       ctx.setLineDash([]);
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = theme.outline;
-      ctx.stroke();
+      strokeEach(list);
     }
     ctx.setLineDash(unknown ? [4, 4] : []);
     ctx.lineWidth = unknown ? 1 : 1 + (value / 255) * 1.5;
     ctx.strokeStyle = unknown ? theme.muted : lqiColor(value, theme);
-    ctx.stroke();
+    strokeEach(list);
   }
+  ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 
   // Lanes: each reading "R hears S" travels from S to R and runs on the right of that direction (y points down,
-  // so the right-hand normal of (ux, uy) is (-uy, ux)).
+  // so the right-hand normal of (ux, uy) is (-uy, ux)). Geometry first, then strokes grouped by style: switching
+  // the dash pattern per lane cost more than the lanes themselves (debug mode, 300 devices).
   const laneTexts = [];
+  const laneGroups = new Map(); // colour or "" (unknown, dashed) -> lanes
   ctx.font = theme.font;
   for (const pair of lanes) {
+    const focused = focusSet.has(pair.a) || focusSet.has(pair.b);
     for (const [from, to, lqi, reporter] of [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]]) {
       const dx = sx[to] - sx[from];
       const dy = sy[to] - sy[from];
@@ -198,34 +211,42 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const uy = dy / len;
       const ox = -uy * LANE_OFFSET;
       const oy = ux * LANE_OFFSET;
-      const color = lqiColor(lqi, theme);
-      ctx.beginPath();
-      ctx.moveTo(sx[from] + ox, sy[from] + oy);
-      ctx.lineTo(sx[to] + ox, sy[to] + oy);
-      ctx.setLineDash(color ? [] : [4, 4]);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = color || theme.muted;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Arrowhead at 60 % of the way, pointing in the direction of travel.
-      const ax = sx[from] + dx * 0.6 + ox;
-      const ay = sy[from] + dy * 0.6 + oy;
-      ctx.beginPath();
-      ctx.moveTo(ax + ux * 4, ay + uy * 4);
-      ctx.lineTo(ax - ux * 3 - uy * 3.5, ay - uy * 3 + ux * 3.5);
-      ctx.lineTo(ax - ux * 3 + uy * 3.5, ay - uy * 3 - ux * 3.5);
-      ctx.closePath();
-      ctx.fillStyle = color || theme.muted;
-      ctx.fill();
+      const color = lqiColor(lqi, theme) || "";
+      if (!laneGroups.has(color)) laneGroups.set(color, []);
+      laneGroups.get(color).push({ x0: sx[from] + ox, y0: sy[from] + oy, dx, dy, ux, uy, len });
       let text = valueText(lqi);
-      if (view.debug) text += ` ← ${scene.nodes[reporter].label}`;
+      if (view.debug) text += ` \u2190 ${scene.nodes[reporter].label}`;
       const w = measure(text);
       if (len < w + 2 * markerRadius("router", k) + 12) continue; // no room on this lane: the details list it
       // At the middle, beside its own lane: the two values of a pair sit on opposite sides of the line.
-      const focused = focusSet.has(pair.a) || focusSet.has(pair.b);
       laneTexts.push({ text, x: sx[from] + dx * 0.5 + ox * 3.5, y: sy[from] + dy * 0.5 + oy * 3.5, w, focused });
     }
   }
+  ctx.lineWidth = 2;
+  for (const [color, group] of [...laneGroups].sort((a, b) => (a[0] === "") - (b[0] === ""))) {
+    ctx.setLineDash(color ? [] : [4, 4]);
+    ctx.strokeStyle = color || theme.muted;
+    ctx.fillStyle = color || theme.muted;
+    for (const l of group) {
+      ctx.beginPath();
+      ctx.moveTo(l.x0, l.y0);
+      ctx.lineTo(l.x0 + l.dx, l.y0 + l.dy);
+      ctx.stroke();
+    }
+    // Arrowheads at 60 % of the way, pointing in the direction of travel, where the lane is long enough to show one.
+    for (const l of group) {
+      if (l.len < 24) continue;
+      const ax = l.x0 + l.dx * 0.6;
+      const ay = l.y0 + l.dy * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(ax + l.ux * 4, ay + l.uy * 4);
+      ctx.lineTo(ax - l.ux * 3 - l.uy * 3.5, ay - l.uy * 3 + l.ux * 3.5);
+      ctx.lineTo(ax - l.ux * 3 + l.uy * 3.5, ay - l.uy * 3 - l.ux * 3.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.setLineDash([]);
 
   // Devices: plain ones first, the neighbourhood of the focus above them, the focus on top.
   const order = [];
@@ -274,8 +295,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   }
 
   // Text, in order of importance; anything that would overlap text already placed is left out (the details list
-  // every value): labels of the focus and its neighbours (always), values on the focus's lanes, other labels above
-  // the zoom threshold, values on the remaining lanes in debug mode.
+  // every value): labels of the focus (always), of its neighbours, values on the focus's lanes, other labels above
+  // the zoom threshold, values on the remaining lanes in debug mode. Overlapping labels could not be read anyway.
   ctx.font = theme.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -298,7 +319,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     haloText(ctx, t.text, t.x, t.y, theme);
   };
   for (const i of focus) label(i, true);
-  for (const i of near) if (!focusSet.has(i)) label(i, true);
+  for (const i of near) if (!focusSet.has(i)) label(i, false);
   for (const t of laneTexts) if (t.focused) value(t);
   if (labelsForAll(k, view.density)) {
     const rank = { coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 };
