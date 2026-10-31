@@ -190,22 +190,105 @@ test("a data refresh keeps the selection; hover is reported for the mouse", () =
   assert.deepEqual(events.at(-1), ["hover", { id: null }]);
 });
 
-test("density: an overview stays fitted; a zoomed view keeps its zoom; pinned devices scale with the map", () => {
+/** A view of NETWORK at a density, fitted, after the layout settled. */
+function viewAt(density, size = [800, 600]) {
+  const canvas = new FakeCanvas(...size);
+  const env = fakeEnv();
+  const view = new GraphView(canvas, { env, density });
+  view.setNetwork(NETWORK);
+  env.flush();
+  return { canvas, env, view };
+}
+
+/** Distinct radii of the circles drawn in the last frame (markers by role), sorted. Distinct, because a spread map
+ *  reaches past the window and devices outside it are not drawn. */
+function drawnRadii(canvas, view) {
+  canvas.ctx.calls.length = 0;
+  view.draw();
+  return [...new Set(canvas.ctx.calls.filter((c) => c[0] === "arc").map((c) => c[3]))].sort((a, b) => a - b);
+}
+
+test("density only scales the drawn positions: no new layout, positions at base x D", () => {
+  const { view } = setup();
+  const layout = view.layout;
+  const steps = layout.steps;
+  for (const d of [1.5, 0.7, 1]) {
+    view.setDensity(d);
+    assert.equal(view.layout, layout, "the same layout object");
+    assert.equal(layout.steps, steps, "not one step more");
+    for (const node of view.scene.nodes) {
+      const i = view.scene.index.get(node.id);
+      const base = layout.position(node.id);
+      assert.equal(view.pos.x[i], base.x * d);
+      assert.equal(view.pos.y[i], base.y * d);
+    }
+  }
+});
+
+test("fit and marker sizes do not depend on the density", () => {
+  const views = [0.7, 1, 1.5].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
+  const [dense, medium, spread] = views;
+  for (const { d, view } of views) {
+    assert.equal(view.cam.k, medium.view.cam.k, `fit zoom at D=${d}`);
+    assert.ok(Math.abs(view.cam.cx - medium.view.cam.cx * d) < 1e-9, "centred on the same map point");
+    assert.equal(view.fitK, medium.view.fitK);
+  }
+  assert.deepEqual(drawnRadii(dense.canvas, dense.view), drawnRadii(spread.canvas, spread.view));
+  // A density change keeps the zoom, and with it every marker size.
+  const before = drawnRadii(medium.canvas, medium.view);
+  medium.view.setDensity(1.5);
+  assert.deepEqual(drawnRadii(medium.canvas, medium.view), before);
+  // Fit after a change still fits the medium layout: it does not undo the density.
+  medium.view.fit({ animate: false });
+  assert.equal(medium.view.cam.k, dense.view.cam.k);
+});
+
+test("a density change keeps the selection, or else the centre, where it was on screen", () => {
   const { view, at, tap } = setup();
-  view.pin("r2", 1, -2);
-  const K = view.layout.K;
-  view.setDensity(1.5);
-  assert.equal(view.autoFit, true, "the overview is refitted");
-  assert.ok(Math.abs(view.layout.K / K - 1.5) < 1e-12);
-  assert.deepEqual(view.layout.position("r2"), { x: view.layout.K, y: -2 * view.layout.K });
-  view.zoomBy(2, { animate: false });
   tap(...at("r1"));
   const k = view.cam.k;
   const before = at("r1");
-  view.setDensity(0.7);
-  assert.equal(view.cam.k, k, "same zoom: the map tightens on screen");
+  view.setDensity(1.5);
+  assert.equal(view.cam.k, k);
   const after = at("r1");
-  assert.ok(Math.hypot(after[0] - before[0], after[1] - before[1]) < 1e-6, "the selection stays where it was");
+  assert.ok(Math.hypot(after[0] - before[0], after[1] - before[1]) < 1e-6);
+  view.select(null);
+  const centre = { cx: view.cam.cx, cy: view.cam.cy };
+  view.setDensity(0.7);
+  assert.ok(Math.abs(view.cam.cx - centre.cx * (0.7 / 1.5)) < 1e-9, "the same map point stays in the middle");
+});
+
+test("pins are kept in base lengths and drawn at base x D", () => {
+  const { view } = setup();
+  view.pin("r2", 1, -2);
+  const L0 = view.layout.K;
+  for (const d of [0.7, 1.5]) {
+    view.setDensity(d);
+    const i = view.scene.index.get("r2");
+    assert.equal(view.pos.x[i], L0 * d);
+    assert.equal(view.pos.y[i], -2 * L0 * d);
+  }
+  assert.deepEqual(view.pinnedPositions().get("r2"), { x: 1, y: -2 });
+});
+
+test("labels hang on distances on screen: a spread map is labelled from a smaller zoom", () => {
+  const { view } = setup();
+  view.setDensity(0.7);
+  const dense = view.labelZoom;
+  const work = view.workingZoom;
+  view.setDensity(1.5);
+  assert.ok(Math.abs(view.labelZoom * 1.5 - dense * 0.7) < 1e-9);
+  assert.equal(view.workingZoom, work, "the working scale does not compensate the density");
+});
+
+test("fidelity is the same in every density: drawn lengths only scale", () => {
+  const { view } = setup();
+  const lengths = () => view.scene.pairs.map((p) => Math.hypot(view.pos.x[p.b] - view.pos.x[p.a], view.pos.y[p.b] - view.pos.y[p.a]));
+  const base = lengths();
+  for (const d of [0.7, 1.5]) {
+    view.setDensity(d);
+    lengths().forEach((len, j) => assert.ok(Math.abs(len - base[j] * d) < 1e-9));
+  }
 });
 
 /** Median distance from each mesh device to its nearest neighbour on screen, as the working scale defines it. */
