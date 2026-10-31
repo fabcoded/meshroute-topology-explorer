@@ -16,6 +16,7 @@ import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { LABEL_SCALE } from "./labels.js";
+import { legendEntries } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -70,7 +71,8 @@ function defaultEnv() {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("reception",
-   *  "role" or "power"), texts ({ uncertain }), seed, debug, env (timers and media queries, injectable for tests). */
+   *  "role" or "power"), texts ({ uncertain, parent, route }), seed, debug, env (timers and media queries, injectable
+   *  for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
@@ -81,7 +83,7 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "reception";
-    this.texts = { uncertain: "0 (uncertain)", ...(options.texts || {}) };
+    this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
@@ -166,11 +168,15 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane. */
+  /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane, { parent, route } on
+   *  a lane that a parent link or a route implies. */
   setTexts(texts) {
     this.texts = { ...this.texts, ...texts };
     this._invalidate();
   }
+
+  /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
+  legend() { return legendEntries(this.theme); }
 
   setTheme(theme) {
     this.theme = resolveTheme(theme);
@@ -466,7 +472,7 @@ export class GraphView extends EventTarget {
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps, fill: this.fill,
-      uncertain: this.texts.uncertain,
+      texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);
   }

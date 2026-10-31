@@ -18,9 +18,10 @@ export function labelWidth(text) {
   return w;
 }
 
-/** 2D context that records every method call as [name, ...args] and stores property assignments. Text is measured
- *  with the realistic label widths. */
-export function recordingContext() {
+/** 2D context that records every method call as [name, ...args] and stores property assignments; with
+ *  { props: true } assignments are recorded too, as ["set", name, value]. Text is measured with the realistic label
+ *  widths. */
+export function recordingContext({ props = false } = {}) {
   const target = { calls: [], measureText: (text) => ({ width: labelWidth(text) }) };
   return new Proxy(target, {
     get(t, key) {
@@ -29,6 +30,7 @@ export function recordingContext() {
     },
     set(t, key, value) {
       t[key] = value;
+      if (props) t.calls.push(["set", key, value]);
       return true;
     },
   });
