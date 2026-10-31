@@ -54,6 +54,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._wide = true;
     this._drawerAuto = false; // the drawer was opened by "open details on select", not by the user
     this._dirty = new Set();
+    this._connection = "ok";
     this._controller = new PanelController();
     this._controller.addEventListener("change", () => this._onState());
     this._controller.addEventListener("reconnected", () => {
@@ -211,6 +212,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _onState() {
     if (!this._ui) return;
     const st = this._controller.state;
+    if (st.connection !== this._connection) {
+      if (st.connection === "lost") this._announce(this._t("live.lost"));
+      this._connection = st.connection;
+    }
     if (!this._versionMismatch() && st.phase === "ready" && st.network && st.network !== this._source) {
       this._useNetwork(st.network, st.raw);
       return; // _useNetwork renders when the settings are in

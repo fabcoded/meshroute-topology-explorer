@@ -10,7 +10,7 @@ export const WIDE_MIN = 720;
 export const SIDE_MIN = 320;
 export const SIDE_MAX = 400;
 const SIDE_SHARE = 0.36;
-/** Height of the collapsed sheet: one line of 48 px (a comfortable touch row) plus its top border and handle. */
+/** Height of the collapsed sheet: one line of 48 px (a comfortable touch row) and a little room around it. */
 export const SHEET_COLLAPSED = 56;
 /** The expanded sheet takes 55 % of the map, at least 240 px, and always leaves 120 px of map above it. Own choice. */
 const SHEET_SHARE = 0.55;

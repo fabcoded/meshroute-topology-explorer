@@ -19,7 +19,7 @@ function categoryEntries(fill, theme, t, roles) {
     for (const role of Object.keys(CATEGORY_FILLS.role)) {
       if (roles.has(role)) out.push({ label: t(`role.${role}`), color: theme.categories.role[role] });
     }
-    if (roles.has("unknown")) out.push({ label: t("role.none"), color: theme.node });
+    if (roles.has("unknown")) out.push({ label: t("role.unknown"), color: theme.node });
   } else {
     for (const key of Object.keys(CATEGORY_FILLS.power)) out.push({ label: t(`power.${key}`), color: theme.categories.power[key] });
     out.push({ label: t("power.none"), color: theme.node });

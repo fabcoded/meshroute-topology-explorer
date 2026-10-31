@@ -134,6 +134,9 @@ export class Drawer {
       tab.tabIndex = on ? 0 : -1;
       this.panels.get(name).hidden = !on;
     }
+    // On narrow sheets the tabs scroll sideways (long German names): keep the active one in sight.
+    const active = this.tabs.get(this.tab);
+    if (this.isOpen && !collapsed && active.scrollIntoView) active.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   _onTabKey(e) {

@@ -5,7 +5,7 @@
        python3 -m http.server 8823 --bind 127.0.0.1   then open   http://127.0.0.1:8823/dev/panel.html
      Query keys (combine freely):
        narrow=1        Home Assistant's narrow flag (default: window narrower than 870 px)
-       dark=1          dark theme variables; lang=de  German
+       dark=1          dark theme variables; switchdark=<s>  switch to dark after s seconds; lang=de  German
        nonadmin=1      a user without administrator rights;  nozha=1  ZHA not loaded;  empty=1  no devices
        error=1         zha/devices fails with a server error
        lost=<s>        connection lost after s seconds, back after back=<s> more (default 4; back=0 stays lost)
@@ -17,6 +17,7 @@
        collapsed=1     with select and no tab: open details on select (sheet collapsed on narrow screens)
        debug=1         debug mode;  scroll=end  scroll the drawer to its end
        version=old     a stale panel version (asks for a reload)
+       steps=...       replay clicks and keys, log in body[data-log] (see panel-demo.js, replay())
        pin=<label>     a stored pin for that device -->
 <html lang="en">
 <head>

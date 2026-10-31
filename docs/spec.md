@@ -281,6 +281,10 @@ user-supplied image, or map tiles from an address the user configured.
   tied to the working scale (7.1: devices half a label width from their nearest neighbour) only the coordinator,
   the selection and its neighbours carry labels; a label tries four places around its device before it is left out.
 - Markers keep a minimum size in screen pixels. A legend explains the current view and fill.
+- Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
+  per theme: role (coordinator vermillion, router bluish green, end device blue, border router reddish purple) and
+  power source (mains blue, battery reddish purple, DC bluish green); devices without a category stay grey. ZHA's
+  "Battery or Unknown" counts as battery, and the legend says so.
 
 ## 9. Interaction [v1]
 
@@ -291,6 +295,15 @@ user-supplied image, or map tiles from an address the user configured.
   map pans if needed).
 - **Debug mode** (menu, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since".
+- Wide means a panel at least 720 px wide; the side drawer takes 36 % of it within 320–400 px. The expanded sheet
+  takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
+  sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
+  button) it starts expanded, since a list in one line shows nothing.
+- The findings badge counts findings without hints ("very low reading"); the Findings tab lists hints in their own
+  collapsed group, and a "data incomplete" finding that lacks several tables under each of them (decision 2026-10-31).
+- The legend on the map is a small summary of the current fill that opens the Legend tab. The header carries the
+  menu (devices, legend, settings, debug mode, fit, release all pins, read data again) and, on narrow screens, the
+  sidebar button.
 
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
@@ -301,6 +314,10 @@ user-supplied image, or map tiles from an address the user configured.
 - "Open details on select" defaults to on for wide screens and off for narrow ones. Details also open with
   right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or
   the menu key.
+- The info button sits in a small chip on the map (name, Details, clear) while a device is selected and the drawer
+  is not on Details. "Open details on select" applies to selections on the map: it opens a closed drawer or follows
+  on the Details tab, never takes another tab away; selecting from a list (Devices, Findings, a device named in
+  Details) zooms to the device and keeps the list.
 
 ### 9.3 Gestures and keys
 - One gesture model: a press that moves less than 8 px is a tap; more is a drag (node: pin and move; background:
@@ -310,7 +327,8 @@ user-supplied image, or map tiles from an address the user configured.
   scale (7.1; never out past the overview) and keeps the device clear of the drawer (decision by Fabian
   Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
-- Keys: arrows and Enter in the device list (the keyboard path to every device); Esc clears selection and stops
+- Keys: arrows and Enter in the device list (the keyboard path to every device; a text filter above it matches
+  words in any order in name, model, vendor, area and addresses); Esc clears selection and stops
   playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was
   opened. Hit areas are at least 24 px on screen.
 - Every value on the canvas also exists as text; the canvas is described by the status line; playback is announced
@@ -318,7 +336,8 @@ user-supplied image, or map tiles from an address the user configured.
 
 ### 9.4 Errors and empty states
 Clear messages for: ZHA not loaded; user not an administrator; connection lost (retry automatically); Home
-Assistant too old for a source; no devices yet; scan running.
+Assistant too old for a source; no devices yet; scan running. A connection lost while the map is shown keeps the last
+picture under a banner and reads again when the connection is back.
 
 ## 10. Integration [v1]
 
@@ -340,6 +359,10 @@ Assistant too old for a source; no devices yet; scan running.
 
 View, direction (v1.1), density, fill, "open details on select", pinned positions; later geo positions and map
 background address (empty by default).
+
+The panel saves the whole object one second after the last change and on leaving. Keys it does not know are kept,
+since a save replaces what is stored. If the integration lacks the commands or the stored object cannot be read,
+the settings live in memory and the Settings tab says so; nothing stored is then overwritten.
 
 ## 12. Acceptance [v1]
 

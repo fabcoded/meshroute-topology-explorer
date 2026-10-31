@@ -90,6 +90,14 @@ addEventListener("location-changed", () => console.log("navigate", location.path
 // Every few seconds a new hass object, as Home Assistant does on state changes: must not reload anything.
 setInterval(() => push({}), 2000);
 
+// switchdark=<s>: Home Assistant switches to the dark theme after s seconds (variables first, then a new hass).
+if (q.get("switchdark")) {
+  setTimeout(() => {
+    document.documentElement.dataset.theme = "dark";
+    push({ themes: { darkMode: true, theme: "default" } });
+  }, Number(q.get("switchdark")) * 1000);
+}
+
 const back = q.has("back") ? Number(q.get("back")) : 4;
 function goDown() { connected = false; push({ connected: false }); connection.dispatchEvent(new Event("disconnected")); }
 function comeBack() { connected = true; push({ connected: true }); connection.dispatchEvent(new Event("ready")); }
@@ -113,4 +121,31 @@ async function drive() {
   if (tab) el._toggleTab(tab, null);
   if (q.get("scroll") === "end") { await sleep(100); el._drawer.body.scrollTop = el._drawer.body.scrollHeight; }
 }
-drive();
+
+/** steps=click:<selector>;focus:<selector>;key:<Key>;wait:<ms>;note:<text> replays input inside the panel and records
+ *  after each step which element has focus, what is selected and which tab is open, in body[data-log] (read it with
+ *  the browser's --dump-dom). A synthetic Enter on a button clicks it, as a real key press would. */
+async function replay() {
+  const list = q.get("steps");
+  if (!list) return;
+  const root = el.shadowRoot;
+  const log = [];
+  const describe = (n) => (n ? `${n.tagName.toLowerCase()}${n.className ? "." + String(n.className).split(" ")[0] : ""}` +
+    `${n.getAttribute("role") ? "[" + n.getAttribute("role") + "]" : ""}${n.textContent && n.tagName === "BUTTON" ? "(" + n.textContent.trim().slice(0, 20) + ")" : ""}` : "none");
+  for (const step of list.split(";")) {
+    const at = step.indexOf(":");
+    const op = step.slice(0, at);
+    const arg = step.slice(at + 1);
+    if (op === "click") root.querySelector(arg).click();
+    else if (op === "focus") root.querySelector(arg).focus();
+    else if (op === "key") {
+      const target = root.activeElement || el;
+      const handled = !target.dispatchEvent(new KeyboardEvent("keydown", { key: arg, bubbles: true, composed: true, cancelable: true }));
+      if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
+    }
+    await sleep(op === "wait" ? Number(arg) : 150);
+    log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; drawer ${el._drawer.isOpen ? el._drawer.tab : "closed"}; path ${location.pathname}`);
+  }
+  document.body.dataset.log = log.join(" | ");
+}
+drive().then(replay);
