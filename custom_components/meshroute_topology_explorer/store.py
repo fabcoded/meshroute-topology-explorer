@@ -52,12 +52,22 @@ class PanelStore:
     async def async_get(self, network: str, kind: str) -> dict[str, Any] | None:
         """Return the stored object of one kind for a network, or None if never set."""
         networks = await self._async_ensure_loaded()
-        value = networks.get(network, {}).get(kind)
+        entry = networks.get(network)
+        # A hand-edited file may hold anything; a wrong type counts as never set instead of crashing the command.
+        value = entry.get(kind) if isinstance(entry, dict) else None
         return value if isinstance(value, dict) else None
 
     async def async_set(self, network: str, kind: str, value: dict[str, Any]) -> None:
         """Replace one object of a network and schedule the save."""
         networks = await self._async_ensure_loaded()
-        networks.setdefault(network, {})[kind] = value
+        if not isinstance(networks.get(network), dict):
+            networks[network] = {}
+        networks[network][kind] = value
         # data_func runs at write time, so a burst of changes becomes one write of the latest state.
         self._store.async_delay_save(lambda: {"networks": networks}, STORE_SAVE_DELAY)
+
+    async def async_remove(self) -> None:
+        """Delete the file and the memory copy (Store.async_remove, storage.py:624, also cancels a pending save)."""
+        async with self._lock:
+            await self._store.async_remove()
+            self._networks = None

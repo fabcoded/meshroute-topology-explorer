@@ -59,4 +59,4 @@ each work package once.
 | settings saved 1 s after the last change; pins rounded to 0.001 base lengths | 11, A4a ui/settings.js | own choice: one write per burst of changes; a thousandth of a base length is far below a pixel |
 | completeness shown rounded down to whole percent | 6, A4a ui/status.js | own choice: 89.7 % must not read as the 90 % at which the banner goes |
 | buttons 40 px, list rows 44 px, Page keys step 10 rows | 9.3, A4a ui/styles.js, ui/device-list.js | own choice above the 24 px minimum of WCAG 2.2 2.5.8 |
-| payload limit 256 KiB measured as compact UTF-8 JSON; store delay 10 s | 10, A5b store.py | own choice (limit from the table above); delay: bursts of slider changes become one write |
+| payload limit 256 KiB measured as compact UTF-8 JSON of Home Assistant's `json_bytes`; store delay 10 s | 10, A5b const.py, websocket_api.py | limit: own choice (see the 256 KiB row above); delay: own choice, bursts of slider changes become one write |
