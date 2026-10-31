@@ -68,7 +68,7 @@ function defaultEnv() {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("reception",
-   *  "role" or "power"), seed, debug, env (timers and media queries, injectable for tests). */
+   *  "role" or "power"), texts ({ uncertain }), seed, debug, env (timers and media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
@@ -79,6 +79,7 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "reception";
+    this.texts = { uncertain: "0 (uncertain)", ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
@@ -159,6 +160,12 @@ export class GraphView extends EventTarget {
   setFill(fill) {
     if (!FILLS.includes(fill) || fill === this.fill) return;
     this.fill = fill;
+    this._invalidate();
+  }
+
+  /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane. */
+  setTexts(texts) {
+    this.texts = { ...this.texts, ...texts };
     this._invalidate();
   }
 
@@ -445,6 +452,7 @@ export class GraphView extends EventTarget {
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps, fill: this.fill,
+      uncertain: this.texts.uncertain,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);
   }

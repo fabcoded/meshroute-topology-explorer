@@ -40,9 +40,10 @@ export function hitRadius(role, k) {
   return Math.max(markerRadius(role, k) + 4, MIN_HIT / 2);
 }
 
-/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1), "?" for no value or no entry. */
-export function valueText(lqi) {
-  if (lqi === 0) return "0 (uncertain)";
+/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1; the panel passes its translation),
+ *  "?" for no value or no entry. */
+export function valueText(lqi, uncertain = "0 (uncertain)") {
+  if (lqi === 0) return uncertain;
   return typeof lqi === "number" && lqi > 0 ? String(lqi) : "?";
 }
 
@@ -163,7 +164,8 @@ class RectGrid {
 }
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS) }; pos: { x, y, pinned, mesh }
+ *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), uncertain (text for LQI 0) };
+ *  pos: { x, y, pinned, mesh }
  *  arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines, lanes, labels, dropped }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
@@ -248,7 +250,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const color = (reading && ratingColor(reading.rating, theme)) || "";
       if (!laneGroups.has(color)) laneGroups.set(color, []);
       laneGroups.get(color).push({ x0: sx[from] + ox, y0: sy[from] + oy, dx, dy, ux, uy, len });
-      let text = valueText(reading ? reading.lqi : undefined);
+      let text = valueText(reading ? reading.lqi : undefined, view.uncertain);
       if (view.debug) text += ` ← ${scene.nodes[reporter].label}`;
       const w = measure(text);
       if (len < w + 2 * markerRadius("router", k) + 12) continue; // no room on this lane: the details list it

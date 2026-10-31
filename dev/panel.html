@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Development page for the panel (not shipped): mounts the real panel element with a fake `hass` whose callWS answers
+     from the anonymized sample. No Home Assistant needed; any static server on the repository root will do:
+       python3 -m http.server 8823 --bind 127.0.0.1   then open   http://127.0.0.1:8823/dev/panel.html
+     Query keys (combine freely):
+       narrow=1        Home Assistant's narrow flag (default: window narrower than 870 px)
+       dark=1          dark theme variables; lang=de  German
+       nonadmin=1      a user without administrator rights;  nozha=1  ZHA not loaded;  empty=1  no devices
+       error=1         zha/devices fails with a server error
+       lost=<s>        connection lost after s seconds, back after back=<s> more (default 4; back=0 stays lost)
+       downfirst=1     the connection is down from the start (comes back after back=<s>)
+       settings=unknown   the integration does not know the settings commands (older version)
+       variant=minus1|minus3|without-coordinator|coordinator-only   sample with tables removed (spec 12)
+       fill=role|power, density=dense|medium|spread, open=on|off   stored settings to start from
+       select=<label>  select a device; tab=details|devices|findings|legend|settings  open the drawer on a tab
+       collapsed=1     with select and no tab: open details on select (sheet collapsed on narrow screens)
+       debug=1         debug mode;  scroll=end  scroll the drawer to its end
+       version=old     a stale panel version (asks for a reload)
+       pin=<label>     a stored pin for that device -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel (dev)</title>
+  <style>
+    /* A stand-in for Home Assistant's default theme variables. */
+    :root {
+      --primary-background-color: #fafafa; --secondary-background-color: #e5e5e5; --card-background-color: #ffffff;
+      --primary-text-color: #212121; --secondary-text-color: #727272; --text-primary-color: #ffffff;
+      --divider-color: rgba(0, 0, 0, 0.12); --primary-color: #03a9f4; --warning-color: #ffa600; --error-color: #db4437;
+      --app-header-background-color: #03a9f4; --app-header-text-color: #ffffff;
+      font-family: Roboto, "Noto Sans", sans-serif;
+    }
+    :root[data-theme="dark"] {
+      --primary-background-color: #111111; --secondary-background-color: #282828; --card-background-color: #1c1c1c;
+      --primary-text-color: #e1e1e1; --secondary-text-color: #9b9b9b; --divider-color: rgba(225, 225, 225, 0.12);
+      --app-header-background-color: #101e24; --app-header-text-color: #e1e1e1;
+    }
+    html, body { margin: 0; height: 100%; background: var(--primary-background-color); }
+    meshroute-topology-explorer { display: block; height: 100%; }
+  </style>
+</head>
+<body>
+  <meshroute-topology-explorer></meshroute-topology-explorer>
+  <script type="module" src="panel-demo.js"></script>
+</body>
+</html>

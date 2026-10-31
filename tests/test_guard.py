@@ -56,6 +56,13 @@ class GuardTest(unittest.TestCase):
         root = self.tree({"custom_components/x/p.js": SPDX + "u = 'https://github.com/fabcoded/meshroute-topology-explorer-evil/x'\n"})
         self.assertEqual(len(guard.check(root)), 1)
 
+    def test_svg_namespace_is_a_name_not_an_address(self):
+        root = self.tree({"custom_components/x/p.js": SPDX + "const NS = \"http://www.w3.org/2000/svg\";\n"
+                          "const a = 'http://www.w3.org/2000/svg/x'; const b = 'http://www.w3.org/1999/xhtml'\n"})
+        found = guard.check(root)
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all(":3:" in f for f in found), found)
+
     def test_write_commands_and_key_helpers_are_flagged(self):
         root = self.tree({
             "custom_components/x/p.js": SPDX + "hass.callWS({ type: 'zha/devices/permit' })\n",
