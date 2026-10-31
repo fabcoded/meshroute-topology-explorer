@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Tests of the colours (spec 8): the published cividis values, ratings drawn with 3:1 against light and dark
-// backgrounds, theme colours corrected to 3:1, unknown values without colour, the Okabe–Ito fills for role and power.  node --test "tests/**/*.test.mjs"
+// backgrounds, theme colours corrected to 3:1, unknown values without colour, the Okabe–Ito fills for role and power,
+// the grey for "no value" clear of the scale, with a slash.  node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveTheme, ratingColor, parseColor, contrastRatio, cividis, toHex, MIN_CONTRAST, OKABE_ITO, CATEGORY_FILLS,
-  fillColor, powerCategory, FILLS,
+  fillColor, powerCategory, FILLS, toLab, deltaE,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
+import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { recordingContext } from "./graph-fakes.mjs";
 
 test("cividis passes through the 17 published values at t = 0, 1/16, ..., 1", () => {
   const published = ["#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073",
@@ -81,4 +84,51 @@ test("fillColor follows the chosen fill; devices without a category stay grey (n
   assert.equal(powerCategory("DC Source"), "dc");
   assert.equal(powerCategory("Unknown"), null);
   assert.equal(powerCategory(null), null);
+});
+
+test("the grey for 'no value' stays clear of the rating scale and the background in every theme", (t) => {
+  for (const background of ["#ffffff", "#fafafa", "#f0f0f0", "#111111", "#1c1c1c", "#303030"]) {
+    const theme = resolveTheme({ background });
+    const grey = parseColor(theme.node);
+    const { lo, hi } = theme.lineRange;
+    let toScale = Infinity;
+    for (let x = lo; x <= hi + 1e-9; x += 0.005) toScale = Math.min(toScale, deltaE(grey, cividis(x)));
+    const toBackground = deltaE(grey, parseColor(background));
+    t.diagnostic && t.diagnostic(`${background}: grey ${theme.node}, ΔE to the scale ${toScale.toFixed(1)}, to the background ${toBackground.toFixed(1)}`);
+    assert.ok(toScale >= 15 && toBackground >= 15, `${background}: ${toScale} / ${toBackground}`);
+    // Outside the scale's lightness, on the background's side.
+    const L = toLab(grey)[0];
+    const scaleL = [toLab(cividis(lo))[0], toLab(cividis(hi))[0]];
+    assert.ok(theme.dark ? L < Math.min(...scaleL) : L > Math.max(...scaleL), `${background}: L* ${L}`);
+  }
+  // The greys this replaces sat inside the scale (the review's finding): dark #707070 within 2 ΔE of a rating colour.
+  const dark = resolveTheme({ background: "#111111" });
+  let old = Infinity;
+  for (let x = dark.lineRange.lo; x <= dark.lineRange.hi; x += 0.005) old = Math.min(old, deltaE([112, 112, 112], cividis(x)));
+  assert.ok(old < 2);
+});
+
+test("a device without a value under the fill is grey with a slash; rated and offline devices have none", () => {
+  const network = {
+    devices: [
+      { id: "a", role: "router", label: "Rated", rating: 0.5 },
+      { id: "b", role: "router", label: "Unrated", rating: null },
+      { id: "c", role: "router", label: "Offline", rating: null, available: false },
+    ],
+    readings: [],
+  };
+  const scene = buildScene(network, (text) => text.length * 7);
+  const ctx = recordingContext();
+  const theme = resolveTheme({});
+  const pos = { x: [0, 100, 200], y: [0, 0, 0], pinned: [0, 0, 0], mesh: [1, 1, 1] };
+  drawScene(ctx, scene, pos, { cam: { k: 1, cx: 100, cy: 0 }, width: 400, height: 200, dpr: 1, labelZoom: 1,
+    debug: false, selected: -1, hovered: -1, fps: null, fill: "reception" }, theme, (text) => text.length * 7);
+  // A slash runs from lower left to upper right inside the marker: moveTo(x - q, y + q), lineTo(x + q, y - q).
+  const slashes = [];
+  ctx.calls.forEach((c, j) => {
+    const next = ctx.calls[j + 1];
+    if (c[0] === "moveTo" && next && next[0] === "lineTo" && next[1] - c[1] > 0
+      && Math.abs((next[1] - c[1]) - (c[2] - next[2])) < 1e-9) slashes.push(Math.round((c[1] + next[1]) / 2));
+  });
+  assert.deepEqual(slashes.map((x) => x - 200), [0], "only the unrated device (drawn at x = 200) has a slash");
 });
