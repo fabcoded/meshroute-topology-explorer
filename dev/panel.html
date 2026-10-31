@@ -3,7 +3,8 @@
 <!-- Development page for the panel (not shipped): mounts the real panel element with a fake `hass` whose callWS answers
      from the anonymized sample. No Home Assistant needed; any static server on the repository root will do:
        python3 -m http.server 8823 --bind 127.0.0.1   then open   http://127.0.0.1:8823/dev/panel.html
-     Query keys (combine freely):
+     The burger button at the left edge opens a menu of the common variants and toggles. Query keys (combine freely):
+       phone=1         the panel in a 390 × 844 frame with the narrow flag, as on a phone
        narrow=1        Home Assistant's narrow flag (default: window narrower than 870 px)
        dark=1          dark theme variables; switchdark=<s>  switch to dark after s seconds; lang=de  German
        nonadmin=1      a user without administrator rights;  nozha=1  ZHA not loaded;  empty=1  no devices
@@ -18,6 +19,7 @@
        debug=1         debug mode;  scroll=end  scroll the drawer to its end
        version=old     a stale panel version (asks for a reload)
        steps=...       replay clicks and keys, log in body[data-log] (see panel-demo.js, replay())
+       devmenu=1       open the variant menu at load (for screenshots)
        pin=<label>     a stored pin for that device -->
 <html lang="en">
 <head>
@@ -40,6 +42,35 @@
     }
     html, body { margin: 0; height: 100%; background: var(--primary-background-color); }
     meshroute-topology-explorer { display: block; height: 100%; }
+    body.phone { display: flex; align-items: center; justify-content: center; background: #8a8a8a; }
+    body.phone meshroute-topology-explorer { width: 390px; height: min(844px, 100vh); flex: none;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35); }
+    /* Variant menu of the dev page: a tab at the left edge, clear of the panel's header, zoom buttons, legend and
+       sheet. */
+    .dev-burger { position: fixed; z-index: 1000; left: 0; top: 30%; width: 30px; height: 44px; padding: 0 7px;
+      display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer;
+      background: var(--card-background-color); border: 1px solid var(--divider-color); border-left: none;
+      border-radius: 0 8px 8px 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
+    .dev-burger span { display: block; height: 2px; border-radius: 1px; background: var(--primary-text-color); }
+    .dev-burger:focus-visible, .dev-menu a:focus-visible, .dev-menu input:focus-visible {
+      outline: 2px solid var(--primary-text-color); outline-offset: 2px; }
+    .dev-menu { position: fixed; z-index: 1000; left: 36px; top: 8px; width: 270px; max-height: calc(100vh - 16px);
+      overflow: auto; box-sizing: border-box; padding: 8px 14px 12px; font: 13px/1.4 Roboto, "Noto Sans", sans-serif;
+      color: var(--primary-text-color); background: var(--card-background-color); border: 1px solid var(--divider-color);
+      border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+    .dev-menu[hidden] { display: none; }
+    .dev-menu h2 { font-size: 15px; margin: 4px 0 8px; }
+    .dev-menu h3 { font-size: 12px; margin: 10px 0 2px; color: var(--secondary-text-color); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em; }
+    .dev-menu fieldset { border: 1px solid var(--divider-color); border-radius: 6px; margin: 0; padding: 4px 8px 6px; }
+    .dev-menu legend { font-size: 12px; color: var(--secondary-text-color); padding: 0 4px; }
+    .dev-toggle { display: flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
+    .dev-menu ul { list-style: none; margin: 0; padding: 0; }
+    .dev-menu a { display: block; min-height: 26px; line-height: 26px; padding: 0 6px; border-radius: 4px;
+      color: inherit; text-decoration: none; }
+    .dev-menu a:hover { background: var(--secondary-background-color); }
+    .dev-menu a[aria-current] { font-weight: 600; background: var(--secondary-background-color); }
+    .dev-mark { color: var(--primary-color); }
   </style>
 </head>
 <body>
