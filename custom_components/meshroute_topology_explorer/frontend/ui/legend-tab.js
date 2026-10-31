@@ -79,17 +79,21 @@ export function renderLegend(container, { t, theme, fill, roles, debug }) {
   if (fill !== "reception") container.append(h("p", { class: "small", text: t("legend.rank") }));
   if (debug) container.append(h("p", { class: "small", text: t("legend.debug") }));
 
-  const node = theme.node;
+  // Shape and outline swatches carry a value of the current fill, never the grey that means "no value"; hollow stays
+  // for "unavailable", as on the map. For reception the strong end of the scale: its middle is grey by design.
+  const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
+    : fill === "power" ? theme.categories.power.mains : ratingColor(1, theme));
   const shapes = [["coordinator", "square", 14, "legend.shape_coordinator"], ["router", "circle", 12, "legend.shape_router"],
     ["end device", "circle", 8, "legend.shape_end"], ["border router", "diamond", 12, "legend.shape_border"]];
   container.append(h("h3", { text: t("legend.shapes_title") }), h("ul", { class: "swatches" },
-    shapes.filter(([role]) => roles.has(role)).map(([, shape, size, key]) =>
-      h("li", {}, marker({ shape, size, fill: node, outline: theme.outline }), h("span", { text: t(key) })))));
+    shapes.filter(([role]) => roles.has(role)).map(([role, shape, size, key]) =>
+      h("li", {}, marker({ shape, size, fill: typical(role), outline: theme.outline }), h("span", { text: t(key) })))));
+  const router = typical("router");
   container.append(h("h3", { text: t("legend.outlines_title") }), h("ul", { class: "swatches" },
-    h("li", {}, marker({ fill: node, outline: theme.outline, dashed: true }), h("span", { text: t("legend.outline_unknown") })),
-    h("li", {}, marker({ fill: node, outline: theme.outline, hollow: true }), h("span", { text: t("legend.outline_offline") })),
-    h("li", {}, marker({ fill: node, outline: theme.outline, pin: true, size: 10 }), h("span", { text: t("legend.outline_pinned") })),
-    h("li", {}, marker({ fill: node, outline: theme.outline, ring: theme.accent, size: 10 }), h("span", { text: t("legend.outline_selected") }))));
+    h("li", {}, marker({ fill: router, outline: theme.outline, dashed: true }), h("span", { text: t("legend.outline_unknown") })),
+    h("li", {}, marker({ fill: router, outline: theme.outline, hollow: true }), h("span", { text: t("legend.outline_offline") })),
+    h("li", {}, marker({ fill: router, outline: theme.outline, pin: true, size: 10 }), h("span", { text: t("legend.outline_pinned") })),
+    h("li", {}, marker({ fill: router, outline: theme.outline, ring: theme.accent, size: 10 }), h("span", { text: t("legend.outline_selected") }))));
 }
 
 function scale(theme, t) {

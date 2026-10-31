@@ -300,9 +300,11 @@ user-supplied image, or map tiles from an address the user configured.
   takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
   sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
   button) it starts expanded, since a list in one line shows nothing.
-- The findings badge counts findings without hints ("very low reading") and "data incomplete" once per missing
-  table (decision 2026-10-31). The Findings tab lists hints in their own collapsed group and "data incomplete" by
-  missing table: a finding that lacks several tables under each of them, a table only one device misses flat.
+- The findings badge counts findings without hints ("very low reading") and each missing table once (decision
+  2026-10-31). "Data incomplete" and the hedged "parent unknown (tables of … missing)" are consequences of missing
+  tables, not verdicts: the Findings tab lists them together by the table they name (a finding that lacks several
+  tables under each of them, a table only one device misses flat), and the badge counts them only through that
+  table. The unhedged "no parent" is a finding of its own. Hints sit in their own collapsed group.
 - The legend on the map is a small summary of the current fill that opens the Legend tab. The header carries the
   menu (devices, legend, settings, debug mode, fit, release all pins, read data again) and, on narrow screens, the
   sidebar button.

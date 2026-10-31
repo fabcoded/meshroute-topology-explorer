@@ -60,4 +60,4 @@ each work package once.
 | completeness shown rounded down to whole percent | 6, A4a ui/status.js | own choice: 89.7 % must not read as the 90 % at which the banner goes |
 | buttons 40 px, list rows 44 px, Page keys step 10 rows | 9.3, A4a ui/styles.js, ui/device-list.js | own choice above the 24 px minimum of WCAG 2.2 2.5.8 |
 | payload limit 256 KiB measured as compact UTF-8 JSON; store delay 10 s | 10, A5b store.py | own choice (limit from the table above); delay: bursts of slider changes become one write |
-| badge counts "data incomplete" once per missing table | 9.1, A4a ui/findings.js | decision of the main session (2026-10-31), after Fabian Schwamborn's calm-default rule: one table missing showed 27 instead of 7 |
+| badge counts each missing table once; hedged "parent unknown" counts only through the tables it names | 9.1, A4a ui/findings.js | decisions of the main session (2026-10-31), after Fabian Schwamborn's calm-default rule: one table missing showed 27, now 5 |
