@@ -32,6 +32,8 @@ jobs:
           persist-credentials: false
       - uses: home-assistant/actions/hassfest@86d4564712fa02543c808e3a693dd04f9d3f8361  # master (home-assistant/actions has no release tags; pinned by commit)
   hacs:
+    # The HACS action validates public repositories only; it starts running once the repository is published.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
