@@ -52,3 +52,5 @@ each work package once.
 | double tap 400 ms; zoom animation 200 ms; layout 12 ms per frame (40 ms before the first) | A2 gestures.js, graph-view.js | common platform convention; own choice |
 | density sets the working scale: median nearest-neighbour distance on screen = D × mean label width; overview and fit unchanged; stored density applies on load | 7.1, 9.3 | decision by Fabian Schwamborn (2026-10-31) |
 | default view: each device's 3 best pairs by the pair's better rating, plus all pairs of the focus; debug shows all; springs unchanged | 7.1 | decision by Fabian Schwamborn (2026-10-31) |
+| A5b websocket commands and store | 2026-10-31 | Claude Sonnet 5.5 in Claude Code, directed by Fabian Schwamborn | specification (sections 3.4, 10, 11, 12), Home Assistant developer docs and source at 2026.10.2 (websocket_api, helpers/storage); no other project's code | pending review |
+| payload limit 256 KiB measured as compact UTF-8 JSON; store delay 10 s | 10, A5b store.py | own choice (limit from the table above); delay: bursts of slider changes become one write |
