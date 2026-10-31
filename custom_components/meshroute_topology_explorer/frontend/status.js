@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Pure counting logic for the status line (spec 3.1, 6, 9.4). No DOM, no Home Assistant objects: the panel passes
-// in the answer of `zha/devices`. Tested in Node: node --test "tests/**/*.test.mjs"
+// in the answer of `zha/devices`. Tested in Node: node --test tests/
 
 /** Parse an address or number that Home Assistant sends as hex text ("0x0D", "0X0d"), decimal text or a number.
  *  Returns a number, or null for anything else. Text must never be compared as strings ("0x0D" vs "0x000d"). */

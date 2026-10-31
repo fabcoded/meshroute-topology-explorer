@@ -16,14 +16,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._state = { phase: "loading" };
     this._root = this.attachShadow({ mode: "open" });
     this._panel = null;
-    this.narrow = false;
+    this._narrow = false;
   }
 
   // Home Assistant assigns a new hass object on every state change. Only the first one starts loading, so a busy
   // house does not make the panel refetch every table (spec 10).
   set hass(value) {
     this._hass = value;
-    if (!this._loadStarted && this.isConnected) this._load();
+    this._tryLoad();
   }
   get hass() { return this._hass; }
 
@@ -33,9 +33,21 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   }
   get panel() { return this._panel; }
 
+  set narrow(value) {
+    const changed = value !== this._narrow;
+    this._narrow = Boolean(value);
+    if (changed) this._render();
+  }
+  get narrow() { return this._narrow; }
+
   connectedCallback() {
-    if (this._hass && !this._loadStarted) this._load();
+    this._tryLoad();
     this._render();
+  }
+
+  // Wait for hass.user: without it the admin check would wrongly show "needs an administrator".
+  _tryLoad() {
+    if (!this._loadStarted && this.isConnected && this._hass && this._hass.user) this._load();
   }
 
   async _load() {
@@ -61,7 +73,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   }
 
   _reload() {
-    if (this._hass) this._load();
+    if (this._hass && this._hass.user) this._load();
+  }
+
+  // Custom panels must provide their own sidebar button on narrow screens. Home Assistant's own menu button
+  // (ha-menu-button in home-assistant/frontend) fires the bubbling, composed event "hass-toggle-menu", which the
+  // main shell handles. (Convention recalled from that source; not re-checked online.)
+  _toggleSidebar() {
+    this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true }));
   }
 
   _render() {
@@ -73,22 +92,35 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       :host { display: block; padding: 16px; box-sizing: border-box; min-height: 100%;
         background: var(--primary-background-color, #fff); color: var(--primary-text-color, #212121);
         font-family: var(--paper-font-body1_-_font-family, sans-serif); }
-      h1 { font-size: 1.4em; margin: 0 0 12px; font-weight: 400; }
+      .header { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+      h1 { font-size: 1.4em; margin: 0; font-weight: 400; }
       .status { margin: 0 0 16px; padding: 8px 12px; border-left: 4px solid var(--primary-color, #03a9f4);
         background: var(--secondary-background-color, #f5f5f5); }
       .warn { border-left-color: var(--warning-color, #ff9800); }
       .error { border-left-color: var(--error-color, #db4437); }
       button { font: inherit; padding: 6px 14px; cursor: pointer; color: var(--primary-text-color, #212121);
         background: var(--card-background-color, #fff); border: 1px solid var(--divider-color, #bbb); border-radius: 4px; }
-      button:focus-visible, ul:focus-visible { outline: 2px solid var(--primary-color, #03a9f4); outline-offset: 2px; }
+      button:focus-visible { outline: 2px solid var(--primary-color, #03a9f4); outline-offset: 2px; }
       table { border-collapse: collapse; width: 100%; max-width: 48em; }
       th, td { text-align: left; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--divider-color, #ddd); }
     `;
     root.append(style);
 
+    const header = document.createElement("div");
+    header.className = "header";
+    if (this._narrow) {
+      const menu = document.createElement("button");
+      menu.type = "button";
+      menu.className = "menu";
+      menu.setAttribute("aria-label", "Open sidebar");
+      menu.textContent = "\u2630";
+      menu.addEventListener("click", () => this._toggleSidebar());
+      header.append(menu);
+    }
     const h1 = document.createElement("h1");
     h1.textContent = "Meshroute Topology Explorer";
-    root.append(h1);
+    header.append(h1);
+    root.append(header);
 
     const mismatch = this._panel && this._panel.config && this._panel.config.version !== VERSION;
     if (mismatch) {

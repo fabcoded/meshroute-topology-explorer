@@ -12,9 +12,16 @@
   code. URL_ALLOW is matched exactly up to a path boundary.
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
-- Websocket commands in shipped source (`type: "x/y"`) must be on the allow-list of spec 3.4 (ALLOWED_COMMANDS, or
-  below the project's own `meshroute_topology_explorer/` namespace); anything else is a finding. MIME types
-  (text/..., application/..., image/...) are not commands and are skipped.
+- Shipped files (everything under custom_components/ except vendor/) may only have the extensions in SHIPPED_EXT.
+- Every command-like string literal ('x/y' in single, double or backtick quotes; literals joined with + are merged
+  first) must be on the allow-list of spec 3.4 (ALLOWED_COMMANDS, or below the project's own
+  `meshroute_topology_explorer/` namespace). MIME types are skipped. A call to callWS/sendMessage/subscribeMessage
+  whose argument is built by concatenation or a template, and a computed ["type"] key, are findings because the
+  command cannot be resolved by reading.
+- Shipped code must not use callService(, callApi(, fetch(, XMLHttpRequest, WebSocket(, EventSource, sendBeacon (other
+  ways to reach Home Assistant or the network) nor HTML sinks (innerHTML, outerHTML, insertAdjacentHTML,
+  document.write, unsafeHTML, eval(, new Function). There is no allow mechanism: if a legitimate need appears, extend
+  the rule here with a reason.
 Exit code 1 with one line per finding. Rules: AGENTS.md.
 """
 
@@ -28,6 +35,7 @@ DENY = (
     "async_get_active_dataset_tlvs", "async_get_preferred_dataset",
     # change the network or its devices
     "zha/devices/permit", "zha/devices/remove", "zha/devices/reconfigure", "zha/topology/permit",
+    "zha/devices/clusters", "zha/devices/bind", "zha/groups/", "zha/configuration/", "matter/open_commissioning_window",
     "thread/set_", "thread/add_dataset", "thread/delete_dataset", "matter/set_", "matter/commission", "matter/remove",
 )
 # Spec 3.4, v1 and "later" rows: the only commands shipped code may name (the DENY list above still applies first).
@@ -37,9 +45,18 @@ ALLOWED_COMMANDS = {
     "thread/discover_routers", "thread/list_datasets", "mqtt/subscribe",
 }
 OWN_NAMESPACE = "meshroute_topology_explorer/"
-COMMAND = re.compile(r"""\btype["']?\s*[:=]\s*["']([A-Za-z0-9_.*-]+/[A-Za-z0-9_/.*-]*)["']""")
+# A command-like literal: starts with a name, has a slash, no spaces ("./a.js", "/abs/path" and URLs do not match).
+LITERAL = re.compile(r"""(["'`])([A-Za-z_][A-Za-z0-9_.*-]*/[A-Za-z0-9_/.*-]*)\1""")
+JOIN = re.compile(r"""(["'`])([^"'`]*)\1\s*\+\s*(["'`])([^"'`]*)\3""")
+CALL = re.compile(r"\b(?:callWS|sendMessage|subscribeMessage)\b")
+UNRESOLVED = re.compile(r"""\$\{|["'`]\s*\+|\+\s*["'`]|\[\s*["']type["']\s*\]""")
+FORBIDDEN_CALL = re.compile(
+    r"\b(?:callService|callApi|fetch)\s*\(|\bXMLHttpRequest\b|\bWebSocket\s*\(|\bEventSource\b|\bsendBeacon\b")
+HTML_SINK = re.compile(
+    r"\b(?:innerHTML|outerHTML|insertAdjacentHTML|unsafeHTML)\b|\bdocument\s*\.\s*write\b|\beval\s*\(|\bnew\s+Function\b")
 NOT_COMMANDS = ("text/", "application/", "image/", "font/", "audio/", "video/")
-SOURCE = (".py", ".js", ".mjs")
+SOURCE = (".py", ".js", ".mjs", ".cjs")
+SHIPPED_EXT = {".png", ".json", ".js", ".mjs", ".py", ".css", ".svg", ".html", ".md"}
 TEXT = SOURCE + (".html", ".css", ".json", ".svg", ".yaml", ".yml", ".md", ".txt")
 URL = re.compile(r"""(?:(?:https?|wss?):|(?<=['"`(=\s]))//[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?[^\s'"`)<>]*""", re.IGNORECASE)
 URL_ALLOW = ("https://github.com/fabcoded/meshroute-topology-explorer",)
@@ -50,6 +67,26 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 def allowed(url: str) -> bool:
     """True if url is an allow-listed address or a path below it (no lookalike hosts or names)."""
     return any(url == base or url.startswith(base + "/") for base in URL_ALLOW)
+
+
+def content_findings(line: str) -> list[str]:
+    """Messages for one line of shipped code: unlisted commands, unresolvable commands, forbidden calls, HTML sinks."""
+    out = []
+    merged = line
+    while (joined := JOIN.sub(lambda m: m.group(1) + m.group(2) + m.group(4) + m.group(1), merged)) != merged:
+        merged = joined  # "zha" + "/devices/bind" is read as one literal
+    for _, cmd in LITERAL.findall(merged):
+        if not (cmd in ALLOWED_COMMANDS or cmd.startswith(OWN_NAMESPACE) or cmd.startswith(NOT_COMMANDS)):
+            out.append(f"command {cmd} is not on the allow-list (spec 3.4)")
+    if CALL.search(merged) and UNRESOLVED.search(merged):
+        out.append("command built by concatenation, template or computed key: use a plain string literal")
+    elif UNRESOLVED.search(merged) and re.search(r"\[\s*[\"']type[\"']\s*\]", merged):
+        out.append("computed 'type' key: use a plain string literal")
+    if FORBIDDEN_CALL.search(merged):
+        out.append("call that could reach Home Assistant or the network outside the allow-list (spec 3.4)")
+    if HTML_SINK.search(merged):
+        out.append("HTML sink or dynamic code: names must be set as text (AGENTS.md)")
+    return out
 
 
 def files(root: Path):
@@ -63,10 +100,13 @@ def check(root: Path) -> list[str]:
     findings = []
     for path in files(root):
         rel = path.relative_to(root).as_posix()
-        if path.suffix not in TEXT:
-            continue
         vendored = "vendor" in path.parts
         shipped = rel.startswith("custom_components/") and not vendored
+        if shipped and path.suffix not in SHIPPED_EXT:
+            findings.append(f"{rel}:1: file type {path.suffix or '(none)'} is not allowed in shipped files")
+            continue
+        if path.suffix not in TEXT and not (shipped and path.suffix in SOURCE):
+            continue
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         if path.suffix in SOURCE and not vendored and not any("SPDX-License-Identifier" in line for line in lines[:3]):
             findings.append(f"{rel}:1: missing SPDX-License-Identifier in the first three lines")
@@ -77,10 +117,8 @@ def check(root: Path) -> list[str]:
                     if term in line:
                         denied = True
                         findings.append(f"{rel}:{n}: names {term}, which returns network keys or changes the network")
-            if shipped and path.suffix in SOURCE and not denied:  # one finding per line is enough
-                for cmd in COMMAND.findall(line):
-                    if not (cmd in ALLOWED_COMMANDS or cmd.startswith(OWN_NAMESPACE) or cmd.startswith(NOT_COMMANDS)):
-                        findings.append(f"{rel}:{n}: command {cmd} is not on the allow-list (spec 3.4)")
+            if shipped and not denied:  # one finding per line is enough
+                findings.extend(f"{rel}:{n}: {msg}" for msg in content_findings(line))
             if shipped:
                 for url in URL.findall(line):
                     if not allowed(url):

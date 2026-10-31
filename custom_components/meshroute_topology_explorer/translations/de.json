@@ -5,9 +5,6 @@
         "title": "Meshroute Topology Explorer",
         "description": "Fügt der Seitenleiste eine schreibgeschützte Karte deines Zigbee-Netzes hinzu. Es ist nichts zu konfigurieren."
       }
-    },
-    "abort": {
-      "single_instance_allowed": "Bereits eingerichtet. Es ist nur eine Instanz möglich."
     }
   }
 }

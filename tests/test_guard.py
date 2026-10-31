@@ -32,7 +32,7 @@ class GuardTest(unittest.TestCase):
 
     def test_outside_url_only_in_shipped_files(self):
         root = self.tree({
-            "custom_components/x/panel.js": SPDX + "fetch('https://cdn.example.net/lib.js')\n",
+            "custom_components/x/panel.js": SPDX + "const u = 'https://cdn.example.net/lib.js'\n",
             "tools/helper.py": "# SPDX-License-Identifier: MIT\n# see https://contributors.home-assistant.io\n",
         })
         findings = guard.check(root)
@@ -75,6 +75,40 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(len(found), 2, found)
         self.assertTrue(all("allow-list" in f or "changes the network" in f for f in found), found)
         self.assertTrue(any("light/turn_on" in f for f in found))
+
+    def test_known_bypasses_are_flagged(self):
+        cases = {
+            "template.js": "hass.callWS({ type: `light/turn_on` })",
+            "concat.js": 'hass.callWS({ type: "zha" + "/devices/bind" })',
+            "constant.js": 'const CMD = "light/turn_on"',
+            "computed.js": 'hass.callWS({ ["type"]: kind })',
+            "service.js": 'hass.callService("zha", "permit")',
+            "api.js": 'hass.callApi("POST", "services/zha/permit")',
+            "fetch.js": "fetch(`/api/${name}`)",
+            "socket.js": 'const s = new WebSocket("ws://" + host)',
+            "sink.js": "el.innerHTML = device.name",
+            "dynamic.js": "const t = hass.callWS({ type: kind + '/x' })",
+        }
+        for name, code in cases.items():
+            with self.subTest(name):
+                root = self.tree({f"custom_components/x/{name}": SPDX + code + "\n"})
+                self.assertTrue(guard.check(root), code)
+        root = self.tree({"custom_components/x/two.js": SPDX + "hass.callWS({\n  type:\n    'light/turn_on',\n})\n"})
+        self.assertTrue(guard.check(root), "type and value on two lines")
+
+    def test_unknown_extension_in_shipped_files(self):
+        root = self.tree({"custom_components/x/a.cjs": SPDX + "x = 1\n", "custom_components/x/b.exe": "x"})
+        found = guard.check(root)
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all("not allowed in shipped files" in f for f in found))
+
+    def test_new_deny_terms_and_clean_code(self):
+        root = self.tree({"custom_components/x/p.js": SPDX + "a('zha/groups/add'); b('zha/devices/clusters/attributes')\n"
+                          "c('matter/open_commissioning_window')\n"})
+        self.assertEqual(len(guard.check(root)), 3)
+        ok = self.tree({"custom_components/x/p.js": SPDX + "el.textContent = './a.js'; import('/m_x/0.1.0/p.js')\n"
+                        "// text/plain and a/b in prose\n"})
+        self.assertEqual(guard.check(ok), [])
 
     def test_virtualenv_is_skipped(self):
         root = self.tree({".venv/lib/x.py": "print(1)\n"})

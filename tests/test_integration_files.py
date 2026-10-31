@@ -30,7 +30,8 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertEqual(m["domain"], COMP.name)
         self.assertEqual(m["name"], "Meshroute Topology Explorer")
         self.assertEqual(m["dependencies"], ["frontend", "http", "panel_custom"])
-        self.assertEqual(m["after_dependencies"], ["zha"])
+        self.assertNotIn("after_dependencies", m)  # the panel checks ZHA in the browser; no need to pull in its requirements
+        self.assertEqual(m["iot_class"], "calculated")
         self.assertEqual(m["requirements"], [])
         self.assertTrue(m["config_flow"] and m["single_config_entry"])
         self.assertIn("github.com/fabcoded/meshroute-topology-explorer", m["documentation"])
