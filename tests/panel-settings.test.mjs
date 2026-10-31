@@ -104,7 +104,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.equal(server.sets().length, 1);
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
-  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, extra: 1,
+  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, legendOpen: null, extra: 1,
     pins: { [A]: [1.235, -2] } });
   await c.flush();
   assert.equal(server.sets().length, 1, "nothing pending, nothing sent");
@@ -213,4 +213,18 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
   assert.equal(big.error.kind, "too-large");
   assert.ok(big.error.bytes > MAX_BYTES);
   assert.equal(server.sets().length, 0);
+});
+
+test("the legend's collapsed or expanded state is stored per network; anything but a boolean means by width", async () => {
+  assert.equal(sanitizeSettings({}).legendOpen, null);
+  assert.equal(sanitizeSettings({ legendOpen: true }).legendOpen, true);
+  assert.equal(sanitizeSettings({ legendOpen: "yes" }).legendOpen, null);
+  const server = fakeServer({ stored: { legendOpen: false, pins: { [A]: [1, 1] } } });
+  const c = client(server);
+  await c.load();
+  assert.equal(c.settings.legendOpen, false, "applied on load");
+  c.update({ legendOpen: true });
+  await c.flush();
+  assert.equal(server.stored.legendOpen, true);
+  assert.deepEqual(server.stored.pins, { [A]: [1, 1] }, "other keys untouched");
 });

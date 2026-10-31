@@ -355,9 +355,15 @@ user-supplied image, or map tiles from an address the user configured.
   tables, not verdicts: the Findings tab lists them together by the table they name (a finding that lacks several
   tables under each of them, a table only one device misses flat), and the badge counts them only through that
   table. The unhedged "no parent" is a finding of its own. Hints sit in their own collapsed group.
-- The legend on the map is a small summary of the current fill that opens the Legend tab. The header carries the
-  menu (devices, legend, settings, debug mode, fit, release all pins, read data again) and, on narrow screens, the
-  sidebar button.
+- No header bar (decision by Fabian Schwamborn, 2026-10-31): the map fills the panel, with floating groups at its
+  edges (rounded, light shadow, theme surface, targets of 44 px) that move out of the drawer's way: the title pill
+  "Meshroute" top left (with the sidebar button on narrow screens); the options group top right, labelled rows on
+  wide panels (Options: the menu with devices, legend, settings, debug mode, fit, release all pins, read data again;
+  Findings with the badge; Density and Fill with their current value) and one row of icons on narrow ones (menu,
+  findings count, density value, fit); the zoom group bottom right; the legend bottom left, a pill "Legend ›" that
+  expands to the current fill and the three link classes. The links part of every legend comes from the graph's
+  own legend entries (7.1). The reception fill is named "Receive" (German "Empfang"): how well the neighbours receive
+  the device, its best rank at a neighbour.
 
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
@@ -369,7 +375,8 @@ user-supplied image, or map tiles from an address the user configured.
   right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or
   the menu key.
 - The info button sits in a small chip on the map (name, Details, clear) while a device is selected and the drawer
-  is not on Details. "Open details on select" applies to selections on the map: it opens a closed drawer or follows
+  is not on Details: below the title pill on wide panels, at the bottom left on narrow ones (thumb reach), where the
+  legend steps aside for it. "Open details on select" applies to selections on the map: it opens a closed drawer or follows
   on the Details tab, never takes another tab away; selecting from a list (Devices, Findings, a device named in
   Details) zooms to the device and keeps the list.
 
@@ -424,8 +431,9 @@ picture under a banner and reads again when the connection is back.
 
 ## 11. Settings per network [v1]
 
-View, direction (v1.1), density, fill, "open details on select", pinned positions; later geo positions and map
-background address (empty by default).
+View, direction (v1.1), density, fill, "open details on select", whether the legend is expanded (`legendOpen`; by
+default expanded on wide panels, collapsed on narrow ones), pinned positions; later geo positions and map background
+address (empty by default).
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
 reads the stored object and writes back only what it changed, so last write wins per key and pins merge per device;

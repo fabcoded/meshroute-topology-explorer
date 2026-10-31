@@ -4,8 +4,8 @@
 import { h } from "./dom.js";
 
 export class Menu {
-  /** button: the menu button; items(): [{ id, label, type: "item" | "checkbox" | "separator", checked, disabled }];
-   *  onPick(id). */
+  /** button: the menu button; items(): [{ id, label, type: "item" | "checkbox" | "radio" | "separator", checked,
+   *  disabled }]; onPick(id). Radio items are a single choice (density, fill): the checked one is marked. */
   constructor(button, { items, onPick }) {
     this.button = button;
     this.items = items;
@@ -25,17 +25,20 @@ export class Menu {
   open(focusIndex = 0) {
     this.el.replaceChildren(...this.items().map((it) => {
       if (it.type === "separator") return h("div", { role: "separator", class: "sep" });
-      const role = it.type === "checkbox" ? "menuitemcheckbox" : "menuitem";
+      const role = it.type === "checkbox" ? "menuitemcheckbox" : it.type === "radio" ? "menuitemradio" : "menuitem";
+      const checkable = it.type === "checkbox" || it.type === "radio";
       return h("button", { type: "button", role, class: "menu-item", tabIndex: -1, disabled: Boolean(it.disabled),
-        "aria-checked": it.type === "checkbox" ? String(Boolean(it.checked)) : null,
+        "aria-checked": checkable ? String(Boolean(it.checked)) : null,
         on: { click: () => { this.close(true); this.onPick(it.id); } } },
-      it.type === "checkbox" ? h("span", { class: "check", "aria-hidden": "true", text: it.checked ? "✓" : "" }) : null,
+      checkable ? h("span", { class: "check", "aria-hidden": "true", text: it.checked ? (it.type === "radio" ? "●" : "✓") : "" }) : null,
       h("span", { text: it.label }));
     }));
     this.el.hidden = false;
     this.button.setAttribute("aria-expanded", "true");
     const entries = this._entries();
-    if (entries.length) entries.at(focusIndex < 0 ? -1 : 0).focus();
+    // A single choice opens on the chosen item, as a select would.
+    const checked = entries.findIndex((b) => b.getAttribute("role") === "menuitemradio" && b.getAttribute("aria-checked") === "true");
+    if (entries.length) (checked >= 0 && focusIndex === 0 ? entries[checked] : entries.at(focusIndex < 0 ? -1 : 0)).focus();
     window.addEventListener("pointerdown", this._outside, true);
   }
 

@@ -11,9 +11,10 @@ import { FILLS } from "../graph/palette.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
 
-/** Defaults of spec 11. openDetailsOnSelect null means "by screen width" (on for wide, off for narrow, spec 9.2). */
+/** Defaults of spec 11. openDetailsOnSelect and legendOpen null mean "by screen width": details open on select and
+ *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "reception", openDetailsOnSelect: null,
-  pins: Object.freeze({}) });
+  legendOpen: null, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -53,6 +54,7 @@ export function sanitizeSettings(input) {
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
+  out.legendOpen = typeof src.legendOpen === "boolean" ? src.legendOpen : null;
   out.pins = sanitizePins(src.pins);
   return out;
 }

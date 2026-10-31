@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Entry module of the Meshroute Topology Explorer panel: the quality view of a ZHA network (spec 6-11). Home
 // Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
-// Layout (spec 9.1): header (sidebar button on narrow screens, title, density, findings badge, menu), the map with
-// zoom buttons and a small legend, one drawer (Details, Devices, Findings, Legend, Settings) and the status line.
+// Layout (spec 9.1; decision by Fabian Schwamborn, 2026-10-31): no header bar; the map fills the panel with floating
+// groups at its edges: title pill (with the sidebar button on narrow screens) top left, options group top right,
+// zoom group bottom right, legend pill bottom left; one drawer (Details, Devices, Findings, Legend, Settings) and the
+// status line.
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
 // Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
 // since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
@@ -17,16 +19,17 @@ import { ObservationsClient } from "./ui/observations-client.js";
 import { ScanFollower, tablesDiffer } from "./ui/scan.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins, DENSITY_NAMES } from "./ui/settings.js";
+import { FILLS } from "./graph/palette.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
 import { languageOf, translator, localize } from "./ui/i18n.js";
-import { drawerGeometry, isWide } from "./ui/geometry.js";
+import { drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
+import { OptionsGroup } from "./ui/options-group.js";
 import { Drawer } from "./ui/drawer.js";
 import { DevicesTab } from "./ui/devices-tab.js";
 import { renderDetails } from "./ui/details-tab.js";
 import { renderFindings, markFindings } from "./ui/findings-tab.js";
-import { renderLegend, renderMiniLegend } from "./ui/legend-tab.js";
+import { renderLegend, renderLegendPill } from "./ui/legend-tab.js";
 import { renderSettings } from "./ui/settings-tab.js";
-import { Menu } from "./ui/menu.js";
 import { badgeCount } from "./ui/findings.js";
 import { statusParts, isIncomplete } from "./ui/status.js";
 import { receptionText, roleText } from "./ui/format.js";
@@ -111,6 +114,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   connectedCallback() {
     if (!this._ui) this._build();
     this._resize.observe(this._ui.map);
+    this._resize.observe(this._options.el); // its width bounds the band for banners (floatingLayout)
     this._media = globalThis.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
     if (this._media) this._media.addEventListener("change", this._onMedia);
     document.addEventListener("visibilitychange", this._onPageHide);
@@ -128,7 +132,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._media) this._media.removeEventListener("change", this._onMedia);
     document.removeEventListener("visibilitychange", this._onPageHide);
     window.removeEventListener("pagehide", this._onPageHide);
-    this._menu.close(false);
+    this._options.closeMenus();
     if (this._settings) this._settings.flush();
     if (this._observations) this._observations.flush();
     // A hidden panel does not keep reading zha/devices: following the scan ends here (the scan itself goes on).
@@ -148,18 +152,22 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true }));
     });
     ui.title = h("h1", { class: "title" });
-    ui.densityText = h("span", { class: "density-text" });
-    ui.densitySelect = h("select", { on: { change: (e) => this._settings && this._settings.update({ density: e.target.value }) } },
-      DENSITY_NAMES.map((name) => h("option", { value: name })));
-    ui.density = h("label", { class: "density" }, ui.densityText, ui.densitySelect);
-    ui.badgeText = h("span", { class: "badge-label" });
-    ui.badgeCount = h("span", { class: "count" });
-    ui.badge = h("button", { type: "button", class: "badge", on: { click: () => this._toggleTab("findings", ui.badge) } },
-      ui.badgeText, ui.badgeCount);
-    ui.menuButton = h("button", { type: "button", class: "icon-button" }, icon("more"));
-    this._menu = new Menu(ui.menuButton, { items: () => this._menuItems(), onPick: (id) => this._onMenu(id) });
-    ui.toolbar = h("header", { class: "toolbar" }, ui.sidebar, ui.title, ui.density, ui.badge,
-      h("div", { class: "menu-wrap" }, ui.menuButton, this._menu.el));
+    // Top left: the title as a small floating pill; on narrow screens the sidebar button joins it.
+    ui.titlePill = h("div", { class: "title-pill float" }, ui.sidebar, ui.title);
+    // Top right: the options group (labelled rows; icons on narrow screens).
+    this._options = new OptionsGroup({
+      menuItems: () => this._menuItems(), onMenu: (id) => this._onMenu(id),
+      onFindings: (button) => this._toggleTab("findings", button),
+      densityItems: () => DENSITY_NAMES.map((name) => ({ id: name, type: "radio", label: this._t(`density.${name}`),
+        checked: this._settings && this._settings.settings.density === name })),
+      onDensity: (name) => this._settings && this._settings.update({ density: name }),
+      fillItems: () => FILLS.map((name) => ({ id: name, type: "radio", label: this._t(`fill.${name}`),
+        checked: this._settings && this._settings.settings.fill === name })),
+      onFill: (name) => this._settings && this._settings.update({ fill: name }),
+      onFit: () => this._view && this._view.fit(),
+    });
+    this._menu = this._options.menu;
+    ui.menuButton = this._options.menuButton;
 
     ui.canvas = h("canvas", { "aria-describedby": "mte-status" });
     ui.incomplete = h("div", { class: "banner incomplete float" }, h("strong"), h("span"));
@@ -175,7 +183,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.zoomOut = iconButton("minus", "", () => this._view && this._view.zoomOut());
     ui.zoomFit = iconButton("fit", "", () => this._view && this._view.fit());
     ui.zoom = h("div", { class: "zoom float" }, ui.zoomIn, ui.zoomOut, ui.zoomFit);
-    ui.mini = h("button", { type: "button", class: "mini-legend float", on: { click: () => this._toggleTab("legend", ui.mini) } });
+    // Bottom left: the legend pill, collapsed or expanded as stored (settings.legendOpen).
+    ui.mini = h("div", { class: "legend-box float" });
     ui.message = h("div", { class: "message" });
 
     this._drawer = new Drawer({ onChange: () => this._onDrawer() });
@@ -183,11 +192,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._devicesTab = new DevicesTab({ onSelect: (id) => this._select(id, "list") });
     this._drawer.panel("devices").append(this._devicesTab.el);
 
-    ui.map = h("div", { class: "map" }, ui.canvas, ui.top, ui.zoom, ui.mini, this._drawer.el, ui.message);
+    ui.map = h("div", { class: "map" }, ui.canvas, ui.top, ui.zoom, ui.mini, ui.titlePill, this._options.el,
+      this._drawer.el, ui.message);
     ui.status = h("section", { class: "status", id: "mte-status" });
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
-    ui.app = h("div", { class: "app" }, ui.toolbar, ui.map, ui.status, ui.live);
+    ui.app = h("div", { class: "app" }, ui.map, ui.status, ui.live);
     this._root.append(h("style", { text: STYLES }), ui.app, ui.probe);
     this._resize = new ResizeObserver(() => this._layout());
     this._retranslate();
@@ -197,16 +207,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _retranslate() {
     const t = this._t;
     const ui = this._ui;
-    ui.title.textContent = t("app.title");
-    ui.densityText.textContent = t("header.density");
-    for (const option of ui.densitySelect.options) option.textContent = t(`density.${option.value}`);
-    ui.badgeText.textContent = t("header.findings");
+    ui.title.textContent = t("app.short_title");
+    ui.title.title = t("app.title");
     ui.canvas.setAttribute("aria-label", t("map.label"));
     ui.lost.textContent = t("map.connection_lost");
     ui.loading.textContent = t("map.loading");
     ui.chipDetails.lastChild.textContent = t("selection.details");
     ui.status.setAttribute("aria-label", t("status.label"));
-    for (const [button, key] of [[ui.sidebar, "header.sidebar"], [ui.menuButton, "header.menu"], [ui.zoomIn, "zoom.in"],
+    for (const [button, key] of [[ui.sidebar, "header.sidebar"], [ui.zoomIn, "zoom.in"],
       [ui.zoomOut, "zoom.out"], [ui.zoomFit, "zoom.fit"], [ui.chipClear, "selection.clear"]]) {
       button.setAttribute("aria-label", t(key));
       button.title = t(key);
@@ -215,7 +223,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._source) {
       // The coordinator's label is translated, so the map gets the new network (same layout seed, same picture).
       this._network = localize(this._source, t);
-      if (this._view) this._view.setTexts({ uncertain: t("lqi.uncertain") });
+      if (this._view) this._view.setTexts(this._graphTexts());
       if (this._view) this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
       this._devicesTab.setNetwork(this._network, t);
       this._devicesTab.setSelected(this._selected);
@@ -297,7 +305,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, texts: { uncertain: this._t("lqi.uncertain") } });
+      debug: this._debug, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
@@ -330,7 +338,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === st.network;
     this._renderHeader(ready);
 
-    for (const el of [ui.canvas, ui.top, ui.zoom, ui.mini, ui.status]) el.hidden = !ready;
+    for (const el of [ui.canvas, ui.top, ui.zoom, ui.mini, ui.status, this._options.el]) el.hidden = !ready;
     if (!ready) {
       ui.chip.hidden = true; // on narrow screens it sits on the map itself, outside ui.top
       this._drawer.close();
@@ -354,11 +362,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.lost.hidden = st.connection !== "lost";
     ui.loading.hidden = !st.loading || st.connection === "lost";
     this._renderChip();
-    // Above an expanded sheet the map keeps little room: the small legend steps aside (the Legend tab is one tap away).
+    // Above an expanded sheet the map keeps little room: the legend steps aside (the Legend tab is one tap away).
     // On narrow screens the selection chip takes its place at the bottom.
     ui.mini.hidden = (this._drawer.mode === "sheet" && this._drawer.isOpen && this._drawer.expanded)
       || (!this._wide && Boolean(this._selected) && !ui.chip.hidden);
-    renderMiniLegend(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles() });
+    renderLegendPill(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
+      links: this._view ? this._view.legend() : [], open: this._legendOpen(),
+      onToggle: () => this._settings.update({ legendOpen: !this._legendOpen() }),
+      onMore: () => this._toggleTab("legend", ui.mini, false) });
     this._renderTabs();
   }
 
@@ -388,25 +399,28 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }));
   }
 
+  /** The title pill and the options group (the panel has no header bar, spec 9.1). */
   _renderHeader(ready = this._ui && !this._ui.canvas.hidden) {
     const ui = this._ui;
     const t = this._t;
     ui.sidebar.hidden = !this._narrow;
-    ui.toolbar.classList.toggle("narrow", this._narrow);
-    ui.title.textContent = this._wide ? t("app.title") : t("app.short_title");
-    ui.density.hidden = !ready;
-    ui.badge.hidden = !ready;
-    ui.menuButton.hidden = !ready;
-    // On narrow screens the label of the density field is spoken but not shown.
-    ui.densityText.className = this._wide ? "density-text" : "density-text sr-only";
-    ui.badgeText.className = this._wide ? "badge-label" : "badge-label sr-only";
-    if (ready && this._settings) ui.densitySelect.value = this._settings.settings.density;
-    if (ready && this._network) {
-      const count = badgeCount(this._network.findings);
-      ui.badgeCount.textContent = t.number(count);
-      ui.badge.dataset.count = String(count);
-      ui.badge.setAttribute("aria-label", t("header.findings_label", { count }));
-    }
+    this._options.el.hidden = !ready;
+    if (!ready || !this._settings || !this._network) return;
+    const s = this._settings.settings;
+    this._options.update({ t, count: badgeCount(this._network.findings), density: t(`density.${s.density}`),
+      fill: t(`fill.${s.fill}`) });
+  }
+
+  /** Whether the legend pill is expanded: as stored, else by width (expanded on wide panels, spec 11). */
+  _legendOpen() {
+    const stored = this._settings ? this._settings.settings.legendOpen : null;
+    return stored === null || stored === undefined ? this._wide : stored;
+  }
+
+  /** Words the map draws itself: LQI 0 and the values of implied lanes. */
+  _graphTexts() {
+    const t = this._t;
+    return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route") };
   }
 
   _renderMessage(phase, detail) {
@@ -452,7 +466,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     } else if (d.tab === "findings") {
       renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "list") });
     } else if (d.tab === "legend") {
-      renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(), debug: this._debug });
+      renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
+        links: this._view ? this._view.legend() : [], debug: this._debug });
     } else if (d.tab === "settings") {
       keepFocus(this._root, panel, () => renderSettings(panel, { t, settings: this._settings.settings, wide: this._wide,
         pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings, idPrefix: "mte-settings",
@@ -540,18 +555,27 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._wide = wide;
       this._dirty.add("settings");
       this._renderHeader();
-      if (this._network && !this._ui.status.hidden) this._renderStatus(); // long or short forms
-    }
-    // The selection chip: under the banners on wide screens, near the bottom (thumb reach) on narrow ones.
-    const chipHome = wide ? this._ui.top : this._ui.map;
-    if (this._ui.chip.parentNode !== chipHome) {
-      if (wide) this._ui.top.append(this._ui.chip); else this._ui.map.insertBefore(this._ui.chip, this._ui.zoom);
-      this._ui.chip.classList.toggle("chip-bottom", !wide);
+      if (this._network && !this._ui.status.hidden) this._render(); // status forms, legend default by width
     }
     const g = drawerGeometry({ width: rect.width, height: rect.height, open: this._drawer.isOpen, expanded: this._drawer.expanded });
     this._drawer.setMode(g.mode, g.size);
+    // Floating groups: out of the drawer's way by the same insets that keep the selection clear of it.
+    this._options.setMode(wide ? "rows" : "icons");
+    const optionsBox = this._options.el.getBoundingClientRect();
+    const f = floatingLayout({ width: rect.width, height: rect.height, insets: g.insets,
+      options: { width: optionsBox.width, height: optionsBox.height } });
     this.style.setProperty("--inset-right", `${g.insets.right}px`);
     this.style.setProperty("--inset-bottom", `${g.insets.bottom}px`);
+    this.style.setProperty("--band-right", `${f.band.right}px`);
+    this.style.setProperty("--band-top", `${f.band.top}px`);
+    this.style.setProperty("--legend-max-width", `${f.legend.maxWidth}px`);
+    this.style.setProperty("--legend-max-height", `${f.legend.maxHeight}px`);
+    // The selection chip: in the band below the title on wide screens, near the bottom (thumb reach) on narrow ones.
+    const chipHome = f.chip.place === "band" ? this._ui.top : this._ui.map;
+    if (this._ui.chip.parentNode !== chipHome) {
+      if (chipHome === this._ui.top) this._ui.top.append(this._ui.chip); else this._ui.map.insertBefore(this._ui.chip, this._ui.zoom);
+      this._ui.chip.classList.toggle("chip-bottom", chipHome !== this._ui.top);
+    }
     if (this._view) this._view.setInsets(g.insets);
   }
 
