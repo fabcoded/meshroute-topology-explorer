@@ -11,7 +11,7 @@ import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
-  BAND, BEST_HEARD, CLASSES, DIM, LANE_OFFSET, classifyPairs, laneGeometry, laneStyle, textBeside, unknownGlyph,
+  BAND, BEST_HEARD, CLASSES, DIM, LANE_OFFSET, classifyPairs, laneGeometry, pairDrawn, laneStyle, textBeside, unknownGlyph,
 } from "./links.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 
@@ -209,7 +209,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const size = symbolSize(k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   const touches = (p) => focusSet.has(p.a) || focusSet.has(p.b);
-  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b) && (view.debug || p.shown || touches(p)));
+  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b) && pairDrawn(p, view.links, { debug: view.debug, touched: touches(p) }));
   const dimming = focus.length > 0;
   const layers = dimming ? [drawn.filter((p) => !touches(p)), drawn.filter(touches)] : [drawn];
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(view.texts || {}) };

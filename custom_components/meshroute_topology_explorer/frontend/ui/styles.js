@@ -50,6 +50,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .menu-item:disabled { color: var(--mte-muted); cursor: default; }
 .menu-item .check { width: 16px; text-align: center; }
+.links-pop { min-width: 240px; }
+.pop-head { padding: 8px 16px 2px; font-size: 12px; font-weight: 600; color: var(--mte-muted); }
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; cursor: pointer;
+  font-size: 14px; }
+.check-row input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--mte-accent); }
+.check-row:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
 .menu-pop .sep { height: 1px; margin: 6px 0; background: var(--mte-divider); }
 
 /* Map and what floats on it */
@@ -72,11 +78,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   padding: 0 14px 0 12px; border: none; background: transparent; color: inherit; font: inherit; font-size: 14px;
   text-align: left; cursor: pointer; white-space: nowrap; }
 .opt-row .count { margin-left: auto; }
-.options[data-mode="rows"] .opt-value { display: none; }
 .options[data-mode="icons"] .opt-row { justify-content: center; gap: 4px; padding: 0 8px; }
 .options[data-mode="icons"] .opt-text { display: none; }
-.options[data-mode="icons"] .opt-findings svg, .options[data-mode="icons"] .opt-density svg { display: none; }
-.options[data-mode="icons"] .opt-value { font-size: 13px; }
+.options[data-mode="icons"] .opt-findings svg { display: none; }
 .options[data-mode="rows"] .menu-wrap + .menu-wrap .opt-row { border-top: 1px solid var(--mte-divider); }
 .options .menu-pop { top: calc(100% + 4px); }
 .legend-box { position: absolute; z-index: 5; left: 12px; bottom: calc(var(--inset-bottom) + 12px); display: flex;

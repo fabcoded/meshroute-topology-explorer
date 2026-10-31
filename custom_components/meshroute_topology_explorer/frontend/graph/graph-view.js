@@ -16,7 +16,7 @@ import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { LABEL_SCALE } from "./labels.js";
-import { legendEntries } from "./links.js";
+import { DEFAULT_LINKS, legendEntries } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -83,6 +83,7 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "reception";
+    this.links = { ...DEFAULT_LINKS, ...(options.links || {}) };
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
@@ -161,6 +162,16 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
+  /** Choose which link classes the overview draws (spec 9.1): { up, route, heard } booleans. Drawing only, the layout
+   *  and the positions stay; a selection and debug mode still show everything. */
+  setLinks(links) {
+    const next = { ...DEFAULT_LINKS };
+    for (const c of Object.keys(next)) if (links && typeof links[c] === "boolean") next[c] = links[c];
+    if (Object.keys(next).every((c) => next[c] === this.links[c])) return;
+    this.links = next;
+    this._invalidate();
+  }
+
   /** Choose the fill of the devices (spec 8): "reception" (default), "role" or "power"; anything else is ignored. */
   setFill(fill) {
     if (!FILLS.includes(fill) || fill === this.fill) return;
@@ -176,7 +187,7 @@ export class GraphView extends EventTarget {
   }
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
-  legend() { return legendEntries(this.theme); }
+  legend() { return legendEntries(this.theme, { links: this.links, debug: this.debug }); }
 
   setTheme(theme) {
     this.theme = resolveTheme(theme);
@@ -471,7 +482,8 @@ export class GraphView extends EventTarget {
     this._lastFrame = now;
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps, fill: this.fill,
+      debug: this.debug, links: this.links, selected: this.selected, hovered: this.hovered, fps: this._fps,
+      fill: this.fill,
       texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);

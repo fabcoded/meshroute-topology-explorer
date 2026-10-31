@@ -179,6 +179,7 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
+if (q.get("links")) initial.links = Object.fromEntries(["up", "route", "heard"].map((c) => [c, q.get("links").split(",").includes(c)])); // links=up,route
 if (q.get("legend")) initial.legendOpen = q.get("legend") === "open";
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
@@ -259,6 +260,7 @@ async function drive() {
   for (let i = 0; i < 100 && !el._network; i++) await sleep(50);
   if (!el._network) return;
   if (flag("debug")) el._onMenu("debug");
+  if (flag("linksopen")) el._options.linksPanel.open();
   const id = q.get("select") && byLabel(q.get("select"));
   if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); } // as a tap on the map would
   else if (id) el._select(id, "list");

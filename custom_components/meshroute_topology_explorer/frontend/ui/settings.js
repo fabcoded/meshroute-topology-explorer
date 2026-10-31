@@ -7,6 +7,7 @@
 // so; after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned
 // before use. No DOM. Tested in Node: node --test tests/
 import { DENSITY } from "../graph/layout.js";
+import { DEFAULT_LINKS } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
@@ -14,7 +15,7 @@ import { errorText, isConnectionLost } from "./controller.js";
 /** Defaults of spec 11. openDetailsOnSelect and legendOpen null mean "by screen width": details open on select and
  *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "reception", openDetailsOnSelect: null,
-  legendOpen: null, pins: Object.freeze({}) });
+  legendOpen: null, links: DEFAULT_LINKS, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -45,6 +46,12 @@ export function sanitizePins(input) {
   return pins;
 }
 
+/** The link class switches { up, route, heard }: a boolean per class, anything else falls back to on. */
+export function sanitizeLinks(input) {
+  const src = isPlainObject(input) ? input : {};
+  return Object.fromEntries(Object.keys(DEFAULT_LINKS).map((c) => [c, typeof src[c] === "boolean" ? src[c] : DEFAULT_LINKS[c]]));
+}
+
 /** A valid settings object from whatever was stored: known keys with wrong values fall back to the defaults, broken
  *  pins are dropped, unknown keys are kept as they are (a newer version may have written them). */
 export function sanitizeSettings(input) {
@@ -55,6 +62,7 @@ export function sanitizeSettings(input) {
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   out.legendOpen = typeof src.legendOpen === "boolean" ? src.legendOpen : null;
+  out.links = sanitizeLinks(src.links);
   out.pins = sanitizePins(src.pins);
   return out;
 }
