@@ -16,7 +16,8 @@ export const DOUBLE_TAP_MS = 400;
  *  tap(target, p), doubleTap(target, p), longPress(target, p), dragStart(target, p0, p), drag(target, p, dx, dy),
  *  dragEnd(target, p), pinch(factor, cx, cy, dx, dy), gestureEnd(). Points are { x, y }. */
 export class GestureRecognizer {
-  constructor(handlers = {}, timers = { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (h) => clearTimeout(h) }) {
+  constructor(handlers = {},
+    timers = { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (h) => clearTimeout(h) }) {
     this.h = handlers;
     this.timers = timers;
     this.pointers = new Map(); // pointerId -> { x, y }
@@ -47,7 +48,8 @@ export class GestureRecognizer {
       this._clearTimer();
       if (this.g && this.g.phase === "drag") this._call("dragEnd", this.g.target, this.g.last);
       const [a, b] = [...this.pointers.values()];
-      this.g = { phase: "pinch", timer: null, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+      this.g = { phase: "pinch", timer: null, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
       return;
     }
     if (this.pointers.size > 2) return;

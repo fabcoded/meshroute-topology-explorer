@@ -6,8 +6,10 @@
 //        view.addEventListener("select", (e) => e.detail.id); view.reveal(id, insets, { zoom: true })
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:
 // "long-press" | "context-menu" | "key" }, hover { id|null }, pin-change { id, pinned, x, y }.
-// Pinned positions (events, pin(), setNetwork's pinned) are in base lengths K = L0 × D from the centre, so a stored
-// pin keeps its place in the picture when the density or the label font changes.
+// Density (decision by Fabian Schwamborn, 2026-10-31) only lengthens or shortens the lines: the layout is computed
+// once in base units (D = 1) and drawn at base × D; markers, labels, fit and the working scale never depend on D.
+// Pinned positions (events, pin(), setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
+// stored pin keeps its place in the picture whatever the density or the label font.
 // node --test tests/
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
@@ -128,27 +130,28 @@ export class GraphView extends EventTarget {
     this._relayout();
   }
 
-  /** Change the density (spec 7.1: it sets the working scale). An overview stays an overview (refitted); a zoomed
-   *  view keeps its zoom, so the map visibly tightens or spreads, and the selection stays where it was on screen. */
+  /** Change the density (spec 7.1): every position is drawn at base × D, so all lines get longer or shorter while
+   *  markers, labels and the zoom stay as they are. No new layout. The selection keeps its place on screen; without
+   *  one, the point at the centre of the view stays there. */
   setDensity(density) {
-    if (density === this.density) return;
+    if (!(density > 0) || density === this.density) return;
     const ratio = density / this.density;
     this.density = density;
     if (!this.scene) return;
-    const overview = this.autoFit;
-    const k = this.cam.k;
-    const anchor = this.selected >= 0 ? this._screenOf(this.selected) : null;
-    const centre = { cx: this.cam.cx * ratio, cy: this.cam.cy * ratio };
-    this._relayout();
-    if (overview) return;
-    this.autoFit = false;
+    const target = this._anim ? this._anim.to : this.cam;
     this._anim = null;
+    const k = target.k;
+    const anchor = this.selected >= 0 ? toScreen(target, this.pos.x[this.selected], this.pos.y[this.selected],
+      this.width, this.height) : null;
+    this._sync();
     if (anchor) {
       const i = this.selected;
-      this.cam = { k, cx: this.pos.x[i] - (anchor[0] - this.width / 2) / k, cy: this.pos.y[i] - (anchor[1] - this.height / 2) / k };
+      this.cam = { k, cx: this.pos.x[i] - (anchor[0] - this.width / 2) / k,
+        cy: this.pos.y[i] - (anchor[1] - this.height / 2) / k };
     } else {
-      this.cam = { k, ...centre };
+      this.cam = { k, cx: target.cx * ratio, cy: target.cy * ratio };
     }
+    this._invalidate();
   }
 
   setDebug(on) {
@@ -225,17 +228,19 @@ export class GraphView extends EventTarget {
     this._animateTo({ k, cx: x - (sx - this.width / 2) / k, cy: y - (sy - this.height / 2) / k }, animate);
   }
 
-  /** The working scale (spec 7.1): the zoom at which the median distance from a device to its nearest neighbour on
-   *  screen equals D times the mean label width. Revealing with zoom goes here. */
+  /** The working scale (spec 7.1, 9.3): the zoom at which, in the base layout (D = 1), the median distance from a
+   *  device to its nearest neighbour equals the mean label width. It does not compensate the density: at the same
+   *  zoom a spread map shows 1.5 label widths between neighbours, a dense one 0.7. Revealing with zoom goes here. */
   get workingZoom() {
     const { nearest, meanLabel } = this._scales();
-    return nearest > 0 ? (this.density * meanLabel) / nearest : this.fitK;
+    return nearest > 0 ? meanLabel / nearest : this.fitK;
   }
 
-  /** The zoom from which everyone may be labelled: the same measure at LABEL_SCALE instead of D (labels.js). */
+  /** The zoom from which everyone may be labelled: where the drawn nearest-neighbour distance on screen reaches
+   *  LABEL_SCALE label widths (labels.js). It is measured on screen, so a spread map shows labels earlier. */
   get labelZoom() {
     const { nearest, meanLabel } = this._scales();
-    return nearest > 0 ? (LABEL_SCALE * meanLabel) / nearest : this.fitK;
+    return nearest > 0 ? (LABEL_SCALE * meanLabel) / (nearest * this.density) : this.fitK;
   }
 
   /** Stored positions of pinned devices, for the settings (spec 11). */
@@ -323,15 +328,15 @@ export class GraphView extends EventTarget {
     return w;
   };
 
-  /** Median nearest-neighbour distance among the devices of the mesh (layout units) and the mean label width (CSS
-   *  pixels), cached until positions change. Above 400 devices an evenly spread subset of them is measured (against
-   *  all), which keeps it cheap while a large layout unfolds. */
+  /** Median nearest-neighbour distance among the devices of the mesh in the base layout (D = 1) and the mean label
+   *  width (CSS pixels), cached until the layout moves. Above 400 devices an evenly spread subset of them is measured
+   *  (against all), which keeps it cheap while a large layout unfolds. */
   _scales() {
     if (this._scaleCache !== null) return this._scaleCache;
-    const { x, y, mesh } = this.pos;
+    const { x, y, mesh } = this.layout;
     const ids = [];
     for (let i = 0; i < mesh.length; i++) if (mesh[i]) ids.push(i);
-    const step = Math.max(1, Math.ceil(ids.length / 400));
+    const step = Math.max(1, Math.ceil(ids.length / 400)); // layout indices: the order does not matter here
     const nearest = [];
     for (let s = 0; s < ids.length; s += step) {
       const i = ids[s];
@@ -358,12 +363,12 @@ export class GraphView extends EventTarget {
     return Math.max(this.fitK * ZOOM_MIN, Math.min(this.fitK * ZOOM_MAX, k));
   }
 
+  /** A new layout in base units (D = 1); the density is applied when positions are copied for drawing (_sync). */
   _relayout() {
     const scene = this.scene;
     const l0 = baseLength(scene.labels, this._measure, NODE_DIAMETER);
-    const K = l0 * this.density;
-    const pinned = new Map([...this.pinned].map(([id, p]) => [id, { x: p.x * K, y: p.y * K }]));
-    this.layout = new Layout(this.network, { baseLength: l0, density: this.density, seed: this.seed, pinned });
+    const pinned = new Map([...this.pinned].map(([id, p]) => [id, { x: p.x * l0, y: p.y * l0 }]));
+    this.layout = new Layout(this.network, { baseLength: l0, density: 1, seed: this.seed, pinned });
     const n = scene.nodes.length;
     this._toLayout = Int32Array.from(scene.nodes, (node) => this.layout.index.get(node.id));
     this.pos = { x: new Float64Array(n), y: new Float64Array(n), pinned: new Uint8Array(n), mesh: new Uint8Array(n) };
@@ -378,20 +383,29 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
+  /** Copy the layout's positions for drawing, scaled by the density. */
   _sync() {
     const { x, y, pinned, mesh } = this.layout;
     const t = this._toLayout;
+    const d = this.density;
     for (let i = 0; i < t.length; i++) {
-      this.pos.x[i] = x[t[i]];
-      this.pos.y[i] = y[t[i]];
+      this.pos.x[i] = x[t[i]] * d;
+      this.pos.y[i] = y[t[i]] * d;
       this.pos.pinned[i] = pinned[t[i]];
       this.pos.mesh[i] = mesh[t[i]];
     }
     this._scaleCache = null;
   }
 
+  /** The fitted view of the medium layout (D = 1), centred on the map: fit never undoes the density, so a dense map
+   *  sits smaller inside the margin and a spread one reaches past the window. */
   _fitCamera() {
-    return fitCamera(this.pos ? bounds(this.pos.x, this.pos.y) : null, this.width, this.height, FIT_MARGIN);
+    if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
+    const d = this.density;
+    const box = bounds(this.pos.x, this.pos.y);
+    const base = box && { minX: box.minX / d, minY: box.minY / d, maxX: box.maxX / d, maxY: box.maxY / d };
+    const cam = fitCamera(base, this.width, this.height, FIT_MARGIN);
+    return { k: cam.k, cx: cam.cx * d, cy: cam.cy * d };
   }
 
   _screenOf(i) {
@@ -512,7 +526,8 @@ export class GraphView extends EventTarget {
       drag: (t, p, dx, dy) => {
         if (isNode(t)) {
           const [wx, wy] = toWorld(this.cam, p.x, p.y, this.width, this.height);
-          this.layout.pin(t.id, wx + this._grab.dx, wy + this._grab.dy);
+          // Drawn positions are base × D; the layout keeps base units.
+          this.layout.pin(t.id, (wx + this._grab.dx) / this.density, (wy + this._grab.dy) / this.density);
           this.layout.reheat();
           this._sync();
         } else {

@@ -49,7 +49,7 @@ export function displayLabels(devices, measure, maxWidth = MAX_LABEL_WIDTH) {
 }
 
 /** Scale of the map in label widths: the median distance from each device to its nearest neighbour on screen,
- *  divided by the mean label width. The working scale of spec 7.1 is where this equals the density D. */
+ *  divided by the mean label width. At the working scale (spec 9.3) this equals the density D. */
 /** Everyone may carry a label (where there is room) from this scale on: devices are half a label apart, so most
  *  labels find a free place around their device. Below it only the coordinator, the focus and its neighbours are
  *  labelled (spec 8). Own choice, below the densest working scale (0.7) so every working scale shows labels. */

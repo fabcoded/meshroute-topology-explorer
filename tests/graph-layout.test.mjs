@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Tests of the quality-view layout (spec 7.1, 12): spring curve, determinism, fidelity on the sample in every
-// density, speed on a synthetic network, the ring of devices without readings, pinning, Barnes-Hut.
+// density (one base layout drawn at base x D), speed on a synthetic network, the unknown ring, pinning, Barnes-Hut.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -62,16 +62,22 @@ test("same network and seed give the same layout, whatever the input order; anot
 });
 
 test("fidelity on the sample: rank correlation of drawn length and LQI <= -0.75 in every density (seed 1)", (t) => {
+  // The map computes one layout in base units (D = 1) and draws it at base x D (spec 7.1): every density shows the
+  // same proportions, so the correlation is the same in each.
   const l0 = l0Of(sample);
-  for (const [name, d] of Object.entries(DENSITY)) {
-    const layout = new Layout(sample, { baseLength: l0, density: d, seed: 1 });
-    layout.run();
-    const rho = fidelity(layout);
+  const layout = new Layout(sample, { baseLength: l0, density: 1, seed: 1 });
+  layout.run();
+  assert.ok(layout.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
+  assert.ok(layout.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
+  const known = layout.springLengths().filter((x) => x.lqi !== null);
+  const rhos = Object.entries(DENSITY).map(([name, d]) => {
+    const rho = spearman(known.map((x) => x.length * d), known.map((x) => x.lqi));
     report(t, `fidelity ${name} (D=${d}, L0=${l0.toFixed(1)}): ${rho.toFixed(3)} after ${layout.steps} steps`);
-    assert.ok(layout.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
-    assert.ok(layout.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
     assert.ok(rho <= -0.75, `${name}: ${rho}`);
-  }
+    return rho;
+  });
+  assert.ok(rhos.every((r) => Math.abs(r - rhos[0]) < 1e-12), "identical in every density");
+  assert.equal(fidelity(layout), rhos[1]);
 });
 
 test("Spearman helper: perfect, inverse and tied ranks", () => {
