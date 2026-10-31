@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Tests for the data model on the anonymized sample, derived fixtures (spec 12) and small synthetic networks.
+// Tests for the data model on the anonymized sample, derived variants (spec 12) and small synthetic networks.
 // Run: node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { removedTables, withoutTables } from "./derive.mjs";
 import { buildNetwork, upPath, downPath, parseAddress, parseLqi, fingerprints, updateObservations, newestChange }
   from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 
@@ -64,10 +65,22 @@ test("sample: status, findings per kind, roles and parents", () => {
   assert.ok(sample.devices.every((d) => d.rating === null || (d.rating >= 0 && d.rating <= 1)));
 });
 
-test("derived fixtures: findings are a subset of the sample's plus data incomplete (spec 12)", () => {
+test("derived variants drop these routers (pins the rule in tests/derive.mjs)", () => {
+  const removed = removedTables(load("zha-sample.json")["zha/devices"]);
+  assert.deepEqual(removed.minus1, [ieee(7)]);
+  assert.deepEqual(removed.minus3, [ieee(7), ieee(8), ieee(9)]);
+  assert.equal(removed["coordinator-only"].length, 32);
+  const devices = load("zha-sample.json")["zha/devices"];
+  const coordinatorOnly = withoutTables(devices, removed["coordinator-only"]);
+  assert.ok(coordinatorOnly.filter((d) => d.device_type === "Router").every((d) => !d.neighbors.length && !d.routes.length));
+  assert.ok(coordinatorOnly.find((d) => d.device_type === "Coordinator").neighbors.length > 0);
+});
+
+test("derived variants: findings are a subset of the sample's plus data incomplete (spec 12)", () => {
   const known = new Set(sample.findings.map((f) => `${f.kind}|${f.device}`));
-  for (const name of ["minus1", "minus3", "coordinator-only"]) {
-    const net = networkOf(`zha-sample-${name}.json`);
+  const devices = load("zha-sample.json")["zha/devices"];
+  for (const [name, gone] of Object.entries(removedTables(devices))) {
+    const net = buildNetwork(withoutTables(devices, gone));
     assert.ok(net.findings.some((f) => f.kind === "data incomplete"), name);
     for (const f of net.findings) {
       if (f.kind === "data incomplete") { assert.ok(f.missing.length, name); continue; }
