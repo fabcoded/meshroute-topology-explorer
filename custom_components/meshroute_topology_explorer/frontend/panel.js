@@ -2,7 +2,8 @@
 // Entry module of the Meshroute Topology Explorer panel (skeleton: status line and device list, no map yet).
 // Home Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
 // Only read-only websocket commands from spec 3.4 are used. Names are always set with textContent, never as HTML.
-import { computeStatus, deviceRows, blockingState } from "./status.js";
+import { deviceRows, blockingState } from "./status.js";
+import { buildNetwork } from "./model/index.js";
 
 // Must equal the version in manifest.json and const.py (tests/test_integration_files.py).
 const VERSION = "0.1.0";
@@ -64,7 +65,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         this._state = { phase: blocked };
       } else {
         const devices = await hass.callWS({ type: "zha/devices" });
-        this._state = { phase: "ready", status: computeStatus(devices), rows: deviceRows(devices) };
+        // Names and areas are a nicety: without the registries the model falls back to ZHA's own names.
+        const optional = (type) => hass.callWS({ type }).catch(() => []);
+        const [deviceRegistry, areaRegistry] = await Promise.all(
+          [optional("config/device_registry/list"), optional("config/area_registry/list")]);
+        const network = buildNetwork(devices, { deviceRegistry, areaRegistry, configEntries });
+        this._state = { phase: "ready", status: network.status, rows: deviceRows(network) };
       }
     } catch (err) {
       this._state = { phase: "error", message: String((err && err.message) || err) };
@@ -161,13 +167,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   _renderReady({ status, rows }) {
     const root = this._root;
-    if (status.devices === 0) {
+    if (status.devicesTotal === 0) {
       root.append(this._message("No devices yet."));
       root.append(this._reloadButton());
       return;
     }
-    const line = `Source: ${status.source} · tables ${status.routersWithTable} of ${status.routers} · ` +
-      `devices in a table ${status.devicesInTable} of ${status.devices} · unavailable ${status.unavailable}`;
+    const line = `Source: ZHA · tables ${status.routersWithTable} of ${status.routersAvailable} · ` +
+      `devices in a table ${status.devicesListed} of ${status.devicesTotal} · unavailable ${status.unavailable}`;
     root.append(this._message(line));
     root.append(this._reloadButton());
 
