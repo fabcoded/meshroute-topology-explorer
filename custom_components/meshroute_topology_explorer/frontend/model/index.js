@@ -5,7 +5,7 @@
 //
 // Network = { source: 'zha', id, devices, readings, routes, pairs, status, findings, unresolved }
 // Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
-//             children, relayLoad, rating, hasTable, tableSize, tableCapacity, tableFull, parentLqi,
+//             children, relayLoad, rating, hasTable, tableSize, tableCapacity, tableCapacitySource, tableFull, parentLqi,
 //             parentFromStaleTable, possiblyStaleParents }
 // Reading = { reporter, subject, lqi, measured, scale, relationship, rating, pool, poolMedian }
 // Pair    = { a, b, ab, ba }, direction = { state, lqi, rating, source, reason } (pairs.js)

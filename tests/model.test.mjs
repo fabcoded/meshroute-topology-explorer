@@ -410,15 +410,19 @@ test("sample: pairs by evidence, implied directions, reasons, capacity per model
   assert.equal(implied.length, 16);
   const reasons = {};
   for (const x of sample.pairs.flatMap((p) => [p.ab, p.ba]).filter((y) => y.state === "unknown")) {
-    const k = x.reason.replace(/ \(\d+\/\d+\)/, "");
+    const k = x.reason.replace(/ \(\d+\/\d+(, vendor estimate)?\)/, "");
     reasons[k] = (reasons[k] || 0) + 1;
   }
-  assert.deepEqual(reasons, { "lqi 0": 1, "table full": 22, "table nearly full, link probably weak": 12,
-    "capacity unknown": 34, "table has space, link probably weak or aged out": 4 });
+  assert.deepEqual(reasons, { "lqi 0": 1, "table full": 46, "table nearly full, link probably weak": 19,
+    "table has space, link probably weak or aged out": 7 });   // with the vendor fallback no capacity stays unknown
+  const estimates = sample.pairs.flatMap((p) => [p.ab, p.ba]).filter((x) => /vendor estimate/.test(x.reason || ""));
+  assert.ok(estimates.length > 0);
   const cap = (vendor, model) => sample.devices.find((d) => d.vendor === vendor && d.model === model && d.tableCapacity !== null);
   assert.equal(cap("IKEA of Sweden", "TRADFRIbulbGU10WS345lm").tableCapacity, 16);
   assert.equal(cap("Signify Netherlands B.V.", "LTG002").tableCapacity, 26);
-  assert.equal(sample.devices.find((d) => d.model === "LCT012").tableCapacity, null);   // one device of its model
+  const lct = sample.devices.find((d) => d.model === "LCT012");        // one device of its model: vendor estimate
+  assert.deepEqual([lct.tableCapacity, lct.tableCapacitySource], [26, "vendor"]);
+  assert.equal(cap("IKEA of Sweden", "TRADFRIbulbGU10WS345lm").tableCapacitySource, "model");
   assert.equal(sample.unresolved.duplicates, 1);
   assert.ok(sample.readings.some((r) => r.lqi === 0 && r.measured === false));
   assert.ok(sample.readings.every((r) => r.measured === (r.lqi > 0)));
@@ -435,7 +439,8 @@ test("capacity per model: largest router-entry count of the same vendor and mode
   const d = (k) => n.devices.find((x) => x.id === ieee(k));
   assert.deepEqual([d(1).tableSize, d(1).tableCapacity, d(1).tableFull], [3, 3, true]);
   assert.deepEqual([d(2).tableSize, d(2).tableCapacity, d(2).tableFull], [1, 3, false]);
-  assert.deepEqual([d(3).tableSize, d(3).tableCapacity, d(3).tableFull], [1, null, null]);
+  assert.deepEqual([d(3).tableSize, d(3).tableCapacity, d(3).tableCapacitySource, d(3).tableFull], [1, 3, "vendor", false]);
+  assert.equal(d(1).tableCapacitySource, "model");
   assert.deepEqual([d(4).tableSize, d(4).tableCapacity, d(4).tableFull], [null, null, null]);
 });
 
@@ -505,4 +510,22 @@ test("duplicate readings: the higher LQI is kept and the duplicate is counted", 
   assert.equal(n.readings.length, 1);
   assert.equal(n.readings[0].lqi, 120);
   assert.equal(n.unresolved.duplicates, 2);
+});
+
+test("capacity without a peer of the model or the vendor stays unknown; a vendor estimate is named in the reason", () => {
+  const alone = buildNetwork(synth([[0, C, { nb: [[1, 100]] }], [1, R, { vendor: "W", model: "Z", nb: [[2, 100]] }], [2, R]]));
+  const w = alone.devices.find((d) => d.id === ieee(1));
+  assert.deepEqual([w.tableCapacity, w.tableCapacitySource, w.tableFull], [null, null, null]);
+  assert.equal(alone.pairs.find((p) => p.a === ieee(0) && p.b === ieee(1)).ba.reason, "capacity unknown");
+  // two models of one vendor: the single-device model borrows the largest table of the vendor
+  const routers = (k) => Array.from({ length: k }, (_, i) => [10 + i, 100]);
+  const specs = [[0, C, { nb: [[1, 100], [2, 100], [3, 100]] }],
+    [1, R, { model: "A", nb: routers(4) }], [2, R, { model: "A", nb: routers(2) }],
+    [3, R, { model: "B", nb: routers(4) }]];
+  for (let i = 0; i < 4; i += 1) specs.push([10 + i, R]);
+  const n = buildNetwork(synth(specs));
+  const reason = (k) => n.pairs.find((p) => p.a === ieee(0) && p.b === ieee(k)).ba.reason;
+  assert.equal(reason(1), "table full (4/4)");
+  assert.equal(reason(3), "table full (4/4, vendor estimate)");
+  assert.equal(n.devices.find((d) => d.id === ieee(3)).tableCapacitySource, "vendor");
 });

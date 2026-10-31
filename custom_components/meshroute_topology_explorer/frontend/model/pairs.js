@@ -13,8 +13,8 @@ function unknownReason(a, reading) {
   if (reading) return "lqi 0";                      // listed, but the table says 0: unmeasured or very weak
   if (a.role === "end device") return "end device (no table)";
   if (!a.hasTable) return "table missing or stale";
-  if (a.tableCapacity === null) return "capacity unknown";
-  const size = `${a.tableSize}/${a.tableCapacity}`;
+  if (a.tableCapacity === null) return "capacity unknown";   // no other device of the model or the manufacturer has a table
+  const size = `${a.tableSize}/${a.tableCapacity}${a.tableCapacitySource === "vendor" ? ", vendor estimate" : ""}`;
   if (a.tableFull) return `table full (${size})`;
   if (a.tableSize >= a.tableCapacity - NEARLY_FULL) return `table nearly full (${size}), link probably weak`;
   return "table has space, link probably weak or aged out";

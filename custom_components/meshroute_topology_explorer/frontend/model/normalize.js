@@ -51,7 +51,8 @@ function disambiguate(devices) {
 
 /** Table capacity per model: the largest router-entry count seen in any table of the same manufacturer and model,
  *  needing at least two devices of that model with a table (one device proves nothing about the limit). Fills
- *  `tableCapacity` and `tableFull` (true at capacity; null when the capacity or the table is unknown). */
+ *  `tableCapacity`, `tableCapacitySource` ("model" | "vendor" | null) and `tableFull` (true at capacity; null when the
+ *  capacity or the table is unknown). */
 function applyCapacity(devices) {
   const peers = new Map();
   for (const d of devices) {
@@ -63,7 +64,23 @@ function applyCapacity(devices) {
   for (const list of peers.values()) {
     if (list.length < 2) continue;
     const capacity = Math.max(...list.map((d) => d.tableSize));
-    for (const d of list) { d.tableCapacity = capacity; d.tableFull = d.tableSize >= capacity; }
+    for (const d of list) { d.tableCapacity = capacity; d.tableCapacitySource = "model"; d.tableFull = d.tableSize >= capacity; }
+  }
+  // Fallback for a model seen on one device only: the largest table among all devices of the manufacturer, marked as
+  // an estimate (different models of one vendor usually share the stack, but not always).
+  const byVendor = new Map();
+  for (const d of devices) {
+    if (d.tableSize === null || !d.vendor) continue;
+    if (!byVendor.has(d.vendor)) byVendor.set(d.vendor, []);
+    byVendor.get(d.vendor).push(d);
+  }
+  for (const list of byVendor.values()) {
+    if (list.length < 2) continue;
+    const capacity = Math.max(...list.map((d) => d.tableSize));
+    for (const d of list) {
+      if (d.tableCapacity !== null) continue;
+      Object.assign(d, { tableCapacity: capacity, tableCapacitySource: "vendor", tableFull: d.tableSize >= capacity });
+    }
   }
 }
 
@@ -94,7 +111,7 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       battery: role === "end device" && /battery/i.test(powerSource || ""),
       available: Boolean(r.available), lastSeen: text(r.last_seen),
       parent: null, children: [], relayLoad: 0, rating: null, hasTable: false,
-      tableSize: null, tableCapacity: null, tableFull: null,
+      tableSize: null, tableCapacity: null, tableCapacitySource: null, tableFull: null,
       parentLqi: null, parentFromStaleTable: false, possiblyStaleParents: [],
     };
     Object.assign(device, baseLabel(device, userName));

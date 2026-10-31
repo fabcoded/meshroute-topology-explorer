@@ -141,6 +141,8 @@ two-way link at setup); or **unknown** with a reason: "end device (no table)", "
 full (n/cap), link probably weak", "table has space, link probably weak or aged out", "lqi 0", "table missing or
 stale", "capacity unknown". The capacity of a model is the largest number of router entries (routers and coordinator)
 seen in any table of devices with the same manufacturer and model in this network, needing at least two such devices;
+a model seen on one device only borrows the largest table of its manufacturer, marked "vendor estimate"; "capacity unknown"
+remains only when no other device of the manufacturer has a table;
 "full" means that many, "nearly full" two fewer or less. Capacity is information only and never raises a finding.
 Pairs whose only evidence is LQI 0 are not pairs; an LQI 0 reading is kept but marked as not measured.
 
