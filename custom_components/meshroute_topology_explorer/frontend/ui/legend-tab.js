@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // The legend (spec 8: it explains the current view and fill): the full Legend tab and the legend pill on the map
 // (spec 9.1), collapsed to "Legend ›" or expanded to the fill and the three link classes. Colours come from the
-// resolved map theme and the links part from the graph's own legend entries (link-legend.js), so legend and map always
-// agree. Swatches are small SVG drawings of the map's own shapes. Runs in the browser.
+// resolved map theme, the links part from the graph's own legend entries (link-legend.js) and the symbols are drawn by
+// the map's own drawSymbol (graph/symbols.js), so legend and map always agree. Runs in the browser.
 import { h, svg, icon } from "./dom.js";
-import { ratingColor, CATEGORY_FILLS } from "../graph/palette.js";
+import { ratingColor, lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
+import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
+
+/** Symbols in the Legend tab are drawn at 48 px (design: 32 px for the overview, 48 px zoomed, in details and legend). */
+const SWATCH = 48;
 
 /** CSS gradient of the rating scale as the map draws it (the theme's contrast-safe part of cividis). */
 export function ratingGradient(theme) {
@@ -14,17 +18,12 @@ export function ratingGradient(theme) {
   return `linear-gradient(to right, ${stops.join(", ")})`;
 }
 
-/** Marker shape and size of a role, as the map draws it (renderer.js MARKERS, scaled to the swatch). */
-const SHAPES = { coordinator: ["square", 12], router: ["circle", 12], "end device": ["circle", 8], "border router": ["diamond", 11],
-  unknown: ["circle", 10] };
-
-/** [{ label, color, shape, size }] of the category fill; the grey "none" entry last. Role swatches have the role's
- *  shape, so the legend shows colour and shape together, as the map does. */
+/** [{ label, color, slash }] of the category fill; the grey "none" entry last. */
 function categoryEntries(fill, theme, t, roles) {
   const out = [];
   if (fill === "role") {
     for (const role of Object.keys(CATEGORY_FILLS.role)) {
-      if (roles.has(role)) out.push({ label: t(`role.${role}`), color: theme.categories.role[role], shape: SHAPES[role][0], size: SHAPES[role][1] });
+      if (roles.has(role)) out.push({ label: t(`role.${role}`), color: theme.categories.role[role] });
     }
     if (roles.has("unknown")) out.push({ label: t("role.unknown"), color: theme.node, slash: true });
   } else {
@@ -34,31 +33,34 @@ function categoryEntries(fill, theme, t, roles) {
   return out;
 }
 
-/** Marker drawing: shape by role, outline by state (spec 8), as in renderer.js. slash: the map's mark for a device
- *  without a value under the current fill (grey with a line across). */
-function marker({ shape = "circle", fill, outline, dashed = false, hollow = false, pin = false, ring = null, size = 12,
-  slash = false }) {
-  const box = 24;
-  const c = box / 2;
-  const r = size / 2;
-  const el = svg("svg", { viewBox: `0 0 ${box} ${box}`, width: box, height: box, "aria-hidden": "true" });
-  const attrs = { fill: hollow ? "none" : fill, stroke: outline, "stroke-width": 1.5 };
-  if (dashed) attrs["stroke-dasharray"] = "3 2";
-  if (shape === "square") el.append(svg("rect", { x: c - r, y: c - r, width: 2 * r, height: 2 * r, ...attrs }));
-  else if (shape === "diamond") el.append(svg("path", { d: `M${c} ${c - r * 1.25}L${c + r * 1.25} ${c}L${c} ${c + r * 1.25}L${c - r * 1.25} ${c}Z`, ...attrs }));
-  else el.append(svg("circle", { cx: c, cy: c, r, ...attrs }));
-  if (slash) el.append(svg("path", { d: `M${c - r * 0.75} ${c + r * 0.75}L${c + r * 0.75} ${c - r * 0.75}`, stroke: outline, "stroke-width": 1.5 }));
-  if (pin) {
-    el.append(svg("path", { d: `M${c + r * 0.7} ${c - r * 0.7}l4 -4`, stroke: outline, "stroke-width": 1.5 }));
-    el.append(svg("circle", { cx: c + r * 0.7 + 5, cy: c - r * 0.7 - 5, r: 2.5, fill: outline }));
-  }
-  if (ring) el.append(svg("circle", { cx: c, cy: c, r: r + 3.5, fill: "none", stroke: ring, "stroke-width": 2 }));
+/** Colour key of a fill: the symbols' silhouette (rounded square) in that colour. slash: the map's mark for a device
+ *  without a value under the current fill. */
+function chip({ fill, outline, slash = false, size = 24 }) {
+  const el = svg("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": "true" });
+  el.append(svg("rect", { x: 1.25, y: 1.25, width: 21.5, height: 21.5, rx: 4.5, fill, stroke: outline, "stroke-width": 1.5 }));
+  if (slash) el.append(svg("path", { d: "M5.5 18.5L18.5 5.5", stroke: outline, "stroke-width": 1.5, "stroke-linecap": "round" }));
   return el;
 }
 
-/** The Legend tab. ctx: { t, theme (resolved), fill, roles (Set of roles in the network), links (GraphView.legend()),
- *  debug }. */
-export function renderLegend(container, { t, theme, fill, roles, links, debug }) {
+/** A symbol as the map draws it, on its own canvas. device: what symbolParts reads, or parts directly (with
+ *  `picture`); state: { selected, pinned, offline }. */
+function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
+  const dpr = globalThis.devicePixelRatio || 1;
+  const el = h("canvas", { width: Math.round(px * dpr), height: Math.round(px * dpr), "aria-hidden": "true",
+    style: { width: `${px}px`, height: `${px}px`, flex: "none" } });
+  const parts = "picture" in device ? device : symbolParts(device);
+  const background = state.offline ? theme.background : fill;
+  drawSymbol(el.getContext("2d"), symbolLayers(parts, state), px / 2, px / 2, px, dpr,
+    { fill: background, stroke: lineColorOn(background, theme), slash: false });
+  return el;
+}
+
+/** Parts without picture, arcs or cable: one sign at a time. */
+const bare = (extra = {}) => ({ picture: null, router: false, radio: false, cable: false, mark: null, bed: false, ...extra });
+
+/** The Legend tab. ctx: { t, theme (resolved), fill, roles (Set of roles in the network), devices (the network's
+ *  devices: which pictures and marks to explain), links (GraphView.legend()), debug }. */
+export function renderLegend(container, { t, theme, fill, roles, devices = [], links, debug }) {
   container.replaceChildren();
   container.append(h("h3", { text: t(`legend.fill_${fill}`) }));
   if (fill === "reception") {
@@ -67,7 +69,7 @@ export function renderLegend(container, { t, theme, fill, roles, links, debug })
       h("p", { class: "small", text: t("legend.rank") }));
   } else {
     container.append(h("ul", { class: "swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
-      h("li", {}, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size, slash: e.slash }), h("span", { text: e.label })))));
+      h("li", {}, chip({ fill: e.color, outline: theme.outline, slash: e.slash }), h("span", { text: e.label })))));
   }
 
   // Links: what the graph says it draws (three classes without colour, implied lanes, widths, glyphs, band).
@@ -78,28 +80,45 @@ export function renderLegend(container, { t, theme, fill, roles, links, debug })
   if (fill !== "reception") container.append(h("p", { class: "small", text: t("legend.rank") }));
   if (debug) container.append(h("p", { class: "small", text: t("legend.debug") }));
 
-  // Shape and outline swatches carry a value of the current fill, never the grey that means "no value"; hollow stays
-  // for "unavailable", as on the map. For reception the strong end of the scale: its middle is grey by design.
+  // Symbols carry a value of the current fill, never the grey that means "no value"; for reception the strong end of
+  // the scale (its middle is grey by design).
   const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
     : fill === "power" ? theme.categories.power.mains : ratingColor(1, theme));
-  const shapes = [["coordinator", "square", 14, "legend.shape_coordinator"], ["router", "circle", 12, "legend.shape_router"],
-    ["end device", "circle", 8, "legend.shape_end"], ["border router", "diamond", 12, "legend.shape_border"]];
-  container.append(h("h3", { text: t("legend.shapes_title") }), h("ul", { class: "swatches" },
-    shapes.filter(([role]) => roles.has(role)).map(([role, shape, size, key]) =>
-      h("li", {}, marker({ shape, size, fill: typical(role), outline: theme.outline }), h("span", { text: t(key) })))));
+  const parts = devices.map((d) => symbolParts(d));
+  const has = (key) => parts.some((p) => p[key]);
+  const item = (swatch, key) => h("li", {}, swatch, h("span", { text: t(key) }));
+  const signs = [];
+  if (has("router")) signs.push(item(symbolSwatch(bare({ router: true }), theme, typical("router")), "legend.symbol_router"));
+  if (roles.has("end device")) signs.push(item(symbolSwatch(bare(), theme, typical("end device")), "legend.symbol_end"));
+  if (has("radio")) signs.push(item(symbolSwatch(bare({ radio: true }), theme, typical("end device")), "legend.symbol_radio"));
+  if (has("cable")) signs.push(item(symbolSwatch(bare({ cable: true }), theme, typical("coordinator")), "legend.symbol_cable"));
+  if (roles.has("coordinator")) {
+    signs.push(item(symbolSwatch(bare({ router: true, mark: "C" }), theme, typical("coordinator")), "legend.symbol_coordinator"));
+  }
+  if (has("bed")) signs.push(item(symbolSwatch(bare({ bed: true }), theme, typical("end device")), "legend.symbol_sleepy"));
+  container.append(h("h3", { text: t("legend.symbols_title") }), h("ul", { class: "swatches symbols" }, signs));
+
+  // Pictures present in this network, in the order of their first device.
+  const pictures = [...new Set(parts.map((p) => p.picture))];
+  container.append(h("h3", { text: t("legend.pictures_title") }),
+    h("ul", { class: "swatches pictures" }, pictures.map((picture) =>
+      item(symbolSwatch(bare({ picture }), theme, typical("router")), `device_kind.${picture}`))),
+    h("p", { class: "small", text: t("legend.pictures_note") }));
+
+  const example = bare({ picture: pictures.includes("light") ? "light" : pictures[0] || "unknown", router: true });
   const router = typical("router");
-  container.append(h("h3", { text: t("legend.outlines_title") }), h("ul", { class: "swatches" },
-    h("li", {}, marker({ fill: router, outline: theme.outline, dashed: true }), h("span", { text: t("legend.outline_unknown") })),
-    h("li", {}, marker({ fill: router, outline: theme.outline, hollow: true }), h("span", { text: t("legend.outline_offline") })),
-    h("li", {}, marker({ fill: router, outline: theme.outline, pin: true, size: 10 }), h("span", { text: t("legend.outline_pinned") })),
-    h("li", {}, marker({ fill: router, outline: theme.outline, ring: theme.accent, size: 10 }), h("span", { text: t("legend.outline_selected") }))));
+  container.append(h("h3", { text: t("legend.states_title") }), h("ul", { class: "swatches symbols" },
+    item(symbolSwatch(example, theme, router, { offline: true }), "legend.state_offline"),
+    item(symbolSwatch(example, theme, router, { selected: true }), "legend.state_selected"),
+    item(symbolSwatch(example, theme, router, { pinned: true }), "legend.state_pinned")),
+  h("p", { class: "small", text: t("legend.state_ring") }));
 }
 
 function scale(theme, t) {
   return h("div", { class: "scale" },
     h("div", { class: "scale-bar", style: { background: ratingGradient(theme) } }),
     h("div", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })),
-    h("p", { class: "small muted" }, marker({ fill: theme.node, outline: theme.outline, size: 10, slash: true }), t("legend.unrated")));
+    h("p", { class: "small muted" }, chip({ fill: theme.node, outline: theme.outline, size: 16, slash: true }), t("legend.unrated")));
 }
 
 /** The legend pill on the map (spec 9.1): collapsed, a button "Legend ›"; expanded, the current fill and the three
@@ -120,7 +139,7 @@ export function renderLegendPill(box, { t, theme, fill, roles, links, open, onTo
         h("span", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })));
     } else {
       box.append(h("span", { class: "mini-swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
-        h("span", { class: "mini-swatch" }, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size ? e.size - 2 : 10, slash: e.slash }),
+        h("span", { class: "mini-swatch" }, chip({ fill: e.color, outline: theme.outline, size: 16, slash: e.slash }),
           h("span", { text: e.label.replace(/ \(.*\)$/, "") })))));
     }
     box.append(linkLegendList(links || [], t, { short: true }),
