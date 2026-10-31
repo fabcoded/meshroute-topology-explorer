@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part.
-// Pure functions, no DOM. The panel passes theme colours in; nothing here depends on Home Assistant.
+// Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part, and
+// the Okabe–Ito colours of the category fills (role, power source). Pure functions, no DOM. The panel passes theme colours in; nothing here depends on Home Assistant.
 // Tested in Node: node --test tests/
 
 /** cividis at t = 0, 1/16, ..., 1: 17 values of the published table (Nuñez, Anderton and Renslow 2018, PLOS ONE,
@@ -105,6 +105,46 @@ export function contrastRange(background, min = MIN_CONTRAST) {
   return hi - lo >= 1 / 3 ? { lo, hi, casing: false } : { lo: 0, hi: 1, casing: true };
 }
 
+/** Okabe–Ito colours for categories (Okabe and Ito 2008, "Color Universal Design"), spec 8. */
+export const OKABE_ITO = Object.freeze({
+  black: "#000000", orange: "#e69f00", skyBlue: "#56b4e9", bluishGreen: "#009e73", yellow: "#f0e442",
+  blue: "#0072b2", vermillion: "#d55e00", reddishPurple: "#cc79a7",
+});
+
+/** Fills a user can choose (spec 8); reception is the default. Relay load arrives with the route view (v1.1). */
+export const FILLS = Object.freeze(["reception", "role", "power"]);
+
+/** Category -> Okabe–Ito colour per fill. Only the four colours that come close to 3:1 on white and on near-black
+ *  are used (blue, bluish green, vermillion, reddish purple), so one mapping serves light and dark themes and the
+ *  legend means the same in both; resolveTheme nudges the rest of the way. Devices without a category stay grey.
+ *  Shape and outline still carry role and state, and the text views list both, so colour never carries meaning
+ *  alone. */
+export const CATEGORY_FILLS = Object.freeze({
+  role: Object.freeze({ coordinator: "vermillion", router: "bluishGreen", "end device": "blue",
+    "border router": "reddishPurple" }),
+  power: Object.freeze({ mains: "blue", battery: "reddishPurple", dc: "bluishGreen" }),
+});
+
+/** Power category from ZHA's power source text: "Mains (single phase)" and "Emergency Mains ..." are mains;
+ *  "Battery" and "Battery or Unknown" (ZHA's word for anything not mains powered) are battery; "DC Source" is dc;
+ *  anything else, or nothing, has no category. */
+export function powerCategory(text) {
+  if (typeof text !== "string") return null;
+  if (/battery/i.test(text)) return "battery";
+  if (/mains/i.test(text)) return "mains";
+  if (/\bdc\b/i.test(text)) return "dc";
+  return null;
+}
+
+/** Fill colour of a node { role, rating, power } under a fill; null means the theme's grey node colour. */
+export function fillColor(node, fill, theme) {
+  if (fill === "role" || fill === "power") {
+    const key = fill === "role" ? node.role : node.power;
+    return (key && theme.categories[fill][key]) || null;
+  }
+  return ratingColor(node.rating, theme);
+}
+
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
  *  default, picked by the background's luminance. */
 export function resolveTheme(input = {}) {
@@ -115,6 +155,11 @@ export function resolveTheme(input = {}) {
   const fg = ensureContrast(pick("foreground"), bg, 4.5);
   const muted = ensureContrast(pick("muted"), bg);
   const range = contrastRange(bg);
+  const categories = {};
+  for (const [fill, map] of Object.entries(CATEGORY_FILLS)) {
+    categories[fill] = Object.fromEntries(Object.entries(map).map(([key, name]) =>
+      [key, toHex(ensureContrast(parseColor(OKABE_ITO[name]), bg))]));
+  }
   return {
     background: toHex(bg),
     foreground: toHex(fg),
@@ -124,6 +169,7 @@ export function resolveTheme(input = {}) {
     accent: toHex(ensureContrast(pick("accent"), bg)),
     font: typeof input.font === "string" && input.font ? input.font : base.font,
     lineRange: range,
+    categories,
     dark: luminance(bg) < 0.18,
   };
 }

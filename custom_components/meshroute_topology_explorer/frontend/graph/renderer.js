@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): grey devices shaped by role, outlined by state, filled by
-// reception; by default each device's 3 best pairs as lines coloured by the pair's better rating, all pairs of the
+// reception (default), role or power source; by default each device's 3 best pairs as lines coloured by the pair's better rating, all pairs of the
 // focus as two lanes with their values, all pairs in debug mode; labels as canvas text placed around obstacles.
 // Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
 // node --test tests/
 
 import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
-import { ratingColor } from "./palette.js";
+import { ratingColor, fillColor, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 
 /** Marker sizes in layout units at zoom 1 (diameter or side) and their minimum on screen in CSS pixels (spec 8:
@@ -67,6 +67,7 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     label: labels[i],
     available: d.available !== false,
     rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
+    power: powerCategory(d.powerSource),
   }));
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const byKey = new Map();
@@ -162,7 +163,8 @@ class RectGrid {
 }
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
+ *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS) }; pos: { x, y, pinned, mesh }
+ *  arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines, lanes, labels, dropped }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
@@ -295,7 +297,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     obstacles.add({ x: x - r - 1, y: y - r - 1, w: 2 * r + 2, h: 2 * r + 2, owner: i });
     shapePath(ctx, node.role, x, y, r);
     // Offline devices are hollow; a background fill keeps lines from showing through.
-    ctx.fillStyle = node.available ? ratingColor(node.rating, theme) || theme.node : theme.background;
+    ctx.fillStyle = node.available ? fillColor(node, view.fill, theme) || theme.node : theme.background;
     ctx.fill();
     const unknown = !pos.mesh[i] || node.role === "unknown";
     ctx.setLineDash(unknown ? [3, 2] : []);

@@ -309,3 +309,20 @@ test("an empty network and one without any readings draw without errors", () => 
   assert.ok(Math.hypot(pa.x - pb.x, pa.y - pb.y) > 0, "apart on the ring");
   assert.equal(view.scene.nodes[1].role, "unknown", "an unknown role is drawn as unknown");
 });
+
+test("setFill switches the device fill and redraws; unknown fills are ignored", () => {
+  const canvas = new FakeCanvas(400, 300);
+  const env = fakeEnv();
+  const view = new GraphView(canvas, { env, fill: "power" });
+  assert.equal(view.fill, "power");
+  view.setNetwork(NETWORK);
+  env.flush();
+  const drawn = canvas.ctx.calls.length;
+  view.setFill("role");
+  env.flush();
+  assert.equal(view.fill, "role");
+  assert.ok(canvas.ctx.calls.length > drawn, "a new frame");
+  view.setFill("bogus");
+  assert.equal(view.fill, "role");
+  assert.equal(new GraphView(new FakeCanvas(), { env, fill: "nope" }).fill, "reception");
+});
