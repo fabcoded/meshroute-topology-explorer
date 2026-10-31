@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Development page for the graph core (not shipped): the anonymized sample or a synthetic network on the map, with
+     density, debug and theme switches. No Home Assistant needed; any static server on the repository root will do:
+       python3 -m http.server 8820 --bind 127.0.0.1   then open   http://127.0.0.1:8820/dev/graph.html
+     Query for screenshots: density=0.7|1|1.5, debug=1, theme=dark, select=<label or id>, pin=<label>,
+     synthetic=<devices>, seed=<n>, zoom=<factor>. A capture file (tools/anonymize_capture.py output) can be opened
+     with the file button; it is read in the browser and never sent anywhere. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Graph core (dev)</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #ffffff; --fg: #212121; --line: #cccccc; }
+    :root[data-theme="dark"] { --bg: #111111; --fg: #e1e1e1; --line: #333333; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px;
+      border-bottom: 1px solid var(--line); }
+    canvas { flex: 1; min-height: 0; width: 100%; display: block; outline: none; }
+    canvas:focus-visible { box-shadow: inset 0 0 0 2px #0b62a4; }
+    #log { margin: 0; padding: 4px 16px; border-top: 1px solid var(--line); min-height: 1.4em; }
+    button, select { font: inherit; }
+  </style>
+</head>
+<body>
+  <header>
+    <label>Density
+      <select id="density">
+        <option value="0.7">dense</option>
+        <option value="1" selected>medium</option>
+        <option value="1.5">spread</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="debug"> debug</label>
+    <label><input type="checkbox" id="dark"> dark</label>
+    <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+    <button type="button" id="zoom-out" aria-label="Zoom out">&minus;</button>
+    <button type="button" id="fit">fit</button>
+    <label>Capture <input type="file" id="file" accept="application/json,.json"></label>
+  </header>
+  <canvas id="map" aria-label="Network map"></canvas>
+  <p id="log" role="status"></p>
+  <script type="module" src="graph-demo.js"></script>
+</body>
+</html>
