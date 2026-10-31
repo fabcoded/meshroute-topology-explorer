@@ -1,0 +1,15 @@
+{
+  "domain": "meshroute_topology_explorer",
+  "name": "Meshroute Topology Explorer",
+  "after_dependencies": ["zha"],
+  "codeowners": ["@fabcoded"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "panel_custom"],
+  "documentation": "https://github.com/fabcoded/meshroute-topology-explorer",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/fabcoded/meshroute-topology-explorer/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

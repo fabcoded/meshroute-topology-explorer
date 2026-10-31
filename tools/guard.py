@@ -12,6 +12,9 @@
   code. URL_ALLOW is matched exactly up to a path boundary.
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
+- Websocket commands in shipped source (`type: "x/y"`) must be on the allow-list of spec 3.4 (ALLOWED_COMMANDS, or
+  below the project's own `meshroute_topology_explorer/` namespace); anything else is a finding. MIME types
+  (text/..., application/..., image/...) are not commands and are skipped.
 Exit code 1 with one line per finding. Rules: AGENTS.md.
 """
 
@@ -27,6 +30,15 @@ DENY = (
     "zha/devices/permit", "zha/devices/remove", "zha/devices/reconfigure", "zha/topology/permit",
     "thread/set_", "thread/add_dataset", "thread/delete_dataset", "matter/set_", "matter/commission", "matter/remove",
 )
+# Spec 3.4, v1 and "later" rows: the only commands shipped code may name (the DENY list above still applies first).
+ALLOWED_COMMANDS = {
+    "config/area_registry/list", "config/device_registry/list", "config_entries/get", "zha/devices",
+    "zha/topology/update", "matter/network_topology", "matter/subscribe_network_topology",
+    "thread/discover_routers", "thread/list_datasets", "mqtt/subscribe",
+}
+OWN_NAMESPACE = "meshroute_topology_explorer/"
+COMMAND = re.compile(r"""\btype["']?\s*[:=]\s*["']([A-Za-z0-9_.*-]+/[A-Za-z0-9_/.*-]*)["']""")
+NOT_COMMANDS = ("text/", "application/", "image/", "font/", "audio/", "video/")
 SOURCE = (".py", ".js", ".mjs")
 TEXT = SOURCE + (".html", ".css", ".json", ".svg", ".yaml", ".yml", ".md", ".txt")
 URL = re.compile(r"""(?:(?:https?|wss?):|(?<=['"`(=\s]))//[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?[^\s'"`)<>]*""", re.IGNORECASE)
@@ -59,10 +71,16 @@ def check(root: Path) -> list[str]:
         if path.suffix in SOURCE and not vendored and not any("SPDX-License-Identifier" in line for line in lines[:3]):
             findings.append(f"{rel}:1: missing SPDX-License-Identifier in the first three lines")
         for n, line in enumerate(lines, 1):
+            denied = False
             if rel not in SELF and (path.suffix in SOURCE or shipped):
                 for term in DENY:
                     if term in line:
+                        denied = True
                         findings.append(f"{rel}:{n}: names {term}, which returns network keys or changes the network")
+            if shipped and path.suffix in SOURCE and not denied:  # one finding per line is enough
+                for cmd in COMMAND.findall(line):
+                    if not (cmd in ALLOWED_COMMANDS or cmd.startswith(OWN_NAMESPACE) or cmd.startswith(NOT_COMMANDS)):
+                        findings.append(f"{rel}:{n}: command {cmd} is not on the allow-list (spec 3.4)")
             if shipped:
                 for url in URL.findall(line):
                     if not allowed(url):

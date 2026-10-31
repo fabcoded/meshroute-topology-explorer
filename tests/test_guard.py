@@ -63,6 +63,19 @@ class GuardTest(unittest.TestCase):
         })
         self.assertEqual(len(guard.check(root)), 2)
 
+    def test_command_allow_list(self):
+        root = self.tree({
+            "custom_components/x/ok.js": SPDX + "a({ type: 'zha/devices' }); b({ type: \"meshroute_topology_explorer/settings/get\" })\n"
+            "c({ type: 'text/css' }); d({ type: 'module' })\n",
+            "custom_components/x/bad.js": SPDX + "hass.callWS({ type: 'light/turn_on' })\n",
+            "custom_components/x/bad.py": "# SPDX-License-Identifier: MIT\nmsg = {'type': 'zha/devices/bind'}\n",
+            "tools/other.py": "# SPDX-License-Identifier: MIT\nmsg = {'type': 'light/turn_on'}\n",
+        })
+        found = guard.check(root)
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all("allow-list" in f or "changes the network" in f for f in found), found)
+        self.assertTrue(any("light/turn_on" in f for f in found))
+
     def test_virtualenv_is_skipped(self):
         root = self.tree({".venv/lib/x.py": "print(1)\n"})
         self.assertEqual(guard.check(root), [])

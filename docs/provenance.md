@@ -7,6 +7,7 @@ each work package once.
 |---|---|---|---|---|
 | A0 repository setup | 2026-10-31 | Claude Opus 5.5 in Claude Code, directed by Fabian Schwamborn | project plan (private), a capture of the author's own network (anonymized here), HACS, Home Assistant and GitHub documentation | Claude Opus 5.5 (separate agent): legal, privacy and setup review; findings applied before the first public commit |
 | A1 specification | 2026-10-31 | Claude Opus 5.5 in Claude Code, decisions by Fabian Schwamborn | the author's notes on his own network (private, in his words), anonymized sample, Home Assistant documentation and source | Claude Opus 5.5 (clean room, implementability) and Claude Fable 5.1 (overall); both reviews applied |
+| A5a walking skeleton | 2026-10-31 | Claude Sonnet 5.5 in Claude Code, directed by Fabian Schwamborn | specification, Home Assistant developer docs and source, anonymized sample | pending |
 
 - Earlier, unpublished experiments by the author were discarded with all their code on 2026-10-31; this repository
   starts from scratch.
