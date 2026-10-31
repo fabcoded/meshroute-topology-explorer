@@ -330,6 +330,12 @@ Assistant too old for a source; no devices yet; scan running.
 - Own websocket commands, each checking admin rights itself, validating input and rejecting payloads above 256 KiB:
   `meshroute_topology_explorer/settings/get` and `/settings/set`, `meshroute_topology_explorer/observations/get`
   and `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store.
+  Requests carry `network` (1–64 characters of `A-Za-z0-9_.:-`, today the ZHA config entry id) and, for `set`, the
+  field `settings` or `observations` (a JSON object, at most 256 KiB compact UTF-8; it replaces the stored one).
+  Results: `get` → `{settings: object|null}` or `{observations: object|null}` (null = never set), `set` → `{}`.
+  Errors: `unauthorized` (not an administrator), `invalid_format` (bad `network`, field missing or not an object),
+  `payload_too_large`, `storage_unavailable` (the stored file cannot be read; nothing is written then).
+  Registered once per run on entry setup; they keep answering after unload.
 - Serves the panel files from a path that contains the version, so caching is safe; registers the path once.
 - The panel defines its custom element only if it is free, compares its version with the integration's and asks
   for a reload when they differ; it does not reload data when Home Assistant pushes a new state object; it

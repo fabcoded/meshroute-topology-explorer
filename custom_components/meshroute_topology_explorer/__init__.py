@@ -14,19 +14,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PANEL_ELEMENT, PANEL_URL_PATH, STATIC_URL_BASE, VERSION
+from .websocket_api import async_register_commands
 
 # Static paths cannot be removed again in a running Home Assistant, so remember that ours is registered.
 _STATIC_KEY = f"{DOMAIN}_static_registered"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Serve the frontend folder (once per run) and add the panel."""
+    """Serve the frontend folder and register the commands (each once per run), then add the panel."""
     if not hass.data.get(_STATIC_KEY):
         # The version is part of the URL, so a long cache time is safe: a new version is a new address.
         await hass.http.async_register_static_paths(
             [StaticPathConfig(STATIC_URL_BASE, str(Path(__file__).parent / "frontend"), True)]
         )
         hass.data[_STATIC_KEY] = True
+    # Not in async_setup: hassfest asks for a CONFIG_SCHEMA when an integration defines it (rule recalled from
+    # the hassfest docs, not re-checked against its source), and entry setup is enough here. Once per run.
+    async_register_commands(hass)
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name=PANEL_ELEMENT,
