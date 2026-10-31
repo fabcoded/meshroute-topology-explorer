@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Prototype (not shipped): eight ways to draw directed, asymmetric radio readings on the quality view's layout, to
+     compare side by side. Serve the repository root and open the page:
+       python3 -m http.server 8826 --bind 127.0.0.1   then open   http://127.0.0.1:8826/dev/links.html
+     Query keys: option=1..8, select=<label>, implied=1 (show implied links), all=1 (all pairs instead of each
+     device's 3 best), theme=dark, reveal=1 (centre the selection at the panel's working scale), zoom=<factor> (with
+     reveal), pair=<label>,<label> (highlight a pair, option 6). Click a device to select it, drag to pan, wheel to
+     zoom, Esc clears. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Directed links (prototype)</title>
+  <style>
+    :root { color-scheme: light; --bg: #ffffff; --fg: #212121; --muted: #6b6b6b; --line: #cccccc; --panel: #f4f4f4; }
+    :root[data-theme="dark"] { color-scheme: dark; --bg: #111111; --fg: #e1e1e1; --muted: #9a9a9a; --line: #333333;
+      --panel: #1c1c1c; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 6px 16px;
+      border-bottom: 1px solid var(--line); }
+    #legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 4px 16px; font-size: 12px;
+      border-bottom: 1px solid var(--line); }
+    #legend span { display: inline-flex; align-items: center; gap: 5px; }
+    main { flex: 1; min-height: 0; display: flex; }
+    canvas#map { flex: 1; min-width: 0; min-height: 0; display: block; touch-action: none; }
+    #side { width: 380px; overflow: auto; border-left: 1px solid var(--line); background: var(--panel); padding: 8px;
+      box-sizing: border-box; font-size: 12px; }
+    #side[hidden] { display: none; }
+    #side table { border-collapse: collapse; }
+    #side th { font-weight: normal; text-align: right; padding: 0 4px 0 0; white-space: nowrap; }
+    #side thead th { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; padding: 0 0 4px; }
+    #side th.sel { font-weight: bold; }
+    #side td { width: 12px; height: 12px; min-width: 12px; padding: 0; border: 1px solid var(--line);
+      text-align: center; font-size: 9px; line-height: 12px; cursor: pointer; }
+    #side td.self { background: var(--line); cursor: default; }
+    #side td.notable { background: repeating-linear-gradient(135deg, var(--muted) 0 1px, transparent 1px 4px); }
+    #side td.hit { outline: 2px solid var(--fg); outline-offset: -1px; }
+    #side p { margin: 0 0 6px; }
+    #status { margin: 0; padding: 4px 16px; border-top: 1px solid var(--line); min-height: 1.4em; font-size: 13px; }
+    button, select { font: inherit; }
+    @media (max-width: 719px) {
+      main { flex-direction: column; }
+      #side { width: auto; height: 45%; border-left: 0; border-top: 1px solid var(--line); }
+      header, #legend, #status { padding-left: 8px; padding-right: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <label>Option
+      <select id="option">
+        <option value="1">1 Baseline: one line, better rating</option>
+        <option value="2">2 Half-lines: each end what it hears</option>
+        <option value="3">3 Wedges per direction</option>
+        <option value="4">4 Evidence style, worse rating</option>
+        <option value="5">5 Hearing fan on selection</option>
+        <option value="6">6 Adjacency matrix</option>
+        <option value="7">7 Asymmetry ring at the node</option>
+        <option value="8">8 Used green, unused grey (Fabian's default)</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="implied"> show implied links</label>
+    <label><input type="checkbox" id="all"> all pairs</label>
+    <label><input type="checkbox" id="dark"> dark</label>
+  </header>
+  <div id="legend" aria-label="Legend"></div>
+  <main>
+    <canvas id="map" tabindex="0" aria-label="Network map"></canvas>
+    <aside id="side" hidden aria-label="Adjacency matrix"></aside>
+  </main>
+  <p id="status" role="status"></p>
+  <script type="module" src="links-demo.js"></script>
+</body>
+</html>
