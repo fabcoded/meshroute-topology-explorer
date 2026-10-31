@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Spring-electrical layout of the quality view (spec 7.1). Pure and deterministic for a seed; no DOM.
+// Spring-electrical layout of the quality view (spec 7.1). Pure and deterministic for a seed; no DOM. Only + − × ÷
+// and Math.sqrt enter the positions; sin, cos and hypot are left out because engines may approximate them
+// differently, which would let the same seed drift apart between browsers.
 // Model: one spring per reading with rest length L = L0 × D × f(q), repulsion between all devices of the mesh scaled
 // with (L0 × D)², a pull to the centre (Eades 1984; Fruchterman and Reingold 1991: displacement capped by a cooling
 // temperature). Devices without readings sit on a ring just outside the mesh. Pinned devices do not move.
@@ -23,8 +25,8 @@ export const PARAMS = Object.freeze({
   gravity: 0.03, // pull G × distance towards the centre; keeps loose parts near the mesh
   step: 1, // displacement per unit force, divided by (1 + springs at the device) so busy routers do not overshoot
   heat: 0.6, // starting temperature (largest move per step) in K
-  cooling: 0.998, // temperature factor per step; slow enough that large networks settle by balance, not by freezing
-  maxSteps: 3000, // step budget
+  cooling: 0.999, // temperature factor per step; slow enough that large networks settle by balance, not by freezing
+  maxSteps: 5000, // step budget
   exactBelow: 600, // exact pair sums below this many devices, Barnes-Hut above (speed target, spec 12)
   theta: 0.8, // Barnes-Hut opening criterion
 });
@@ -33,7 +35,7 @@ export const PARAMS = Object.freeze({
 export function springFactor(lqi) {
   if (typeof lqi !== "number" || !(lqi > 0)) return UNKNOWN_FACTOR;
   const q = Math.min(lqi, 255) / 255;
-  return 1 + 5 * (1 - q) ** 2;
+  return 1 + 5 * (1 - q) * (1 - q); // a product, not **: Math.pow may be approximated per engine
 }
 
 /** L0 of spec 7.1: node diameter plus the mean label width at zoom 1, in layout units. */
@@ -44,7 +46,8 @@ export function baseLength(labels, measure, nodeDiameter) {
   return nodeDiameter + sum / labels.length;
 }
 
-/** Small seeded generator (mulberry32): the same seed gives the same layout in every browser and in Node. */
+/** mulberry32 by Tommy Ettinger (public domain): a small seeded generator built from 32-bit integer operations,
+ *  which every engine computes alike. */
 export function seededRandom(seed) {
   let a = seed >>> 0;
   return () => {
@@ -111,15 +114,19 @@ export class Layout {
   }
 
   /** Start positions: pinned devices where they were pinned, the rest at seeded random points in a disc whose area
-   *  grows with the number of devices. */
+   *  grows with the number of devices. Points are drawn in the square and kept if inside the disc (no trigonometry). */
   _place(pinned) {
     const get = (id) => (pinned instanceof Map ? pinned.get(id) : pinned && pinned[id]);
     const radius = this.K * Math.sqrt(Math.max(this.meshIds().length, 1)) * 0.5;
     for (let i = 0; i < this.ids.length; i++) {
-      const angle = this._random() * 2 * Math.PI;
-      const r = radius * Math.sqrt(this._random());
-      this.x[i] = r * Math.cos(angle);
-      this.y[i] = r * Math.sin(angle);
+      let u;
+      let v;
+      do {
+        u = 2 * this._random() - 1;
+        v = 2 * this._random() - 1;
+      } while (u * u + v * v > 1);
+      this.x[i] = radius * u;
+      this.y[i] = radius * v;
       const p = get(this.ids[i]);
       if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
         this.x[i] = p.x;
@@ -162,28 +169,47 @@ export class Layout {
     this.settled = this.meshIds().length === 0;
   }
 
-  /** Devices without readings, evenly on a ring just outside the mesh, starting at the top, in id order. The ring
-   *  is also wide enough to hold them side by side. */
+  /** Devices without readings, evenly (by arc length) on an ellipse just outside the mesh, starting at the top, in
+   *  id order. The ellipse's half-axes are those of the mesh's bounding box plus K / 2, so the ring adds K to the
+   *  height and width rather than turning a wide mesh into a tall picture. A place that comes closer than K / 2 to a
+   *  mesh device (one sitting in a corner of the box) moves outwards until it is clear. */
   placeRing() {
     const ring = [];
     for (let i = 0; i < this.ids.length; i++) if (!this.mesh[i] && !this.pinned[i]) ring.push(i);
     if (!ring.length) return;
-    let cx = 0; let cy = 0; let m = 0;
+    const mesh = [];
+    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
     for (let i = 0; i < this.ids.length; i++) {
-      if (this.mesh[i]) { cx += this.x[i]; cy += this.y[i]; m++; }
+      if (!this.mesh[i]) continue;
+      mesh.push(i);
+      minX = Math.min(minX, this.x[i]); maxX = Math.max(maxX, this.x[i]);
+      minY = Math.min(minY, this.y[i]); maxY = Math.max(maxY, this.y[i]);
     }
-    if (m) { cx /= m; cy /= m; }
-    let reach = 0;
-    for (let i = 0; i < this.ids.length; i++) {
-      if (this.mesh[i]) reach = Math.max(reach, Math.hypot(this.x[i] - cx, this.y[i] - cy));
+    const cx = mesh.length ? (minX + maxX) / 2 : 0;
+    const cy = mesh.length ? (minY + maxY) / 2 : 0;
+    const clear = this.K / 2;
+    let a = (mesh.length ? (maxX - minX) / 2 : 0) + clear;
+    let b = (mesh.length ? (maxY - minY) / 2 : 0) + clear;
+    const needed = ring.length * this.K * 0.5; // room for each device on the ring
+    const length = ellipseOutline(a, b).length;
+    if (length < needed) {
+      a *= needed / length;
+      b *= needed / length;
     }
-    const radius = Math.max(reach + this.K, (ring.length * this.K * 0.5) / (2 * Math.PI));
-    ring.forEach((i, j) => {
-      const angle = -Math.PI / 2 + (2 * Math.PI * j) / ring.length;
-      this.x[i] = cx + radius * Math.cos(angle);
-      this.y[i] = cy + radius * Math.sin(angle);
+    const outline = ellipseOutline(a, b);
+    const tooClose = (px, py) => mesh.some((i) => {
+      const dx = this.x[i] - px;
+      const dy = this.y[i] - py;
+      return dx * dx + dy * dy < clear * clear;
     });
-    this.ringCentre = { x: cx, y: cy, r: radius };
+    ring.forEach((i, j) => {
+      const [px, py] = outline.at(j / ring.length);
+      let grow = 1;
+      while (grow < 3 && tooClose(cx + px * grow, cy + py * grow)) grow += 0.05;
+      this.x[i] = cx + px * grow;
+      this.y[i] = cy + py * grow;
+    });
+    this.ringShape = { x: cx, y: cy, a, b };
   }
 
   /** One integration step; returns the largest move. */
@@ -205,9 +231,9 @@ export class Layout {
           let dy = y[i] - y[j];
           let d2 = dx * dx + dy * dy;
           if (d2 < 1e-6) {
-            // Coincident devices: push apart along a direction fixed by their indices (deterministic).
-            dx = Math.cos(i + j);
-            dy = Math.sin(i + j);
+            // Coincident devices: push apart along a fixed direction, the lower index to the upper left.
+            dx = -0.6;
+            dy = -0.8;
             d2 = 1;
           }
           const f = kk / d2;
@@ -245,7 +271,7 @@ export class Layout {
       const eta = p.step / (1 + degree[i]);
       let mx = (fx[i] - p.gravity * x[i]) * eta;
       let my = (fy[i] - p.gravity * y[i]) * eta;
-      const m = Math.hypot(mx, my);
+      const m = Math.sqrt(mx * mx + my * my);
       if (m > t) { mx *= t / m; my *= t / m; }
       x[i] += mx;
       y[i] += my;
@@ -279,8 +305,47 @@ export class Layout {
     for (let s = 0; s < this.rest.length; s++) {
       const a = this.springA[s];
       const b = this.springB[s];
-      out.push({ lqi: this.springLqi[s], length: Math.hypot(this.x[b] - this.x[a], this.y[b] - this.y[a]) });
+      const dx = this.x[b] - this.x[a];
+      const dy = this.y[b] - this.y[a];
+      out.push({ lqi: this.springLqi[s], length: Math.sqrt(dx * dx + dy * dy) });
     }
     return out;
   }
+}
+
+/** Points along an ellipse with half-axes a and b, centred at 0, from the top going right (clockwise on screen), as
+ *  { length, at(distance) }: at() walks the outline by arc length. Built from the rational parametrisation of the
+ *  circle ((1 − t²) / (1 + t²), 2t / (1 + t²)), so it needs no trigonometry. */
+function ellipseOutline(a, b, perQuarter = 64) {
+  const quarter = [];
+  for (let k = 0; k <= perQuarter; k++) {
+    const t = k / perQuarter;
+    quarter.push([(1 - t * t) / (1 + t * t), (2 * t) / (1 + t * t)]);
+  }
+  const unit = [];
+  // Top -> right -> bottom -> left -> top, each quarter rotated from the first.
+  for (const rot of [([c, s]) => [s, -c], ([c, s]) => [c, s], ([c, s]) => [-s, c], ([c, s]) => [-c, -s]]) {
+    for (let k = 0; k < perQuarter; k++) unit.push(rot(quarter[k]));
+  }
+  unit.push(unit[0]);
+  const pts = unit.map(([u, v]) => [a * u, b * v]);
+  const cum = [0];
+  for (let k = 1; k < pts.length; k++) {
+    const dx = pts[k][0] - pts[k - 1][0];
+    const dy = pts[k][1] - pts[k - 1][1];
+    cum.push(cum[k - 1] + Math.sqrt(dx * dx + dy * dy));
+  }
+  const length = cum[cum.length - 1];
+  return {
+    length,
+    /** Point at the fraction f (0..1) of the way round. */
+    at(f) {
+      const target = f * length;
+      let k = 1;
+      while (k < cum.length - 1 && cum[k] < target) k++;
+      const span = cum[k] - cum[k - 1] || 1;
+      const w = (target - cum[k - 1]) / span;
+      return [pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * w, pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * w];
+    },
+  };
 }

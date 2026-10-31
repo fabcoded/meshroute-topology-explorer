@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): grey devices shaped by role, outlined by state, filled by
-// reception (cividis); one line per pair coloured by the better reading; two lanes with values for the focus and in
-// debug mode; labels as canvas text. Also marker sizes and hit testing, which share the same geometry.
-// Pure except for the context passed in; no Home Assistant objects.  node --test tests/
+// reception; by default each device's 3 best pairs as lines coloured by the pair's better rating, all pairs of the
+// focus as two lanes with their values, all pairs in debug mode; labels as canvas text placed around obstacles.
+// Also marker sizes and hit testing, which share the same geometry. Pure except for the context passed in.
+// node --test tests/
 
 import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
-import { lqiColor, ratingColor } from "./palette.js";
+import { ratingColor } from "./palette.js";
 import { toScreen } from "./camera.js";
 
 /** Marker sizes in layout units at zoom 1 (diameter or side) and their minimum on screen in CSS pixels (spec 8:
@@ -22,12 +23,13 @@ export const MARKERS = Object.freeze({
 export const NODE_DIAMETER = MARKERS.router.size;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
+/** Lines per device in the default view: its best pairs by rating (decision by Fabian Schwamborn, 2026-10-31). */
+export const BEST_PAIRS = 3;
 /** Distance of each lane from the pair's centre line, CSS pixels. */
 const LANE_OFFSET = 3;
-/** Line colours are bucketed so thousands of lines cost a few dozen strokes. */
-const COLOR_BUCKETS = 32;
-/** Opacity of lines outside the selection while something is selected or hovered. */
-const FADED = 0.25;
+/** Rating steps for line colours: strokes are grouped by step, weak below strong. */
+const COLOR_STEPS = 32;
+const LINE_HEIGHT = 14;
 
 export function markerRadius(role, k) {
   const m = MARKERS[role] || MARKERS.unknown;
@@ -38,14 +40,18 @@ export function hitRadius(role, k) {
   return Math.max(markerRadius(role, k) + 4, MIN_HIT / 2);
 }
 
-/** Text for a reading's value on a lane: "0 (uncertain)" for LQI 0 (spec 3.1), "?" for no value or no entry. */
+/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1), "?" for no value or no entry. */
 export function valueText(lqi) {
   if (lqi === 0) return "0 (uncertain)";
   return typeof lqi === "number" && lqi > 0 ? String(lqi) : "?";
 }
 
-/** Static part of the picture for one network: nodes with display labels, pairs with both readings, neighbours.
- *  lqi in a pair is a number, 0, null (reading without a value) or undefined (no reading in that direction). */
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** Order of two readings of one direction or of a pair: higher rating first, then higher LQI; unknown last. */
+const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
+
+/** Static part of the picture for one network: nodes with display labels, pairs with both readings, the pairs shown
+ *  by default, neighbours. In a pair, ab is "a hears b" and ba "b hears a", each { lqi, rating } or undefined. */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const seen = new Set();
   const devices = [];
@@ -60,12 +66,11 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     role: MARKERS[d.role] ? d.role : "unknown",
     label: labels[i],
     available: d.available !== false,
-    rating: typeof d.rating === "number" && Number.isFinite(d.rating) ? Math.max(0, Math.min(1, d.rating)) : null,
+    rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
   }));
   const index = new Map(nodes.map((n, i) => [n.id, i]));
-  const pairs = new Map();
+  const byKey = new Map();
   const neighbours = nodes.map(() => new Set());
-  const better = (a, b) => (b === undefined ? a : a === undefined ? b : (b || 0) > (a || 0) ? b : a);
   for (const r of network.readings || []) {
     const rep = index.get(r && r.reporter);
     const sub = index.get(r && r.subject);
@@ -73,21 +78,27 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     const a = Math.min(rep, sub);
     const b = Math.max(rep, sub);
     const key = a * nodes.length + b;
-    if (!pairs.has(key)) pairs.set(key, { a, b, ab: undefined, ba: undefined });
-    const pair = pairs.get(key);
-    const lqi = typeof r.lqi === "number" && Number.isFinite(r.lqi) ? r.lqi : null;
-    // ab: a hears b (a reported it); ba: b hears a.
-    if (rep === a) pair.ab = better(pair.ab, lqi); else pair.ba = better(pair.ba, lqi);
+    if (!byKey.has(key)) byKey.set(key, { a, b, ab: undefined, ba: undefined });
+    const pair = byKey.get(key);
+    const reading = { lqi: num(r.lqi), rating: num(r.rating) };
+    const side = rep === a ? "ab" : "ba";
+    if (!pair[side] || better(reading, pair[side]) < 0) pair[side] = reading;
     neighbours[a].add(b);
     neighbours[b].add(a);
   }
-  return { nodes, index, pairs: [...pairs.values()], neighbours, labels };
-}
-
-/** The better of a pair's two readings for its single line; null if neither has a usable value. */
-export function pairValue(pair) {
-  const v = [pair.ab, pair.ba].filter((x) => typeof x === "number" && x > 0);
-  return v.length ? Math.max(...v) : null;
+  const pairs = [...byKey.keys()].sort((p, q) => p - q).map((key, i) => {
+    const pair = byKey.get(key);
+    const best = [pair.ab, pair.ba].filter(Boolean).sort(better)[0];
+    return { ...pair, index: i, rating: best.rating, lqi: best.lqi, best: false };
+  });
+  // Default lines: each device's best pairs; a pair stays if it is among the best of either end.
+  const perNode = nodes.map(() => []);
+  for (const p of pairs) { perNode[p.a].push(p); perNode[p.b].push(p); }
+  for (const list of perNode) {
+    list.sort((p, q) => better(p, q) || p.index - q.index);
+    for (const p of list.slice(0, BEST_PAIRS)) p.best = true;
+  }
+  return { nodes, index, pairs, neighbours, labels, bestCount: pairs.filter((p) => p.best).length };
 }
 
 /** Nearest device whose hit area contains (px, py), as a node index, or -1. sx, sy: screen positions. */
@@ -122,15 +133,37 @@ function haloText(ctx, text, x, y, theme) {
   ctx.fillText(text, x, y);
 }
 
-function overlaps(r, placed) {
-  for (const q of placed) {
-    if (r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) return true;
+/** Rectangles on a coarse grid, so each label checks only what is near it (thousands of lane values in debug mode). */
+class RectGrid {
+  constructor(cell = 64) { this.cell = cell; this.cells = new Map(); }
+  _keys(r, fn) {
+    const c = this.cell;
+    for (let gx = Math.floor(r.x / c); gx <= Math.floor((r.x + r.w) / c); gx++) {
+      for (let gy = Math.floor(r.y / c); gy <= Math.floor((r.y + r.h) / c); gy++) fn(gx * 65536 + gy);
+    }
   }
-  return false;
+  add(r) {
+    this._keys(r, (key) => {
+      if (!this.cells.has(key)) this.cells.set(key, []);
+      this.cells.get(key).push(r);
+    });
+  }
+  hits(r) {
+    let hit = false;
+    this._keys(r, (key) => {
+      if (hit) return;
+      for (const q of this.cells.get(key) || []) {
+        if (q.owner !== undefined && q.owner === r.owner) continue; // a label may touch its own marker
+        if (r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) { hit = true; return; }
+      }
+    });
+    return hit;
+  }
 }
 
-/** Draw one frame. view: { cam, width, height, dpr, density, debug, selected, hovered (node indices or -1),
- *  fps (number or null) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font. */
+/** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
+ *  fps (number or null) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
+ *  Returns what was drawn: { sx, sy, lines, lanes, labels, dropped }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -143,7 +176,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const sx = new Float64Array(n);
   const sy = new Float64Array(n);
   for (let i = 0; i < n; i++) [sx[i], sy[i]] = toScreen(cam, pos.x[i], pos.y[i], width, height);
-  const focus = [view.selected, view.hovered].filter((i) => i >= 0);
+  const focus = [view.selected, view.hovered].filter((i, j, all) => i >= 0 && all.indexOf(i) === j);
   const focusSet = new Set(focus);
   const near = new Set(focus);
   for (const f of focus) for (const j of scene.neighbours[f]) near.add(j);
@@ -153,56 +186,55 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     !(Math.max(sx[a], sx[b]) < -margin || Math.min(sx[a], sx[b]) > width + margin ||
       Math.max(sy[a], sy[b]) < -margin || Math.min(sy[a], sy[b]) > height + margin);
 
-  // Single lines, bucketed by colour; lanes are collected for later.
-  const buckets = new Map();
+  // Lines: unknown first, then by rating step from weak to strong, so the strong links lie on top; within a step in
+  // pair order. One stroke per line: in Chromium's software rasterizer 2 259 lines took 12 ms stroked one by one
+  // against 38 ms as one path per colour; GPU canvases are fast either way.
+  const lines = [];
   const lanes = [];
   for (const pair of scene.pairs) {
     if (!segmentVisible(pair.a, pair.b)) continue;
-    if (view.debug || focusSet.has(pair.a) || focusSet.has(pair.b)) { lanes.push(pair); continue; }
-    const v = pairValue(pair);
-    const bucket = v === null ? -1 : Math.round((v / 255) * (COLOR_BUCKETS - 1));
-    if (!buckets.has(bucket)) buckets.set(bucket, []);
-    buckets.get(bucket).push(pair);
+    if (view.debug || focusSet.has(pair.a) || focusSet.has(pair.b)) lanes.push(pair);
+    else if (pair.best) lines.push(pair);
   }
-  // One stroke per line, styles set once per bucket: measured in Chromium's software rasterizer, 2 259 lines took
-  // 12 ms stroked one by one against 38 ms as one path per colour (overlap handling of large paths); GPU canvases
-  // are fast either way.
+  const step = (p) => (p.rating === null ? -1 : Math.round(p.rating * (COLOR_STEPS - 1)));
+  lines.sort((p, q) => step(p) - step(q) || p.index - q.index);
   ctx.lineCap = "butt";
-  ctx.globalAlpha = focus.length ? FADED : 1;
-  const strokeEach = (list) => {
-    for (const p of list) {
-      ctx.beginPath();
-      ctx.moveTo(sx[p.a], sy[p.a]);
-      ctx.lineTo(sx[p.b], sy[p.b]);
-      ctx.stroke();
+  let current = null;
+  for (const p of lines) {
+    const s = step(p);
+    if (s !== current) {
+      current = s;
+      const unknown = s < 0;
+      ctx.setLineDash(unknown ? [4, 4] : []);
+      ctx.lineWidth = unknown ? 1 : 1 + (s / (COLOR_STEPS - 1)) * 1.5;
+      ctx.strokeStyle = unknown ? theme.muted : ratingColor(s / (COLOR_STEPS - 1), theme);
     }
-  };
-  for (const [bucket, list] of buckets) {
-    const unknown = bucket < 0;
-    const value = unknown ? null : Math.max(1, (bucket / (COLOR_BUCKETS - 1)) * 255);
     if (theme.lineRange.casing) {
-      ctx.setLineDash([]);
-      ctx.lineWidth = 3.5;
+      // A mid-grey background leaves no contrast-safe colours: give each line a casing in the outline colour.
+      const style = ctx.strokeStyle;
+      const width = ctx.lineWidth;
       ctx.strokeStyle = theme.outline;
-      strokeEach(list);
+      ctx.lineWidth = width + 2;
+      ctx.beginPath(); ctx.moveTo(sx[p.a], sy[p.a]); ctx.lineTo(sx[p.b], sy[p.b]); ctx.stroke();
+      ctx.strokeStyle = style;
+      ctx.lineWidth = width;
     }
-    ctx.setLineDash(unknown ? [4, 4] : []);
-    ctx.lineWidth = unknown ? 1 : 1 + (value / 255) * 1.5;
-    ctx.strokeStyle = unknown ? theme.muted : lqiColor(value, theme);
-    strokeEach(list);
+    ctx.beginPath();
+    ctx.moveTo(sx[p.a], sy[p.a]);
+    ctx.lineTo(sx[p.b], sy[p.b]);
+    ctx.stroke();
   }
   ctx.setLineDash([]);
-  ctx.globalAlpha = 1;
 
-  // Lanes: each reading "R hears S" travels from S to R and runs on the right of that direction (y points down,
-  // so the right-hand normal of (ux, uy) is (-uy, ux)). Geometry first, then strokes grouped by style: switching
-  // the dash pattern per lane cost more than the lanes themselves (debug mode, 300 devices).
+  // Lanes: each reading "R hears S" travels from S to R and runs on the right of that direction (y points down, so
+  // the right-hand normal of (ux, uy) is (-uy, ux)); coloured by its own rating, labelled with its raw LQI. Geometry
+  // first, then strokes grouped by style: switching the dash pattern per lane cost more than the lanes themselves.
   const laneTexts = [];
-  const laneGroups = new Map(); // colour or "" (unknown, dashed) -> lanes
+  const laneGroups = new Map(); // colour or "" (unknown rating, dashed) -> lanes
   ctx.font = theme.font;
   for (const pair of lanes) {
     const focused = focusSet.has(pair.a) || focusSet.has(pair.b);
-    for (const [from, to, lqi, reporter] of [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]]) {
+    for (const [from, to, reading, reporter] of [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]]) {
       const dx = sx[to] - sx[from];
       const dy = sy[to] - sy[from];
       const len = Math.hypot(dx, dy);
@@ -211,11 +243,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const uy = dy / len;
       const ox = -uy * LANE_OFFSET;
       const oy = ux * LANE_OFFSET;
-      const color = lqiColor(lqi, theme) || "";
+      const color = (reading && ratingColor(reading.rating, theme)) || "";
       if (!laneGroups.has(color)) laneGroups.set(color, []);
       laneGroups.get(color).push({ x0: sx[from] + ox, y0: sy[from] + oy, dx, dy, ux, uy, len });
-      let text = valueText(lqi);
-      if (view.debug) text += ` \u2190 ${scene.nodes[reporter].label}`;
+      let text = valueText(reading ? reading.lqi : undefined);
+      if (view.debug) text += ` ← ${scene.nodes[reporter].label}`;
       const w = measure(text);
       if (len < w + 2 * markerRadius("router", k) + 12) continue; // no room on this lane: the details list it
       // At the middle, beside its own lane: the two values of a pair sit on opposite sides of the line.
@@ -223,7 +255,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
   }
   ctx.lineWidth = 2;
-  for (const [color, group] of [...laneGroups].sort((a, b) => (a[0] === "") - (b[0] === ""))) {
+  for (const [color, group] of [...laneGroups].sort((p, q) => (p[0] === "") - (q[0] === "") || (p[0] < q[0] ? -1 : 1))) {
     ctx.setLineDash(color ? [] : [4, 4]);
     ctx.strokeStyle = color || theme.muted;
     ctx.fillStyle = color || theme.muted;
@@ -253,15 +285,17 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (let i = 0; i < n; i++) if (!near.has(i)) order.push(i);
   for (const i of near) if (!focusSet.has(i)) order.push(i);
   for (const i of focus) order.push(i);
+  const obstacles = new RectGrid();
   for (const i of order) {
     if (!onScreen(i)) continue;
     const node = scene.nodes[i];
     const r = markerRadius(node.role, k);
     const x = sx[i];
     const y = sy[i];
+    obstacles.add({ x: x - r - 1, y: y - r - 1, w: 2 * r + 2, h: 2 * r + 2, owner: i });
     shapePath(ctx, node.role, x, y, r);
     // Offline devices are hollow; a background fill keeps lines from showing through.
-    ctx.fillStyle = node.available ? ratingColor(node.rating) || theme.node : theme.background;
+    ctx.fillStyle = node.available ? ratingColor(node.rating, theme) || theme.node : theme.background;
     ctx.fill();
     const unknown = !pos.mesh[i] || node.role === "unknown";
     ctx.setLineDash(unknown ? [3, 2] : []);
@@ -294,37 +328,51 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
   }
 
-  // Text, in order of importance; anything that would overlap text already placed is left out (the details list
-  // every value): labels of the focus (always), of its neighbours, values on the focus's lanes, other labels above
-  // the zoom threshold, values on the remaining lanes in debug mode. Overlapping labels could not be read anyway.
+  // Text, in order of importance. A label tries below, above, right and left of its device and is left out if all
+  // four would cover another device or text already placed (the details list everything); the coordinator and the
+  // focus are always labelled, below if nothing else is free. Order: coordinator and focus, neighbours of the
+  // focus, values on the focus's lanes, everyone else from LABEL_SCALE up, values on other lanes (debug).
   ctx.font = theme.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const lineHeight = 14;
-  const placed = [];
+  const placed = obstacles; // labels become obstacles for later labels
+  let shown = 0;
+  let dropped = 0;
   const label = (i, forced) => {
     if (!onScreen(i)) return;
     const node = scene.nodes[i];
-    const w = measure(node.label);
-    const mid = sy[i] + markerRadius(node.role, k) + 3 + lineHeight / 2;
-    const rect = { x: sx[i] - w / 2 - 2, y: mid - lineHeight / 2, w: w + 4, h: lineHeight };
-    if (!forced && overlaps(rect, placed)) return;
-    placed.push(rect);
-    haloText(ctx, node.label, sx[i], mid, theme);
+    const w = measure(node.label) + 4;
+    const r = markerRadius(node.role, k);
+    const h = LINE_HEIGHT;
+    const spots = [
+      [sx[i], sy[i] + r + 3 + h / 2], [sx[i], sy[i] - r - 3 - h / 2],
+      [sx[i] + r + 4 + w / 2, sy[i]], [sx[i] - r - 4 - w / 2, sy[i]],
+    ];
+    let spot = null;
+    for (const [cx, cy] of spots) {
+      if (!placed.hits({ x: cx - w / 2, y: cy - h / 2, w, h, owner: i })) { spot = [cx, cy]; break; }
+    }
+    if (!spot && !forced) { dropped++; return; }
+    if (!spot) spot = spots[0];
+    placed.add({ x: spot[0] - w / 2, y: spot[1] - h / 2, w, h });
+    haloText(ctx, node.label, spot[0], spot[1], theme);
+    shown++;
   };
   const value = (t) => {
-    const rect = { x: t.x - t.w / 2 - 2, y: t.y - lineHeight / 2, w: t.w + 4, h: lineHeight };
-    if (overlaps(rect, placed)) return;
-    placed.push(rect);
+    const rect = { x: t.x - t.w / 2 - 2, y: t.y - LINE_HEIGHT / 2, w: t.w + 4, h: LINE_HEIGHT };
+    if (placed.hits(rect)) return;
+    placed.add(rect);
     haloText(ctx, t.text, t.x, t.y, theme);
   };
-  for (const i of focus) label(i, true);
-  for (const i of near) if (!focusSet.has(i)) label(i, false);
+  const always = [];
+  for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
+  for (const i of [...focus, ...always]) label(i, true);
+  for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, false);
   for (const t of laneTexts) if (t.focused) value(t);
-  if (labelsForAll(k, view.density)) {
+  if (labelsForAll(k, view.labelZoom)) {
     const rank = { coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 };
     const rest = [];
-    for (let i = 0; i < n; i++) if (!near.has(i)) rest.push(i);
+    for (let i = 0; i < n; i++) if (!near.has(i) && !always.includes(i)) rest.push(i);
     rest.sort((a, b) => rank[scene.nodes[a].role] - rank[scene.nodes[b].role] || a - b);
     for (const i of rest) label(i, false);
   }
@@ -335,5 +383,5 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.textBaseline = "top";
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, 8, theme);
   }
-  return { sx, sy };
+  return { sx, sy, lines: lines.length, lanes: lanes.length, labels: shown, dropped };
 }

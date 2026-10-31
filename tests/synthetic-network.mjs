@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Development only, not shipped: a seeded synthetic network for the speed target of spec 12 (300 devices, 3 000
-// readings) and for looking at large maps in dev/graph.html?synthetic=300. Devices sit at random points; routers
-// report their nearest devices, LQI falls with distance plus noise, about 2 % of readings are 0 (unknown).
+// Test helper (also used by dev/graph.html?synthetic=300), not shipped: a seeded synthetic network for the speed
+// target of spec 12 (300 devices, 3 000 readings). Devices sit at random points; routers report their nearest
+// devices, LQI falls with distance plus noise, about 2 % of readings are 0 (unknown). Ratings come from the data
+// model's own rule (model/ratings.js), so lines and fills behave as on a real network.
 
 import { seededRandom } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
+import { applyRatings } from "../custom_components/meshroute_topology_explorer/frontend/model/ratings.js";
 
 export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, routerShare = 0.6 } = {}) {
   const rnd = seededRandom(seed);
@@ -18,8 +20,9 @@ export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, rou
       role,
       label: role === "end device" ? `Sensor ${String(i).padStart(3, "0")}` : `Lamp ${String(i).padStart(3, "0")}`,
       available: rnd() > 0.03,
-      rating: rnd() < 0.1 ? null : rnd(),
+      rating: null,
       nwk: (i * 7919) & 0xffff,
+      vendor: "Synthetic",
     });
   }
   const reporters = list.map((d, i) => i).filter((i) => list[i].role !== "end device");
@@ -34,8 +37,9 @@ export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, rou
       if (s === undefined) continue;
       const dist = Math.hypot(pts[s][0] - pts[r][0], pts[s][1] - pts[r][1]);
       const lqi = rnd() < 0.02 ? 0 : Math.max(1, Math.min(255, Math.round(255 * Math.exp(-dist / 18) + (rnd() - 0.5) * 40)));
-      out.push({ reporter: list[r].id, subject: list[s].id, lqi });
+      out.push({ reporter: list[r].id, subject: list[s].id, lqi, rating: null });
     }
   }
+  applyRatings(list, out);
   return { source: "zha", id: `synthetic-${devices}`, devices: list, readings: out };
 }

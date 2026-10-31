@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { hitRadius, MARKERS, MIN_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { FakeCanvas, fakeEnv, domEvent } from "./graph-fakes.mjs";
+import { FakeCanvas, fakeEnv, domEvent, labelWidth } from "./graph-fakes.mjs";
 
 const NETWORK = {
   source: "zha",
@@ -190,17 +190,107 @@ test("a data refresh keeps the selection; hover is reported for the mouse", () =
   assert.deepEqual(events.at(-1), ["hover", { id: null }]);
 });
 
-test("a density change keeps the zoom and scales pinned devices with the map", () => {
-  const { view } = setup();
+test("density: an overview stays fitted; a zoomed view keeps its zoom; pinned devices scale with the map", () => {
+  const { view, at, tap } = setup();
   view.pin("r2", 1, -2);
-  const k = view.cam.k;
   const K = view.layout.K;
   view.setDensity(1.5);
-  assert.equal(view.cam.k, k, "same zoom: the map spreads on screen instead of being refitted");
+  assert.equal(view.autoFit, true, "the overview is refitted");
   assert.ok(Math.abs(view.layout.K / K - 1.5) < 1e-12);
   assert.deepEqual(view.layout.position("r2"), { x: view.layout.K, y: -2 * view.layout.K });
+  view.zoomBy(2, { animate: false });
+  tap(...at("r1"));
+  const k = view.cam.k;
+  const before = at("r1");
+  view.setDensity(0.7);
+  assert.equal(view.cam.k, k, "same zoom: the map tightens on screen");
+  const after = at("r1");
+  assert.ok(Math.hypot(after[0] - before[0], after[1] - before[1]) < 1e-6, "the selection stays where it was");
+});
+
+/** Median distance from each mesh device to its nearest neighbour on screen, as the working scale defines it. */
+function medianNearest(view) {
+  const ids = [...view.pos.mesh.keys()].filter((i) => view.pos.mesh[i]);
+  const d = ids.map((i) => Math.min(...ids.filter((j) => j !== i)
+    .map((j) => Math.hypot(view.pos.x[j] - view.pos.x[i], view.pos.y[j] - view.pos.y[i]))) * view.cam.k)
+    .sort((a, b) => a - b);
+  const m = d.length >> 1;
+  return d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
+}
+
+test("reveal with zoom goes to the working scale: median nearest-neighbour distance = D x mean label width", () => {
+  for (const density of [0.7, 1, 1.5]) {
+    const canvas = new FakeCanvas(240, 180); // small: the overview is below the working scale
+    const env = fakeEnv();
+    const view = new GraphView(canvas, { env, density });
+    view.setNetwork(NETWORK);
+    env.flush();
+    assert.ok(view.fitK < view.workingZoom);
+    view.reveal("e1", { right: 40 }, { zoom: true, animate: false });
+    const meanLabel = view.scene.labels.reduce((s, l) => s + labelWidth(l), 0) / view.scene.labels.length;
+    assert.ok(Math.abs(medianNearest(view) - density * meanLabel) < 1e-6, `D=${density}`);
+    const i = view.scene.index.get("e1");
+    const [x, y] = [(view.pos.x[i] - view.cam.cx) * view.cam.k + 120, (view.pos.y[i] - view.cam.cy) * view.cam.k + 90];
+    assert.ok(Math.abs(x - 100) < 1e-6 && Math.abs(y - 90) < 1e-6, "centred in the part the drawer leaves free");
+  }
+  // A large canvas already shows more room than the working scale: revealing does not zoom out past the overview.
+  const { view } = setup();
+  const fit = view.cam.k;
+  view.reveal("e1", {}, { zoom: true, animate: false });
+  assert.equal(view.cam.k, Math.max(view.workingZoom, fit));
+});
+
+test("the selection is kept clear of the drawer; double click and Enter zoom to the working scale", () => {
+  const { canvas, env, view, events, at, tap, advanceTime } = setup();
+  tap(...at("r2"));
+  view.setInsets({ right: 760 }); // a drawer over almost everything: ignored, there is no room left
+  env.flush();
+  view.setInsets({ right: 500 });
+  env.flush();
+  const [x] = at("r2");
+  assert.ok(x <= 800 - 500 - 48 + 1e-6, `r2 at ${x} is left of the drawer`);
+  advanceTime(1000);
+  tap(...at("c"));
+  tap(...at("c"));
+  env.flush();
+  const target = Math.max(view.workingZoom, view.fitK);
+  assert.ok(Math.abs(view.cam.k - target) < 1e-9, "double click: working scale (not below the overview)");
+  assert.equal(events.filter((e) => e[0] === "pin-change").length, 0, "nothing was pinned, nothing released");
   view.fit({ animate: false });
-  assert.notEqual(view.cam.k, k);
+  canvas.dispatchEvent(domEvent("keydown", { key: "Enter", timeStamp: 9000 }));
+  env.flush();
+  assert.ok(Math.abs(view.cam.k - target) < 1e-9, "Enter: working scale");
+});
+
+test("a hidden canvas keeps its buffer and draws nothing; a new pixel ratio resizes it", () => {
+  const canvas = new FakeCanvas(800, 600);
+  const env = fakeEnv();
+  let ratio = 2;
+  let notify = null;
+  env.devicePixelRatio = () => ratio;
+  env.watchResolution = (fn) => { notify = fn; return () => { notify = null; }; };
+  const view = new GraphView(canvas, { env });
+  view.setNetwork(NETWORK);
+  env.flush();
+  assert.equal(canvas.width, 1600);
+  canvas.clientWidth = 0; // display: none
+  canvas.clientHeight = 0;
+  for (let i = 0; i < 3; i++) view.resize();
+  assert.equal(canvas.width, 1600, "the buffer is left alone while hidden");
+  const drawn = canvas.ctx.calls.length;
+  view.zoomIn();
+  env.flush();
+  assert.equal(canvas.ctx.calls.length, drawn, "no drawing while hidden");
+  canvas.clientWidth = 800;
+  canvas.clientHeight = 600;
+  view.resize();
+  env.flush();
+  assert.ok(canvas.ctx.calls.length > drawn, "drawing resumes");
+  ratio = 3;
+  notify();
+  assert.equal(canvas.width, 2400);
+  view.destroy();
+  assert.equal(notify, null, "destroy stops watching");
 });
 
 test("an empty network and one without any readings draw without errors", () => {

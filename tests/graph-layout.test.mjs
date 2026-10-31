@@ -11,12 +11,14 @@ import {
 import { buildQuadtree, quadtreeForce } from "../custom_components/meshroute_topology_explorer/frontend/graph/quadtree.js";
 import { displayLabels } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
 import { NODE_DIAMETER } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { zhaToNetwork } from "../dev/zha-network.js";
-import { syntheticNetwork } from "../dev/synthetic-network.js";
-import { fidelity, spearman } from "../dev/fidelity.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { syntheticNetwork } from "./synthetic-network.mjs";
+import { fidelity, spearman } from "./fidelity.mjs";
+import { labelWidth as measure } from "./graph-fakes.mjs";
 
-const sample = zhaToNetwork(JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")));
-const measure = (text) => text.length * 7; // fixed character width instead of a canvas
+const responses = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
+const sample = buildNetwork(responses["zha/devices"], { deviceRegistry: responses["config/device_registry/list"],
+  areaRegistry: responses["config/area_registry/list"], configEntries: responses["config_entries/get"] });
 const l0Of = (network) => baseLength(displayLabels(network.devices, measure), measure, NODE_DIAMETER);
 const report = (t, msg) => (t.diagnostic ? t.diagnostic(msg) : console.log(msg));
 
@@ -29,8 +31,19 @@ test("spring factor follows f(q) = 1 + 5 (1 - q)^2, unknown 1.5", () => {
 });
 
 test("L0 is node diameter plus mean label width, with an injected measure", () => {
-  assert.equal(baseLength(["ab", "abcd"], measure, 16), 16 + 21);
-  assert.equal(baseLength([], measure, 16), 16);
+  const fixed = (text) => text.length * 7;
+  assert.equal(baseLength(["ab", "abcd"], fixed, 16), 16 + 21);
+  assert.equal(baseLength([], fixed, 16), 16);
+});
+
+test("positions use only + - * / and sqrt: no engine-dependent maths in layout.js and quadtree.js", () => {
+  for (const file of ["layout.js", "quadtree.js"]) {
+    const code = readFileSync(new URL(`../custom_components/meshroute_topology_explorer/frontend/graph/${file}`,
+      import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    for (const banned of [/Math\.(sin|cos|tan|atan2?|hypot|exp|log\w*|pow|cbrt)\b/, /\*\*/]) {
+      assert.ok(!banned.test(code), `${file}: ${banned}`);
+    }
+  }
 });
 
 test("same network and seed give the same layout, whatever the input order; another seed differs", () => {
@@ -82,35 +95,52 @@ test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
   assert.ok(ms < 5000, `${ms} ms`);
 });
 
-test("devices without readings sit evenly on a ring just outside the mesh, in id order from the top", () => {
+test("devices without readings sit evenly on an ellipse just outside the mesh, in id order from the top", () => {
   const net = {
-    devices: ["a", "b", "c", "d", "x3", "x1", "x2"].map((id) => ({ id })),
+    devices: ["a", "b", "c", "d", "e", "x3", "x1", "x2", "x4"].map((id) => ({ id })),
     readings: [
       { reporter: "a", subject: "b", lqi: 200 }, { reporter: "b", subject: "c", lqi: 90 },
-      { reporter: "c", subject: "d", lqi: 0 }, { reporter: "d", subject: "a", lqi: null },
-      { reporter: "a", subject: "ghost", lqi: 50 }, // unknown device: ignored, does not make "a" special
+      { reporter: "c", subject: "d", lqi: 0 }, { reporter: "d", subject: "e", lqi: null },
+      { reporter: "a", subject: "ghost", lqi: 50 }, // unknown device: ignored
     ],
   };
   const layout = new Layout(net, { baseLength: 80, seed: 2 });
   layout.run();
-  assert.deepEqual(layout.ringIds(), ["x1", "x2", "x3"]);
-  const { x: cx, y: cy, r } = layout.ringCentre;
-  const meshReach = Math.max(...layout.meshIds().map((id) => {
-    const p = layout.position(id);
-    return Math.hypot(p.x - cx, p.y - cy);
-  }));
-  const angles = layout.ringIds().map((id) => {
-    const p = layout.position(id);
-    assert.ok(Math.abs(Math.hypot(p.x - cx, p.y - cy) - r) < 1e-9, "on the ring");
-    return Math.atan2(p.y - cy, p.x - cx);
-  });
-  assert.ok(r > meshReach && r <= meshReach + layout.K + 1e-9, "just outside the mesh");
-  assert.ok(Math.abs(angles[0] + Math.PI / 2) < 1e-9, "first one at the top");
-  const step = (2 * Math.PI) / 3;
-  for (let i = 1; i < angles.length; i++) {
-    const gap = (angles[i] - angles[i - 1] + 2 * Math.PI) % (2 * Math.PI);
-    assert.ok(Math.abs(gap - step) < 1e-9, "evenly spaced");
+  assert.deepEqual(layout.ringIds(), ["x1", "x2", "x3", "x4"]);
+  const { x: cx, y: cy, a, b } = layout.ringShape;
+  const mesh = layout.meshIds().map((id) => layout.position(id));
+  const box = { w: Math.max(...mesh.map((p) => p.x)) - Math.min(...mesh.map((p) => p.x)),
+    h: Math.max(...mesh.map((p) => p.y)) - Math.min(...mesh.map((p) => p.y)) };
+  assert.ok(Math.abs(a - (box.w / 2 + layout.K / 2)) < 1e-9 && Math.abs(b - (box.h / 2 + layout.K / 2)) < 1e-9,
+    "half-axes: the mesh box plus K/2");
+  const ring = layout.ringIds().map((id) => layout.position(id));
+  for (const p of ring) {
+    const e = ((p.x - cx) / a) ** 2 + ((p.y - cy) / b) ** 2;
+    assert.ok(e >= 1 - 1e-3, "on or outside the ellipse");
+    for (const q of mesh) assert.ok(Math.hypot(p.x - q.x, p.y - q.y) >= layout.K / 2 - 1e-9, "clear of the mesh");
   }
+  assert.ok(Math.abs(ring[0].x - cx) < 1e-6 && ring[0].y < cy, "first one at the top");
+  assert.ok(ring[1].x > cx, "then clockwise on screen (to the right)");
+});
+
+test("ring places are spaced evenly by arc length", () => {
+  // No mesh: the ring is the bare ellipse, so every place is unmoved.
+  const layout = new Layout({ devices: ["p", "q", "r", "s", "t", "u"].map((id) => ({ id })), readings: [] },
+    { baseLength: 100 });
+  layout.run();
+  const ring = layout.ringIds().map((id) => layout.position(id));
+  const chords = ring.map((p, i) => Math.hypot(ring[(i + 1) % ring.length].x - p.x, ring[(i + 1) % ring.length].y - p.y));
+  assert.ok(Math.max(...chords) - Math.min(...chords) < 1e-3 * Math.max(...chords), chords.join()); // polyline arc
+});
+
+test("on the sample the ring adds at most K to the mesh's height", () => {
+  const layout = new Layout(sample, { baseLength: l0Of(sample), seed: 1 });
+  layout.run();
+  assert.ok(layout.ringIds().length >= 1);
+  const ys = (ids) => ids.map((id) => layout.position(id).y);
+  const meshH = Math.max(...ys(layout.meshIds())) - Math.min(...ys(layout.meshIds()));
+  const allH = Math.max(...ys(layout.ids)) - Math.min(...ys(layout.ids));
+  assert.ok(allH - meshH <= layout.K + 1e-6, `${allH} vs ${meshH}`);
 });
 
 test("pinned devices stay where they are, the others still settle", () => {

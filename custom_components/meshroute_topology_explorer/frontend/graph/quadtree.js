@@ -73,7 +73,11 @@ export function quadtreeForce(tree, i, px, py, kk, theta) {
         let dx = px - xs[j];
         let dy = py - ys[j];
         let d2 = dx * dx + dy * dy;
-        if (d2 < 1e-6) { dx = Math.cos(i + j); dy = Math.sin(i + j); d2 = 1; }
+        if (d2 < 1e-6) {
+          // Coincident: the same fixed direction as the exact sum in layout.js, the lower index to the upper left.
+          const sign = i < j ? 1 : -1;
+          dx = -0.6 * sign; dy = -0.8 * sign; d2 = 1;
+        }
         fx += (dx * kk) / d2;
         fy += (dy * kk) / d2;
       }

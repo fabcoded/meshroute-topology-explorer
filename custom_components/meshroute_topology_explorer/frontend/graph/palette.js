@@ -3,12 +3,13 @@
 // Pure functions, no DOM. The panel passes theme colours in; nothing here depends on Home Assistant.
 // Tested in Node: node --test tests/
 
-/** Anchor colours of cividis (Nuñez, Anderton and Renslow 2018) at t = 0, .25, .5, .75, 1. Recalled from the
- *  published map, not copied from a table (see docs/provenance.md); their CIE lightness rises evenly (about 14, 33,
- *  51, 71, 91), which is the defining property the interpolation below keeps. */
+/** cividis at t = 0, 1/16, ..., 1: 17 values of the published table (Nuñez, Anderton and Renslow 2018, PLOS ONE,
+ *  doi:10.1371/journal.pone.0199239, supplement S2, CC BY 4.0; see NOTICE). Linear interpolation between them stays
+ *  within about 4 ΔE of the full 256-entry table. */
 const CIVIDIS = [
-  [0, 34, 78], [65, 77, 107], [124, 123, 120], [188, 175, 111], [254, 232, 56],
-];
+  "#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073", "#7c7c78",
+  "#8b8779", "#9b9477", "#aca174", "#bcaf6f", "#cebc68", "#e0cb5e", "#f2da50", "#ffea46",
+].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
 
 /** Light and dark defaults, used for anything the caller leaves out. */
 export const LIGHT = Object.freeze({
@@ -127,14 +128,10 @@ export function resolveTheme(input = {}) {
   };
 }
 
-/** Line colour for a reading's LQI (0..255) inside the theme's contrast-safe stretch; null for unknown readings. */
-export function lqiColor(lqi, theme) {
-  if (!(lqi > 0)) return null;
+/** Colour of a rating (0..1, spec 5.4) inside the theme's contrast-safe stretch of cividis; null for unknown. Lines,
+ *  lanes and device fills share this one scale, so the legend needs a single bar per theme. */
+export function ratingColor(rating, theme) {
+  if (typeof rating !== "number" || !Number.isFinite(rating)) return null;
   const { lo, hi } = theme.lineRange;
-  return toHex(cividis(lo + (hi - lo) * Math.min(lqi, 255) / 255));
-}
-
-/** Node fill for a rating (0..1), full cividis (nodes carry an outline for contrast); null for unknown. */
-export function ratingColor(rating) {
-  return typeof rating === "number" && Number.isFinite(rating) ? toHex(cividis(rating)) : null;
+  return toHex(cividis(lo + (hi - lo) * Math.max(0, Math.min(1, rating))));
 }
