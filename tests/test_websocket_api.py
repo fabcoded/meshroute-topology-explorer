@@ -57,9 +57,28 @@ class CommandsTest(unittest.TestCase):
         _, errors = self.call("observations/set", network="a")  # field missing
         self.assertEqual(errors[0][1], "invalid_format")
 
-    def test_nan_is_rejected(self):
-        _, errors = self.call("settings/set", network="a", settings={"x": float("nan")})
+    def test_payload_orjson_cannot_write_is_rejected(self):
+        deep = cur = {}
+        for _ in range(300):  # beyond orjson's nesting limit of 254
+            cur["n"] = {}
+            cur = cur["n"]
+        _, errors = self.call("settings/set", network="a", settings=deep)
         self.assertEqual(errors[0][1], "invalid_format")
+        _, errors = self.call("observations/set", network="a", observations={"x": object()})
+        self.assertEqual(errors[0][1], "invalid_format")
+        # nothing was stored, so the next save of the whole file cannot be poisoned
+        self.assertEqual(self.call("settings/get", network="a")[0][0][1], {"settings": None})
+
+    def test_nesting_just_inside_the_limit_is_accepted(self):
+        ok = cur = {}
+        for _ in range(250):
+            cur["n"] = {}
+            cur = cur["n"]
+        self.assertEqual(self.call("settings/set", network="a", settings=ok)[0][0][1], {})
+
+    def test_nan_and_non_string_keys_are_accepted_as_orjson_writes_them(self):
+        # orjson writes NaN as null and numbers as keys as strings; neither breaks the file.
+        self.assertEqual(self.call("settings/set", network="a", settings={"x": float("nan"), 1: 2})[0][0][1], {})
 
     def test_too_large(self):
         limit = 256 * 1024
@@ -123,6 +142,21 @@ class CommandsTest(unittest.TestCase):
         self.assertEqual(errors[0][1], "storage_unavailable")
         self.assertEqual(ha_stubs.FakeStore.instances[0].delay_calls, [])
         ha_stubs.FakeStore.load_error = None
+        self.assertEqual(self.call("settings/get", network="a")[0][0][1], {"settings": None})
+
+    def test_wrong_stored_types_count_as_unset(self):
+        ha_stubs.FakeStore.stored = {"networks": {"a": "text", "b": {"settings": [1]}, "c": 5}}
+        self.assertEqual(self.call("settings/get", network="a")[0][0][1], {"settings": None})
+        self.assertEqual(self.call("settings/get", network="b")[0][0][1], {"settings": None})
+        self.assertEqual(self.call("settings/set", network="c", settings={"s": 1})[0][0][1], {})
+        self.assertEqual(self.call("settings/get", network="c")[0][0][1], {"settings": {"s": 1}})
+
+    def test_remove_entry_deletes_file_and_memory(self):
+        ha_stubs.FakeStore.stored = {"networks": {"a": {"settings": {"old": 1}}}}
+        self.call("settings/set", network="a", settings={"s": 1})
+        ha_stubs.run(self.comp.async_remove_entry(self.hass, None))
+        self.assertTrue(ha_stubs.FakeStore.instances[0].removed)
+        ha_stubs.FakeStore.stored = None  # file is gone; the next read must not serve the old memory
         self.assertEqual(self.call("settings/get", network="a")[0][0][1], {"settings": None})
 
     def test_commands_survive_unload(self):

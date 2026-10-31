@@ -14,7 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PANEL_ELEMENT, PANEL_URL_PATH, STATIC_URL_BASE, VERSION
-from .websocket_api import async_register_commands
+from .websocket_api import async_register_commands, async_remove_data
 
 # Static paths cannot be removed again in a running Home Assistant, so remember that ours is registered.
 _STATIC_KEY = f"{DOMAIN}_static_registered"
@@ -28,8 +28,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             [StaticPathConfig(STATIC_URL_BASE, str(Path(__file__).parent / "frontend"), True)]
         )
         hass.data[_STATIC_KEY] = True
-    # Not in async_setup: hassfest asks for a CONFIG_SCHEMA when an integration defines it (rule recalled from
-    # the hassfest docs, not re-checked against its source), and entry setup is enough here. Once per run.
+    # Not in async_setup: hassfest demands a CONFIG_SCHEMA only from integrations that define async_setup/setup
+    # (script/hassfest/config_schema.py:64-90, checked against 2026.10.2); entry setup needs none. Once per run.
     async_register_commands(hass)
     await panel_custom.async_register_panel(
         hass,
@@ -49,3 +49,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Remove the panel; the static path stays until Home Assistant restarts."""
     frontend.async_remove_panel(hass, PANEL_URL_PATH)
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete the stored settings and observations when the user removes the integration (single entry)."""
+    await async_remove_data(hass)

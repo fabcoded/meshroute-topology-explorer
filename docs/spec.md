@@ -359,6 +359,10 @@ picture under a banner and reads again when the connection is back.
   Errors: `unauthorized` (not an administrator), `invalid_format` (bad `network`, field missing or not an object),
   `payload_too_large`, `storage_unavailable` (the stored file cannot be read; nothing is written then).
   Registered once per run on entry setup; they keep answering after unload.
+  A corrupt store file is moved aside by Home Assistant itself and counts as never set; `storage_unavailable` appears
+  only for a newer store version or I/O errors. Payload validity is checked with Home Assistant's JSON writer, so
+  anything the store could not write (for example nesting deeper than 254 levels) is `invalid_format`. Removing the
+  integration deletes the store file.
 - Serves the panel files from a path that contains the version, so caching is safe; registers the path once.
 - The panel defines its custom element only if it is free, compares its version with the integration's and asks
   for a reload when they differ; it does not reload data when Home Assistant pushes a new state object; it

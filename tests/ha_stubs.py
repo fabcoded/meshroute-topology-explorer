@@ -4,11 +4,12 @@
 Used by test_setup.py and test_websocket_api.py (python3 -m unittest discover -s tests). Mirrored signatures:
 websocket_api.async_register_command(hass, command, handler, schema) and async_response (websocket_api/__init__.py,
 decorators.py); Store(hass, version, key) with async_load / async_delay_save(data_func, delay) (helpers/storage.py);
-panel_custom.async_register_panel and frontend.async_remove_panel; hass.http.async_register_static_paths.
+helpers.json.json_bytes (orjson, helpers/json.py:61-66); panel_custom.async_register_panel and frontend.async_remove_panel; hass.http.async_register_static_paths.
 """
 
 import asyncio
 import importlib
+import json
 import sys
 import types
 from unittest import mock
@@ -26,6 +27,7 @@ class FakeStore:
     def __init__(self, hass, version, key, *args, **kwargs):
         self.version, self.key = version, key
         self.delay_calls = []
+        self.removed = False
         FakeStore.instances.append(self)
 
     async def async_load(self):
@@ -35,6 +37,34 @@ class FakeStore:
 
     def async_delay_save(self, data_func, delay=0):
         self.delay_calls.append((data_func, delay))
+
+    async def async_remove(self):
+        self.removed = True
+
+
+ORJSON_MAX_DEPTH = 254  # orjson refuses to serialize deeper nesting (it raises JSONEncodeError, a TypeError)
+
+
+def fake_json_bytes(obj):
+    """Behaves like helpers/json.py json_bytes (orjson, OPT_NON_STR_KEYS) for what the tests need.
+
+    NaN/Infinity become null (orjson does not raise), non-string keys become strings, depth above 254 raises.
+    """
+
+    def walk(o, depth):
+        if depth > ORJSON_MAX_DEPTH:
+            raise TypeError("Recursion limit reached")
+        if isinstance(o, dict):
+            return {str(k): walk(v, depth + 1) for k, v in o.items()}
+        if isinstance(o, list):
+            return [walk(v, depth + 1) for v in o]
+        if isinstance(o, float) and o != o or o in (float("inf"), float("-inf")):
+            return None
+        if not isinstance(o, (str, int, float, bool, type(None))):
+            raise TypeError("Type is not JSON serializable")
+        return o
+
+    return json.dumps(walk(obj, 0), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 class FakeConnection:
@@ -93,8 +123,9 @@ def install():
     mod("homeassistant.core", HomeAssistant=object)
     helpers = mod("homeassistant.helpers")
     st = mod("homeassistant.helpers.storage", Store=FakeStore)
+    hjson = mod("homeassistant.helpers.json", json_bytes=fake_json_bytes)
     comps.__dict__.update(websocket_api=ws, frontend=fe, panel_custom=pc, http=http)
-    helpers.storage = st
+    helpers.storage, helpers.json = st, hjson
     ha.components, ha.helpers = comps, helpers
     # config_flow.py imports more of Home Assistant; the tests never load it.
     for name in list(sys.modules):
