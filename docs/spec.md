@@ -61,9 +61,9 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
     15: neither is a measurement.
   - A router's `last_seen` mostly reflects the last scan; availability decides whether a router is up.
   - LQI 0 is ambiguous (unmeasured or very weak): shown as "0 (uncertain)", never used for a rating or finding.
-  - Scales differ by reporter: on the sample the coordinator's median is 22, router medians range from 44 to 167.
-  - Neighbour tables are capped (16 to 26 entries observed per router, 31 at the coordinator) and only 85 % of
-    entries have a reverse entry: a missing entry is no evidence of a missing link.
+  - Scales differ by reporter: on the sample the coordinator's median is 22 including LQI 0 and 24 without it (the 5.4 pool excludes 0), router medians range from 44 to 167 either way.
+  - Neighbour tables are limited by each device's memory (8 to 26 entries observed per router, 31 at the coordinator),
+    so a device lists only part of what it hears, and only 85 % of entries have a reverse entry: a missing entry is no evidence of a missing link.
   - `Child` and `Parent` entries also occur between routers; they record joining, not routing, and are ignored.
   - For some destinations the coordinator keeps no routing entry (its direct neighbours; source routing whose route
     records Home Assistant does not expose): such paths are unknown.
@@ -195,7 +195,10 @@ its own neighbour table; of an end device, its parent.
 | many end-device children | router or coordinator with 3 or more |
 
 No finding is raised from the table of an unavailable device (stale), from LQI 0, or from a missing neighbour entry
-alone.
+alone. One exception: "parent offline" may name the last known
+parent from that parent's own stale table, since no other table lists the child, and says so ("last known parent").
+Path walks never follow routes or parents from the table of an unavailable device. The coordinator's table counts like a router's for "data incomplete", "parent unknown" / "no parent" and "isolated": without it, none of the three is a verdict. **[v1]** The interface groups
+"data incomplete" findings by the missing table.
 
 ## 6. Data status and the scan [v1]
 
@@ -329,8 +332,8 @@ background address (empty by default).
 
 | Target | Measure |
 |---|---|
-| Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "parent unknown/no parent", "isolated" or "weak reception" that the complete sample lacks. |
-| Paths | On the sample: up paths complete 42 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
+| Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
+| Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
 | Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). |

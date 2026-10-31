@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: MIT
+// Entry point of the data model: buildNetwork() turns the answers of Home Assistant into a Network (spec 4) with
+// derived facts (5) and findings (5.6). No DOM, no Home Assistant objects. Plain objects, so a Network can be
+// serialized. Tested in Node: node --test tests/
+//
+// Network = { source: 'zha', id, devices, readings, routes, status, findings, unresolved }
+// Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, battery, available, lastSeen, parent,
+//             children, relayLoad, rating, hasTable, parentLqi, parentFromStaleTable, possiblyStaleParents }
+// Reading = { reporter, subject, lqi, scale, relationship, rating, pool, poolMedian }
+// Route   = { owner, destination, nextHop, status, direct, stale }
+import { normalize } from "./normalize.js";
+import { applyRatings } from "./ratings.js";
+import { relayLoads } from "./paths.js";
+import { computeFindings, computeStatus } from "./findings.js";
+
+export { parseAddress, parseLqi, normalizeIeee } from "./parse.js";
+export { upPath, downPath } from "./paths.js";
+export { fingerprints, updateObservations, newestChange } from "./observations.js";
+export { FINDING_KINDS } from "./findings.js";
+
+/** Build a Network from the answer of `zha/devices` and, optionally, the registry answers and the ZHA config entry
+ *  list (`config_entries/get`), which names the network. */
+export function buildNetwork(rawDevices, { deviceRegistry, areaRegistry, configEntries } = {}) {
+  const { devices, readings, routes, unresolved } = normalize(rawDevices, { deviceRegistry, areaRegistry });
+  applyRatings(devices, readings);
+  const loads = relayLoads(routes);
+  for (const d of devices) d.relayLoad = loads.get(d.id) || 0;
+  const entry = (Array.isArray(configEntries) ? configEntries : []).find((e) => e && e.domain === "zha" && e.entry_id);
+  return {
+    source: "zha",
+    id: entry ? entry.entry_id : "zha",
+    devices, readings, routes,
+    status: computeStatus({ devices, readings }),
+    findings: computeFindings({ devices, readings, routes }),
+    unresolved,
+  };
+}
