@@ -16,6 +16,7 @@ export class DevicesTab {
     this.model = new ListModel();
     this.t = null;
     this.selected = null;
+    this._countText = null;
     this.prefix = `mte-dev-${++uid}-`;
     this.filter = h("input", { type: "search", class: "filter", autocomplete: "off", spellcheck: false,
       on: { input: () => this._onFilter(), keydown: (e) => this._onFilterKey(e) } });
@@ -26,7 +27,6 @@ export class DevicesTab {
 
   setNetwork(network, t) {
     this.t = t;
-    this.network = network;
     this.model.setRows(deviceRows(network));
     this.filter.placeholder = t("devices.filter");
     this.filter.setAttribute("aria-label", t("devices.filter"));
@@ -40,8 +40,6 @@ export class DevicesTab {
     if (id) this.model.activate(id);
     this._render();
   }
-
-  focus() { this.list.focus(); }
 
   /** Scroll the active row into view (the tab was hidden while the selection changed). */
   showActive() {
@@ -78,7 +76,12 @@ export class DevicesTab {
     const t = this.t;
     if (!t) return;
     const rows = this.model.visible;
-    this.count.textContent = rows.length ? t("devices.count", { shown: rows.length, total: this.model.rows.length }) : t("devices.none");
+    // The count is a live region: written only when it changes, so arrow keys do not repeat it.
+    const countText = rows.length ? t("devices.count", { shown: rows.length, total: this.model.rows.length }) : t("devices.none");
+    if (countText !== this._countText) {
+      this.count.textContent = countText;
+      this._countText = countText;
+    }
     this.list.replaceChildren(...rows.map((r) => {
       const meta = [roleText(r.role, t), r.area, r.available ? receptionText(r.rating, t) : t("devices.unavailable")]
         .filter(Boolean).join(" · ");

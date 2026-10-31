@@ -22,7 +22,7 @@ export class Drawer {
     const id = `mte-drawer-${++uid}`;
     this.tabs = new Map();
     this.panels = new Map();
-    this.tablist = h("div", { role: "tablist", class: "tabs", on: { keydown: (e) => this._onTabKey(e) } });
+    this.tablist = h("div", { role: "tablist", class: "tabs", on: { keydown: (e) => this._onTabKey(e), scroll: () => this._overflow() } });
     for (const name of TABS) {
       const tab = h("button", { type: "button", role: "tab", id: `${id}-tab-${name}`, class: "tab",
         "aria-controls": `${id}-panel-${name}`, on: { click: () => this.show(name) } });
@@ -41,6 +41,7 @@ export class Drawer {
     this.head = h("div", { class: "drawer-head" }, this.expandButton, this.tablist, this.collapseButton, this.closeButton);
     this.body = h("div", { class: "drawer-body" }, [...this.panels.values()]);
     this.el = h("aside", { class: "drawer", hidden: true, on: { keydown: (e) => this._onKey(e) } }, this.head, this.body);
+    if (globalThis.ResizeObserver) new ResizeObserver(() => this._overflow()).observe(this.tablist);
     this._sync();
   }
 
@@ -53,6 +54,7 @@ export class Drawer {
       button.title = t(key);
     }
     this.expandButton.setAttribute("aria-label", `${t(`tab.${this.tab}`)}: ${this.summary.textContent}. ${t("drawer.expand")}`);
+    this._overflow();
   }
 
   /** The one-line summary of the collapsed sheet (the selected device, or the tab's count). */
@@ -134,9 +136,18 @@ export class Drawer {
       tab.tabIndex = on ? 0 : -1;
       this.panels.get(name).hidden = !on;
     }
-    // On narrow sheets the tabs scroll sideways (long German names): keep the active one in sight.
+    // Where the tabs scroll sideways: keep the active one in sight.
     const active = this.tabs.get(this.tab);
     if (this.isOpen && !collapsed && active.scrollIntoView) active.scrollIntoView({ block: "nearest", inline: "nearest" });
+    this._overflow();
+  }
+
+  /** Mark the edges of the tab row that hide tabs, for the fade that says "more this way". */
+  _overflow() {
+    const list = this.tablist;
+    const more = list.scrollWidth - list.clientWidth > 1;
+    list.toggleAttribute("data-more-start", more && list.scrollLeft > 1);
+    list.toggleAttribute("data-more-end", more && list.scrollLeft + list.clientWidth < list.scrollWidth - 1);
   }
 
   _onTabKey(e) {

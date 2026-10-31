@@ -5,7 +5,7 @@
 import { h, icon } from "./dom.js";
 import { detailsOf } from "./details.js";
 import { findingText } from "./finding-text.js";
-import { lqiText, rankText, receptionText, roleText } from "./format.js";
+import { lqiText, rankText, receptionText, roleText, percent } from "./format.js";
 import { formatNwk } from "../model/parse.js";
 
 /** Home Assistant's device page. Path: the config panel's devices section (/config/devices) with the "device" route
@@ -90,7 +90,8 @@ export function renderDetails(container, ctx) {
     if (info.children.length) row(t("details.children"), ...joinButtons(info.children.map((c) => deviceButton(c))));
     row(t("details.relay_load"), t("details.relay_load_value", { count: info.relayLoad }));
   }
-  row(t("details.reception"), receptionText(info.reception, t));
+  // The label says "Reception"; the value is the rank alone (spec 5.4: best rating among the readings of it).
+  row(t("details.reception"), typeof info.reception === "number" ? t("rank.value", { pct: percent(info.reception) }) : t("rank.none"));
   container.append(h("dl", { class: "facts" }, rows));
 
   // Findings with their evidence.

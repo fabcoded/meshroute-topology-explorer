@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The Findings tab (spec 5.6, 9.1): findings grouped by kind with their evidence; "data incomplete" grouped by the
-// missing table; hints in their own collapsed group. Each entry is a button: it selects its device and zooms to it
+// missing table (a table that only one device misses is listed flat, without a group to open); hints in their own
+// collapsed group. Each entry is a button: it selects its device and zooms to it
 // (spec 9.3). Runs in the browser; grouping lives in findings.js.
 import { h } from "./dom.js";
 import { groupFindings } from "./findings.js";
@@ -23,13 +24,20 @@ export function renderFindings(container, ctx) {
   for (const group of grouped.groups) {
     const kindName = group.kind === "parent unknown" && group.findings.every((f) => f.evidence && f.evidence.verdict === "no parent")
       ? t("kind.no parent") : t(`kind.${group.kind}`);
-    const section = h("section", { class: "group" }, h("h3", { text: t("findings.group", { kind: kindName, count: group.findings.length }) }));
+    const heading = group.byTable
+      ? t("findings.incomplete_group", { kind: kindName, tables: group.byTable.length, count: group.findings.length })
+      : t("findings.group", { kind: kindName, count: group.findings.length });
+    const section = h("section", { class: "group" }, h("h3", { text: heading }));
     if (group.byTable) {
+      const singles = [];
       for (const sub of group.byTable) {
+        if (sub.findings.length === 1) { singles.push(sub.findings[0]); continue; }
         section.append(h("details", { class: "sub" },
           h("summary", { text: t("findings.missing_table", { name: name(sub.table), count: sub.findings.length }) }),
           h("ul", { class: "plain" }, sub.findings.map(item))));
       }
+      // A finding may lack several tables; listed flat it appears once.
+      if (singles.length) section.append(h("ul", { class: "plain" }, [...new Set(singles)].map(item)));
     } else {
       section.append(h("ul", { class: "plain" }, group.findings.map(item)));
     }

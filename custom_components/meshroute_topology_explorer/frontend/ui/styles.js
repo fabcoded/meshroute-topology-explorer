@@ -81,6 +81,8 @@ canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--mte-fg); }
 .banner.loading { border-left: 4px solid var(--mte-accent); }
 .chip { align-self: flex-start; display: flex; align-items: center; gap: 2px; padding: 0 2px 0 12px; min-height: 44px;
   max-width: min(100%, 420px); }
+.chip.chip-bottom { position: absolute; left: 12px; bottom: calc(var(--inset-bottom) + 12px);
+  max-width: calc(100% - 76px); }
 .chip .chip-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 4px; }
 .chip .chip-details { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 10px;
   border-radius: 18px; border: 1px solid var(--mte-divider); background: transparent; color: inherit; font: inherit;
@@ -117,8 +119,19 @@ canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--mte-fg); }
   border-bottom: 1px solid var(--mte-divider); }
 .drawer[data-collapsed="true"] .drawer-head { border-bottom: none; height: 100%; }
 .tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.tab { flex: none; height: 48px; padding: 0 12px; border: none; border-bottom: 3px solid transparent;
-  background: transparent; color: var(--mte-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.tabs::-webkit-scrollbar { display: none; }
+/* Tabs share the row and grow into spare room; where they still do not fit (narrow side panel, long German names)
+   the row scrolls and fades out at the edge that hides more (data-more-* set by drawer.js). */
+.tabs[data-more-end] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.tabs[data-more-start] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.tabs[data-more-start][data-more-end] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+.tab { flex: 1 0 auto; height: 48px; padding: 0 6px; border: none; border-bottom: 3px solid transparent;
+  background: transparent; color: var(--mte-muted); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.drawer-head .icon-button { width: 36px; }
 .tab[aria-selected="true"] { color: var(--mte-fg); font-weight: 600; border-bottom-color: var(--mte-accent); }
 .sheet-line { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   height: 48px; padding: 0 8px 0 16px; border: none; background: transparent; color: inherit; font: inherit;

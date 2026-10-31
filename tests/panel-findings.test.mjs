@@ -4,7 +4,7 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { badgeCount, groupFindings, HINT_KINDS } from "../custom_components/meshroute_topology_explorer/frontend/ui/findings.js";
+import { badgeCount, groupFindings, missingTables, HINT_KINDS } from "../custom_components/meshroute_topology_explorer/frontend/ui/findings.js";
 import { findingText } from "../custom_components/meshroute_topology_explorer/frontend/ui/finding-text.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork, VARIANTS } from "./panel-fixture.mjs";
@@ -38,7 +38,22 @@ test("with three tables removed, data incomplete is grouped by the missing table
   const sizes = incomplete.byTable.map((g) => g.findings.length);
   assert.deepEqual(sizes, [...sizes].sort((a, b) => b - a), "largest group first");
   assert.ok(sizes.reduce((a, b) => a + b, 0) > incomplete.findings.length, "a finding lacking several tables is listed under each");
-  assert.equal(grouped.count, network.findings.filter((f) => f.kind !== "very low reading").length);
+});
+
+test("the badge counts data incomplete once per missing table (decision 2026-10-31)", () => {
+  // minus1: 3 offline, 1 route to an offline device, 21 data incomplete about one table, 2 parent unknown, 7 hints.
+  const minus1 = sampleNetwork("minus1");
+  assert.equal(minus1.findings.filter((f) => f.kind !== "very low reading").length, 27);
+  assert.equal(missingTables(minus1.findings).size, 1);
+  assert.equal(badgeCount(minus1.findings), 3 + 1 + 1 + 2);
+  assert.equal(badgeCount(sampleNetwork("minus3").findings), 3 + 1 + 3 + 6);
+  const coordinatorOnly = sampleNetwork("coordinator-only");
+  assert.equal(badgeCount(coordinatorOnly.findings), 3 + 29 + 11);
+  // In the tab, a table that only one device misses is no group to open: 29 such tables, no group at all.
+  const grouped = groupFindings(coordinatorOnly.findings, labeller(coordinatorOnly));
+  const incomplete = grouped.groups.find((g) => g.kind === "data incomplete");
+  assert.equal(incomplete.byTable.length, 29);
+  assert.ok(incomplete.byTable.every((g) => g.findings.length === 1), "rendered flat by findings-tab.js");
 });
 
 test("every finding of every variant has a title and evidence without open placeholders, in English and German", () => {

@@ -12,23 +12,30 @@ export function ratingGradient(theme) {
   return `linear-gradient(to right, ${stops.join(", ")})`;
 }
 
-/** [{ key, label, color }] of the category fill; the grey "none" entry last. */
+/** Marker shape and size of a role, as the map draws it (renderer.js MARKERS, scaled to the swatch). */
+const SHAPES = { coordinator: ["square", 12], router: ["circle", 12], "end device": ["circle", 8], "border router": ["diamond", 11],
+  unknown: ["circle", 10] };
+
+/** [{ label, color, shape, size }] of the category fill; the grey "none" entry last. Role swatches have the role's
+ *  shape, so the legend shows colour and shape together, as the map does. */
 function categoryEntries(fill, theme, t, roles) {
   const out = [];
   if (fill === "role") {
     for (const role of Object.keys(CATEGORY_FILLS.role)) {
-      if (roles.has(role)) out.push({ label: t(`role.${role}`), color: theme.categories.role[role] });
+      if (roles.has(role)) out.push({ label: t(`role.${role}`), color: theme.categories.role[role], shape: SHAPES[role][0], size: SHAPES[role][1] });
     }
-    if (roles.has("unknown")) out.push({ label: t("role.unknown"), color: theme.node });
+    if (roles.has("unknown")) out.push({ label: t("role.unknown"), color: theme.node, slash: true });
   } else {
     for (const key of Object.keys(CATEGORY_FILLS.power)) out.push({ label: t(`power.${key}`), color: theme.categories.power[key] });
-    out.push({ label: t("power.none"), color: theme.node });
+    out.push({ label: t("power.none"), color: theme.node, slash: true });
   }
   return out;
 }
 
-/** Marker drawing: shape by role, outline by state (spec 8), as in renderer.js. */
-function marker({ shape = "circle", fill, outline, dashed = false, hollow = false, pin = false, ring = null, size = 12 }) {
+/** Marker drawing: shape by role, outline by state (spec 8), as in renderer.js. slash: the map's mark for a device
+ *  without a value under the current fill (grey with a line across). */
+function marker({ shape = "circle", fill, outline, dashed = false, hollow = false, pin = false, ring = null, size = 12,
+  slash = false }) {
   const box = 24;
   const c = box / 2;
   const r = size / 2;
@@ -38,6 +45,7 @@ function marker({ shape = "circle", fill, outline, dashed = false, hollow = fals
   if (shape === "square") el.append(svg("rect", { x: c - r, y: c - r, width: 2 * r, height: 2 * r, ...attrs }));
   else if (shape === "diamond") el.append(svg("path", { d: `M${c} ${c - r * 1.25}L${c + r * 1.25} ${c}L${c} ${c + r * 1.25}L${c - r * 1.25} ${c}Z`, ...attrs }));
   else el.append(svg("circle", { cx: c, cy: c, r, ...attrs }));
+  if (slash) el.append(svg("path", { d: `M${c - r * 0.75} ${c + r * 0.75}L${c + r * 0.75} ${c - r * 0.75}`, stroke: outline, "stroke-width": 1.5 }));
   if (pin) {
     el.append(svg("path", { d: `M${c + r * 0.7} ${c - r * 0.7}l4 -4`, stroke: outline, "stroke-width": 1.5 }));
     el.append(svg("circle", { cx: c + r * 0.7 + 5, cy: c - r * 0.7 - 5, r: 2.5, fill: outline }));
@@ -62,7 +70,7 @@ export function renderLegend(container, { t, theme, fill, roles, debug }) {
       h("p", { class: "small", text: t("legend.rank") }));
   } else {
     container.append(h("ul", { class: "swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
-      h("li", {}, marker({ fill: e.color, outline: theme.outline }), h("span", { text: e.label })))));
+      h("li", {}, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size, slash: e.slash }), h("span", { text: e.label })))));
   }
 
   container.append(h("h3", { text: t("legend.lines_title") }),
@@ -88,7 +96,7 @@ function scale(theme, t) {
   return h("div", { class: "scale" },
     h("div", { class: "scale-bar", style: { background: ratingGradient(theme) } }),
     h("div", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })),
-    h("p", { class: "small muted" }, marker({ fill: theme.node, outline: theme.outline, size: 10 }), t("legend.unrated")));
+    h("p", { class: "small muted" }, marker({ fill: theme.node, outline: theme.outline, size: 10, slash: true }), t("legend.unrated")));
 }
 
 /** The small legend on the map: the current fill in one glance; pressing it opens the Legend tab. */
@@ -103,7 +111,7 @@ export function renderMiniLegend(button, { t, theme, fill, roles }) {
   } else {
     button.append(h("span", { class: "mini-title", text: t(`legend.fill_${fill}`) }),
       h("span", { class: "mini-swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
-        h("span", { class: "mini-swatch" }, marker({ fill: e.color, outline: theme.outline, size: 10 }),
+        h("span", { class: "mini-swatch" }, marker({ fill: e.color, outline: theme.outline, shape: e.shape, size: e.size ? e.size - 2 : 10, slash: e.slash }),
           h("span", { text: e.label.replace(/ \(.*\)$/, "") })))));
   }
 }

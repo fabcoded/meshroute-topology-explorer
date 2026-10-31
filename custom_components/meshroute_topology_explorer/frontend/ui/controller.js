@@ -8,10 +8,6 @@
 import { buildNetwork } from "../model/index.js";
 import { blockingState } from "./status.js";
 
-/** Phases of the panel. "ready" carries a network; the others are messages (spec 9.4). */
-export const PHASES = Object.freeze(["loading", "not_admin", "zha_not_loaded", "no_devices", "disconnected", "error",
-  "ready"]);
-
 /** Code of home-assistant-js-websocket for a command that died with the connection (ERR_CONNECTION_LOST in its
  *  lib/errors.ts). Pending commands are rejected with { type: "result", success: false, error: { code: 3 } }, results
  *  of the server with { code, message }; both forms are accepted, as its own isConnectionLost() does. */
@@ -58,7 +54,9 @@ export class PanelController extends EventTarget {
     this.hass = null;
     this.attached = false;
     this.started = false;
-    /** phase, network (kept while a reload runs or the connection is down), raw zha/devices list, message,
+    /** phase ("loading", "not_admin", "zha_not_loaded", "no_devices", "disconnected", "error" or "ready", which
+     *  carries a network; the others are messages, spec 9.4), network (kept while a reload runs or the connection is
+     *  down), raw zha/devices list, message,
      *  connection "ok" | "lost", loading (a reload is running while the old picture stays). */
     this.state = { phase: "loading", network: null, raw: null, message: null, connection: "ok", loading: false };
     this._token = 0;

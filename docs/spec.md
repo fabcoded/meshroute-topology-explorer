@@ -289,7 +289,8 @@ user-supplied image, or map tiles from an address the user configured.
 ## 9. Interaction [v1]
 
 ### 9.1 What is on screen
-- **Default:** map, legend, status line, view switch, density, a findings badge with a count. Nothing else.
+- **Default:** map, legend, status line, view switch **[v1.1]** (v1 has one view), density, a findings badge with a
+  count. Nothing else.
 - **One drawer** (side on wide screens; bottom sheet on narrow ones, opened collapsed to one line) with the tabs
   Details, Devices, Findings, Legend, Settings; at most one drawer open; it never covers the selected device (the
   map pans if needed).
@@ -299,8 +300,9 @@ user-supplied image, or map tiles from an address the user configured.
   takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
   sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
   button) it starts expanded, since a list in one line shows nothing.
-- The findings badge counts findings without hints ("very low reading"); the Findings tab lists hints in their own
-  collapsed group, and a "data incomplete" finding that lacks several tables under each of them (decision 2026-10-31).
+- The findings badge counts findings without hints ("very low reading") and "data incomplete" once per missing
+  table (decision 2026-10-31). The Findings tab lists hints in their own collapsed group and "data incomplete" by
+  missing table: a finding that lacks several tables under each of them, a table only one device misses flat.
 - The legend on the map is a small summary of the current fill that opens the Legend tab. The header carries the
   menu (devices, legend, settings, debug mode, fit, release all pins, read data again) and, on narrow screens, the
   sidebar button.
@@ -366,9 +368,12 @@ picture under a banner and reads again when the connection is back.
 View, direction (v1.1), density, fill, "open details on select", pinned positions; later geo positions and map
 background address (empty by default).
 
-The panel saves the whole object one second after the last change and on leaving. Keys it does not know are kept,
-since a save replaces what is stored. If the integration lacks the commands or the stored object cannot be read,
-the settings live in memory and the Settings tab says so; nothing stored is then overwritten.
+The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
+reads the stored object and writes back only what it changed, so last write wins per key and pins merge per device;
+keys it does not know are kept. Stored settings are untrusted input: pins only under device addresses, coordinates
+within ±1000 base lengths. If the integration lacks the commands or the stored object cannot be read, the settings
+live in memory and the Settings tab says so; nothing stored is then overwritten. After a lost connection the panel
+reads them again on reconnect.
 
 ## 12. Acceptance [v1]
 

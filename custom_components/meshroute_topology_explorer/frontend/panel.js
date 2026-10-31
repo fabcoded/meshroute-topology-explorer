@@ -12,7 +12,8 @@ import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/index.js";
 import { PanelController } from "./ui/controller.js";
-import { SettingsClient, pinsForView, DENSITY_NAMES } from "./ui/settings.js";
+import { SettingsClient, pinsForView, presentPins, DENSITY_NAMES } from "./ui/settings.js";
+import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
 import { languageOf, translator, localize } from "./ui/i18n.js";
 import { drawerGeometry, isWide } from "./ui/geometry.js";
 import { Drawer } from "./ui/drawer.js";
@@ -58,10 +59,17 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._controller = new PanelController();
     this._controller.addEventListener("change", () => this._onState());
     this._controller.addEventListener("reconnected", () => {
+      // The network is read again (controller); the settings too, with what changed here meanwhile merged in: another
+      // panel may have saved, and a first read that met the lost connection gets its second chance.
+      this._settingsStale = true;
       this._announce(this._t("live.reloaded"));
-      if (this._settings) this._settings.flush();
     });
+    this._settingsStale = false;
     this._onMedia = () => this._applyTheme();
+    // Pending settings go out when the page is hidden or left, not only when the panel element is removed.
+    this._onPageHide = (e) => {
+      if (this._settings && (e.type === "pagehide" || document.visibilityState === "hidden")) this._settings.flush();
+    };
   }
 
   // Home Assistant assigns a new hass object on every state change in the house: only language, theme and the
@@ -100,6 +108,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._resize.observe(this._ui.map);
     this._media = globalThis.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
     if (this._media) this._media.addEventListener("change", this._onMedia);
+    document.addEventListener("visibilitychange", this._onPageHide);
+    window.addEventListener("pagehide", this._onPageHide);
     this._controller.attach();
     if (this._view) this._view.resize();
     this._layout();
@@ -111,6 +121,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._controller.detach();
     this._resize.disconnect();
     if (this._media) this._media.removeEventListener("change", this._onMedia);
+    document.removeEventListener("visibilitychange", this._onPageHide);
+    window.removeEventListener("pagehide", this._onPageHide);
     this._menu.close(false);
     if (this._settings) this._settings.flush();
     if (this._view) this._view.resize(); // a detached canvas counts as hidden: no more frames
@@ -234,7 +246,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       const client = new SettingsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
       client.addEventListener("change", () => this._onSettings());
       this._settings = client;
+      this._settingsStale = false;
       await client.load();
+      if (token !== this._token) return;
+    } else if (this._settingsStale || this._settings.retryable) {
+      this._settingsStale = false;
+      await this._settings.load();
       if (token !== this._token) return;
     }
     this._network = localize(network, this._t);
@@ -286,6 +303,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
     for (const el of [ui.canvas, ui.top, ui.zoom, ui.mini, ui.status]) el.hidden = !ready;
     if (!ready) {
+      ui.chip.hidden = true; // on narrow screens it sits on the map itself, outside ui.top
       this._drawer.close();
       this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message);
       if (this._view) this._view.resize();
@@ -306,10 +324,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     ui.lost.hidden = st.connection !== "lost";
     ui.loading.hidden = !st.loading || st.connection === "lost";
-    // Above an expanded sheet the map keeps little room: the small legend steps aside (the Legend tab is one tap away).
-    ui.mini.hidden = this._drawer.mode === "sheet" && this._drawer.isOpen && this._drawer.expanded;
-    renderMiniLegend(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles() });
     this._renderChip();
+    // Above an expanded sheet the map keeps little room: the small legend steps aside (the Legend tab is one tap away).
+    // On narrow screens the selection chip takes its place at the bottom.
+    ui.mini.hidden = (this._drawer.mode === "sheet" && this._drawer.isOpen && this._drawer.expanded)
+      || (!this._wide && Boolean(this._selected) && !ui.chip.hidden);
+    renderMiniLegend(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles() });
     this._renderTabs();
   }
 
@@ -339,10 +359,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const t = this._t;
     const kind = { not_admin: "warn", zha_not_loaded: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
     const retry = ["zha_not_loaded", "no_devices", "error"].includes(phase);
+    const reload = phase === "version";
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
     ui.message.replaceChildren(h("p", { role: kind === "error" ? "alert" : "status", text: t(`message.${phase}`, { message: detail || "?" }) }));
     if (retry) ui.message.append(h("button", { type: "button", class: "button", text: t("message.retry"), on: { click: () => this._controller.reload() } }));
+    // A stale panel file in the browser cache: only a page reload fetches the new one (spec 10).
+    if (reload) ui.message.append(h("button", { type: "button", class: "button", text: t("message.reload"), on: { click: () => location.reload() } }));
   }
 
   /** The selection chip: name, a Details button (the info button of spec 9.2) and clear. Hidden while the drawer is
@@ -375,7 +398,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(), debug: this._debug });
     } else if (d.tab === "settings") {
       keepFocus(this._root, panel, () => renderSettings(panel, { t, settings: this._settings.settings, wide: this._wide,
-        pinCount: Object.keys(this._settings.settings.pins).length, client: this._settings, idPrefix: "mte-settings",
+        pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings, idPrefix: "mte-settings",
         onChange: (patch) => this._settings.update(patch), onReleaseAll: () => this._release(null) }));
     }
   }
@@ -397,7 +420,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   // ---- selection and drawer ------------------------------------------------------------------------------------
 
   /** Select a device (null clears). source: "map" (the view already selected it and keeps it clear of the drawer),
-   *  "list" (Devices, Findings, a device named in Details: select and zoom to it, spec 9.3) or "chip". */
+   *  "list" (Devices, Findings, a device named in Details: select and zoom to it, spec 9.3) or "chip". What the drawer
+   *  does follows ui/drawer-rule.js. */
   _select(id, source) {
     const t = this._t;
     this._selected = id;
@@ -408,43 +432,38 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._devicesTab.setSelected(id);
     markFindings(this._drawer.panel("findings"), id);
     this._dirty.add("details");
-    if (source === "map") {
-      // "Open details on select" (spec 9.2) opens a closed drawer, or follows the selection on the Details tab; it
-      // never takes another tab away from the user. On a narrow screen the sheet opens collapsed (spec 9.1).
-      if (id && this._openOnSelect() && (!this._drawer.isOpen || this._drawer.tab === "details")) {
-        this._drawerAuto = !this._drawer.isOpen || this._drawerAuto;
-        this._drawer.open("details", { expanded: false });
-      } else if (!id && this._drawerAuto && this._drawer.isOpen && this._drawer.tab === "details") {
-        this._drawer.close();
-      }
-    }
+    const stored = this._settings ? this._settings.settings.openDetailsOnSelect : null;
+    this._applyDrawer(afterSelect({ id, source, openOnSelect: openOnSelect(stored, this._wide), drawer: this._drawerState() }));
     const device = this._device(id);
     this._announce(device ? t("live.selected", { name: device.label, role: roleText(device.role, t),
       reception: device.available ? receptionText(device.rating, t) : t("devices.unavailable") }) : t("live.cleared"));
     this._render();
   }
 
-  _openOnSelect() {
-    const stored = this._settings ? this._settings.settings.openDetailsOnSelect : null;
-    return stored === null ? this._wide : stored;
-  }
-
-  /** Details asked for explicitly (right-click, long press, menu key, the info button): open expanded. */
+  /** Details asked for explicitly (right-click, long press, menu key, the info button). */
   _openDetails(id, via) {
     if (id && id !== this._selected) this._select(id, via === "button" ? "chip" : "map");
-    this._drawerAuto = false;
-    const keyboard = via === "key" || via === "button";
-    this._drawer.open("details", { expanded: true, focus: keyboard, opener: via === "button" ? this._ui.canvas : this._root.activeElement });
+    this._applyDrawer(detailsRequest(via), via === "button" ? this._ui.canvas : this._root.activeElement);
   }
 
-  /** Header and menu: open a tab (or close it if it is already what the drawer shows). */
-  _toggleTab(tab, opener) {
-    if (this._drawer.visible(tab)) {
+  /** Header (badge, small legend; toggle) and menu (always opens): a tab of the drawer. */
+  _toggleTab(tab, opener, toggle = true) {
+    this._applyDrawer(tabRequest({ tab, drawer: this._drawerState(), toggle }), opener);
+  }
+
+  _drawerState() {
+    const d = this._drawer;
+    return { isOpen: d.isOpen, tab: d.tab, mode: d.mode, expanded: d.expanded, auto: this._drawerAuto };
+  }
+
+  /** Carry out an answer of drawer-rule.js. */
+  _applyDrawer(answer, opener = null) {
+    if (answer.action === "close") {
       this._drawer.close();
-      return;
+    } else if (answer.action === "open") {
+      this._drawerAuto = answer.auto;
+      this._drawer.open(answer.tab, { expanded: answer.expanded, focus: answer.focus, opener });
     }
-    this._drawerAuto = false;
-    this._drawer.open(tab, { expanded: true, focus: true, opener });
   }
 
   _onDrawer() {
@@ -464,6 +483,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._dirty.add("settings");
       this._renderHeader();
     }
+    // The selection chip: under the banners on wide screens, near the bottom (thumb reach) on narrow ones.
+    const chipHome = wide ? this._ui.top : this._ui.map;
+    if (this._ui.chip.parentNode !== chipHome) {
+      if (wide) this._ui.top.append(this._ui.chip); else this._ui.map.insertBefore(this._ui.chip, this._ui.zoom);
+      this._ui.chip.classList.toggle("chip-bottom", !wide);
+    }
     const g = drawerGeometry({ width: rect.width, height: rect.height, open: this._drawer.isOpen, expanded: this._drawer.expanded });
     this._drawer.setMode(g.mode, g.size);
     this.style.setProperty("--inset-right", `${g.insets.right}px`);
@@ -471,19 +496,18 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) this._view.setInsets(g.insets);
   }
 
-  /** Release pins: the given ids, or all (null). */
+  /** Release pins: the given ids, or all pins of devices in the network (null). */
   _release(ids) {
-    const all = ids === null;
-    const list = all ? Object.keys(this._settings.settings.pins) : ids;
+    const list = ids === null ? presentPins(this._settings.settings.pins, this._network) : ids;
     for (const id of list) if (this._view) this._view.unpin(id);
-    if (all) this._settings.clearPins(); else for (const id of list) this._settings.removePin(id);
+    this._settings.releasePins(list);
     this._dirty.add("details");
     this._render();
   }
 
   _menuItems() {
     const t = this._t;
-    const pins = this._settings ? Object.keys(this._settings.settings.pins).length : 0;
+    const pins = this._settings ? presentPins(this._settings.settings.pins, this._network).length : 0;
     return [
       { id: "devices", label: t("menu.devices") }, { id: "legend", label: t("menu.legend") },
       { id: "settings", label: t("menu.settings") }, { type: "separator" },
@@ -496,8 +520,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   _onMenu(id) {
     if (id === "devices" || id === "legend" || id === "settings") {
-      this._drawerAuto = false;
-      this._drawer.open(id, { expanded: true, focus: true, opener: this._ui.menuButton });
+      this._toggleTab(id, this._ui.menuButton, false);
     } else if (id === "debug") {
       // Debug mode (spec 9.1): every pair as lanes with reporters, raw tables in Details. Never stored.
       this._debug = !this._debug;
