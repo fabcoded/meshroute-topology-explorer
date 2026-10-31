@@ -212,6 +212,15 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .field { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
   margin: 0 0 14px; }
 .field label { font-weight: 600; }
+/* Confirmation dialog (scan): native <dialog> in the top layer, themed like the drawer. */
+dialog.confirm { max-width: min(30em, calc(100vw - 32px)); padding: 20px 24px 16px; border: none; border-radius: 12px;
+  background: var(--mte-card); color: var(--mte-fg); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); }
+dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.confirm h2 { margin: 0 0 10px; }
+dialog.confirm p { margin: 0 0 10px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.button.primary { background: var(--mte-accent); color: var(--mte-on-accent); border-color: transparent; font-weight: 500; }
+.status-stop { min-height: 24px; color: inherit; }
 .storage { padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--mte-fg) 5%, transparent); }
 .storage.warn { box-shadow: inset 3px 0 0 var(--mte-warn); }
 
@@ -219,5 +228,6 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .status { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 28px;
   padding: 4px 12px; font-size: 12px; color: var(--mte-muted); background: var(--mte-bg);
   border-top: 1px solid var(--mte-divider); }
+.status.compact { min-height: 0; padding: 3px 12px; line-height: 1.35; }
 .status .part:not(:last-child)::after { content: "\\00B7"; margin-left: 4px; }
 `;

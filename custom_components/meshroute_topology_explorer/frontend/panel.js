@@ -4,14 +4,18 @@
 // Layout (spec 9.1): header (sidebar button on narrow screens, title, density, findings badge, menu), the map with
 // zoom buttons and a small legend, one drawer (Details, Devices, Findings, Legend, Settings) and the status line.
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
-// Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; map: graph/graph-view.js.
+// Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
+// since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
 // Only read-only websocket commands from spec 3.4 are used. Names are always set as text, never as HTML.
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/index.js";
-import { PanelController } from "./ui/controller.js";
+import { PanelController, readNetwork } from "./ui/controller.js";
+import { ObservationsClient } from "./ui/observations-client.js";
+import { ScanFollower, tablesDiffer } from "./ui/scan.js";
+import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins, DENSITY_NAMES } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
 import { languageOf, translator, localize } from "./ui/i18n.js";
@@ -62,6 +66,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       // The network is read again (controller); the settings too, with what changed here meanwhile merged in: another
       // panel may have saved, and a first read that met the lost connection gets its second chance.
       this._settingsStale = true;
+      this._observationsStale = true;
       this._announce(this._t("live.reloaded"));
     });
     this._settingsStale = false;
@@ -125,6 +130,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     window.removeEventListener("pagehide", this._onPageHide);
     this._menu.close(false);
     if (this._settings) this._settings.flush();
+    if (this._observations) this._observations.flush();
+    // A hidden panel does not keep reading zha/devices: following the scan ends here (the scan itself goes on).
+    if (this._scan) this._scan.stop();
     if (this._view) this._view.resize(); // a detached canvas counts as hidden: no more frames
   }
 
@@ -179,7 +187,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.status = h("section", { class: "status", id: "mte-status" });
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
-    this._root.append(h("style", { text: STYLES }), h("div", { class: "app" }, ui.toolbar, ui.map, ui.status, ui.live), ui.probe);
+    ui.app = h("div", { class: "app" }, ui.toolbar, ui.map, ui.status, ui.live);
+    this._root.append(h("style", { text: STYLES }), ui.app, ui.probe);
     this._resize = new ResizeObserver(() => this._layout());
     this._retranslate();
   }
@@ -254,6 +263,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       await this._settings.load();
       if (token !== this._token) return;
     }
+    await this._observe(network);
+    if (token !== this._token) return;
     this._network = localize(network, this._t);
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
     this._ensureView();
@@ -262,6 +273,24 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._devicesTab.setSelected(this._selected);
     this._dirty = new Set(["details", "findings", "legend", "settings"]);
     this._render();
+  }
+
+  /** Record the tables of a freshly read network (spec 6). The stored observations are read for a new network, after
+   *  a reconnect and after a read that met the lost connection. */
+  async _observe(network) {
+    let client = this._observations;
+    if (!client || client.network !== network.id) {
+      if (client) client.dispose();
+      client = new ObservationsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
+      client.addEventListener("change", () => { this._dirty.add("details").add("settings"); });
+      this._observations = client;
+      this._observationsStale = false;
+      await client.load();
+    } else if (this._observationsStale || client.retryable) {
+      this._observationsStale = false;
+      await client.load();
+    }
+    client.observe(network);
   }
 
   _ensureView() {
@@ -315,7 +344,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
     // Status line (spec 6): source, tables, devices in a table, completeness, the 4-hour hint. "Observed unchanged
     // since" and the scan come with the next slice (observations through the integration); statusParts has the seam.
-    ui.status.replaceChildren(...statusParts(net).map(([key, params]) => h("span", { class: "part", text: t(key, params) })));
+    this._renderStatus();
     const incomplete = isIncomplete(net.status);
     ui.incomplete.hidden = !incomplete;
     if (incomplete) {
@@ -331,6 +360,32 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       || (!this._wide && Boolean(this._selected) && !ui.chip.hidden);
     renderMiniLegend(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles() });
     this._renderTabs();
+  }
+
+  /** Status line (spec 6): source, tables, devices in a table, completeness, "observed unchanged since" (with its
+   *  caveat as the part's description), a followed scan with its stop button, the 4-hour hint. Below the wide
+   *  breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions, and the
+   *  hint and caveats stay in Details and on wide screens. */
+  _renderStatus() {
+    const t = this._t;
+    const net = this._network;
+    const newest = this._observations ? this._observations.newest(net) : null;
+    const scan = this._scan && this._scan.state.status !== "idle" ? this._scan.state : null;
+    const compact = !this._wide;
+    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact });
+    this._ui.status.classList.toggle("compact", compact);
+    this._ui.status.replaceChildren(...parts.map(([key, params, long]) => {
+      const span = h("span", { class: "part", text: t(key, params) });
+      if (long) span.title = t(long, params);
+      if (key === "status.unchanged" || key === "status.short_unchanged") {
+        span.title = long ? `${t(long, params)}. ${t("status.unchanged_note")}` : t("status.unchanged_note");
+      }
+      if (key === "status.scan_running" || key === "status.short_scan_running") {
+        span.append(" ", h("button", { type: "button", class: "link status-stop", text: t("status.scan_stop"),
+          "aria-label": t("status.scan_stop_label"), on: { click: () => this._scan.stop() } }));
+      }
+      return span;
+    }));
   }
 
   _renderHeader(ready = this._ui && !this._ui.canvas.hidden) {
@@ -389,7 +444,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const panel = d.panel(d.tab);
     this._dirty.delete(d.tab);
     if (d.tab === "details") {
+      const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
       renderDetails(panel, { network: this._network, t, id: this._selected, debug: this._debug, raw: this._raw,
+        observedSince: seen ? t.when(seen) : null,
         pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
         onSelect: (id) => this._select(id, "list"), onRelease: (id) => this._release([id]) });
     } else if (d.tab === "findings") {
@@ -399,6 +456,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     } else if (d.tab === "settings") {
       keepFocus(this._root, panel, () => renderSettings(panel, { t, settings: this._settings.settings, wide: this._wide,
         pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings, idPrefix: "mte-settings",
+        observations: this._debug ? this._observations : null,
         onChange: (patch) => this._settings.update(patch), onReleaseAll: () => this._release(null) }));
     }
   }
@@ -482,6 +540,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._wide = wide;
       this._dirty.add("settings");
       this._renderHeader();
+      if (this._network && !this._ui.status.hidden) this._renderStatus(); // long or short forms
     }
     // The selection chip: under the banners on wide screens, near the bottom (thumb reach) on narrow ones.
     const chipHome = wide ? this._ui.top : this._ui.map;
@@ -515,7 +574,48 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       { id: "fit", label: t("menu.fit") },
       { id: "release", label: t("menu.release_pins", { count: pins }), disabled: !pins },
       { id: "reload", label: t("menu.reload") },
+      // The scan exists in debug mode only (spec 6, 9.1): it causes radio traffic.
+      ...(this._debug ? [{ type: "separator" },
+        this._scan && this._scan.running ? { id: "scan-stop", label: t("menu.scan_stop") } : null,
+        { id: "scan", label: t(this._scan && this._scan.running ? "menu.scan_running" : "menu.scan"),
+          disabled: Boolean(this._scan && this._scan.running) }].filter(Boolean) : []),
     ];
+  }
+
+  /** Ask, then start a scan and follow it (spec 6). */
+  async _startScan() {
+    const t = this._t;
+    const ok = await confirmDialog(this._ui.app, { title: t("scan.title"),
+      paragraphs: [t("scan.body_radio"), t("scan.body_auto"), t("scan.body_follow")],
+      confirm: t("scan.confirm"), cancel: t("scan.cancel"), opener: this._ui.menuButton });
+    if (!ok || !this._source) return;
+    if (!this._scan) {
+      const raws = new WeakMap();
+      this._scan = new ScanFollower({
+        send: () => sendScan(this._hass),
+        read: async () => {
+          const result = await readNetwork(this._hass);
+          if (result.phase !== "ready") return null;
+          raws.set(result.network, result.raw);
+          return result.network;
+        },
+      });
+      this._scan.addEventListener("read", (e) => {
+        // Only a re-read whose tables differ reaches the map: no new layout every 15 seconds for nothing.
+        const network = e.detail.network;
+        if (tablesDiffer(this._source, network)) this._controller.adopt(network, raws.get(network));
+      });
+      this._scan.addEventListener("change", () => {
+        const status = this._scan.state.status;
+        if (status !== this._scanStatus) {
+          if (status === "running") this._announce(t("live.scan_started"));
+          else if (this._scanStatus === "running") this._announce(this._t("live.scan_over"));
+          this._scanStatus = status;
+        }
+        if (this._network) this._renderStatus();
+      });
+    }
+    this._scan.start(this._source);
   }
 
   _onMenu(id) {
@@ -525,7 +625,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       // Debug mode (spec 9.1): every pair as lanes with reporters, raw tables in Details. Never stored.
       this._debug = !this._debug;
       if (this._view) this._view.setDebug(this._debug);
-      this._dirty.add("details").add("legend");
+      // Leaving debug mode clears what a finished scan left in the status line; a running one stays (spec 9.4).
+      if (!this._debug && this._scan && !this._scan.running) this._scan.clear();
+      this._dirty.add("details").add("legend").add("settings");
       this._render();
     } else if (id === "fit") {
       if (this._view) this._view.fit();
@@ -533,6 +635,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._release(null);
     } else if (id === "reload") {
       this._controller.reload();
+    } else if (id === "scan") {
+      this._startScan();
+    } else if (id === "scan-stop") {
+      if (this._scan) this._scan.stop();
     }
   }
 
@@ -579,6 +685,18 @@ function keepFocus(root, container, render) {
   const again = (key.id && container.querySelector(`[id="${key.id}"]`))
     || (key.name && [...container.querySelectorAll("input")].find((el) => el.name === key.name && el.value === key.value));
   if (again) again.focus();
+}
+
+/** Send zha/topology/update without waiting: ZHA never answers it (spec 3.1). The connection's sendMessage
+ *  (home-assistant-js-websocket) sends without registering an answer, so nothing waits forever; it throws without a
+ *  connection, which the scan reports. Without it, callWS is called and its promise left alone. */
+function sendScan(hass) {
+  const conn = hass && hass.connection;
+  if (conn && typeof conn.sendMessage === "function") {
+    conn.sendMessage({ type: "zha/topology/update" });
+  } else {
+    hass.callWS({ type: "zha/topology/update" }).catch(() => {});
+  }
 }
 
 // Defined only if free: a second load of the module (or another add-on) must not throw.

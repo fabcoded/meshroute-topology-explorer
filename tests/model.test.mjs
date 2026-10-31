@@ -21,13 +21,15 @@ const others = sample.devices.filter((d) => d !== coordinator);
 // --- Synthetic networks: id n -> ieee aa:bb:cc:dd:00:00:00:0n, nwk 0x100n -------------------------------------
 const ieee = (n) => `aa:bb:cc:dd:00:00:00:${String(n).padStart(2, "0")}`;
 const nwkText = (n) => `0x${(0x1000 + n).toString(16).toUpperCase()}`;
-/** spec: [n, type, { avail, vendor, nb: [[n, lqi, rel]], rt: [[dest, next]] }] */
+/** spec: [n, type, { avail, vendor, model, nb: [[n, lqi, rel]], rt: [[dest, next]] }] */
 function synth(specs) {
+  const typeOf = new Map(specs.map(([n, type]) => [n, type]));
   return specs.map(([n, type, o = {}]) => ({
     ieee: ieee(n), nwk: 0x1000 + n, device_type: type, available: o.avail !== false, manufacturer: o.vendor ?? "V",
-    model: "M", name: `dev${n}`, user_given_name: null, power_source: type === "EndDevice" ? "Battery or Unknown" : "Mains",
+    model: o.model ?? "M", name: `dev${n}`, user_given_name: null, power_source: type === "EndDevice" ? "Battery or Unknown" : "Mains",
     last_seen: "2026-01-01T00:00:00", area_id: null, device_reg_id: null,
-    neighbors: (o.nb || []).map(([m, lqi, rel = "Sibling"]) => ({ ieee: ieee(m), nwk: nwkText(m), lqi: String(lqi), relationship: rel })),
+    neighbors: (o.nb || []).map(([m, lqi, rel = "Sibling"]) => ({ ieee: ieee(m), nwk: nwkText(m), lqi: String(lqi), relationship: rel,
+      device_type: typeOf.get(m) })),
     routes: (o.rt || []).map(([d, h]) => ({ dest_nwk: nwkText(d), next_hop: nwkText(h), route_status: "Active" })),
   }));
 }
@@ -386,4 +388,144 @@ test("without the coordinator's table nothing is a verdict: hedged parent unknow
   assert.deepEqual(kinds.filter((k) => k[0] === "parent unknown"), [["parent unknown", ieee(2), [ieee(0)]]]);
   assert.equal(net.findings.some((f) => f.kind === "isolated"), false);
   assert.deepEqual(kinds.filter((k) => k[0] === "data incomplete"), [["data incomplete", ieee(0), [ieee(0)]]]);
+});
+
+// --- Link evidence, capacity, duplicates, partial down paths (spec 3.1, 4.3, 5.1) -----------------------------------
+test("sample: pairs by evidence, implied directions, reasons, capacity per model", () => {
+  const raw = load("zha-sample.json")["zha/devices"];
+  const listedBoth = new Set();
+  const listed = new Set(raw.filter((d) => d.available).flatMap((d) => d.neighbors.map((n) => `${d.ieee}|${n.ieee}`)));
+  for (const k of listed) { const [a, b] = k.split("|"); if (a < b && listed.has(`${b}|${a}`)) listedBoth.add(k); }
+  assert.equal(listedBoth.size, 242);                       // listed by both sides, LQI 0 included
+  const state = (p) => [p.ab.state, p.ba.state];
+  const measuredBoth = sample.pairs.filter((p) => state(p).every((x) => x === "measured"));
+  const measuredOne = sample.pairs.filter((p) => state(p).filter((x) => x === "measured").length === 1);
+  assert.equal(measuredBoth.length, 241);                   // one of the 242 has a 0 on one side
+  assert.equal(measuredOne.length, 85);
+  const implied = sample.pairs.flatMap((p) => [p.ab, p.ba]).filter((x) => x.state === "implied");
+  assert.equal(implied.filter((x) => x.source === "parent").length, 12);   // one per end device
+  const routeOnly = sample.pairs.filter((p) => state(p).every((x) => x === "implied"));
+  assert.equal(routeOnly.length, 2);
+  assert.ok(routeOnly.every((p) => p.ab.source === "route"));
+  assert.equal(implied.length, 16);
+  const reasons = {};
+  for (const x of sample.pairs.flatMap((p) => [p.ab, p.ba]).filter((y) => y.state === "unknown")) {
+    const k = x.reason.replace(/ \(\d+\/\d+(, vendor estimate)?\)/, "");
+    reasons[k] = (reasons[k] || 0) + 1;
+  }
+  assert.deepEqual(reasons, { "lqi 0": 1, "table full": 46, "table nearly full, link probably weak": 19,
+    "table has space, link probably weak or aged out": 7 });   // with the vendor fallback no capacity stays unknown
+  const estimates = sample.pairs.flatMap((p) => [p.ab, p.ba]).filter((x) => /vendor estimate/.test(x.reason || ""));
+  assert.ok(estimates.length > 0);
+  const cap = (vendor, model) => sample.devices.find((d) => d.vendor === vendor && d.model === model && d.tableCapacity !== null);
+  assert.equal(cap("IKEA of Sweden", "TRADFRIbulbGU10WS345lm").tableCapacity, 16);
+  assert.equal(cap("Signify Netherlands B.V.", "LTG002").tableCapacity, 26);
+  const lct = sample.devices.find((d) => d.model === "LCT012");        // one device of its model: vendor estimate
+  assert.deepEqual([lct.tableCapacity, lct.tableCapacitySource], [26, "vendor"]);
+  assert.equal(cap("IKEA of Sweden", "TRADFRIbulbGU10WS345lm").tableCapacitySource, "model");
+  assert.equal(sample.unresolved.duplicates, 1);
+  assert.ok(sample.readings.some((r) => r.lqi === 0 && r.measured === false));
+  assert.ok(sample.readings.every((r) => r.measured === (r.lqi > 0)));
+  assert.ok(sample.pairs.every((p) => p.a < p.b));
+});
+
+test("capacity per model: largest router-entry count of the same vendor and model, two devices needed", () => {
+  const specs = [[0, C, { nb: [[1, 100], [2, 100]] }]];
+  specs.push([1, R, { model: "X", nb: [[0, 100], [2, 100], [3, 100]] }]);   // 3 router entries
+  specs.push([2, R, { model: "X", nb: [[0, 100]] }]);                        // 1
+  specs.push([3, R, { model: "Y", nb: [[0, 100]] }]);                        // alone: unknown
+  specs.push([4, E, { model: "X" }]);
+  const n = buildNetwork(synth(specs));
+  const d = (k) => n.devices.find((x) => x.id === ieee(k));
+  assert.deepEqual([d(1).tableSize, d(1).tableCapacity, d(1).tableFull], [3, 3, true]);
+  assert.deepEqual([d(2).tableSize, d(2).tableCapacity, d(2).tableFull], [1, 3, false]);
+  assert.deepEqual([d(3).tableSize, d(3).tableCapacity, d(3).tableCapacitySource, d(3).tableFull], [1, 3, "vendor", false]);
+  assert.equal(d(1).tableCapacitySource, "model");
+  assert.deepEqual([d(4).tableSize, d(4).tableCapacity, d(4).tableFull], [null, null, null]);
+});
+
+test("pairs: measured, implied by parent or route, LQI 0 is no pair, missing table as reason", () => {
+  const n = buildNetwork(synth([
+    [0, C, { nb: [[1, 120], [5, 90, "Child"], [2, 80]] }],
+    [1, R, { nb: [[0, 110], [20, 100]] }],
+    [2, R, { nb: [[0, 100]] }],
+    [5, E],
+    [6, R, { nb: [[7, 0]] }],                     // LQI 0 only
+    [7, R],
+    [20, R],                                      // router without a table
+  ]));
+  const pair = (a, b) => n.pairs.find((p) => p.a === ieee(a) && p.b === ieee(b));
+  assert.deepEqual([pair(0, 1).ab.state, pair(0, 1).ba.lqi, pair(0, 1).ab.reason], ["measured", 110, null]);
+  const child = pair(0, 5);
+  assert.deepEqual([child.ab.state, child.ba.state, child.ba.source], ["measured", "implied", "parent"]);
+  assert.equal(pair(6, 7), undefined);            // only LQI 0: not a pair
+  assert.equal(n.readings.find((r) => r.reporter === ieee(6)).measured, false);
+  assert.equal(pair(1, 20).ba.reason, "table missing or stale");
+  const lqi0 = buildNetwork(synth([[0, C, { nb: [[1, 100]] }], [1, R, { nb: [[0, 0]] }]]));
+  assert.deepEqual([lqi0.pairs[0].ba.state, lqi0.pairs[0].ba.reason, lqi0.pairs[0].ba.lqi], ["unknown", "lqi 0", 0]);
+});
+
+test("pairs: an active route proves both directions where nothing is listed", () => {
+  const n = buildNetwork(synth([[0, C, { rt: [[3, 1]] }], [1, R, { rt: [[3, 3]] }], [3, R]]));
+  const p = n.pairs.find((x) => x.a === ieee(0) && x.b === ieee(1));
+  assert.deepEqual([p.ab.state, p.ab.source, p.ba.state, p.ba.source], ["implied", "route", "implied", "route"]);
+  assert.equal(n.pairs.length, 2);   // the direct route 1 -> 3 proves the pair 1|3 as well
+});
+
+test("pair reasons: table full, nearly full, space, end device", () => {
+  const routers = (k) => Array.from({ length: k }, (_, i) => [10 + i, 100]);
+  const specs = [[0, C, { nb: [[1, 100], [2, 100], [3, 100]] }],
+    [1, R, { model: "X", nb: routers(4) }], [2, R, { model: "X", nb: routers(2) }], [3, R, { model: "X", nb: routers(1) }],
+    [4, E]];
+  for (let i = 0; i < 4; i += 1) specs.push([10 + i, R]);
+  const n = buildNetwork(synth(specs));
+  const reason = (k) => n.pairs.find((p) => p.a === ieee(0) && p.b === ieee(k)).ba.reason;
+  assert.equal(reason(1), "table full (4/4)");
+  assert.equal(reason(2), "table nearly full (2/4), link probably weak");
+  assert.equal(reason(3), "table has space, link probably weak or aged out");
+  const ed = buildNetwork(synth([[0, C, { nb: [[4, 90, "Child"]] }], [4, E]])).pairs[0];
+  assert.equal(ed.ba.state, "implied");
+  const noParent = buildNetwork(synth([[0, C, { nb: [[4, 90]] }], [4, E]])).pairs[0];
+  assert.deepEqual([noParent.ba.state, noParent.ba.reason], ["unknown", "end device (no table)"]);
+});
+
+test("downPath to an end device appends it only when the path to the parent is complete", () => {
+  const raw = synth([
+    [0, C, { nb: [[1, 100], [3, 100]], rt: [[2, 1]] }],
+    [1, R, { nb: [[2, 90, "Child"]] }],                       // no route entries towards 3 or 4 at router 1
+    [2, R],
+    [3, R, { nb: [[4, 90, "Child"]] }],
+    [4, E],
+  ]);
+  const n = buildNetwork(raw);
+  // 4's parent 3 is a direct neighbour of the coordinator without a routing entry: the path stays partial
+  assert.deepEqual(downPath(n, ieee(4)), { ids: [ieee(0)], complete: false });
+  const ok = buildNetwork(synth([[0, C, { nb: [[1, 100]], rt: [[1, 1]] }], [1, R, { nb: [[2, 90, "Child"]] }], [2, E]]));
+  assert.deepEqual(downPath(ok, ieee(2)), { ids: [ieee(0), ieee(1), ieee(2)], complete: true });
+});
+
+test("duplicate readings: the higher LQI is kept and the duplicate is counted", () => {
+  const raw = synth([[0, C, { nb: [[1, 100], [1, 120], [1, 90]] }], [1, R]]);
+  const n = buildNetwork(raw);
+  assert.equal(n.readings.length, 1);
+  assert.equal(n.readings[0].lqi, 120);
+  assert.equal(n.unresolved.duplicates, 2);
+});
+
+test("capacity without a peer of the model or the vendor stays unknown; a vendor estimate is named in the reason", () => {
+  const alone = buildNetwork(synth([[0, C, { nb: [[1, 100]] }], [1, R, { vendor: "W", model: "Z", nb: [[2, 100]] }], [2, R]]));
+  const w = alone.devices.find((d) => d.id === ieee(1));
+  assert.deepEqual([w.tableCapacity, w.tableCapacitySource, w.tableFull], [null, null, null]);
+  assert.equal(alone.pairs.find((p) => p.a === ieee(0) && p.b === ieee(1)).ba.reason, "capacity unknown");
+  // two models of one vendor: the single-device model borrows the largest table of the vendor
+  const routers = (k) => Array.from({ length: k }, (_, i) => [10 + i, 100]);
+  const specs = [[0, C, { nb: [[1, 100], [2, 100], [3, 100]] }],
+    [1, R, { model: "A", nb: routers(4) }], [2, R, { model: "A", nb: routers(2) }],
+    [3, R, { model: "B", nb: routers(4) }]];
+  for (let i = 0; i < 4; i += 1) specs.push([10 + i, R]);
+  const n = buildNetwork(synth(specs));
+  const reason = (k) => n.pairs.find((p) => p.a === ieee(0) && p.b === ieee(k)).ba.reason;
+  assert.equal(reason(1), "table full (4/4)");
+  assert.equal(reason(3), "table full (4/4, vendor estimate)");
+  assert.equal(n.devices.find((d) => d.id === ieee(3)).tableCapacitySource, "vendor");
 });

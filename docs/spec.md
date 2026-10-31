@@ -64,6 +64,13 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   - Scales differ by reporter: on the sample the coordinator's median is 22 including LQI 0 and 24 without it (the 5.4 pool excludes 0), router medians range from 44 to 167 either way.
   - Neighbour tables are limited by each device's memory (8 to 26 entries observed per router, 31 at the coordinator),
     so a device lists only part of what it hears, and only 85 % of entries have a reverse entry: a missing entry is no evidence of a missing link.
+  - Why a link is listed by one side only (measured on the sample: 242 pairs listed by both sides, 85 measured by one
+    side only, 1 by an LQI 0 on the other): the table is full (Zigbee r22 leaves the choice of entries to the device;
+    tables of one model stop at the same size, e.g. 16 router entries in IKEA devices and 26 in Signify devices), nearly
+    full with the link among the weaker ones, the other side is an end device (it has no table), or the table has
+    space and the link is weak or aged out. No pair on the sample proves an asymmetric radio link. An active route
+    proves a link that was two-way when the route was built (3.6.3.5.2); route age is unknown. The explorer derives the
+    per-direction evidence from this (4.3). A neighbour listed twice in one table counts once, with the higher LQI.
   - `Child` and `Parent` entries also occur between routers; they record joining, not routing, and are ignored.
   - For some destinations the coordinator keeps no routing entry (its direct neighbours; source routing whose route
     records Home Assistant does not expose): such paths are unknown.
@@ -127,6 +134,18 @@ A directed reading "reporter R hears subject S": quality value, scale (`zigbee-l
 last frame: on the sample the two directions of a pair differ by a median of 8 LQI and by more than 60 in a tenth of
 pairs.
 
+**Evidence per direction.** For each pair of available devices the explorer states, per direction ("A hears B"), one of:
+**measured** (LQI above 0 in A's table); **implied** (no reading, but an active route of A with next hop B or of B with
+next hop A, or A is an end device whose parent is B; the source "route" or "parent" is named, since both prove a
+two-way link at setup); or **unknown** with a reason: "end device (no table)", "table full (n/cap)", "table nearly
+full (n/cap), link probably weak", "table has space, link probably weak or aged out", "lqi 0", "table missing or
+stale", "capacity unknown". The capacity of a model is the largest number of router entries (routers and coordinator)
+seen in any table of devices with the same manufacturer and model in this network, needing at least two such devices;
+a model seen on one device only borrows the largest table of its manufacturer, marked "vendor estimate"; "capacity unknown"
+remains only when no other device of the manufacturer has a table;
+"full" means that many, "nearly full" two fewer or less. Capacity is information only and never raises a finding.
+Pairs whose only evidence is LQI 0 are not pairs; an LQI 0 reading is kept but marked as not measured.
+
 ### 4.4 Route
 "Owner forwards packets for destination D to next hop H", with status and flags; direct if H equals D. Entries whose
 status is not `Active` are kept for the details view but not followed.
@@ -154,7 +173,8 @@ A view, fill or finding that needs a missing capability shows "not available for
   entry towards the coordinator, hop by hop.
 - **Down path** (coordinator to device): follow the coordinator's routing entry towards the device, then each hop's
   entry. For an end device: if that does not reach the device, take the down path to its parent and append the
-  parent link.
+  parent link, but only if the path to the parent is complete; otherwise the incomplete path to the parent stays as it
+  is and nothing is appended.
 - A path that meets a missing table or entry, a loop, or an unavailable hop stops and is **incomplete**; it is
   never guessed, not even for the coordinator's direct neighbours.
 
@@ -211,10 +231,18 @@ Path walks never follow routes or parents from the table of an unavailable devic
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
   first saw that fingerprint, and stores them through the integration (10). "Unchanged since" thus means "observed
   unchanged since"; it is accurate only for times a panel was open, and the status line says so.
+  The stored object holds `routers: { <ieee>: { fingerprint, firstSeen } }`; saves merge per router (the same
+  fingerprint keeps the earlier time, another one the newest view) and keep unknown keys; above 256 KiB the oldest
+  entries go first, which debug mode reports. Times are shown in the browser's local time.
 - **Scan** (debug mode): explains the radio load and asks for confirmation; disabled while a scan of this panel runs;
   sends the command without waiting; then re-reads every 15 seconds for 2 minutes and every 60 seconds up to
   15 minutes, showing "tables changed since the scan started: x of y" with the note that an unchanged table may
   also have been answered; it never claims "finished".
+  "x of y" counts available routers like the status line (coordinator not counted); a router that gains a table
+  counts as changed. A re-read reaches the map only when tables or availability changed, so the layout does not
+  restart every 15 seconds. The command goes out with the connection's fire-and-forget send; a re-read that fails is
+  skipped. Leaving the panel or "stop" ends the following, not the scan, which ZHA cannot cancel. The confirmation
+  starts on "Cancel".
 
 ## 7. Views
 
@@ -303,7 +331,8 @@ user-supplied image, or map tiles from an address the user configured.
   Details, Devices, Findings, Legend, Settings; at most one drawer open; it never covers the selected device (the
   map pans if needed).
 - **Debug mode** (menu, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
-  scan, per-router "observed unchanged since".
+  scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and
+  the like) are shown in the user's language everywhere, with the raw text beside them in debug mode.
 - Wide means a panel at least 720 px wide; the side drawer takes 36 % of it within 320–400 px. The expanded sheet
   takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
   sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
@@ -396,6 +425,7 @@ reads them again on reconnect.
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
+| Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
 | Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). |
