@@ -231,9 +231,17 @@ the centre).
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
   fidelity and speed targets (12). On the sample network this curve gave a rank correlation between drawn length
   and LQI of −0.82, against −0.35 for constant springs.
-- Pairs are drawn as one line, coloured by the better reading. For the selected device, under the pointer, and in
-  debug mode a pair splits into two lanes, each right of its direction of travel, with its value.
-- Devices without readings sit evenly on a ring just outside the mesh, outlined "unknown".
+- Pairs are drawn as one line, coloured by the better rating of its readings (5.4). For the selected device, under
+  the pointer, and in debug mode a pair splits into two lanes, each right of its direction of travel, with its value.
+- By default each device shows the lines of its 3 best pairs (by the pair's better rating), plus all pairs of the
+  selection and of the device under the pointer; debug mode shows all, and every reading still shapes the layout
+  (decision by Fabian Schwamborn, 2026-10-31).
+- The density sets the working scale (decision by Fabian Schwamborn, 2026-10-31): overview and "fit" stay as they are,
+  and zooming to a device goes to the scale at which the median distance from each device to its nearest neighbour
+  on screen equals D × the mean label width (dense keeps context, medium lets labels fit, spread gives lane values
+  room); the stored density (11) applies when the panel loads.
+- Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
+  plus L0 × D / 2), outlined "unknown".
 - Dragging a device pins it (pin mark); "release" in the details or a double click unpins it. Pinned positions are
   stored (11).
 
@@ -266,10 +274,12 @@ user-supplied image, or map tiles from an address the user configured.
 - One selectable **fill**: reception (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
-  dark Home Assistant themes. Colour never carries meaning alone.
+  dark Home Assistant themes. Colour never carries meaning alone. Lines, lanes and the reception fill share one
+  rating scale: the part of cividis that keeps 3:1 against the theme's background.
 - Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
-  shared beginnings, keep the end); identical names get the network address appended. Below a zoom threshold only
-  the selection and its neighbours carry labels.
+  shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
+  tied to the working scale (7.1: devices half a label width from their nearest neighbour) only the coordinator,
+  the selection and its neighbours carry labels; a label tries four places around its device before it is left out.
 - Markers keep a minimum size in screen pixels. A legend explains the current view and fill.
 
 ## 9. Interaction [v1]
@@ -296,6 +306,9 @@ user-supplied image, or map tiles from an address the user configured.
 - One gesture model: a press that moves less than 8 px is a tap; more is a drag (node: pin and move; background:
   pan). Long press: 500 ms without moving 8 px. Pinch zooms. Wheel: × 1.2 per notch around the pointer. Zoom range
   0.1 to 8 times the fitted view. Buttons +, −, fit.
+- Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
+  scale (7.1; never out past the overview) and keeps the device clear of the drawer (decision by Fabian
+  Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - Keys: arrows and Enter in the device list (the keyboard path to every device); Esc clears selection and stops
   playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was
