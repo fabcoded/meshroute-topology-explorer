@@ -30,6 +30,7 @@ each work package once.
 | densities 0.7 / 1.0 / 1.5; L0 = node diameter + mean label width | 7.1 | own choice, checked by the fidelity target |
 | medians 22 (24 without LQI 0) and 44–167, table sizes 8–26 per router and 31 at the coordinator, reciprocity 85 %, pair difference median 8 and > 60 in a tenth | 3.1, 4.3, 5.4 | measured on the anonymized sample fixture |
 | paths 41 / 29 / 20 of 29, 2 routes to unavailable devices | 12 | computed on the sample fixture with the rules of 5.1 and the A3 tests; the earlier 42 came from an analysis that did not discard stale tables (one unavailable router's own route entry); corrected 2026-10-31 |
+| 242 / 85 pairs listed by both / one side, 16 and 26 router entries (IKEA, Signify), 12 + 2 implied | 3.1, 4.3, 12 | measured on the sample fixture by the A3 follow-up tests (model2, 2026-10-31); causes of one-sided listing from an opus review of the link model against the Zigbee r22 specification (05-3474-22, Mgmt_Lqi_rsp, route request handling 3.6.3.5.2, parent delivery 3.6.3.3); 241 pairs are measured in both directions because one of the 242 carries an LQI 0 on one side |
 | lowest tenth and below half the reporter's median; at least 10 values per pool | 5.4, 5.6 | own rule from the review (rank is not health) |
 | very low reading 1–10 LQI | 5.6 | decision by Fabian Schwamborn |
 | completeness banner below 90 % | 6 | own choice |
