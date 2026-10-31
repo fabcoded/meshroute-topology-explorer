@@ -15,8 +15,8 @@ matters, but the default view stays calm: raw values, tables and scans live one 
   or change the network. `tools/guard.py` checks this.
 - **Nothing leaves the house.** No telemetry, no CDNs. A map background may load tiles only from an address the
   user configured; no outside URL is ever written into the code.
-- **Ship what you read.** No bundler; the repository is what Home Assistant serves. One runtime dependency
-  (lit-core), pinned by hash.
+- **Ship what you read.** No bundler and no runtime dependencies; the repository is what Home Assistant serves.
+  The panel is plain DOM custom elements.
 - **Unknown beats wrong.** Incomplete data is shown as unknown, never as weak or missing.
 
 ## Privacy and safety
@@ -29,9 +29,11 @@ matters, but the default view stays calm: raw values, tables and scans live one 
 
 ## Own work, clear origin
 
-- Build from the specification in `docs/` (in progress), the Home Assistant developer docs and the anonymized
-  captures in `tests/fixtures/`. Algorithms from papers and documentation are fine; please don't read or copy the
-  source of other projects, mesh maps and graph libraries included.
+- Build from the specification `docs/spec.md`, the Home Assistant developer docs and the anonymized captures in
+  `tests/fixtures/`. Algorithms from papers and documentation are fine; please don't read or copy the source of
+  other projects, mesh maps and graph libraries included.
+- Home Assistant's own source (core and frontend) may be read for API contracts and public conventions only (event
+  names, CSS variables, websocket behaviour), never for its network visualisation, and is cited where it matters.
 - Code under a permissive licence (MIT, ISC, BSD) may be adopted only with its licence text in `NOTICE`; ask first.
 - Name Zigbee, Matter, Thread and Home Assistant only to describe what the project shows: no logos, no
   "compatible" or "certified" claims.
@@ -45,7 +47,7 @@ matters, but the default view stays calm: raw values, tables and scans live one 
 - Each file opens with what it does and how to run it, and an SPDX line (`SPDX-License-Identifier: MIT`).
   Comments explain why, not what.
 - Tests run without devices and in under a minute: `python3 tools/guard.py`, `python3 -m unittest discover -s tests`
-  and `node --test "tests/**/*.test.mjs"`.
+  and `node --test "tests/**/*.test.mjs"` (Node 21 or newer; on older Node `node --test tests/`).
 - Keep changes small and the tests green.
 
 Thank you for helping build the best free map of home radio networks.
