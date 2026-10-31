@@ -195,7 +195,10 @@ its own neighbour table; of an end device, its parent.
 | many end-device children | router or coordinator with 3 or more |
 
 No finding is raised from the table of an unavailable device (stale), from LQI 0, or from a missing neighbour entry
-alone.
+alone. One exception: "parent offline" may name the last known
+parent from that parent's own stale table, since no other table lists the child, and says so ("last known parent").
+Path walks never follow routes or parents from the table of an unavailable device. **[v1]** The interface groups
+"data incomplete" findings by the missing table.
 
 ## 6. Data status and the scan [v1]
 
@@ -329,8 +332,8 @@ background address (empty by default).
 
 | Target | Measure |
 |---|---|
-| Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "parent unknown/no parent", "isolated" or "weak reception" that the complete sample lacks. |
-| Paths | On the sample: up paths complete 42 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
+| Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
+| Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
 | Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). |

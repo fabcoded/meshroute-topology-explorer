@@ -58,7 +58,10 @@ export function computeFindings({ devices, readings, routes }) {
     if (!d.available) add("offline", d.id, { lastSeen: d.lastSeen });
     if (d.role === "end device" && d.parent && !byId.get(d.parent).available) {
       add("parent offline", d.id, { parent: d.parent, parentLastSeen: byId.get(d.parent).lastSeen,
-        listedInStaleTable: d.parentFromStaleTable });
+        listedInStaleTable: d.parentFromStaleTable,
+        // The only exception to "no finding from a stale table" (spec 5.6): the parent is offline, so its own
+        // stale table is the only place that still names it. The finding says "last known parent".
+        lastKnown: d.parentFromStaleTable });
     }
   }
 

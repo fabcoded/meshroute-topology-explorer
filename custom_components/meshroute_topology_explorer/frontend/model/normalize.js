@@ -4,8 +4,8 @@
 //
 // Why these choices: devices are keyed by IEEE; the network address is used only to resolve a neighbour entry whose
 // IEEE is unusable and to resolve routing entries, which carry no IEEE. The tables of an unavailable device are
-// stale: its readings are dropped; its routes are kept but flagged `stale`, because a path walk may still start
-// there (spec 5.1 counts 42 of 44 up paths complete on the sample, which needs the one stale route entry).
+// stale: its readings are dropped; its routes are kept but flagged `stale` and never followed by path walks
+// (a later "last known" view may use them).
 import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "./parse.js";
 
 const ROLES = { Coordinator: "coordinator", Router: "router", EndDevice: "end device" };

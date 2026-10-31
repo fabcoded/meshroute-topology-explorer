@@ -3,8 +3,8 @@
 //
 // A path that meets a missing table or entry, a loop or an unavailable hop stops and is incomplete: it is never
 // guessed, not even for the coordinator's direct neighbours (which have no routing entry at the coordinator).
-// The start of an up path may be an unavailable device: its stale routing entry is used, the walk stops at the
-// first unavailable device after it.
+// Routes taken from the table of an unavailable device are stale and never followed (decision 2026-10-31): the walk
+// of an unavailable router is incomplete, and the walk stops at the first unavailable device.
 import { isActive } from "./normalize.js";
 
 const cache = new WeakMap(); // network -> lookup maps, so repeated path queries do not re-index the routes
@@ -13,10 +13,10 @@ function lookups(network) {
   let c = cache.get(network);
   if (c) return c;
   const byId = new Map(network.devices.map((d) => [d.id, d]));
-  // owner -> destination -> first active route; routes that are not Active are kept in the network but not followed.
+  // owner -> destination -> first active route; routes that are not Active or are stale are kept in the network but not followed.
   const routes = new Map();
   for (const r of network.routes) {
-    if (!isActive(r.status)) continue;
+    if (r.stale || !isActive(r.status)) continue;
     if (!routes.has(r.owner)) routes.set(r.owner, new Map());
     const m = routes.get(r.owner);
     if (!m.has(r.destination)) m.set(r.destination, r);

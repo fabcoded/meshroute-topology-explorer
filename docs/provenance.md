@@ -24,7 +24,7 @@ each work package once.
 | repulsion scales with (L0 × D)² | 7.1 | own derivation: keeps the force balance scale-free; confirmed in the same measurement |
 | densities 0.7 / 1.0 / 1.5; L0 = node diameter + mean label width | 7.1 | own choice, checked by the fidelity target |
 | medians 22 and 44–167, caps 16–26 and 31, reciprocity 85 %, pair difference median 8 and > 60 in a tenth | 3.1, 4.3, 5.4 | measured on the anonymized sample fixture |
-| paths 42 / 29 / 20 of 29, 2 routes to unavailable devices | 12 | computed on the sample fixture with the rules of 5.1 |
+| paths 41 / 29 / 20 of 29, 2 routes to unavailable devices | 12 | computed on the sample fixture with the rules of 5.1 and the A3 tests; the earlier 42 came from an analysis that did not discard stale tables (one unavailable router's own route entry); corrected 2026-10-31 |
 | lowest tenth and below half the reporter's median; at least 10 values per pool | 5.4, 5.6 | own rule from the review (rank is not health) |
 | very low reading 1–10 LQI | 5.6 | decision by Fabian Schwamborn |
 | completeness banner below 90 % | 6 | own choice |

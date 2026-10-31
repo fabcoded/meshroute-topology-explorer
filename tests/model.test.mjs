@@ -36,7 +36,7 @@ test("sample: path numbers of spec 12", () => {
   const up = others.map((d) => upPath(sample, d.id));
   const down = others.map((d) => downPath(sample, d.id));
   assert.equal(others.length, 44);
-  assert.equal(up.filter((p) => p.complete).length, 42);
+  assert.equal(up.filter((p) => p.complete).length, 41);  // stale tables are never followed
   assert.equal(down.filter((p) => p.complete).length, 29);
   // "differ": complete down path that is not the reverse of the up path
   const differ = others.filter((d, i) => down[i].complete &&
@@ -184,6 +184,13 @@ test("paths: loop, missing entry, unavailable hop, direct neighbours are not gue
   assert.equal(downPath(buildNetwork(loop), ieee(7)).complete, false);
 });
 
+test("an unavailable router's own stale routes are not followed", () => {
+  const n = buildNetwork(synth([[0, C, { nb: [[1, 100]] }], [1, R, { avail: false, nb: [[0, 90]], rt: [[0, 0]] }]]));
+  assert.equal(n.routes.length, 1);
+  assert.equal(n.routes[0].stale, true);
+  assert.deepEqual(upPath(n, ieee(1)), { ids: [ieee(1)], complete: false });
+});
+
 test("down path to an end device: parent path plus parent link", () => {
   const raw = synth([
     [0, C, { nb: [[1, 100]], rt: [[1, 1]] }],
@@ -258,6 +265,10 @@ test("findings: parent unknown / no parent, isolated, data incomplete, offline, 
 
   const po = buildNetwork(synth([[0, C, { nb: [[1, 100, "Child"]] }], [1, R, { avail: false, nb: [[2, 90, "Child"]] }], [2, E]]));
   assert.deepEqual(f(po, "parent offline").map((x) => [x.device, x.evidence.parent]), [[ieee(2), ieee(1)]]);
+  // The end device is listed only by the unavailable router: the finding names the last known parent.
+  assert.equal(f(po, "parent offline")[0].evidence.lastKnown, true);
+  assert.equal(f(po, "parent unknown").length, 0);
+  assert.equal(upPath(po, ieee(2)).complete, false);   // stale parent is offline: the walk stops there
 });
 
 test("weak reception needs a low rank, a low value and complete expected reporters", () => {
