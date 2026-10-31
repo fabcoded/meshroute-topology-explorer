@@ -21,12 +21,34 @@ export function isIncomplete(status) {
   return status.completeness < INCOMPLETE_BELOW;
 }
 
+/** Status keys of a followed scan (ui/scan.js states). */
+const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", stopped: "status.scan_stopped",
+  "not-sent": "status.scan_not_sent" };
+
+/** Short status keys of a followed scan, for narrow screens. */
+const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_scan_over", stopped: "status.short_scan_over",
+  "not-sent": "status.short_scan_not_sent" };
+
 /** Parts of the status line as [key, params] for the translator, in order: source, tables x of y (available routers,
- *  coordinator not counted), devices in at least one table, completeness, then "unchanged since" when known, then the
- *  hint that ZHA scans by itself. unchangedSince comes from the observations (spec 6), which arrive with the next
- *  slice of work; until then it is null and the part is left out. */
-export function statusParts(network, { unchangedSince = null } = {}) {
+ *  coordinator not counted), devices in at least one table, completeness, "observed unchanged since" when known
+ *  (formatted time, from the observations), the state of a followed scan (spec 6, 9.4), then the hint that ZHA scans
+ *  by itself. compact (narrow screens): short forms in at most two lines, without the source and the hint; each part
+ *  then carries a third element, the key of its long form, which the panel offers as the part's description. */
+export function statusParts(network, { unchangedSince = null, scan = null, compact = false } = {}) {
   const s = network.status;
+  if (compact) {
+    const parts = [
+      ["status.short_tables", { x: s.routersWithTable, y: s.routersAvailable }, "status.tables"],
+      ["status.short_listed", { x: s.devicesListed, y: s.devicesTotal }, "status.listed"],
+      ["status.short_complete", { pct: completenessPercent(s) }, "status.complete"],
+    ];
+    if (unchangedSince) parts.push(["status.short_unchanged", { time: unchangedSince }, "status.unchanged"]);
+    const short = scan && SCAN_SHORT[scan.status];
+    if (short) {
+      parts.push([short, { changed: scan.changed, total: scan.total, message: scan.message || "?" }, SCAN_KEYS[scan.status]]);
+    }
+    return parts;
+  }
   const parts = [
     ["status.source", { source: network.source === "zha" ? "ZHA" : network.source }],
     ["status.tables", { x: s.routersWithTable, y: s.routersAvailable }],
@@ -34,6 +56,8 @@ export function statusParts(network, { unchangedSince = null } = {}) {
     ["status.complete", { pct: completenessPercent(s) }],
   ];
   if (unchangedSince) parts.push(["status.unchanged", { time: unchangedSince }]);
+  const scanKey = scan && SCAN_KEYS[scan.status];
+  if (scanKey) parts.push([scanKey, { changed: scan.changed, total: scan.total, message: scan.message || "?" }]);
   if (network.source === "zha") parts.push(["status.scan_hint", {}]);
   return parts;
 }

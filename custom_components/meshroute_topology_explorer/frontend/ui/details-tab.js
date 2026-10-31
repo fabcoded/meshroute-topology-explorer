@@ -7,6 +7,7 @@ import { detailsOf } from "./details.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, rankText, receptionText, roleText, percent } from "./format.js";
 import { formatNwk } from "../model/parse.js";
+import { rawText, RAW_COLUMNS } from "./raw-values.js";
 
 /** Home Assistant's device page. Path: the config panel's devices section (/config/devices) with the "device" route
  *  of home-assistant/frontend src/panels/config/devices/ha-config-devices.ts, which reads the id from the rest of the
@@ -21,7 +22,8 @@ export function navigate(path) {
   window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
 }
 
-/** Fill `container` with the details of `id`. ctx: { network, t, debug, raw (Map id -> zha/devices entry), pinned
+/** Fill `container` with the details of `id`. ctx: { network, t, debug, raw (Map id -> zha/devices entry),
+ *  observedSince (formatted time this device's table was first seen as it is now, or null), pinned
  *  (boolean), onSelect(id), onRelease(id) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
@@ -65,8 +67,9 @@ export function renderDetails(container, ctx) {
   row(t("details.nwk"), h("span", { class: "mono", text: d.nwk === null ? "?" : `${formatNwk(d.nwk)} (${d.nwk})` }));
   if (d.area) row(t("details.area"), d.area);
   row(t("details.role"), roleText(d.role, t));
-  if (d.powerSource) row(t("details.power"), d.powerSource);
-  row(t("details.state"), d.available ? t("details.available") : t("details.unavailable_since", { time: t.time(d.lastSeen) }));
+  if (d.powerSource) row(t("details.power"), rawText("power", d.powerSource, t, { debug: ctx.debug }));
+  row(t("details.state"), d.available ? rawText("available", true, t, { debug: ctx.debug })
+    : t("details.unavailable_since", { time: t.time(d.lastSeen) }) + (ctx.debug ? " (false)" : ""));
   if (d.available && d.lastSeen) {
     row(t("details.last_seen"), d.role === "router" ? t("details.last_seen_router", { time: t.time(d.lastSeen) }) : t.time(d.lastSeen));
   }
@@ -121,7 +124,9 @@ export function renderDetails(container, ctx) {
       const text = r.direct ? t("details.route_direct", { destination: r.destination.label })
         : t("details.route_via", { destination: r.destination.label, next: r.nextHop.label });
       const notes = [];
-      if (r.status.toLowerCase() !== "active") notes.push(t("details.route_not_followed", { status: r.status }));
+      if (r.status.toLowerCase() !== "active") {
+        notes.push(t("details.route_not_followed", { status: rawText("route_status", r.status, t, { debug: ctx.debug }) }));
+      }
       if (r.stale) notes.push(t("details.route_stale"));
       return h("li", {}, text, notes.length ? h("span", { class: "muted", text: ` (${notes.join(", ")})` }) : null);
     })));
@@ -130,7 +135,14 @@ export function renderDetails(container, ctx) {
   }
   container.append(routes);
 
-  if (ctx.debug) container.append(rawTables(ctx.raw && ctx.raw.get(d.id), t));
+  if (ctx.debug) {
+    // Per table: since when it was observed as it is now (spec 9.1, debug), with the caveat of spec 6.
+    if (d.hasTable) {
+      container.append(h("h3", { text: ctx.observedSince ? t("details.observed", { time: ctx.observedSince }) : t("details.observed_none") }),
+        h("p", { class: "muted small", text: t("status.unchanged_note") }));
+    }
+    container.append(rawTables(ctx.raw && ctx.raw.get(d.id), t));
+  }
 }
 
 /** Buttons separated by commas, for inline lists of devices. */
@@ -149,8 +161,14 @@ function readingTable(rows, t, deviceButton) {
       h("td", { text: rankText(r.rating, r.reporter.label, t) + (r.pool === "vendor" ? ` ${t("rank.vendor")}` : "") })))));
 }
 
-/** The device's neighbour and routing tables exactly as zha/devices delivered them (debug mode). Columns are the keys
- *  with plain values; values are shown as text. */
+/** A raw table cell: enum values in words with the raw text beside them, everything else as ZHA sent it. */
+function cell(column, value, t) {
+  if (value === undefined || value === null) return "";
+  return RAW_COLUMNS[column] ? rawText(RAW_COLUMNS[column], value, t, { debug: true }) : String(value);
+}
+
+/** The device's neighbour and routing tables as zha/devices delivered them (debug mode). Columns are the keys with
+ *  plain values; enum values carry their translation next to the raw text. */
 function rawTables(raw, t) {
   const box = h("div", { class: "raw" });
   for (const [key, label] of [["neighbors", "details.raw_neighbours"], ["routes", "details.raw_routes"]]) {
@@ -162,7 +180,7 @@ function rawTables(raw, t) {
       const columns = [...new Set(entries.flatMap((e) => Object.keys(e).filter((k) => e[k] === null || typeof e[k] !== "object")))];
       section.append(h("div", { class: "scroll" }, h("table", { class: "raw-table" },
         h("thead", {}, h("tr", {}, columns.map((c) => h("th", { scope: "col", text: c })))),
-        h("tbody", {}, entries.map((e) => h("tr", {}, columns.map((c) => h("td", { text: e[c] === undefined ? "" : String(e[c]) }))))))));
+        h("tbody", {}, entries.map((e) => h("tr", {}, columns.map((c) => h("td", { text: cell(c, e[c], t) }))))))));
     }
     box.append(section);
   }
