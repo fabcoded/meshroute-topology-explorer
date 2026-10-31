@@ -363,17 +363,24 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   }
 
   /** Status line (spec 6): source, tables, devices in a table, completeness, "observed unchanged since" (with its
-   *  caveat as the part's description), a followed scan with its stop button, the 4-hour hint. */
+   *  caveat as the part's description), a followed scan with its stop button, the 4-hour hint. Below the wide
+   *  breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions, and the
+   *  hint and caveats stay in Details and on wide screens. */
   _renderStatus() {
     const t = this._t;
     const net = this._network;
     const newest = this._observations ? this._observations.newest(net) : null;
     const scan = this._scan && this._scan.state.status !== "idle" ? this._scan.state : null;
-    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan });
-    this._ui.status.replaceChildren(...parts.map(([key, params]) => {
+    const compact = !this._wide;
+    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact });
+    this._ui.status.classList.toggle("compact", compact);
+    this._ui.status.replaceChildren(...parts.map(([key, params, long]) => {
       const span = h("span", { class: "part", text: t(key, params) });
-      if (key === "status.unchanged") span.title = t("status.unchanged_note");
-      if (key === "status.scan_running") {
+      if (long) span.title = t(long, params);
+      if (key === "status.unchanged" || key === "status.short_unchanged") {
+        span.title = long ? `${t(long, params)}. ${t("status.unchanged_note")}` : t("status.unchanged_note");
+      }
+      if (key === "status.scan_running" || key === "status.short_scan_running") {
         span.append(" ", h("button", { type: "button", class: "link status-stop", text: t("status.scan_stop"),
           "aria-label": t("status.scan_stop_label"), on: { click: () => this._scan.stop() } }));
       }
@@ -533,6 +540,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._wide = wide;
       this._dirty.add("settings");
       this._renderHeader();
+      if (this._network && !this._ui.status.hidden) this._renderStatus(); // long or short forms
     }
     // The selection chip: under the banners on wide screens, near the bottom (thumb reach) on narrow ones.
     const chipHome = wide ? this._ui.top : this._ui.map;

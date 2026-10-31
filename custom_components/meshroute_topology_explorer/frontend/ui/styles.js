@@ -228,5 +228,6 @@ dialog.confirm p { margin: 0 0 10px; }
 .status { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 28px;
   padding: 4px 12px; font-size: 12px; color: var(--mte-muted); background: var(--mte-bg);
   border-top: 1px solid var(--mte-divider); }
+.status.compact { min-height: 0; padding: 3px 12px; line-height: 1.35; }
 .status .part:not(:last-child)::after { content: "\\00B7"; margin-left: 4px; }
 `;

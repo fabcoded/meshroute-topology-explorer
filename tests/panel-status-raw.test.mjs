@@ -78,3 +78,31 @@ test("every raw value of the sample has words in English and German", () => {
   }
   assert.ok(values.get("relationship").has("Sibling") && values.get("permit_joining").has("NotAccepting"));
 });
+
+test("narrow screens get the short status line: no source, no hint, long forms as descriptions", () => {
+  const network = sampleNetwork();
+  const en = translator("en");
+  const de = translator("de");
+  const idle = statusParts(network, { unchangedSince: "18:20", compact: true });
+  assert.deepEqual(idle.map(([key]) => key),
+    ["status.short_tables", "status.short_listed", "status.short_complete", "status.short_unchanged"]);
+  assert.ok(idle.every(([, , long]) => long && en.has(long)), "every short part names its long form");
+  const line = (t, parts) => parts.map(([key, params]) => t(key, params)).join(" · ");
+  assert.equal(line(en, idle), "tables 29/29 · 43/45 in a table · 100 % · unchanged since 18:20");
+  assert.equal(line(de, idle), "Tabellen 29/29 · 43/45 in einer Tabelle · 100 % · unverändert seit 18:20");
+  const running = statusParts(network, { unchangedSince: "18:20", compact: true, scan: { status: "running", changed: 5, total: 29 } });
+  assert.equal(running.at(-1)[0], "status.short_scan_running");
+  assert.equal(running.at(-1)[2], "status.scan_running", "the long form with the note stays as the description");
+  assert.equal(en(running.at(-1)[0], running.at(-1)[1]), "scan: 5/29 tables changed");
+  assert.equal(de(running.at(-1)[0], running.at(-1)[1]), "Scan: 5/29 Tabellen geändert");
+  for (const status of ["ended", "stopped"]) {
+    const [key, params] = statusParts(network, { compact: true, scan: { status, changed: 12, total: 29 } }).at(-1);
+    assert.equal(en(key, params), "last scan: 12/29 tables changed", "never claims the scan finished");
+  }
+  // Short enough for two lines on a 390 px phone (366 px of text at about 6.5 px per character, 12 px font).
+  for (const t of [en, de]) {
+    const text = `${line(t, running)} · ${t("status.scan_stop")}`;
+    assert.ok(text.length <= 2 * 366 / 6.5, `${t.lang}: ${text.length} characters`);
+  }
+  assert.ok(!line(en, running).includes("4 hours"), "the 4-hour hint stays on wide screens");
+});
