@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Contract between panel and backend: every command of the integration's own namespace that the panel's code names
-is one the backend registers, and the settings client uses both settings commands (spec 10, 11).
+is one the backend registers; the settings and observations clients use both of their commands (spec 6, 10, 11).
 python3 -m unittest discover -s tests"""
 
 import pathlib
@@ -48,6 +48,10 @@ class PanelContractTest(unittest.TestCase):
     def test_settings_client_uses_get_and_set(self):
         self.assertEqual(panel_commands().get("ui/settings.js"),
                          {"meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set"})
+
+    def test_observations_client_uses_get_and_set(self):
+        self.assertEqual(panel_commands().get("ui/observations-client.js"),
+                         {"meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set"})
 
 
 if __name__ == "__main__":

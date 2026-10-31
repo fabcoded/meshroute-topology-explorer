@@ -211,10 +211,18 @@ Path walks never follow routes or parents from the table of an unavailable devic
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
   first saw that fingerprint, and stores them through the integration (10). "Unchanged since" thus means "observed
   unchanged since"; it is accurate only for times a panel was open, and the status line says so.
+  The stored object holds `routers: { <ieee>: { fingerprint, firstSeen } }`; saves merge per router (the same
+  fingerprint keeps the earlier time, another one the newest view) and keep unknown keys; above 256 KiB the oldest
+  entries go first, which debug mode reports. Times are shown in the browser's local time.
 - **Scan** (debug mode): explains the radio load and asks for confirmation; disabled while a scan of this panel runs;
   sends the command without waiting; then re-reads every 15 seconds for 2 minutes and every 60 seconds up to
   15 minutes, showing "tables changed since the scan started: x of y" with the note that an unchanged table may
   also have been answered; it never claims "finished".
+  "x of y" counts available routers like the status line (coordinator not counted); a router that gains a table
+  counts as changed. A re-read reaches the map only when tables or availability changed, so the layout does not
+  restart every 15 seconds. The command goes out with the connection's fire-and-forget send; a re-read that fails is
+  skipped. Leaving the panel or "stop" ends the following, not the scan, which ZHA cannot cancel. The confirmation
+  starts on "Cancel".
 
 ## 7. Views
 
@@ -303,7 +311,8 @@ user-supplied image, or map tiles from an address the user configured.
   Details, Devices, Findings, Legend, Settings; at most one drawer open; it never covers the selected device (the
   map pans if needed).
 - **Debug mode** (menu, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
-  scan, per-router "observed unchanged since".
+  scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and
+  the like) are shown in the user's language everywhere, with the raw text beside them in debug mode.
 - Wide means a panel at least 720 px wide; the side drawer takes 36 % of it within 320–400 px. The expanded sheet
   takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
   sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info

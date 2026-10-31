@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Loader of dev/panel.html (not shipped): a fake `hass` for the real panel element. callWS answers from the anonymized
 // sample, keeps the integration's settings and observations in memory (or answers "unknown_command"), and can lose
-// the connection on a timer. A burger button at the left edge opens a menu of variants (links that reload the page
+// the connection on a timer. A scan (zha/topology/update) is acted out: afterwards the routers' tables change one after
+// another, two seconds apart, and every fifth stays as it was. A burger button at the left edge opens a menu of variants (links that reload the page
 // with their query) and three toggles that keep the other keys. See dev/panel.html for the query keys.
 import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
@@ -23,6 +24,8 @@ const VARIANTS = [
     ["without-coordinator", "variant=without-coordinator"]]],
   ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
     ["Connection lost (3 s, back 5 s later)", "lost=3&back=5"]]],
+  ["Scan (debug mode)", [["Scan dialog", "scan=dialog"], ["Scan running", "scan=run"],
+    ["Scan running, German", "scan=run&lang=de"]]],
   ["Settings and version", [["Settings without backend", "settings=unknown"], ["Old version", "version=old"]]],
 ];
 /** Toggles keep every other key: [label, key, value]. */
@@ -131,8 +134,34 @@ if (flag("phone")) document.body.classList.add("phone");
 buildVariantMenu(); // before the sample loads, so the menu is there even if loading fails
 
 /** Connection stand-in: the events home-assistant-js-websocket's Connection emits ("ready", "disconnected"). */
-class FakeConnection extends EventTarget {}
+/** Connection stand-in: the events home-assistant-js-websocket's Connection emits ("ready", "disconnected") and its
+ *  fire-and-forget sendMessage, which the panel uses for the scan. */
+class FakeConnection extends EventTarget {
+  sendMessage(message) {
+    if (!connected) throw lost();
+    if (message.type === "zha/topology/update") {
+      scanStartedAt = Date.now();
+      console.log("scan started");
+    }
+  }
+}
 const connection = new FakeConnection();
+let scanStartedAt = null;
+
+/** The tables as ZHA has them now: during an acted-out scan, router i answers 2 s × i after the start with a slightly
+ *  different first LQI (every fifth answers with the same table). */
+function currentDevices() {
+  if (scanStartedAt === null) return devices;
+  const elapsed = Date.now() - scanStartedAt;
+  let router = 0;
+  return devices.map((d) => {
+    if (d.device_type !== "Router" || !d.neighbors.length) return d;
+    router += 1;
+    if (elapsed < router * 2000 || router % 5 === 0) return d;
+    const [first, ...rest] = d.neighbors;
+    return { ...d, neighbors: [{ ...first, lqi: String(Math.max(1, Number(first.lqi) - 3)) }, ...rest] };
+  });
+}
 
 const fixture = await (await fetch("../tests/fixtures/zha-sample.json")).json();
 const responses = fixture.responses;
@@ -164,7 +193,7 @@ async function callWS(msg) {
     case "config_entries/get": return flag("nozha") ? [] : responses["config_entries/get"];
     case "zha/devices":
       if (flag("error")) throw { code: "home_assistant_error", message: "ZHA did not answer" };
-      return flag("empty") ? [] : devices;
+      return flag("empty") ? [] : currentDevices();
     case "config/device_registry/list": return responses["config/device_registry/list"];
     case "config/area_registry/list": return responses["config/area_registry/list"];
     case "meshroute_topology_explorer/settings/get":
@@ -235,6 +264,13 @@ async function drive() {
   const tab = q.get("tab");
   if (tab) el._toggleTab(tab, null);
   if (q.get("scroll") === "end") { await sleep(100); el._drawer.body.scrollTop = el._drawer.body.scrollHeight; }
+  // scan=dialog opens the scan's confirmation; scan=run also confirms it (debug mode is switched on for both).
+  if (q.get("scan")) {
+    if (!el._debug) el._onMenu("debug");
+    el._startScan();
+    await sleep(100);
+    if (q.get("scan") === "run") el.shadowRoot.querySelector("dialog.confirm .primary").click();
+  }
 }
 
 /** steps=click:<selector>;focus:<selector>;key:<Key>;wait:<ms>;note:<text> replays input inside the panel and records

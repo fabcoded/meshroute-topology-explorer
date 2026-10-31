@@ -21,11 +21,15 @@ export function isIncomplete(status) {
   return status.completeness < INCOMPLETE_BELOW;
 }
 
+/** Status keys of a followed scan (ui/scan.js states). */
+const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", stopped: "status.scan_stopped",
+  "not-sent": "status.scan_not_sent" };
+
 /** Parts of the status line as [key, params] for the translator, in order: source, tables x of y (available routers,
- *  coordinator not counted), devices in at least one table, completeness, then "unchanged since" when known, then the
- *  hint that ZHA scans by itself. unchangedSince comes from the observations (spec 6), which arrive with the next
- *  slice of work; until then it is null and the part is left out. */
-export function statusParts(network, { unchangedSince = null } = {}) {
+ *  coordinator not counted), devices in at least one table, completeness, "observed unchanged since" when known
+ *  (formatted time, from the observations), the state of a followed scan (spec 6, 9.4), then the hint that ZHA scans
+ *  by itself. */
+export function statusParts(network, { unchangedSince = null, scan = null } = {}) {
   const s = network.status;
   const parts = [
     ["status.source", { source: network.source === "zha" ? "ZHA" : network.source }],
@@ -34,6 +38,8 @@ export function statusParts(network, { unchangedSince = null } = {}) {
     ["status.complete", { pct: completenessPercent(s) }],
   ];
   if (unchangedSince) parts.push(["status.unchanged", { time: unchangedSince }]);
+  const scanKey = scan && SCAN_KEYS[scan.status];
+  if (scanKey) parts.push([scanKey, { changed: scan.changed, total: scan.total, message: scan.message || "?" }]);
   if (network.source === "zha") parts.push(["status.scan_hint", {}]);
   return parts;
 }

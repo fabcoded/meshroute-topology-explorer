@@ -6,7 +6,8 @@ import { DENSITY_NAMES } from "./settings.js";
 import { FILLS } from "../graph/palette.js";
 
 /** Fill `container`. ctx: { t, settings (sanitized object), wide, pinCount, client (SettingsClient: mode, reason,
- *  error), idPrefix (stable, so focus can be found again after a re-render), onChange(patch), onReleaseAll() }. */
+ *  error), observations (ObservationsClient, only in debug mode), idPrefix (stable, so focus can be found again after
+ *  a re-render), onChange(patch), onReleaseAll() }. */
 export function renderSettings(container, ctx) {
   const { t, settings } = ctx;
   const id = ctx.idPrefix || "mte-settings";
@@ -41,6 +42,13 @@ export function renderSettings(container, ctx) {
   container.append(h("p", { class: "muted small", text: t("settings.debug_note") }));
   container.append(h("p", { class: `storage ${ctx.client.mode === "memory" || ctx.client.error ? "warn" : ""}`.trim(),
     role: "status", text: storageText(ctx.client, t) }));
+  // Debug mode: where the observations of spec 6 live, and whether old entries had to go to stay under the limit.
+  const obs = ctx.observations;
+  if (obs) {
+    const count = Object.keys(obs.routers).length;
+    const text = obs.mode === "memory" ? t("observations.memory", { reason: obs.reason || "?" }) : t("observations.stored", { count });
+    container.append(h("p", { class: "muted small", text: obs.dropped ? `${text} ${t("observations.dropped", { count: obs.dropped })}` : text }));
+  }
 }
 
 /** Where the settings live, in words (the fallback must be said, brief A4a). */

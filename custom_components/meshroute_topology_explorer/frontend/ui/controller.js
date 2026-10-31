@@ -108,6 +108,12 @@ export class PanelController extends EventTarget {
       message: result.message || null, loading: false });
   }
 
+  /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
+  adopt(network, raw) {
+    this._token += 1;
+    this._set({ phase: "ready", network, raw: raw || null, message: null, loading: false });
+  }
+
   _maybeStart() {
     if (!this.started && this.attached && this.hass && this.hass.user) this.reload();
   }
