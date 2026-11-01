@@ -4,19 +4,12 @@
 // resolved map theme, the links part from the graph's own legend entries (link-legend.js) and the symbols are drawn by
 // the map's own drawSymbol (graph/symbols.js), so legend and map always agree. Runs in the browser.
 import { h, svg, icon } from "./dom.js";
-import { ratingColor, lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
+import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
 import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
 /** Symbols in the Legend tab are drawn at 48 px (design: 32 px for the overview, 48 px zoomed, in details and legend). */
 const SWATCH = 48;
-
-/** CSS gradient of the rating scale as the map draws it (the theme's contrast-safe part of cividis). */
-export function ratingGradient(theme) {
-  const stops = [];
-  for (let i = 0; i <= 8; i++) stops.push(ratingColor(i / 8, theme));
-  return `linear-gradient(to right, ${stops.join(", ")})`;
-}
 
 /** [{ label, color, slash }] of the category fill; the grey "none" entry last. */
 function categoryEntries(fill, theme, t, roles) {
@@ -51,7 +44,7 @@ function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
   const parts = "picture" in device ? device : symbolParts(device);
   const background = state.offline ? theme.background : fill;
   drawSymbol(el.getContext("2d"), symbolLayers(parts, state), px / 2, px / 2, px, dpr,
-    { fill: background, stroke: lineColorOn(background, theme), slash: false });
+    { fill: background, stroke: fill === theme.neutral ? theme.foreground : lineColorOn(background, theme), slash: false });
   return el;
 }
 
@@ -63,10 +56,9 @@ const bare = (extra = {}) => ({ picture: null, router: false, radio: false, cabl
 export function renderLegend(container, { t, theme, fill, roles, devices = [], links, debug }) {
   container.replaceChildren();
   container.append(h("h3", { text: t(`legend.fill_${fill}`) }));
-  if (fill === "reception") {
-    container.append(scale(theme, t),
-      h("p", { class: "small", text: t("legend.reception") }),
-      h("p", { class: "small", text: t("legend.rank") }));
+  if (fill === "none") {
+    container.append(h("p", { class: "small" }, chip({ fill: theme.neutral, outline: theme.foreground, size: 16 }),
+      t("legend.none")));
   } else {
     container.append(h("ul", { class: "swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
       h("li", {}, chip({ fill: e.color, outline: theme.outline, slash: e.slash }), h("span", { text: e.label })))));
@@ -75,15 +67,15 @@ export function renderLegend(container, { t, theme, fill, roles, devices = [], l
   // Links: what the graph says it draws (three classes without colour, implied lanes, widths, glyphs, band).
   container.append(h("h3", { text: t("legend.links_title") }),
     h("p", { class: "small", text: t("legend.links_intro") }),
+    h("p", { class: "small", text: t("legend.links_value") }),
     linkLegendList(links || [], t),
     h("p", { class: "small", text: t("legend.links_default") }));
-  if (fill !== "reception") container.append(h("p", { class: "small", text: t("legend.rank") }));
+  container.append(h("p", { class: "small", text: t("legend.rank") }));
   if (debug) container.append(h("p", { class: "small", text: t("legend.debug") }));
 
-  // Symbols carry a value of the current fill, never the grey that means "no value"; for reception the strong end of
-  // the scale (its middle is grey by design).
+  // Symbols carry a value of the current fill, never the grey that means "no value"; the "none" fill is the neutral grey.
   const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
-    : fill === "power" ? theme.categories.power.mains : ratingColor(1, theme));
+    : fill === "power" ? theme.categories.power.mains : theme.neutral);
   const parts = devices.map((d) => symbolParts(d));
   const has = (key) => parts.some((p) => p[key]);
   const item = (swatch, key) => h("li", {}, swatch, h("span", { text: t(key) }));
@@ -114,13 +106,6 @@ export function renderLegend(container, { t, theme, fill, roles, devices = [], l
   h("p", { class: "small", text: t("legend.state_ring") }));
 }
 
-function scale(theme, t) {
-  return h("div", { class: "scale" },
-    h("div", { class: "scale-bar", style: { background: ratingGradient(theme) } }),
-    h("div", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })),
-    h("p", { class: "small muted" }, chip({ fill: theme.node, outline: theme.outline, size: 16, slash: true }), t("legend.unrated")));
-}
-
 /** The legend pill on the map (spec 9.1): collapsed, a button "Legend ›"; expanded, the current fill and the three
  *  link classes with a button back to the pill and one to the Legend tab. ctx: { t, theme, fill, roles, links, open,
  *  onToggle(), onMore() }. Focus stays on the toggle when it flips. */
@@ -134,10 +119,7 @@ export function renderLegendPill(box, { t, theme, fill, roles, links, open, onTo
   icon(open ? "down" : "right", 16));
   box.append(toggle);
   if (open) {
-    if (fill === "reception") {
-      box.append(h("span", { class: "scale-bar mini", style: { background: ratingGradient(theme) } }),
-        h("span", { class: "scale-ends" }, h("span", { text: t("legend.weaker") }), h("span", { text: t("legend.stronger") })));
-    } else {
+    if (fill !== "none") {
       box.append(h("span", { class: "mini-swatches" }, categoryEntries(fill, theme, t, roles).map((e) =>
         h("span", { class: "mini-swatch" }, chip({ fill: e.color, outline: theme.outline, size: 16, slash: e.slash }),
           h("span", { text: e.label.replace(/ \(.*\)$/, "") })))));

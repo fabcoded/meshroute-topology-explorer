@@ -106,7 +106,7 @@ function draw({ selected = -1, hovered = -1, debug = false } = {}) {
   const scene = buildScene(NET, labelWidth);
   const ctx = recordingContext({ props: true });
   const stats = drawScene(ctx, scene, POS, { cam: { k: 1, cx: 0, cy: 0 }, width: 1000, height: 800, dpr: 1,
-    labelZoom: 1, debug, selected, hovered, fps: null, fill: "reception" }, theme, labelWidth);
+    labelZoom: 1, debug, selected, hovered, fps: null, fill: "none" }, theme, labelWidth);
   return { scene, ctx, stats };
 }
 

@@ -76,10 +76,15 @@ test("the links legend is built from the graph's entries, with words for every e
   assert.equal(unknown[0].label, "future", "an entry without words keeps its id instead of vanishing");
 });
 
-test("the reception fill is called Receive / Empfang and the legend says what it means", () => {
-  assert.equal(translator("en")("fill.reception"), "Receive");
-  assert.equal(translator("de")("fill.reception"), "Empfang");
-  assert.match(translator("en")("legend.reception"), /how well the neighbours receive/);
-  assert.match(translator("de")("legend.reception"), /wie gut die Nachbarn das Gerät empfangen/);
+test("the none fill and the arrows' reception are named in both languages", () => {
+  assert.equal(translator("en")("fill.none"), "None");
+  assert.equal(translator("de")("fill.none"), "Keine");
+  assert.equal(translator("en")("legend.fill_none"), "Fill: none");
+  assert.equal(translator("de")("legend.fill_none"), "Füllung: keine");
+  assert.match(translator("en")("legend.links_value"), /number at an arrow is the LQI at the hearer/);
+  assert.match(translator("de")("legend.links_value"), /Zahl am Pfeil ist der LQI beim Hörer/);
+  assert.match(translator("en")("legend.none"), /Reception is shown at the arrows/);
+  assert.match(translator("de")("legend.none"), /Empfang steht an den Pfeilen/);
+  assert.equal(translator("en")("fill.reception"), "fill.reception", "the removed fill has no words left");
   assert.equal(translator("de")("lane.parent"), "Parent");
 });

@@ -49,7 +49,7 @@ test("unknown ratings have no colour; higher ratings are lighter on light and on
 });
 
 test("role and power fills: Okabe–Ito colours, 3:1 against light and dark backgrounds, distinct within a fill", () => {
-  assert.deepEqual(FILLS, ["reception", "role", "power"]);
+  assert.deepEqual(FILLS, ["none", "role", "power"]);
   for (const background of ["#ffffff", "#fafafa", "#f0f0f0", "#111111", "#1c1c1c", "#303030"]) {
     const theme = resolveTheme({ background });
     for (const fill of ["role", "power"]) {
@@ -73,12 +73,14 @@ test("role and power fills: Okabe–Ito colours, 3:1 against light and dark back
 test("fillColor follows the chosen fill; devices without a category stay grey (null)", () => {
   const theme = resolveTheme({});
   const node = { role: "router", rating: 0.5, power: "mains" };
-  assert.equal(fillColor(node, "reception", theme), ratingColor(0.5, theme));
+  assert.equal(fillColor(node, "none", theme), theme.neutral, "none: neutral grey, whatever the rating");
   assert.equal(fillColor(node, "role", theme), theme.categories.role.router);
   assert.equal(fillColor(node, "power", theme), theme.categories.power.mains);
   assert.equal(fillColor({ role: "unknown", rating: null, power: null }, "role", theme), null);
   assert.equal(fillColor({ role: "unknown", rating: null, power: null }, "power", theme), null);
-  assert.equal(fillColor({ role: "router", rating: null }, "reception", theme), null);
+  assert.equal(fillColor({ role: "router", rating: null }, "none", theme), theme.neutral);
+  assert.equal(resolveTheme({}).neutral, "#c5c8cb");
+  assert.equal(resolveTheme({ background: "#111111" }).neutral, "#5c6166");
   assert.equal(powerCategory("Mains (single phase)"), "mains");
   assert.equal(powerCategory("Emergency Mains Constantly Powered"), "mains");
   assert.equal(powerCategory("Battery or Unknown"), "battery");
@@ -109,12 +111,12 @@ test("the grey for 'no value' stays clear of the rating scale and the background
   assert.ok(old < 2);
 });
 
-test("a device without a value under the fill is grey with a slash; rated and offline devices have none", () => {
+test("a device without a value under the fill (here: role unknown) is grey with a slash; rated and offline devices have none", () => {
   const network = {
     devices: [
       { id: "a", role: "router", label: "Rated", rating: 0.5 },
-      { id: "b", role: "router", label: "Unrated", rating: null },
-      { id: "c", role: "router", label: "Offline", rating: null, available: false },
+      { id: "b", role: "unknown", label: "Unrated", rating: null },
+      { id: "c", role: "unknown", label: "Offline", rating: null, available: false },
     ],
     readings: [],
   };
@@ -123,12 +125,34 @@ test("a device without a value under the fill is grey with a slash; rated and of
   const theme = resolveTheme({});
   const pos = { x: [0, 100, 200], y: [0, 0, 0], pinned: [0, 0, 0], mesh: [1, 1, 1] };
   drawScene(ctx, scene, pos, { cam: { k: 1, cx: 100, cy: 0 }, width: 400, height: 200, dpr: 1, labelZoom: 1,
-    debug: false, selected: -1, hovered: -1, fps: null, fill: "reception" }, theme, (text) => text.length * 7);
+    debug: false, selected: -1, hovered: -1, fps: null, fill: "role" }, theme, (text) => text.length * 7);
   // The slash runs from lower left to upper right across the symbol's background (symbols.js SLASH, grid units).
   const slashes = drawnSymbols(ctx.calls, 1).filter((sym) => sym.calls.some((c, j) => c[0] === "moveTo"
     && c[1] === SLASH[0] && c[2] === SLASH[1] && sym.calls[j + 1][0] === "lineTo" && sym.calls[j + 1][1] === SLASH[2]))
     .map((sym) => Math.round(sym.x));
   assert.deepEqual(slashes.map((x) => x - 200), [0], "only the unrated device (drawn at x = 200) has a slash");
+});
+
+test("the none fill draws every available symbol neutral grey with foreground lines and no slash", () => {
+  const network = { devices: [
+    { id: "a", role: "router", label: "Rated", rating: 0.9 }, { id: "b", role: "router", label: "Unrated", rating: null },
+  ], readings: [] };
+  for (const background of ["#ffffff", "#111111"]) {
+    const scene = buildScene(network, (text) => text.length * 7);
+    const ctx = recordingContext({ props: true });
+    const theme = resolveTheme({ background });
+    const pos = { x: [0, 100], y: [0, 0], pinned: [0, 0], mesh: [1, 1] };
+    drawScene(ctx, scene, pos, { cam: { k: 1, cx: 50, cy: 0 }, width: 400, height: 200, dpr: 1, labelZoom: 1,
+      debug: false, selected: -1, hovered: -1, fps: null, fill: "none" }, theme, (text) => text.length * 7);
+    const symbols = drawnSymbols(ctx.calls, 1);
+    assert.equal(symbols.length, 2);
+    for (const sym of symbols) {
+      const set = (key) => sym.calls.filter((c) => c[0] === "set" && c[1] === key).map((c) => c[2]);
+      assert.ok(set("fillStyle").includes(theme.neutral), `${background}: neutral fill`);
+      assert.ok(set("strokeStyle").length > 0 && set("strokeStyle").every((v) => v === theme.foreground), `${background}: foreground lines`);
+      assert.ok(!sym.calls.some((c) => c[0] === "moveTo" && c[1] === SLASH[0] && c[2] === SLASH[1]), "no slash");
+    }
+  }
 });
 
 test("symbol lines keep 3:1 against every fill the map uses, in light and dark themes", () => {

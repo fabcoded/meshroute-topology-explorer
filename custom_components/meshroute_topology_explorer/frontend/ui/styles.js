@@ -118,9 +118,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .zoom .icon-button { border-radius: 0; width: 44px; height: 44px; }
 .zoom .icon-button + .icon-button { border-top: 1px solid var(--mte-divider); }
 .mini-title { font-weight: 500; }
-.scale-bar { display: block; height: 10px; border-radius: 2px; min-width: 140px; }
-.scale-bar.mini { height: 8px; }
-.scale-ends { display: flex; justify-content: space-between; gap: 12px; color: var(--mte-muted); }
 .mini-swatches { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .mini-swatch { display: inline-flex; align-items: center; gap: 2px; }
 .mini-swatch svg { width: 16px; height: 16px; }
@@ -227,8 +224,6 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
 .swatches li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .swatches.symbols li, .swatches.pictures li { gap: 12px; }
 .swatches.pictures { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-.scale { margin: 6px 0 10px; }
-.scale p { display: flex; align-items: center; gap: 6px; }
 .small svg { vertical-align: middle; }
 fieldset { border: none; margin: 0 0 14px; padding: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 4px; }

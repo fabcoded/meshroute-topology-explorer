@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): devices as symbols (symbols.js: role, picture, state) whose
-// background carries the fill, reception (default), role or power source; links as two lanes per pair in three
+// background carries the fill, none (default), role or power source; links as two lanes per pair in three
 // colour-free classes (links.js):
 // up-path and route pairs always, heard-only pairs as each device's best three, everything for the focus and in
 // debug mode; the selection's up path as a band, its lanes with their values; labels as canvas text placed around
@@ -176,7 +176,7 @@ class RectGrid {
 }
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null), fill ("reception" | "role" | "power", palette.js FILLS), texts ({ uncertain, parent, route },
+ *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), texts ({ uncertain, parent, route },
  *  words drawn on lanes) }; pos: { x, y, pinned, mesh } arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
  *  class), order (class of each pair in drawing order), symbols (devices drawn), size (symbol size on screen) }. */
@@ -285,7 +285,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // showing through), the selection a thicker frame, a pin a mark inside. Hover changes only the highlighting.
   const obstacles = new RectGrid();
   const half = size / 2;
-  const lineColors = new Map(); // per fill colour: the reception fill has few distinct colours per frame
+  const lineColors = new Map(); // per fill colour: the role and power fills have few distinct colours per frame
   const lineOn = (fill) => {
     if (!lineColors.has(fill)) lineColors.set(fill, lineColorOn(fill, theme));
     return lineColors.get(fill);
@@ -300,9 +300,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i });
     const value = node.available ? fillColor(node, view.fill, theme) : null;
     const fill = node.available ? value || theme.node : theme.background;
+    // The neutral fill is designed for the theme's own line colour; no flip (spec 8).
+    const stroke = node.available && view.fill === "none" ? theme.foreground : lineOn(fill);
     const layers = symbolLayers(node.parts, { selected: i === view.selected, pinned: Boolean(pos.pinned[i]) });
     // No value under this fill (not rated, no category): grey plus a slash, so colour is not the only sign.
-    drawSymbol(ctx, layers, x, y, size, dpr, { fill, stroke: lineOn(fill), slash: node.available && !value });
+    drawSymbol(ctx, layers, x, y, size, dpr, { fill, stroke, slash: node.available && !value });
     symbols++;
   }
 

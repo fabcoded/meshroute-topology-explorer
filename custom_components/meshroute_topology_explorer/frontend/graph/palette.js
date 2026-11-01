@@ -159,8 +159,12 @@ export const OKABE_ITO = Object.freeze({
   blue: "#0072b2", vermillion: "#d55e00", reddishPurple: "#cc79a7",
 });
 
-/** Fills a user can choose (spec 8); reception is the default. Relay load arrives with the route view (v1.1). */
-export const FILLS = Object.freeze(["reception", "role", "power"]);
+/** Fills a user can choose (spec 8); "none" (neutral grey) is the default. Reception is shown at the arrows, not in
+ *  the symbols (decision by Fabian Schwamborn, 2026-11-01). Relay load arrives with the route view (v1.1). */
+export const FILLS = Object.freeze(["none", "role", "power"]);
+
+/** Neutral symbol grey of the "none" fill per theme brightness, as designed (spec 8). */
+export const NEUTRAL = Object.freeze({ light: "#c5c8cb", dark: "#5c6166" });
 
 /** Category -> Okabe–Ito colour per fill. Only the four colours that come close to 3:1 on white and on near-black
  *  are used (blue, bluish green, vermillion, reddish purple), so one mapping serves light and dark themes and the
@@ -184,13 +188,14 @@ export function powerCategory(text) {
   return null;
 }
 
-/** Fill colour of a node { role, rating, power } under a fill; null means the theme's grey node colour. */
+/** Fill colour of a node { role, power } under a fill; null means no value (the grey node colour with a slash). The
+ *  "none" fill is the neutral grey for every device, so it always has a value. */
 export function fillColor(node, fill, theme) {
   if (fill === "role" || fill === "power") {
     const key = fill === "role" ? node.role : node.power;
     return (key && theme.categories[fill][key]) || null;
   }
-  return ratingColor(node.rating, theme);
+  return theme.neutral;
 }
 
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
@@ -215,6 +220,7 @@ export function resolveTheme(input = {}) {
     outline: toHex(fg),
     muted: toHex(muted),
     node: toHex(noValueGrey(bg, range).grey),
+    neutral: luminance(bg) < 0.18 ? NEUTRAL.dark : NEUTRAL.light,
     accent: toHex(ensureContrast(pick("accent"), bg)),
     font: typeof input.font === "string" && input.font ? input.font : base.font,
     lineRange: range,

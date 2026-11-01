@@ -70,7 +70,7 @@ function defaultEnv() {
 }
 
 export class GraphView extends EventTarget {
-  /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("reception",
+  /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
    *  "role" or "power"), texts ({ uncertain, parent, route }), seed, debug, env (timers and media queries, injectable
    *  for tests). */
   constructor(canvas, options = {}) {
@@ -82,7 +82,7 @@ export class GraphView extends EventTarget {
     this.density = options.density || DENSITY.medium;
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
-    this.fill = FILLS.includes(options.fill) ? options.fill : "reception";
+    this.fill = FILLS.includes(options.fill) ? options.fill : "none";
     this.links = { ...DEFAULT_LINKS, ...(options.links || {}) };
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(options.texts || {}) };
     this.width = 0;
@@ -172,7 +172,7 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Choose the fill of the devices (spec 8): "reception" (default), "role" or "power"; anything else is ignored. */
+  /** Choose the fill of the devices (spec 8): "none" (default), "role" or "power"; anything else is ignored. */
   setFill(fill) {
     if (!FILLS.includes(fill) || fill === this.fill) return;
     this.fill = fill;

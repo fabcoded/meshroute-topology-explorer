@@ -35,7 +35,7 @@ const POS = { x: [-300, 0, 300, 600], y: [0, 0, 0, 0], pinned: [0, 0, 0, 0], mes
 function classesDrawn(links, extra = {}) {
   const scene = buildScene(NET, labelWidth);
   const stats = drawScene(recordingContext({ props: true }), scene, POS, { cam: { k: 1, cx: 150, cy: 0 }, width: 1400,
-    height: 800, dpr: 1, labelZoom: 1, debug: false, links, selected: -1, hovered: -1, fps: null, fill: "reception",
+    height: 800, dpr: 1, labelZoom: 1, debug: false, links, selected: -1, hovered: -1, fps: null, fill: "none",
     ...extra }, theme, labelWidth);
   return stats.classes;
 }
