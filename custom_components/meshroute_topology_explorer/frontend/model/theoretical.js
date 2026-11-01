@@ -24,7 +24,7 @@ import { pairEvidence } from "./pairs.js";
 /** How a hop is taken, in the order of the rules above (spec 5.7). */
 export const HOWS = Object.freeze(["parent", "child", "table", "neighbour", "discovery"]);
 
-/** Link cost 1..7 of one direction from the hearer's LQI (spec 5.7; decision by Fabian Schwamborn, 2026-11-01):
+/** Link cost 1..7 of one direction from the hearer's LQI (spec 5.7; decision of the main session, 2026-11-01):
  *  1 + round(6 (1 - LQI / 255)), so LQI 255 costs 1, 128 costs 4 and 0 costs 7. The specification wants a cost of 1
  *  to 7 (3.4.8.3.2) that falls with link quality, allows "a table-driven function ... to map average LQI values onto
  *  C{l}" (3.6.3.1) and leaves the estimate to the implementation; its example min(7, round(1 / p^4)) with p read as
@@ -156,8 +156,7 @@ export function discoveryLinkCost(network, a, b) {
 /** Theoretical path from `from` to `to` (rules above): { ids, complete, hops: [{ sender, hearer, how, reason?, cost?
  *  }], reason, cost }. ids run in the direction of travel and end where the walk stopped; reason says why an
  *  incomplete path stopped ("loop", "unavailable", "no link", "table not read", "no parent", "unknown device"), else
- *  null; a discovery
- *  hop carries its link cost, and cost is the path cost of the discovery part (null without one). */
+ *  null; a discovery hop carries its link cost, and cost is the path cost of the discovery part (null without one). */
 export function theoreticalPath(network, from, to) {
   const c = lookups(network);
   const start = c.byId.get(from);
@@ -171,8 +170,8 @@ export function theoreticalPath(network, from, to) {
   if (from === to) return result(start.available, "unavailable");
   if (!start.available) return result(false, "unavailable");
   const childOf = target.role === "end device" ? target.parent : null;
+  let stop = null; // why step() refused
   /** Append one hop; false when it closes a loop or reaches an unavailable device (the walk stops there). */
-  let stop = null;
   const step = (sender, hearer, how, extra) => {
     if (seen.has(hearer)) { stop = "loop"; return false; }
     hops.push({ sender, hearer, how, ...extra });
@@ -228,8 +227,9 @@ export function theoreticalPath(network, from, to) {
 const laneCache = new WeakMap(); // network -> theoreticalLanes
 
 /** Every lane the theoretical paths between any two available devices use, the coordinator's included: Map
- *  "sender>hearer" -> { sender, hearer, hows (Set of how it is taken) }. The stage-2 overview draws this backbone (decisions by
- *  Fabian Schwamborn, 2026-11-01: every lane any path uses). Computed once per network; on the sample 1722 paths. */
+ *  "sender>hearer" -> { sender, hearer, hows (Set of how it is taken) }. The stage-2 overview draws this backbone
+ *  (decisions by Fabian Schwamborn, 2026-11-01: every lane any path uses). Computed once per network; on the sample
+ *  1722 paths and 570 lanes. */
 export function theoreticalLanes(network) {
   let lanes = laneCache.get(network);
   if (lanes) return lanes;

@@ -408,8 +408,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const cls = sc.cls[lane.index];
     if (debug || cls === "up" || cls === "down") return { cls, predicted: false };
     const kind = bb ? bb.kind[lane.index] : null;
-    return kind && overviewShows("route", stage, { backbone: true }) ? { cls: "route", predicted: kind === "predicted" }
-      : null;
+    if (!kind || !overviewShows("route", stage, { backbone: true })) return null;
+    return { cls: "route", predicted: kind === "predicted" };
   };
   const laneShown = (lane) => overview(lane) !== null;
   // The lanes of the focus: the selection's (its stage on click), else the device under the pointer previews its own,

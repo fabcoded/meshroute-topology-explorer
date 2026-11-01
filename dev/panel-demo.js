@@ -377,6 +377,16 @@ async function drive() {
     if (flag("readvalues") && el._cluster) el._cluster.read();
   }
   const panel = q.get("right") ? el._right : el._left;
+  // expand=theory[:n]: the Details card "Paths to other devices" opened, and its first n rows (default 2).
+  if (q.get("expand") && q.get("expand").startsWith("theory")) {
+    await sleep(100);
+    const card = el.shadowRoot.querySelector("details.theory");
+    if (card) {
+      card.open = true;
+      const n = Number(q.get("expand").split(":")[1] || 2);
+      [...card.querySelectorAll("details.theory-row")].slice(0, n).forEach((row) => { row.open = true; });
+    }
+  }
   if (q.get("scroll") === "end") { await sleep(100); panel.body.scrollTop = panel.body.scrollHeight; }
   // scan=dialog opens the scan's confirmation; scan=run also confirms it (debug mode is switched on for both).
   if (q.get("scan")) {

@@ -197,7 +197,8 @@ function theoryCard(rows, ctx, name) {
       if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
       const notes = [s.how && howText(s.how, t), s.noEntry && t(`details.no_entry_${s.noEntry.replace(/ /g, "_")}`)]
         .filter(Boolean);
-      if (notes.length) nodes.push(h("span", { class: "how", text: ` (${notes.join(", ")})` }));
+      // A middle dot, not brackets: "Routensuche (berechnet)" carries its own.
+      if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));
     });
     if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
     if (p.cost !== null && p.cost !== undefined) nodes.push(h("span", { class: "how", text: ` · ${t("details.theory_cost", { cost: p.cost })}` }));
