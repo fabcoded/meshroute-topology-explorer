@@ -8,12 +8,12 @@ import { translator } from "../custom_components/meshroute_topology_explorer/fro
 import { rawKey, rawText, RAW_COLUMNS } from "../custom_components/meshroute_topology_explorer/frontend/ui/raw-values.js";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 
-test("status line: observed unchanged since, then the scan, then the 4-hour hint; words in both languages", () => {
+test("status line (board M1): source, tables, completeness, observed unchanged since, then the scan; both languages", () => {
   const network = sampleNetwork();
   const scan = { status: "running", changed: 11, total: 29 };
   const parts = statusParts(network, { unchangedSince: "14:32", scan });
-  assert.deepEqual(parts.map(([key]) => key), ["status.source", "status.tables", "status.listed", "status.complete",
-    "status.unchanged", "status.scan_running", "status.scan_hint"]);
+  assert.deepEqual(parts.map(([key]) => key), ["status.source", "status.tables", "status.complete", "status.unchanged",
+    "status.scan_running"]);
   const en = translator("en");
   const de = translator("de");
   const text = (t) => parts.map(([key, params]) => t(key, params)).join(" · ");
@@ -22,11 +22,11 @@ test("status line: observed unchanged since, then the scan, then the 4-hour hint
   assert.match(text(de), /beobachtet unverändert seit 14:32/);
   assert.match(text(de), /Scan läuft: seit Scanbeginn geänderte Tabellen: 11 von 29/);
   for (const status of ["ended", "stopped", "not-sent"]) {
-    const [key, params] = statusParts(network, { scan: { status, changed: 3, total: 29, message: "Connection lost" } })[4];
+    const [key, params] = statusParts(network, { scan: { status, changed: 3, total: 29, message: "Connection lost" } })[3];
     assert.ok(key.startsWith("status.scan_"), status);
     assert.ok(!/finished|fertig\b/i.test(en(key, params)), "never claims the scan finished");
   }
-  assert.equal(statusParts(network, { scan: { status: "idle" } }).length, 5, "an idle scan adds nothing");
+  assert.equal(statusParts(network, { scan: { status: "idle" } }).length, 3, "an idle scan adds nothing");
   assert.ok(en("status.unchanged_note").includes("only while one is open"));
 });
 
@@ -79,17 +79,17 @@ test("every raw value of the sample has words in English and German", () => {
   assert.ok(values.get("relationship").has("Sibling") && values.get("permit_joining").has("NotAccepting"));
 });
 
-test("narrow screens get the short status line: no source, no hint, long forms as descriptions", () => {
+test("narrow screens get the short status line: no source, long forms as descriptions", () => {
   const network = sampleNetwork();
   const en = translator("en");
   const de = translator("de");
   const idle = statusParts(network, { unchangedSince: "18:20", compact: true });
   assert.deepEqual(idle.map(([key]) => key),
-    ["status.short_tables", "status.short_listed", "status.short_complete", "status.short_unchanged"]);
+    ["status.short_tables", "status.short_complete", "status.short_unchanged"]);
   assert.ok(idle.every(([, , long]) => long && en.has(long)), "every short part names its long form");
   const line = (t, parts) => parts.map(([key, params]) => t(key, params)).join(" · ");
-  assert.equal(line(en, idle), "tables 29/29 · 43/45 in a table · 100 % · unchanged since 18:20");
-  assert.equal(line(de, idle), "Tabellen 29/29 · 43/45 in einer Tabelle · 100 % · unverändert seit 18:20");
+  assert.equal(line(en, idle), "tables 29/29 · 100 % · unchanged since 18:20");
+  assert.equal(line(de, idle), "Tabellen 29/29 · 100 % · unverändert seit 18:20");
   const running = statusParts(network, { unchangedSince: "18:20", compact: true, scan: { status: "running", changed: 5, total: 29 } });
   assert.equal(running.at(-1)[0], "status.short_scan_running");
   assert.equal(running.at(-1)[2], "status.scan_running", "the long form with the note stays as the description");

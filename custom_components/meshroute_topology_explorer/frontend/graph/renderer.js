@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): devices as symbols (symbols.js: role, picture, state) whose
-// background carries the fill, none (default), role or power source; links as two lanes per pair in three
-// colour-free classes (links.js), optionally coloured by reception:
-// up-path and route pairs always, heard-only pairs as each device's best three, everything around the focus and in
-// debug mode. A selected device (or, without one, the device under the pointer) shows its paths in the node view
-// (model/node-paths.js): every hop on the lane of its direction of travel with the reception at its hearer, unknown
-// ends as dashed stems with "?", the up path as a band, everything else dimmed. Labels as canvas text placed around
-// obstacles: a block of the device's type above the symbol, its readable name below and optionally the original Home
-// Assistant name under that (labels.js). Also hit testing, which shares the symbols' size. Pure except for the context passed in.
+// background carries the fill, none (default), role or power source; links as two lanes per pair, each with the class
+// of its own direction (links.js), optionally coloured by reception. What is drawn follows the stage of
+// "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11): the overview shows the up and down
+// lanes of all devices (stage "heard" adds each device's best heard-only partners); a selected device shows only its
+// own lanes of the stage, every hop with the reception at its hearer, its way up as a band, unknown ends as dashed
+// stems with "?", and dims the other devices; the device under the pointer previews its lanes within the overview; debug mode draws every lane
+// with its value. Labels as canvas text placed around obstacles: a block of the device's type above the symbol, its
+// readable name below and optionally the original Home Assistant name under that (labels.js). Also hit testing,
+// which shares the symbols' size. Pure except for the context passed in.
 // node --test tests/
 
 import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
-  BAND, BEST_HEARD, CLASSES, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyPairs, laneGeometry, pairDrawn, laneStyle,
-  pathLaneStyle, stemGeometry, textBeside, unknownGlyph,
+  BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, laneClass, laneGeometry,
+  laneStyle, overviewShows, pathStage, stemGeometry, textBeside, unknownGlyph,
 } from "./links.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
-import { DEFAULT_NODE_VIEW, nodePaths, unknownEnd } from "../model/node-paths.js";
+import { nodePaths, unknownEnd } from "../model/node-paths.js";
 
 /** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
 const ROLES = new Set(["coordinator", "router", "end device", "border router", "unknown"]);
@@ -59,9 +60,10 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
 
 /** Static part of the picture for one network: nodes with display labels (readable name, Home Assistant name, kind
- *  for the type line); pairs with their evidence per direction
- *  (ab: a hears b, ba: b hears a; { state, lqi, rating, source, reason } from the data model), class and whether the
- *  default view shows them; every device's up path as node indices; neighbours. */
+ *  for the type line); pairs with their evidence per direction (ab: a hears b, ba: b hears a; { state, lqi, rating,
+ *  source, reason } from the data model) and their two lanes; lanes { s, h (node indices of sender and hearer), pair,
+ *  dir (the hearer's evidence), up, downMeasured, downAssumed, route (what the lane carries, links.js classifyLanes),
+ *  key "s>h" }; every device's up path as node indices; neighbours. Classes per source-route stage: sceneClasses. */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const seen = new Set();
   const devices = [];
@@ -89,64 +91,133 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const neighbours = nodes.map(() => new Set());
-  const { pairs: classed, upPaths, network: pathNet } = classifyPairs({ ...network, devices });
+  const classified = classifyLanes({ ...network, devices });
   const pairs = [];
-  for (const p of classed) {
+  const pairAt = new Map(); // index in classified.pairs -> index in pairs
+  classified.pairs.forEach((p, k) => {
     const a = index.get(p.a);
     const b = index.get(p.b);
-    if (a === undefined || b === undefined || a === b) continue;
-    const measured = [p.ab, p.ba].filter((d) => d && d.state === "measured").sort(better)[0] || {};
-    pairs.push({ a, b, ab: p.ab, ba: p.ba, cls: p.cls, index: pairs.length, rating: num(measured.rating),
-      lqi: num(measured.lqi), shown: p.cls !== "heard" });
+    if (a === undefined || b === undefined || a === b) return;
+    pairAt.set(k, pairs.length);
+    pairs.push({ a, b, ab: p.ab, ba: p.ba, index: pairs.length, lanes: [] });
     neighbours[a].add(b);
     neighbours[b].add(a);
+  });
+  const lanes = [];
+  const laneByKey = new Map();
+  for (const l of classified.lanes) {
+    const pair = pairAt.get(l.pair);
+    if (pair === undefined) continue;
+    const s = index.get(l.sender);
+    const h = index.get(l.hearer);
+    const lane = { s, h, pair, dir: l.dir, up: l.up, downMeasured: l.downMeasured, downAssumed: l.downAssumed,
+      route: l.route, key: `${s}>${h}`, index: lanes.length };
+    pairs[pair].lanes.push(lane.index);
+    laneByKey.set(lane.key, lane);
+    lanes.push(lane);
   }
-  // Heard-only pairs by default: each device's best ones; a pair stays if it is among the best of either end.
-  const perNode = nodes.map(() => []);
-  for (const p of pairs) if (p.cls === "heard") { perNode[p.a].push(p); perNode[p.b].push(p); }
-  for (const list of perNode) {
-    list.sort((p, q) => better(p, q) || p.index - q.index);
-    for (const p of list.slice(0, BEST_HEARD)) p.shown = true;
-  }
-  const paths = nodes.map((n) => (upPaths.get(n.id) || []).map((id) => index.get(id)).filter((i) => i !== undefined));
-  const classes = Object.fromEntries(CLASSES.map((c) => [c, pairs.filter((p) => p.cls === c).length]));
-  return { nodes, index, pairs, neighbours, labels, upPaths: paths, classes,
-    shownCount: pairs.filter((p) => p.shown).length, pathNet, pathCache: new Map() };
+  const paths = nodes.map((n) => (classified.upPaths.get(n.id) || []).map((id) => index.get(id))
+    .filter((i) => i !== undefined));
+  const coordinator = nodes.findIndex((n) => n.role === "coordinator");
+  return { nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
+    pathNet: classified.network, pathCache: new Map(), classCache: new Map() };
 }
 
-/** The paths of node i in a node view ("coordinator" or "all", model/node-paths.js) as node indices, cached per scene:
- *  { hops: Map "s>h" -> { s, h, dir } (each directed hop once, dir the reception at h), ends: [{ at, toward }]
- *  (incomplete paths), nodes: Set of every device on a path or named as a goal, paths (the model's, for tests) }.
- *  sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "off" leaves them unknown. */
-export function scenePaths(scene, i, mode = DEFAULT_NODE_VIEW, sourceRoute = "off") {
-  const key = `${i}|${mode}|${sourceRoute}`;
+/** Classes of the scene's lanes under a source-route stage ("off" or "assume"), cached per scene: { cls (per lane, one
+ *  of CLASSES or null), assumed (per lane: drawn as an assumed down lane), heardOnly (per pair: a reading in some
+ *  direction and no traffic in either, so no path runs over it), shown (per pair: among the best BEST_HEARD
+ *  heard-only partners of one of its devices, by the best rating at the hearer, then LQI), best (per node: its best
+ *  heard-only pairs, best first), counts (lanes per class, assumed counted apart as well) }. */
+export function sceneClasses(scene, sourceRoute = "off") {
+  const mode = sourceRoute === "assume" ? "assume" : "off";
+  if (scene.classCache.has(mode)) return scene.classCache.get(mode);
+  const cls = scene.lanes.map((l) => laneClass(l, mode));
+  const assumed = scene.lanes.map((l, i) => cls[i] === "down" && !l.downMeasured);
+  const heardOnly = scene.pairs.map((p) => p.lanes.some((i) => cls[i] === "heard")
+    && p.lanes.every((i) => cls[i] === "heard" || cls[i] === null));
+  // A heard-only pair ranks by its best heard lane: the rating is relative to that lane's hearer (spec 5.4).
+  const rank = scene.pairs.map((p) => p.lanes.filter((i) => cls[i] === "heard").map((i) => scene.lanes[i].dir)
+    .sort(better)[0] || {});
+  const best = scene.nodes.map(() => []);
+  for (const p of scene.pairs) if (heardOnly[p.index]) { best[p.a].push(p.index); best[p.b].push(p.index); }
+  const shown = scene.pairs.map(() => false);
+  for (let n = 0; n < best.length; n++) {
+    best[n] = best[n].sort((x, y) => better(rank[x], rank[y]) || x - y).slice(0, BEST_HEARD);
+    for (const p of best[n]) shown[p] = true;
+  }
+  const counts = Object.fromEntries([...CLASSES, "assumed"].map((c) => [c, 0]));
+  cls.forEach((c, i) => { if (c) counts[c]++; if (assumed[i]) counts.assumed++; });
+  const result = { cls, assumed, heardOnly, shown, best, counts };
+  scene.classCache.set(mode, result);
+  return result;
+}
+
+/** How strongly a hop of the focus's paths is drawn when two paths share it: up or measured down, then assumed down,
+ *  then a route between devices, then heard only (a hop a measured walk takes is never drawn as assumed). */
+const strength = (cls, assumed) => (cls === "route" ? 2 : cls === "heard" ? 1 : assumed ? 3 : 4);
+
+/** The lanes of node i in a stage of "Communication paths" (links.js PATH_STAGES), cached per scene: { hops: Map
+ *  "s>h" -> { s, h, dir, cls, assumed } (each directed hop once, dir the reception at h, cls the class it is drawn
+ *  with), ends: [{ at, toward, cls }] (incomplete paths, with the class of their path), glyphs: [{ s, h, dir }]
+ *  (directions without a reading of the heard-only partners), nodes: Set of every device on a path, named as a goal
+ *  or a partner, paths (the model's, for tests) }. "coordinator": the device's way up and down
+ *  (model/node-paths.js); "all" adds its paths to and from other devices as routes; "heard" also its best heard-only
+ *  partners in both directions. A path to or from the coordinator is up or down (the coordinator's own view lists its
+ *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "off" leaves them unknown. */
+export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off") {
+  const mode = pathStage(stage);
+  const sr = sourceRoute === "assume" ? "assume" : "off";
+  const key = `${i}|${mode}|${sr}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
   const ends = [];
+  const glyphs = [];
   const nodes = new Set([i]);
-  const paths = scene.pathNet ? nodePaths(scene.pathNet, scene.nodes[i].id, mode, { sourceRoute }) : [];
+  const coordinator = scene.coordinator >= 0 ? scene.nodes[scene.coordinator].id : null;
+  const paths = scene.pathNet
+    ? nodePaths(scene.pathNet, scene.nodes[i].id, mode === "coordinator" ? "coordinator" : "all", { sourceRoute: sr })
+    : [];
   const at = (id) => scene.index.get(id);
   const seenEnds = new Set();
   for (const p of paths) {
+    const cls = p.kind === "up" ? "up" : p.kind === "down" ? "down" : p.from === coordinator ? "down"
+      : p.to === coordinator ? "up" : "route";
+    const assumed = cls === "down" && p.assumed === true;
     for (const id of p.ids) if (at(id) !== undefined) nodes.add(at(id));
     for (const hop of p.hops) {
       const s = at(hop.sender);
       const h = at(hop.hearer);
       if (s === undefined || h === undefined) continue;
-      // Each directed hop once; a hop that a measured walk also takes is drawn as that walk's, never as assumed.
+      const st = strength(cls, assumed);
       const had = hops.get(`${s}>${h}`);
-      if (had && !(had.dir.assumed && !hop.assumed)) continue;
-      hops.set(`${s}>${h}`, { s, h, dir: hop });
+      if (had && strength(had.cls, had.assumed) >= st) continue;
+      hops.set(`${s}>${h}`, { s, h, dir: hop, cls, assumed });
     }
     const end = unknownEnd(p);
     if (!end || at(end.at) === undefined || at(end.toward) === undefined) continue;
     const k = `${at(end.at)}>${at(end.toward)}`;
     if (seenEnds.has(k)) continue;
     seenEnds.add(k);
-    ends.push({ at: at(end.at), toward: at(end.toward) });
+    ends.push({ at: at(end.at), toward: at(end.toward), cls });
     nodes.add(at(end.toward)); // the goal is named, so the stem points at something the user can read
   }
-  const result = { hops, ends, nodes, paths };
+  if (mode === "heard") {
+    const sc = sceneClasses(scene, sr);
+    for (const pi of sc.best[i]) {
+      const pair = scene.pairs[pi];
+      nodes.add(pair.a);
+      nodes.add(pair.b);
+      for (const li of pair.lanes) {
+        const lane = scene.lanes[li];
+        if (sc.cls[li] === "heard") {
+          if (!hops.has(lane.key)) {
+            hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false });
+          }
+        } else if (!lane.dir || lane.dir.state === "unknown") glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir });
+      }
+    }
+  }
+  const result = { hops, ends, glyphs, nodes, paths };
   scene.pathCache.set(key, result);
   return result;
 }
@@ -241,9 +312,10 @@ class RectGrid {
   }
 }
 
-/** Draw lanes grouped by style, so the dash pattern changes once per group, not per lane. */
-function strokeLanes(ctx, items) {
-  items.sort((p, q) => (p.key < q.key ? -1 : p.key > q.key ? 1 : 0));
+/** Draw lanes grouped by style, so the dash pattern changes once per group, not per lane. keepOrder: the items are
+ *  sorted by class already (weakest first); only runs of the same style are grouped, so the order of classes stays. */
+function strokeLanes(ctx, items, keepOrder = false) {
+  if (!keepOrder) items.sort((p, q) => (p.key < q.key ? -1 : p.key > q.key ? 1 : 0));
   let current = null;
   for (const { lane, style, key } of items) {
     if (key !== current) {
@@ -265,18 +337,20 @@ export function typeShown(k, typeZoom) {
 }
 
 const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(",")}|${style.head}`;
+/** Weakest class first, then grouped by style, so the dash pattern changes once per group. */
+const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0);
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), links (class switches), nodeView
- *  ("coordinator" | "all": what the focused device's paths are), receptionColors (lanes coloured by their rating),
+ *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), paths (the stage of "Communication
+ *  paths": "coordinator" | "all" | "heard", links.js PATH_STAGES), receptionColors (lanes coloured by their rating),
  *  labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is drawn:
- *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume": assumed return paths
- *  on the focus's paths), texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) };
- *  pos: { x, y, pinned, mesh } arrays
- *  by node index; measure(text) for the label font.
- *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
- *  class), order (class of each pair in drawing order), symbols (devices drawn), size (symbol size on screen),
- *  paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y }] }) }. */
+ *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume": assumed return paths),
+ *  texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh }
+ *  arrays by node index; measure(text) for the label font.
+ *  Returns what was drawn: { sx, sy, lines (pairs with a lane or glyph drawn), lanes, glyphs, values, labels, dropped,
+ *  classes (lanes drawn per class, assumed down lanes also apart, lanes without class as "none"), order (class of each
+ *  lane in drawing order), symbols (devices drawn), size (symbol size on screen), paths (null, or for the focused
+ *  device { hops, ends, values: [{ s, h, text, x, y, drawn, cls }] }) }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -291,28 +365,54 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (let i = 0; i < n; i++) [sx[i], sy[i]] = toScreen(cam, pos.x[i], pos.y[i], width, height);
   const focus = [view.selected, view.hovered].filter((i, j, all) => i >= 0 && all.indexOf(i) === j);
   const focusSet = new Set(focus);
-  // The paths shown are the selection's; without a selection the device under the pointer previews its own.
-  const pathNode = view.selected >= 0 ? view.selected : view.hovered;
-  const route = pathNode >= 0 ? scenePaths(scene, pathNode, view.nodeView || DEFAULT_NODE_VIEW, view.sourceRoute || "off") : null;
+  const stage = pathStage(view.paths);
+  const sourceRoute = view.sourceRoute === "assume" ? "assume" : "off";
+  const debug = Boolean(view.debug);
+  const sc = sceneClasses(scene, sourceRoute);
+  // What the overview of the stage draws: up and down lanes, heard-only lanes of shown pairs from "heard" on, every
+  // lane in debug mode; a direction without a reading shows its glyph where the overview draws its pair as heard only.
+  const laneShown = (lane) => overviewShows(sc.cls[lane.index], stage, { shown: sc.shown[lane.pair], debug });
+  const glyphShown = (lane) => debug || (stage === "heard" && sc.heardOnly[lane.pair] && sc.shown[lane.pair]);
+  // The lanes of the focus: the selection's (its stage on click), else the device under the pointer previews its own,
+  // but only lanes the overview of the stage draws anyway (hover never adds what the stage hides).
+  const selecting = view.selected >= 0;
+  const pathNode = selecting ? view.selected : view.hovered;
+  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute) : null;
+  let pathHops = [];
+  let pathEnds = [];
   const near = new Set(focus);
-  if (route) for (const j of route.nodes) near.add(j);
+  if (route) {
+    pathHops = [...route.hops.values()];
+    pathEnds = route.ends;
+    if (!selecting && !debug) {
+      // A preview keeps only what the overview draws in the same class: routes between devices wait for the click.
+      const previewed = (cls) => overviewShows(cls, stage, { shown: true });
+      pathHops = pathHops.filter((hop) => {
+        const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
+        return previewed(hop.cls) && Boolean(lane) && laneShown(lane);
+      });
+      pathEnds = pathEnds.filter((end) => previewed(end.cls));
+    }
+    if (selecting) for (const j of route.nodes) near.add(j);
+    else {
+      for (const hop of pathHops) { near.add(hop.s); near.add(hop.h); }
+      for (const end of pathEnds) { near.add(end.at); near.add(end.toward); }
+    }
+  }
   const margin = 40;
   const onScreen = (i) => sx[i] > -margin && sx[i] < width + margin && sy[i] > -margin && sy[i] < height + margin;
   const segmentVisible = (a, b) =>
     !(Math.max(sx[a], sx[b]) < -margin || Math.min(sx[a], sx[b]) > width + margin ||
       Math.max(sy[a], sy[b]) < -margin || Math.min(sy[a], sy[b]) > height + margin);
 
-  // Links: each direction "R hears S" is a lane from S to R on the right of its travel, styled by the pair's class
-  // and its own rating; a direction without a reading gets a glyph instead. Within the layer: heard only, other
-  // route, up path, so the links that carry traffic lie on top. While something is in focus every pair is dimmed (the
-  // focus's own pairs are still drawn whatever the switches say) and the focused device's path hops lie on top at full
-  // strength, the selection's up path as a band under them.
+  // Links: each lane runs from sender to hearer on the right of its travel, styled by its own class and rating. A
+  // selection (outside debug mode) draws nothing but its own lanes; otherwise the overview's lanes form a layer of
+  // their own, dimmed while something is in focus, and the focus's lanes lie on top at full strength. Within a layer:
+  // lanes without class (debug), heard only, routes between devices, down, up, so the links that carry traffic lie on
+  // top.
   const size = symbolSize(k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   const colored = Boolean(view.receptionColors);
-  const touches = (p) => focusSet.has(p.a) || focusSet.has(p.b);
-  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b)
-    && pairDrawn(p, view.links, { debug: view.debug, touched: touches(p) }));
   const dimming = focus.length > 0;
   const alpha = dimming ? DIM : 1;
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
@@ -320,6 +420,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const laneTexts = [];
   const glyphs = [];
   const order = [];
+  const classes = Object.fromEntries([...CLASSES, "assumed", "none"].map((c) => [c, 0]));
+  const pairsDrawn = new Set();
   let lanes = 0;
   ctx.font = theme.font;
   // A lane's value: "RX:" over the value at the hearer, beside the lane on its right, a quarter of the lane before
@@ -342,59 +444,76 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     laneTexts.push(t);
     return t;
   };
-  const skip = route ? route.hops : null; // directions the path layer draws itself
-  for (const cls of CLASSES) {
+  const count = (cls, assumed) => {
+    classes[cls || "none"]++;
+    if (assumed) classes.assumed++;
+    order.push(cls || "none");
+  };
+  const rank = (cls) => (cls ? CLASSES.indexOf(cls) + 1 : 0);
+  const skip = new Set(pathHops.map((hop) => `${hop.s}>${hop.h}`)); // directions the focus layer draws itself
+  const glyphAt = (s, h, dir, a) => {
+    const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
+    if (lane) glyphs.push({ text: unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha: a });
+  };
+  if (!selecting || debug) {
     const items = [];
-    for (const pair of drawn) {
-      if (pair.cls !== cls) continue;
-      order.push(cls);
-      const directions = [[pair.b, pair.a, pair.ab, pair.a], [pair.a, pair.b, pair.ba, pair.b]];
-      for (const [from, to, dir, reporter] of directions) {
-        if (skip && skip.has(`${from}>${to}`)) continue;
-        const lane = laneGeometry(sx[from], sy[from], sx[to], sy[to], size, size, offset);
-        if (!lane) continue;
-        const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-        if (state === "unknown") {
-          glyphs.push({ text: unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha });
-          continue;
-        }
-        const style = laneStyle(cls, state, dir.rating, theme, { colored });
-        items.push({ lane, style, key: styleKey(style) });
-        if (!view.debug) continue; // values beside every lane in debug mode; otherwise only on the focus's paths
-        let text = laneValue(dir, texts);
-        if (state === "measured") text += ` \u2190 ${scene.nodes[reporter].label}`;
-        addValue(lane, text, { path: false, alpha });
+    const ordered = scene.lanes.filter((lane) => !skip.has(lane.key) && segmentVisible(lane.s, lane.h))
+      .sort((p, q) => rank(sc.cls[p.index]) - rank(sc.cls[q.index]) || p.index - q.index);
+    for (const lane of ordered) {
+      const cls = sc.cls[lane.index];
+      const dir = lane.dir;
+      const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
+      if (!cls && state === "unknown") {
+        if (glyphShown(lane)) { glyphAt(lane.s, lane.h, dir, alpha); pairsDrawn.add(lane.pair); }
+        continue;
       }
+      if (!laneShown(lane)) continue;
+      const geo = laneGeometry(sx[lane.s], sy[lane.s], sx[lane.h], sy[lane.h], size, size, offset);
+      if (!geo) continue;
+      const assumed = sc.assumed[lane.index];
+      const style = laneStyle(cls, dir.rating, theme, { colored, assumed, state });
+      items.push({ lane: geo, style, key: styleKey(style), rank: rank(cls) });
+      count(cls, assumed);
+      pairsDrawn.add(lane.pair);
+      if (!debug) continue; // values beside every lane in debug mode; otherwise only on the focus's lanes
+      let text = laneValue(dir, texts);
+      if (state === "measured") text += ` \u2190 ${scene.nodes[lane.h].label}`;
+      addValue(geo, text, { path: false, alpha });
     }
     ctx.globalAlpha = alpha;
-    lanes += strokeLanes(ctx, items);
+    lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
   }
 
-  // The focused device's paths: each directed hop once, on the lane of its direction of travel, with the reception at
-  // its hearer; an incomplete path ends in a dashed stem towards its goal with "?" (unknown beats wrong).
+  // The focus's lanes: each directed hop once, on the lane of its direction of travel, with the reception at its
+  // hearer; an incomplete path ends in a dashed stem towards its goal with "?" (unknown beats wrong).
   const pathValues = [];
   const ends = [];
   if (route) {
     ctx.globalAlpha = 1;
-    if (view.selected >= 0) drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
+    // The selection's way up as a band under its lanes; hover previews without it.
+    if (selecting) drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
     const items = [];
-    for (const { s, h, dir } of route.hops.values()) {
+    const hops = [...pathHops].sort((p, q) => rank(p.cls) - rank(q.cls));
+    for (const { s, h, dir, cls, assumed } of hops) {
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
-      const style = pathLaneStyle(dir.state, dir.rating, theme, { colored, assumed: dir.assumed === true });
-      items.push({ lane, style, key: styleKey(style) });
+      const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
+      const style = laneStyle(cls, dir.rating, theme, { colored, assumed, state });
+      items.push({ lane, style, key: styleKey(style), rank: rank(cls) });
+      count(cls, assumed);
       let text = laneValue(dir, texts);
-      if (view.debug && dir.state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
+      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
       const t = addValue(lane, text, { path: true, alpha: 1 });
-      pathValues.push({ s, h, text, drawn: false, ref: t });
+      pathValues.push({ s, h, text, cls, drawn: false, ref: t });
     }
-    lanes += strokeLanes(ctx, items);
+    lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
+    if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
     ctx.lineCap = "butt";
     ctx.lineWidth = STEM.width;
     ctx.strokeStyle = theme.foreground;
-    for (const end of route.ends) {
+    for (const end of pathEnds) {
       const stem = stemGeometry(sx[end.at], sy[end.at], sx[end.toward], sy[end.toward], size, offset);
       if (!stem) continue;
       ctx.beginPath();
@@ -564,7 +683,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const always = [];
   for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
   for (const i of [...focus, ...always]) label(i, true);
-  for (const pv of pathValues) if (pv.ref) pv.drawn = value(pv.ref);
+  // Values of the way up and down claim their places first, then routes, then heard only: the drawing order puts the
+  // weakest first, the room for text goes to the strongest.
+  for (const pv of [...pathValues].sort((p, q) => rank(q.cls) - rank(p.cls))) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, false);
   if (labelsForAll(k, view.labelZoom)) {
@@ -582,10 +703,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.textBaseline = "bottom";
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, height - 8, theme);
   }
-  const classes = Object.fromEntries(CLASSES.map((c) => [c, drawn.filter((p) => p.cls === c).length]));
-  const paths = route ? { hops: route.hops.size, ends: ends.length,
-    values: pathValues.map(({ s, h, text, ref, drawn: shownValue }) => ({ s, h, text, x: ref ? ref.x : null,
+  const paths = route ? { hops: pathHops.length, ends: ends.length,
+    values: pathValues.map(({ s, h, text, cls, ref, drawn: shownValue }) => ({ s, h, text, cls, x: ref ? ref.x : null,
       y: ref ? ref.y : null, drawn: shownValue })) } : null;
-  return { sx, sy, lines: drawn.length, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+  return { sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }

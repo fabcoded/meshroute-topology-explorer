@@ -7,10 +7,9 @@
 // after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
 // use. No DOM. Tested in Node: node --test tests/
 import { DENSITY } from "../graph/layout.js";
-import { DEFAULT_LINKS } from "../graph/links.js";
+import { DEFAULT_PATHS, PATH_STAGES } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";
-import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
 import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "../model/source-routes.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
@@ -23,11 +22,12 @@ export const PATH_STOPS = Object.freeze(["bad", "medium", "good"]);
 export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medium: null, good: null });
 
 /** Defaults of spec 11. openDetailsOnSelect null means "by screen width": details open on a click on wide panels and
- *  not on narrow ones (spec 9.2). nodeView: what a selected device shows (its path to the coordinator, or all its
- *  paths). sourceRoute: return paths without a table entry are "assume"d (the way up reversed) or "off" (unknown). */
+ *  not on narrow ones (spec 9.2). paths: the stage of "Communication paths" (graph/links.js PATH_STAGES: with the
+ *  coordinator there and back, + paths to all devices, + heard only). sourceRoute: return paths without a table entry
+ *  are "assume"d (the way up reversed) or "off" (unknown). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
-  links: DEFAULT_LINKS, nodeView: DEFAULT_NODE_VIEW, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS,
-  sourceRoute: DEFAULT_SOURCE_ROUTE, pins: Object.freeze({}) });
+  paths: DEFAULT_PATHS, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, sourceRoute: DEFAULT_SOURCE_ROUTE,
+  pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -58,10 +58,12 @@ export function sanitizePins(input) {
   return pins;
 }
 
-/** The link class switches { up, route, heard }: a boolean per class, anything else falls back to on. */
-export function sanitizeLinks(input) {
-  const src = isPlainObject(input) ? input : {};
-  return Object.fromEntries(Object.keys(DEFAULT_LINKS).map((c) => [c, typeof src[c] === "boolean" ? src[c] : DEFAULT_LINKS[c]]));
+/** The stage of "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11). Before it, the panel
+ *  stored class switches (`links`) and the node view (`nodeView`: "coordinator" or "all"); without a valid `paths`
+ *  the node view decides: "all" reads as the stage "all", anything else as the default. */
+export function sanitizePaths(input, legacyNodeView) {
+  if (PATH_STAGES.includes(input)) return input;
+  return legacyNodeView === "all" ? "all" : DEFAULT_PATHS;
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -95,8 +97,10 @@ export function sanitizeSettings(input) {
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
-  out.links = sanitizeLinks(src.links);
-  out.nodeView = NODE_VIEWS.includes(src.nodeView) ? src.nodeView : DEFAULTS.nodeView;
+  out.paths = sanitizePaths(src.paths, src.nodeView);
+  // Replaced by paths (A4j): the next save leaves the class switches and the node view out.
+  delete out.links;
+  delete out.nodeView;
   out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
   // Replaced by pathColors, and the legend pill is gone (A4h): the next save leaves both out.
   delete out.receptionColors;

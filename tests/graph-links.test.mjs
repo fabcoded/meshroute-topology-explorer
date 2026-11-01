@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Tests of the link rendering (spec 7.1, 8, 9.3; decision by Fabian Schwamborn, 2026-10-31): lanes on the right of
-// their travel in every quadrant, classes by dash and weight, glyphs for directions without a reading, drawing
-// order, the selection's paths (node view) with the up-path band and "RX:" values a quarter before each hearer, unknown
-// ends, colour by reception, legend entries.
+// Tests of the link rendering (spec 7.1, 8, 9.3; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01): lanes on
+// the right of their travel in every quadrant, classes per direction by dash and weight, glyphs for directions without
+// a reading, drawing order, the selection's lanes with "RX:" values a quarter before each hearer, unknown ends, colour
+// by reception, legend entries per stage.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, CLASSES, DIM, LANE_GAP, STEM, VALUE_AT, laneGeometry, laneStyle, legendEntries, pathLaneStyle, stemGeometry,
+  BAND, CLASSES, DASH, DIM, LANE_GAP, STEM, VALUE_AT, laneGeometry, laneStyle, legendEntries, stemGeometry,
   unknownGlyph, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
-import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { buildScene, drawScene, sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColor } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { recordingContext, labelWidth } from "./graph-fakes.mjs";
 
@@ -51,21 +51,31 @@ test("a lane lies on the right of its direction of travel in all four quadrants,
 
 test("classes are told apart by dash and weight, not colour; widths follow the lane's rating in three steps", () => {
   assert.deepEqual([0, 0.2, 0.34, 0.5, 0.67, 1, null].map(widthStep), [0, 0, 1, 1, 2, 2, 0]);
-  const up = laneStyle("up", "measured", 0.9, theme);
-  const route = laneStyle("route", "measured", 0.9, theme);
-  const heard = laneStyle("heard", "measured", 0.9, theme);
-  const implied = laneStyle("up", "implied", null, theme);
-  assert.deepEqual(up.dash, []);
-  assert.equal(route.cap, "round");
-  assert.ok(route.dash[0] < 0.1 && route.dash[1] > route.width, "round dots");
-  assert.ok(heard.dash[0] >= 4, "dashes");
-  assert.equal(up.color, theme.foreground);
-  assert.equal(route.color, theme.foreground);
+  const up = laneStyle("up", 0.9, theme);
+  const down = laneStyle("down", 0.9, theme);
+  const assumed = laneStyle("down", 0.9, theme, { assumed: true });
+  const route = laneStyle("route", 0.9, theme);
+  const heard = laneStyle("heard", 0.9, theme);
+  const none = laneStyle(null, null, theme);
+  assert.deepEqual(up.dash, [], "up and down solid (board M11)");
+  assert.deepEqual(down, up);
+  assert.equal(assumed.cap, "round");
+  assert.ok(assumed.dash[0] < 0.1 && assumed.dash[1] > assumed.width + 3, "sparse round dots");
+  assert.deepEqual(route.dash, [6, 3, 1.5, 3], "dash-dot");
+  assert.deepEqual(heard.dash, [6, 3], "dashed");
+  assert.deepEqual(DASH.route, [6, 3, 1.5, 3]);
+  for (const s of [up, assumed, route]) assert.equal(s.color, theme.foreground);
   assert.equal(heard.color, theme.muted);
-  assert.ok(up.width > route.width && route.width > heard.width, "up path strongest, heard only thinnest");
-  assert.equal(implied.head, false);
-  assert.equal(implied.color, theme.muted);
-  for (const cls of ["up", "route", "heard"]) assert.ok(WIDTHS[cls][0] < WIDTHS[cls][2]);
+  assert.ok(up.width > route.width && route.width > heard.width, "up and down strongest, heard only thinnest");
+  for (const s of [up, assumed, route, heard]) assert.equal(s.head, true, "arrowhead at the hearer");
+  assert.equal(none.head, false);
+  assert.equal(none.color, theme.muted);
+  // A path hop nothing proves keeps its class's dash, in grey at the thinnest width.
+  const unknown = laneStyle("route", null, theme, { state: "unknown" });
+  assert.deepEqual(unknown.dash, route.dash);
+  assert.equal(unknown.color, theme.muted);
+  assert.equal(unknown.width, WIDTHS.route[0]);
+  for (const cls of CLASSES) assert.ok(WIDTHS[cls][0] < WIDTHS[cls][2]);
 });
 
 test("glyphs: '–' where the hearer's table does not list the sender, '?' where there is no table or LQI 0", () => {
@@ -76,8 +86,9 @@ test("glyphs: '–' where the hearer's table does not list the sender, '?' where
   }
 });
 
-// A small network with explicit pairs: c (coordinator) - r1 up path, r1 - r2 route only, r2 - r3 heard only (r3 does
-// not list r2: table full), e1 end device under r1 (parent link, end device has no table).
+// A small network with explicit pairs: c (coordinator) - r1, r1's way up; r1 - r2 a route between devices (r2 -> r1);
+// r2 - r3 heard only (r3 does not list r2: table full); e1 end device under r1 (parent link, end device has no table).
+// The coordinator holds no routes, so no way down is known.
 const dir = (state, lqi = null, rating = null, source = null, reason = null) =>
   ({ state, lqi, rating, source, reason });
 const NET = {
@@ -112,44 +123,51 @@ function draw({ selected = -1, hovered = -1, debug = false, net = NET, ...extra 
   return { scene, ctx, stats };
 }
 
-test("classes on a small network; a direction without a reading gets a glyph mid-way along its missing lane", () => {
-  const { scene, ctx, stats } = draw();
-  const cls = Object.fromEntries(scene.pairs.map((p) => [`${scene.nodes[p.a].id}-${scene.nodes[p.b].id}`, p.cls]));
-  assert.deepEqual(cls, { "c-r1": "up", "e1-r1": "up", "r1-r2": "route", "r2-r3": "heard" });
+test("classes per direction on a small network; a direction without a reading gets a glyph mid-way", () => {
+  const { scene, ctx, stats } = draw({ paths: "heard" });
+  const sc = sceneClasses(scene, "off");
+  const cls = Object.fromEntries(scene.lanes.map((l) => [`${scene.nodes[l.s].id}>${scene.nodes[l.h].id}`, sc.cls[l.index]]));
+  assert.deepEqual(cls, { "r1>c": "up", "c>r1": "heard", "r1>e1": null, "e1>r1": "up", "r2>r1": "route", "r1>r2": null,
+    "r3>r2": "heard", "r2>r3": null }, "the way back of an up hop is no up lane");
   assert.equal(stats.glyphs, 1);
   // r2 -> r3 is unknown (r3 hears r2: not listed): travel from r2 (300, 0) down to r3 (300, 250); right of "down"
   // is to the left on screen, so the glyph sits at x = 500 + 300 - 3 = 797, half way between the symbol contours.
   const glyph = ctx.calls.find((c) => c[0] === "fillText" && c[1] === "–");
   assert.ok(glyph, "the glyph is drawn");
   assert.ok(Math.abs(glyph[2] - 797) < 1e-9 && Math.abs(glyph[3] - (400 + 125)) < 1e-9, `${glyph[2]}, ${glyph[3]}`);
+  assert.equal(draw().stats.glyphs, 0, "the first stage draws no heard-only pair, so no glyph");
 });
 
-test("drawing order: heard only, then other routes, then up paths, on top", () => {
-  const { stats } = draw();
-  const rank = stats.order.map((c) => CLASSES.indexOf(c));
+test("drawing order: lanes without class, heard only, routes, down, then up on top", () => {
+  const { stats } = draw({ debug: true });
+  const rank = stats.order.map((c) => (c === "none" ? -1 : CLASSES.indexOf(c)));
   assert.deepEqual(rank, [...rank].sort((a, b) => a - b));
-  assert.deepEqual(stats.classes, { heard: 1, route: 1, up: 2 });
+  assert.deepEqual(stats.classes, { heard: 2, route: 1, down: 0, up: 2, assumed: 0, none: 2 });
 });
 
-test("selection: its up path as a band, every hop with RX and the value at its hearer, the unknown way down", () => {
+test("selection: only its lanes, its way up as a band, every hop with RX at its hearer, the unknown way down", () => {
   const e1 = 4;
   const { ctx, stats } = draw({ selected: e1 });
   const calls = ctx.calls;
-  // The band: alpha 0.18, width 7, through e1 -> r1 -> c.
+  // Up path e1 -> r1 -> c: r1 hears e1 at 90, the coordinator hears r1 at 200. The coordinator has no route down, so
+  // the down path is unknown from the coordinator on: a stem towards e1 with "?" and the words.
+  assert.equal(stats.paths.hops, 2);
+  assert.equal(stats.paths.ends, 1);
+  assert.equal(stats.lanes, 2, "everything else is off");
+  assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.drawn, v.cls]),
+    [[4, 1, "90", true, "up"], [1, 0, "200", true, "up"]]);
+  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (main session, 2026-11-01: it tells the way
+  // to the coordinator apart from the other paths).
   const bandAt = calls.findIndex((c, j) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width &&
     calls.slice(Math.max(0, j - 3), j).some((x) => x[0] === "set" && x[1] === "globalAlpha" && x[2] === BAND.alpha));
   assert.ok(bandAt > 0, "a band is drawn");
   const bandPath = calls.slice(bandAt).filter((c) => c[0] === "moveTo" || c[0] === "lineTo").slice(0, 3)
     .map((c) => [c[1], c[2]]);
   assert.deepEqual(bandPath, [[500, 150], [500, 400], [200, 400]], "e1, r1, coordinator");
-  // Every pair is dimmed, before the band; the path's hops after it, at full opacity.
-  const dimAt = calls.findIndex((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM);
-  assert.ok(dimAt >= 0 && dimAt < bandAt);
-  // Up path e1 -> r1 -> c: r1 hears e1 at 90, the coordinator hears r1 at 200. The coordinator has no route down, so
-  // the down path is unknown from the coordinator on: a stem towards e1 with "?" and the words.
-  assert.equal(stats.paths.hops, 2);
-  assert.equal(stats.paths.ends, 1);
-  assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.drawn]), [[4, 1, "90", true], [1, 0, "200", true]]);
+  const firstLane = calls.findIndex((c, j) => j > bandAt && c[0] === "set" && c[1] === "lineWidth" && c[2] !== BAND.width);
+  assert.ok(firstLane > bandAt, "the lanes on top of it");
+  // The other devices are dimmed.
+  assert.ok(calls.some((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM));
   const text = (t) => calls.filter((c) => c[0] === "fillText" && c[1] === t);
   assert.equal(text("RX:").length, 2, "each value under RX:");
   assert.equal(text("?").length, 1);
@@ -159,7 +177,7 @@ test("selection: its up path as a band, every hop with RX and the value at its h
   const [v200] = text("200");
   assert.ok(v90[1] < 500 && v90[3] > 275, `90 near r1, left of the lane: ${v90[2]}, ${v90[3]}`);
   assert.ok(v200[3] < 400 && v200[2] < 350, `200 near the coordinator, above the lane: ${v200[2]}, ${v200[3]}`);
-  // Lanes off the paths carry no values: not 120 (r1 hears c), not "Parent" (e1 hears r1: the way down is unknown).
+  // Lanes off its paths are not drawn at all: not 120 (r1 hears c), not "Parent" (e1 hears r1: the way down is unknown).
   assert.equal(text("120").length, 0);
   assert.equal(text("Parent").length, 0);
   assert.equal(text("60").length, 0);
@@ -191,15 +209,17 @@ test("a value sits a quarter of its lane before the hearer, on the right of trav
   }
 });
 
-test("node view 'all': out and in paths join the picture; hover previews paths without the band", () => {
+test("stage 'all': paths to and from other devices join the click as routes; hover previews only what the stage draws", () => {
   // r1's own route to c is its up path; r2 owns a route towards r1: an in path r2 -> r1 ("Route", no reading).
   const coordinatorView = draw({ selected: 1 });
   assert.equal(coordinatorView.stats.paths.hops, 1, "r1 -> c");
-  const all = draw({ selected: 1, nodeView: "all" });
-  assert.deepEqual(all.stats.paths.values.map((v) => [v.s, v.h, v.text]), [[1, 0, "200"], [2, 1, "Route"]]);
-  const hover = draw({ hovered: 1 });
-  assert.equal(hover.stats.paths.hops, 1);
-  assert.ok(!hover.ctx.calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width), "no band");
+  const all = draw({ selected: 1, paths: "all" });
+  const values = all.stats.paths.values.map((v) => [v.s, v.h, v.text, v.cls]).sort();
+  assert.deepEqual(values, [[1, 0, "200", "up"], [2, 1, "Route", "route"]]);
+  const hover = draw({ hovered: 1, paths: "all" });
+  assert.equal(hover.stats.paths.hops, 1, "the route waits for the click");
+  assert.equal(hover.stats.classes.route, 0);
+  assert.ok(!hover.ctx.calls.some((c) => c[0] === "fillText" && c[1] === "Route"));
 });
 
 test("up and down hop of one pair are drawn on its two lanes, each on the right of its own travel", () => {
@@ -212,7 +232,8 @@ test("up and down hop of one pair are drawn on its two lanes, each on the right 
     pairs: [{ a: "c", b: "r1", ab: dir("measured", 200, 0.9, "table"), ba: dir("measured", 120, 0.5, "table") }],
   };
   const { ctx, stats } = draw({ net, selected: 1 });
-  assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text]), [[1, 0, "200"], [0, 1, "120"]]);
+  assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.cls]).sort(),
+    [[0, 1, "120", "down"], [1, 0, "200", "up"]]);
   // Lanes start where they leave the sender: track the opacity in force at each moveTo.
   let alpha = 1;
   const starts = [];
@@ -230,19 +251,11 @@ test("up and down hop of one pair are drawn on its two lanes, each on the right 
   const [v120] = ctx.calls.filter((c) => c[0] === "fillText" && c[1] === "120");
   assert.ok(v200[3] < 400 && v200[2] < 350, `${v200[2]}, ${v200[3]}`);
   assert.ok(v120[3] > 400 && v120[2] > 350, `${v120[2]}, ${v120[3]}`);
+  // The overview draws both: up and down, each in its own direction only.
+  assert.deepEqual(draw({ net }).stats.classes, { heard: 0, route: 0, down: 1, up: 1, assumed: 0, none: 0 });
 });
 
-test("path hops: solid when measured, dotted with an arrow when only a route or parent proves them", () => {
-  const measured = pathLaneStyle("measured", 0.9, theme);
-  const implied = pathLaneStyle("implied", null, theme);
-  const unknown = pathLaneStyle("unknown", null, theme);
-  assert.deepEqual(measured.dash, []);
-  assert.equal(measured.color, theme.foreground);
-  assert.equal(measured.width, WIDTHS.up[2]);
-  assert.ok(implied.head && implied.dash[0] < 0.1, "dotted, with the direction of travel");
-  assert.equal(implied.color, theme.foreground);
-  assert.equal(unknown.color, theme.muted);
-  // The unknown end: a short dashed stem on the right of the way towards the goal.
+test("the unknown end: a short dashed stem on the right of the way towards the goal", () => {
   const stem = stemGeometry(0, 0, 300, 0, 32, 3);
   assert.ok(stem.y0 > 0, "right of travel");
   assert.ok(Math.abs(stem.x1 - stem.x0 - STEM.length) < 1e-9);
@@ -254,16 +267,16 @@ test("path hops: solid when measured, dotted with an arrow when only a route or 
 test("colour by reception: rated lanes red to green by their hearer's rating, dash kept; off by default", () => {
   for (const background of ["#ffffff", "#111111"]) {
     const t = resolveTheme({ background });
-    const weak = laneStyle("heard", "measured", 0, t, { colored: true });
-    const strong = laneStyle("up", "measured", 1, t, { colored: true });
+    const weak = laneStyle("heard", 0, t, { colored: true });
+    const strong = laneStyle("up", 1, t, { colored: true });
     assert.equal(weak.color, receptionColor(0, t));
     assert.equal(strong.color, receptionColor(1, t));
-    assert.deepEqual(weak.dash, laneStyle("heard", "measured", 0, t).dash, "the class still shows by its dash");
-    assert.equal(laneStyle("up", "measured", 1, t).color, t.foreground, "colour-free unless switched on");
-    assert.equal(laneStyle("up", "implied", null, t, { colored: true }).color, t.muted, "no reading, no colour");
-    assert.equal(laneStyle("up", "measured", null, t, { colored: true }).color, t.foreground, "no rating, no colour");
-    assert.equal(pathLaneStyle("measured", 0, t, { colored: true }).color, receptionColor(0, t));
-    assert.equal(pathLaneStyle("implied", null, t, { colored: true }).color, t.foreground);
+    assert.deepEqual(weak.dash, laneStyle("heard", 0, t).dash, "the class still shows by its dash");
+    assert.equal(laneStyle("route", 1, t, { colored: true }).color, receptionColor(1, t));
+    assert.equal(laneStyle("up", 1, t).color, t.foreground, "colour-free unless switched on");
+    assert.equal(laneStyle(null, null, t, { colored: true }).color, t.muted, "no reading, no colour");
+    assert.equal(laneStyle("up", null, t, { colored: true }).color, t.foreground, "no rating, no colour");
+    assert.equal(laneStyle("down", 1, t, { colored: true, assumed: true }).color, t.foreground, "assumed stays uncoloured");
   }
   // On the map: the selection's measured hops take the colour, the numbers stay.
   const { ctx } = draw({ selected: 4, receptionColors: true });
@@ -296,14 +309,16 @@ test("the user's own colours replace the stops, nudged to 3:1; null keeps the th
   }
 });
 
-test("hover previews the same without the band; debug shows every value", () => {
-  const { ctx } = draw({ hovered: 4 });
-  assert.ok(!ctx.calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width), "no band");
+test("hover dims the rest and previews; debug shows every lane with its value", () => {
+  const { ctx, stats } = draw({ hovered: 4 });
   assert.ok(ctx.calls.some((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM), "dimmed");
+  assert.equal(stats.paths.hops, 2, "e1's way up");
+  assert.ok(!ctx.calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width), "hover: no band");
   const debug = draw({ debug: true });
   for (const v of ["200", "120", "90", "60"]) {
     assert.ok(debug.ctx.calls.some((c) => c[0] === "fillText" && c[1].startsWith(`${v} ←`)), v);
   }
+  assert.ok(debug.ctx.calls.some((c) => c[0] === "fillText" && c[1] === "Parent"), "implied lanes carry their value");
 });
 
 test("text beside a lane stays clear of it, on its right", () => {
@@ -317,18 +332,24 @@ test("text beside a lane stays clear of it, on its right", () => {
   }
 });
 
-test("legend entries name every class, the implied lane, both glyphs, the width steps, the band and the paths", () => {
-  const entries = legendEntries(theme);
-  assert.deepEqual(entries.map((e) => e.id),
-    ["up", "route", "heard", "implied", "width", "not-listed", "no-table", "up-path", "path", "path-implied", "path-assumed", "path-end"]);
-  // An assumed return path (source route) is never drawn as measured: dotted, sparser than a hop a route proves.
-  const assumed = entries.find((e) => e.id === "path-assumed").style;
-  const implied = entries.find((e) => e.id === "path-implied").style;
+test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
+  const ids = (o) => legendEntries(theme, o).map((e) => e.id);
+  assert.deepEqual(ids(), ["coordinator", "up-path", "rx"]);
+  assert.deepEqual(ids({ sourceRoute: "assume" }), ["coordinator", "assumed", "up-path", "rx"]);
+  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "up-path", "rx"]);
+  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "heard", "up-path", "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "heard", "up-path", "implied", "width",
+    "not-listed", "no-table", "path-end", "rx"]);
+  const band = legendEntries(theme).find((e) => e.id === "up-path");
+  assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
+  assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
+  const entries = legendEntries(theme, { paths: "heard", sourceRoute: "assume", colored: true });
+  assert.equal(entries.at(-1).id, "reception");
+  assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
+  assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);
+  assert.equal(entries.find((e) => e.id === "route").stage, 2);
+  assert.equal(entries.find((e) => e.id === "heard").stage, 3);
+  const assumed = entries.find((e) => e.id === "assumed").style;
   assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");
-  assert.ok(assumed.dash[1] > implied.dash[1], "sparser dots than a hop a route proves");
-  const colored = legendEntries(theme, { colored: true });
-  const scale = colored.find((e) => e.id === "reception");
-  assert.deepEqual(scale.colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)), "the scale while colour is on");
-  assert.equal(entries.find((e) => e.id === "route").style.cap, "round");
   assert.equal(entries.find((e) => e.id === "not-listed").text, "–");
 });

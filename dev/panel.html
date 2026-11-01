@@ -14,14 +14,15 @@
        downfirst=1     the connection is down from the start (comes back after back=<s>)
        settings=unknown   the integration does not know the settings commands (older version)
        variant=minus1|minus3|without-coordinator|coordinator-only   sample with tables removed (spec 12)
-       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), links=up,route,heard (those on;
-       none = all off), nodeview=coordinator|all, colors=1 (paths coloured by reception), bad=, medium=, good= (own
-       colours as hex without #, e.g. bad=0072b2), labels=type,name,ha (the label lines that are on),
+       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), paths=coordinator|all|heard
+       (communication paths), nodeview=all (as stored before A4j), colors=1 (paths coloured by reception), bad=,
+       medium=, good= (own colours as hex without #, e.g. bad=0072b2), labels=type,name,ha (the label lines on),
        receptioncolors=1 (a setting as stored before A4h)   stored settings to start from
        select=<label>  select a device (as from a finding: no panel opens)
        collapsed=1     with select: as a tap on the map ("Details on click" decides; sheet collapsed on narrow screens)
        left=devices|findings|details, right=view|legend   open a panel on a tab (as its button on the map would)
-       debug=1         debug mode;  info=1  the density note in View shown;  scroll=end  scroll the open panel to its end
+       debug=1         debug mode;  info=1|reload  the density note or the reading note in View shown
+       scroll=end      scroll the open panel to its end;  hover=<label>  the pointer over that device (its preview)
        version=old     a stale panel version (asks for a reload)
        steps=...       replay clicks and keys, log in body[data-log] (see panel-demo.js, replay())
        devmenu=1       open the variant menu at load (for screenshots)

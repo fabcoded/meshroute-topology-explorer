@@ -108,7 +108,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
   assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true,
-    links: { up: true, route: true, heard: true }, extra: 1, nodeView: "coordinator",
+    extra: 1, paths: "coordinator",
     pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
     sourceRoute: "assume", pins: { [A]: [1.235, -2] } });
   await c.flush();
@@ -220,26 +220,31 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
   assert.equal(server.sets().length, 0);
 });
 
-test("node view and path display are stored per network; bad values fall back to the defaults", async () => {
-  assert.equal(DEFAULTS.nodeView, "coordinator");
+test("communication paths and path display are stored per network; old keys migrate; bad values fall back", async () => {
+  assert.equal(DEFAULTS.paths, "coordinator");
   assert.deepEqual(DEFAULTS.pathColors, { mode: "grey", bad: null, medium: null, good: null }, "colour is opt-in");
-  assert.equal(sanitizeSettings({ nodeView: "all" }).nodeView, "all");
+  assert.equal(sanitizeSettings({ paths: "heard" }).paths, "heard");
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
-    assert.equal(sanitizeSettings({ nodeView: bad }).nodeView, "coordinator", JSON.stringify(bad));
+    assert.equal(sanitizeSettings({ paths: bad }).paths, "coordinator", JSON.stringify(bad));
   }
-  // Round trip through the integration: what one panel saves, the next one reads.
-  const server = fakeServer({ stored: { nodeView: "bogus", pathColors: { mode: "rainbow", bad: "red" } } });
+  // Round trip through the integration: a panel from before A4j stored the class switches and the node view "all";
+  // the next save writes the stage and leaves both old keys out.
+  const server = fakeServer({ stored: { nodeView: "all", links: { up: true, route: false, heard: true },
+    pathColors: { mode: "rainbow", bad: "red" } } });
   const c = client(server, manualTimers());
   await c.load();
-  assert.equal(c.settings.nodeView, "coordinator");
+  assert.equal(c.settings.paths, "all", "nodeView all reads as stage 2");
   assert.deepEqual(c.settings.pathColors, { mode: "grey", bad: null, medium: null, good: null });
-  c.update({ nodeView: "all", pathColors: { mode: "coloured", bad: "#0072B2", medium: null, good: "#e69f00" } });
+  c.update({ pathColors: { mode: "coloured", bad: "#0072B2", medium: null, good: "#e69f00" } });
   await c.flush();
-  assert.equal(server.stored.nodeView, "all");
+  assert.equal(server.stored.paths, "all");
+  assert.ok(!("nodeView" in server.stored) && !("links" in server.stored), "the old keys are gone");
   assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
+  c.update({ paths: "heard" });
+  await c.flush();
   const again = client(server, manualTimers());
   await again.load();
-  assert.equal(again.settings.nodeView, "all");
+  assert.equal(again.settings.paths, "heard");
   assert.deepEqual(again.settings.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
 });
 

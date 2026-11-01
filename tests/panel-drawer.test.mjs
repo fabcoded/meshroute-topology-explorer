@@ -15,6 +15,7 @@ test("side panel on wide screens, bottom sheet on narrow ones; insets only while
   const side = drawerGeometry({ width: 1400, height: 800, open: true, expanded: false });
   assert.equal(side.mode, "side");
   assert.equal(side.size, SIDE_MAX);
+  assert.equal(SIDE_MAX, 384, "at most 384 px, as on the boards (A4j)");
   assert.deepEqual(side.insets, { top: 0, right: SIDE_MAX, bottom: 0, left: 0 });
   assert.equal(drawerGeometry({ width: 720, height: 800, open: true }).size, SIDE_MIN);
   assert.deepEqual(drawerGeometry({ width: 1400, height: 800, open: false }).insets, { top: 0, right: 0, bottom: 0, left: 0 });

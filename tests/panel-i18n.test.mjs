@@ -43,20 +43,19 @@ test("the model's coordinator label is translated, user labels stay", () => {
   assert.ok(others.every((d) => d === network.devices.find((x) => x.id === d.id)), "other devices are the same objects");
 });
 
-test("node view, path display and the path texts have words in English and German", () => {
+test("communication paths, path display and the path texts have words in English and German", () => {
   const en = translator("en");
   const de = translator("de");
-  const keys = ["view.on_click", "view.nodeview_coordinator", "view.nodeview_all", "view.path_display", "view.grey",
+  const keys = ["view.on_click", "view.paths_coordinator", "view.paths_all", "view.paths_heard", "view.path_display", "view.grey",
     "view.coloured", "lane.rx", "lane.path_unknown", "details.paths_coordinator",
     "details.paths_all", "details.paths_note", "details.path_up", "details.path_down", "details.path_out",
     "details.path_in", "details.path_down_assumed", "details.rx", "details.path_unknown", "details.path_unavailable", "details.paths_none",
-    "legend.link.path", "legend.link.path-implied", "legend.link.path-end", "legend.link.reception"];
+    "legend.link.coordinator", "legend.link.assumed", "legend.link.path-end", "legend.link.reception"];
   for (const key of keys) {
     assert.ok(key in STRINGS.en && key in STRINGS.de, key);
   }
-  assert.equal(en("view.nodeview_coordinator"), "Only the communication path with the coordinator (there and back)");
-  assert.equal(de("view.nodeview_coordinator"), "nur Kommunikationsweg mit dem Koordinator (hin und zurück)");
-  assert.equal(de("view.nodeview_all"), "alle Routen von und zu anderen Geräten");
+  assert.equal(en("view.paths_all"), "+ paths to all devices (theoretical)");
+  assert.equal(de("view.paths_all"), "+ Wege zu allen Geräten (theoretisch)");
   assert.equal(en("lane.rx"), "RX:");
   assert.equal(de("lane.rx"), "RX:", "the owner's own abbreviation, in both languages");
 });
@@ -68,8 +67,8 @@ test("the new menu: every control on the map and in both panels has words in Eng
   const words = {
     "map.devices": "Geräte", "map.details_on_click": "Details bei Klick", "map.view": "Ansicht", "map.legend": "Legende",
     "tab.devices": "Geräte", "tab.findings": "Befunde", "tab.details": "Details", "tab.view": "Ansicht", "tab.legend": "Legende",
-    "view.paths": "Kommunikationspfade", "view.link_up": "Weg nach oben", "view.link_route": "andere Routen",
-    "view.link_heard": "nur gehört", "view.path_display": "Pfaddarstellung", "view.grey": "grau",
+    "view.paths": "Kommunikationspfade", "view.paths_heard": "+ nur gehört (beste 3)",
+    "view.path_display": "Pfaddarstellung", "view.grey": "grau",
     "view.coloured": "farbig nach Empfang", "view.bad": "schlecht", "view.medium": "mittel", "view.good": "gut",
     "view.colors_note": "frei wählbar, z. B. für Farbenblinde", "view.on_click": "Bei Klick auf ein Gerät",
     "view.open_details": "Details öffnen", "view.density": "Knotenentfernung (Dichte)", "view.fill": "Füllung der Symbole",
@@ -101,7 +100,7 @@ test("Details, cluster popup, device rows and the source-route stage use the own
   const words = {
     "details.tab_communication": "Kommunikation", "details.tab_entity": "Entität", "details.tab_cluster": "Cluster",
     "details.paths_coordinator": "Kommunikationsweg mit dem Koordinator", "details.path_up": "hin", "details.path_down": "zurück",
-    "details.children_title": "Kinder (schlafende Geräte)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
+    "details.children_title": "Kinder (End-Devices)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
     "details.readings_all": "\u2026 alle {count} mit RX und Rang relativ zum Messenden", "details.tables_title": "Tabellen und Last",
     "rank.short": "Rang {pct} %", "node.title": "Knoten", "node.rx_on": "immer empfangsbereit", "node.band_2400": "2,4 GHz",
     "node.firmware": "Firmware", "node.quirk_none": "keiner", "node.buffer_value": "{n} Byte, Transfer {transfer} Byte",
@@ -140,4 +139,27 @@ test("area names from Home Assistant's hass.areas win over the registry's; the c
   assert.equal(localize(network, translator("de")).devices.find((d) => d.id === device.id).area, device.area, "without: the registry");
   assert.equal(localize(network, translator("de"), { [device.areaId]: { name: " " } }).devices.find((d) => d.id === device.id).area,
     device.area, "an empty name does not win");
+});
+
+test("legend, View and Details texts of the A4j boards (M2, M7) in German, with English counterparts", () => {
+  const words = {
+    "legend.symbol_router": "Rahmen mit Lücken und Strichen: Router, leitet weiter",
+    "legend.symbol_end_sleepy": "geschlossener Rahmen, Bett: Endgerät, schläft",
+    "legend.symbol_coordinator": "Krone C: Koordinator; Stecker unten: am Kabel",
+    "legend.symbol_wired": "nur Stecker, keine Bögen: Kabelgerät",
+    "legend.state_offline": "offline: ohne Füllung", "legend.state_selected": "ausgewählt: dicker Rahmen",
+    "legend.state_pinned": "angepinnt: Nadel", "legend.symbols_title": "Symbole", "legend.states_title": "Zustände",
+    "view.reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
+    "details.children_title": "Kinder (End-Devices)",
+  };
+  for (const [key, text] of Object.entries(words)) {
+    assert.equal(STRINGS.de[key], text, key);
+    assert.ok(STRINGS.en[key] && STRINGS.en[key] !== key, `en ${key}`);
+  }
+  assert.equal(STRINGS.en["details.children_title"], "Children (end devices)", "not every end-device child sleeps");
+  // The status line lost its count of listed devices and the scan hint (board M1); the long legend paragraphs went.
+  for (const gone of ["status.listed", "status.short_listed", "status.scan_hint", "legend.links_default", "legend.rank",
+    "legend.debug", "legend.pictures_title", "legend.state_ring"]) {
+    assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
+  }
 });
