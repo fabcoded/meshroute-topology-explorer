@@ -109,6 +109,37 @@ test("missing values stay unknown, never 0; strength none and unknown are not me
   assert.equal(net.collectedAt, "2026-01-01T12:00:00.000Z", "seconds are accepted as well");
 });
 
+test("reading: link quality 0 with a valid RSSI is measured, without one it is not", () => {
+  const net = buildThreadNetwork({ nodes: [node(1, "router"), node(2, "router"), node(3, "router")],
+    connections: [link(1, 2, dir(0, -92, "none"), dir(0, 127, "none")), link(1, 3, dir(1, -80, "unknown"), null)] });
+  const [a, b, c] = ["1", "2", "3"].map((k) => byNode(net, k).id);
+  const r = (x, y) => net.readings.find((q) => q.reporter === x && q.subject === y);
+  assert.equal(r(a, b).measured, true, "RSSI -92 dBm with link quality 0 and strength none: a measured low reading");
+  assert.equal(r(b, a).measured, false, "link quality 0 with RSSI 127: a fresh entry without samples");
+  assert.equal(r(a, c).measured, false, "strength unknown: no measurement");
+});
+
+test("parents: the end device's own table decides; routers' readings only as fallback; REED links are real", () => {
+  const nodes = [node(1, "leader"), node(2, "router"), node(3, "sleepy_end_device")];
+  // Reviewer's case: Router 1 lists the end device at -60 without a reverse entry, Router 2 at -75; it lists Router 2.
+  const own = buildThreadNetwork({ nodes, connections: [link(1, 2, dir(3, -40), dir(3, -41)),
+    link(1, 3, dir(3, -60), null), link(2, 3, dir(2, -75), dir(2, -76))] });
+  assert.equal(byNode(own, "3").parent, byNode(own, "2").id);
+  assert.deepEqual(byNode(own, "3").possiblyStaleParents, [byNode(own, "1").id]);
+  assert.equal(byNode(own, "3").parentLqi, 2, "the parent's reading of the child");
+  // The child reported nothing: the best reading at a router decides, the other router is possibly stale.
+  const none = buildThreadNetwork({ nodes, connections: [link(1, 2, dir(3, -40), dir(3, -41)),
+    link(1, 3, dir(3, -60), null), link(2, 3, dir(2, -75), null)] });
+  assert.equal(byNode(none, "3").parent, byNode(none, "1").id);
+  assert.deepEqual(byNode(none, "3").possiblyStaleParents, [byNode(none, "2").id]);
+  // A REED lists two routers: the better is the parent, the other is a real link, not a stale parent.
+  const reed = buildThreadNetwork({ nodes: [node(1, "leader"), node(2, "router"), node(3, "reed")],
+    connections: [link(1, 2, dir(3, -40), dir(3, -41)), link(1, 3, dir(3, -60), dir(2, -80)),
+      link(2, 3, dir(3, -50), dir(3, -55))] });
+  assert.equal(byNode(reed, "3").parent, byNode(reed, "2").id);
+  assert.deepEqual(byNode(reed, "3").possiblyStaleParents, []);
+});
+
 test("roles: REED and awake end devices, unknown roles, Wi-Fi and other PANs ignored", () => {
   const net = buildThreadNetwork({ nodes: [
     node(1, "leader"), node(2, "reed"), node(3, "end_device"), node(4, "detached"), node(5, null),

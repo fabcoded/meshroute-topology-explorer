@@ -1,6 +1,6 @@
 # Thread reception model (review draft)
 
-Brief tq, 2026-11-01. Code: `custom_components/meshroute_topology_explorer/frontend/engines/thread/quality.js`,
+Brief tq, 2026-11-01; fixes brief tq2 (review and owner decisions, 2026-11-01). Code: `custom_components/meshroute_topology_explorer/frontend/engines/thread/quality.js`,
 tests: `tests/engine-thread-quality.test.mjs`. Not wired into the map yet; the engine refactor will do that.
 Owner decisions this builds on: "colour by reception" for Thread is built on RSSI; a reviewable model comes first.
 
@@ -9,43 +9,52 @@ Owner decisions this builds on: "colour by reception" for Thread is built on RSS
 - Per direction, Home Assistant's `matter/network_topology` gives `{ strength, lqi, rssi }`. `source_to_target` is
   measured at the source (spec 3.2). A direction the node did not report is `null` [S9].
 - `lqi` is Thread link quality 0–3 on OpenThread [S9, S1]. `rssi` is the neighbour RSSI in dBm "when available" [S9].
-  The documentation does not say whether this is the average or the last RSSI. The Matter neighbour table carries
-  both [S11, S3].
+  The matter.js server forwards `rssi = neighbor.avgRssi ?? neighbor.lastRssi`: the average, the last RSSI only as
+  fallback (`topology-utils.ts`, lines 585 and 898 [S9]). The Matter neighbour table carries both [S11, S3].
 - `strength` is "Thread: LQI 0–3 → none / weak / medium / strong" [S9], so it is link quality under another name.
-  `none` means "observed dead" and `unknown` means "no measurement". The connection-level `strength` is the
+  `none` is link quality 0, which the stack still lists; `unknown` means "no measurement". The connection-level `strength` is the
   strongest direction, a summary "for simple renderers" [S9].
 - Also present: `path_cost` ("1 = direct") and `via_route_table` [S9]. Not carried: noise floor, link margin, entry
-  age, frame or message error rates, and TX power.
+  age, the cluster's Age, frame and message error rates, and TX power.
 
 ## 2. What the radio stack does with these values
 
-- **Link quality comes from the link margin**, which is the average RSSI above the receiver's noise floor. Thresholds
-  [S1, "per Thread spec"]:
+- **Link quality comes from the link margin**: the average RSSI minus the radio's receive-sensitivity constant, which
+  OpenThread uses as the noise floor (`otPlatRadioGetReceiveSensitivity` [S7]; `mac.hpp` GetNoiseFloor "currently use
+  the radio receive sensitivity value"; `link_quality.cpp` ComputeLinkMargin [S14]). Thresholds `kThreshold3/2/1` =
+  20 / 10 / 2 dB with 2 dB hysteresis (`link_quality.hpp` [S14]; the same in [S1]):
   - more than 20 dB → link quality 3;
   - more than 10 dB → 2;
   - more than 2 dB → 1;
-  - 2 dB or less → 0.
+  - otherwise 0.
 
-  A 2 dB hysteresis applies [S1]. Silicon Labs says the same in words: "RSSI is mapped to a link quality from 0 to
-  3", and "a value of 0 means unknown cost" [S2].
-- **Routing uses both directions.** "Routing cost is based on bidirectional link quality", and "asymmetric link costs
-  are common in 802.15.4 networks" [S2].
+  The RSSI is averaged by `RssAverager`: the mean of the first 8 samples, then a 1/8 exponential average; it is invalid
+  when empty [S14]. Silicon Labs says the same in words: "RSSI is mapped to a link quality from 0 to 3" [S2].
+- **Link cost** is 4, 2 and 1 for link quality 1, 2 and 3; link quality 0 is the maximum route cost
+  (`link_quality.hpp` [S14]). Secondary sources give other numbers; the model does not use them.
+- **Routing uses both directions.** The router link cost uses the two-way link quality, the minimum of incoming and
+  outgoing (`router_table.cpp` GetLinkCost, `router.hpp` [S14]); "asymmetric link costs are common in 802.15.4
+  networks" [S2]. The Link Request margin (10 dB) is checked one-way, on the advertisement's average RSS.
 - **Router links.** OpenThread attempts a link to a neighbouring router only with at least 10 dB margin
   (`OPENTHREAD_CONFIG_MLE_LINK_REQUEST_MARGIN_MIN`, default 10). The same 10 dB applies before merging partitions
   [S6]. A REED or FED keeps about 3 router links (`CHILD_ROUTER_LINKS`) [S6].
-- **Parent selection.** The Parent Response carries the candidate's link margin and connectivity, and the child
-  chooses [S8]. The public documentation gives no numeric rule beyond that.
+- **Parent selection.** The first Parent Request round goes to routers only and accepts only two-way link quality 3;
+  then ordered `IsBetterParent` criteria decide [S8, S14]. After attaching, an MTD child keeps its parent until the
+  link breaks. Periodic parent search is off by default on MTD builds; where enabled, it triggers when the parent's
+  average RSSI is below −65 dBm, every 540 s with a 36 000 s backoff [S15]. `CHILD_TIMEOUT_DEFAULT` is 240 s. A
+  sleepy or minimal end device has exactly one neighbour entry: its parent.
+  - The stack's own "weak parent" line is therefore −65 dBm, where parent search is enabled.
+  - The model's low band means something else: below what the stack attaches to in round 1 or links to as a router.
 - **RSSI 127** is `OT_RADIO_RSSI_INVALID`, "invalid or unknown RSSI value" [S5].
-- **Receiver sensitivity.**
-  - The radio reports its receive sensitivity in dBm [S7].
-  - IEEE 802.15.4 at 2.4 GHz requires only −85 dBm [S12, secondary].
-  - Real chips reach about −98 to −104 dBm. CC2520 −98 dBm is confirmed [S12]; other parts are unverified.
-  - Energy detection must be accurate to ±6 dB [S13].
+- **Receiver sensitivity constant.** The nRF528xx port returns −100 dBm (`ot-nrf528xx` `radio.c`), and the Zephyr
+  default is −100 dBm [S14]. EFR32, ESP and TI constants are unverified. On those radios, −80 and −90 dBm are the
+  stack's own link quality 3 and 2 limits, not a convention.
+- Energy detection must be accurate to ±6 dB [S13].
 
 ## 3. Rules
 
-**(a) Bands per direction.** Each band comes from RSSI. The limits are the link-quality margins on a nominal noise
-floor of −100 dBm.
+**(a) Bands per direction.** Each band comes from RSSI, capped by the receiver's own link quality. The limits are the
+link-quality margins on a constant of −100 dBm (section 2).
 
 | Band | RSSI at the receiver | Link-quality equivalent | Reason |
 |---|---|---|---|
@@ -53,26 +62,37 @@ floor of −100 dBm.
 | mid | −89 to −80 dBm | 2 (margin 10–20 dB) | Usable; the stack still sets up router links here |
 | low | −90 dBm or below | 1 or 0 (margin ≤ 10 dB) | Below OpenThread's minimum margin for a new router link [S6] |
 
+- **Cap (owner decision 2026-11-01).** Where both RSSI and the receiver's link quality exist, the band is the lower
+  of the RSSI band and the link-quality band (link quality 3 → high, 2 → mid, 1 → low). The receiver's class
+  accounts for its own sensitivity constant. Details basis text: "−75 dBm, link quality 2 (the receiver's own
+  class)" (`basis` "lq cap"; "rssi" where RSSI decides, "lq" where there is no RSSI).
 - **Fallback.** Where RSSI is missing or 127, link quality 3, 2 or 1 gives high, mid or low.
-- **No value.** Link quality 0 or no value at all gives no band (unknown look). The model never invents a value and
-  never draws a weak link where the value is unknown.
-- **Edges.** A limit belongs to the weaker band, as in the link-quality rule. There is no hysteresis. A value at
-  −80 or −90 dBm may change band between snapshots; the number shown at the arrow makes that visible.
+- **Link quality 0 (owner decision 2026-11-01).** With a valid RSSI (not 127, not null) it is a measured low reading:
+  band low, basis "rssi". The stack lists such a neighbour. Without a valid RSSI (a fresh entry without samples) it
+  gives no band, and the entry counts as "listed without a live link" (d3).
+- **No value.** No value at all gives no band (unknown look). The model never invents a value and never draws a weak
+  link where the value is unknown.
+- **Edges.** A limit belongs to the weaker band, as in the link-quality rule. The model has no hysteresis (the stack
+  has 2 dB). A value at −80 or −90 dBm may change band between snapshots; the number at the arrow makes that visible.
 - **No band for implied or unknown directions.** A parent link that no one measured stays "implied", with no band.
 - **Width and colour** both follow the band: three looks. `laneLook()` returns a stroke level of 1/6, 1/2 or 5/6. This
   places each band in its own width step of the shared `laneStyle()` and gives three fixed points on the existing
   colour scale. The level is not a rank, and `rating` stays null.
+- **Texts for later wiring (owner decision 2026-11-01; no UI change yet).** Thread gets its own colour text: "Colour
+  shows fixed dBm bands at the stack's link-quality limits (−80 / −90 dBm), not a rank". The pickers read "low / mid /
+  high band".
 
 **(b) Absolute, not relative per receiver.**
 
 - RSSI is a physical unit, and the limits are where the receiving stack changes its own link quality. The colour then
   agrees with what the network itself uses for routing cost.
-- Zigbee ranks per reporter because vendor LQI scales differ, and needs ten readings for a rank (spec 5.4). A Thread
-  router reports a handful of neighbours, and a sleepy end device reports only its parent. A rank over one to five
-  values would paint the weakest of two −40 dBm links as "low".
-- **Limit.** Receivers differ in noise floor by several dB. The band edges are therefore a convention, not a verdict.
-- **Safety valve.** The receiver's own link quality already accounts for its own noise floor. Where the RSSI band and
-  the link quality are two bands apart, a hint says the colour may mislead for that receiver (rule d4).
+- Zigbee ranks per reporter because vendor LQI scales differ. A rank needs ten readings (spec 5.4), and Thread tables
+  have one to five: a router reports a handful of neighbours, a sleepy end device only its parent. A rank over one to
+  five values would paint the weakest of two −40 dBm links as "low".
+- **Limit.** Radios differ in their sensitivity constant. On a radio with another constant, the stack's own limits
+  sit elsewhere than −80 / −90 dBm.
+- **Safety valve.** The cap takes the receiver's own link quality into account. Where the RSSI band and the link
+  quality are two bands apart, a hint says the colour may mislead for that receiver (rule d4).
 - **Sample check.** All 8 readings in the sample agree with a floor between −105 and −97 dBm: −85 dBm comes with
   link quality 2, and −77 to −21 dBm with 3.
 
@@ -80,7 +100,8 @@ floor of −100 dBm.
 
 - **At the arrow:** RSSI, as "−85 dBm" (the existing `threadValue`). Where RSSI is missing, "LQ 2". Without either,
   the unknown glyph.
-- **Details:** RSSI, link quality, the band and its basis ("from RSSI" or "from link quality").
+- **Details:** RSSI, link quality, the band and its basis ("from RSSI", "from link quality", or "−75 dBm, link
+  quality 2 (the receiver's own class)" where the cap applied).
 - **Server `strength`:** not used and not shown. It is link quality renamed [S9]. Its connection-level summary hides
   the weaker direction. Its `none` and `unknown` already make a direction "not measured" in `model/thread.js`.
 
@@ -109,17 +130,27 @@ floor of −100 dBm.
 - **Raised when:** a neighbour lists the device with a live reading, and the device's own table, read in the same
   snapshot, has no entry or only a dead one. It is never raised against a border router, which has no table.
 - **Example wording:** "Router 01 lists this device (−60 dBm, link quality 3). This device's neighbour table does not
-  list Router 01. The tables are read one node at a time, so the entry may have aged out in between."
+  list Router 01. The two tables are of unknown age, possibly hours apart, so the entry may have aged out."
+- **Timing.** `refresh: false` returns the server's cache; the cluster's Age and error rates are not forwarded, so the
+  age of each table is unknown.
+- **Own entry "listed without a live link":** only for link quality 0 with no valid RSSI (a fresh entry without
+  samples). Link quality 0 with a valid RSSI is a live low reading.
 - **Why:** a stale child entry, or a router link that is set up on one side only. It is a hint, not a verdict.
+- **Parent of an end device** (`model/thread.js`, owner decision 2026-11-01): a sleepy or minimal end device has one
+  neighbour entry, its parent. Where the child's own table was read, the parent is the router it lists. The routers'
+  readings decide only when the child reported nothing. Other routers that list the child are "possibly stale". For a
+  REED or FED, the other routers in its table are real links, not stale parents.
 
 **d4. Signal and link quality disagree (hint).**
 
 - **Raised when:** one reading has an RSSI band and a link-quality band two bands apart, for example −60 dBm with link
   quality 1.
 - **Example wording:** "This device rates its reading of Router 02 at link quality 1, although the RSSI is −60 dBm.
-  Its noise floor is probably more than 10 dB above −100 dBm (interference or another radio), or the RSSI is of a
-  single frame. The colour of its lanes may overstate their quality."
-- **Why:** this is the one place where the absolute scale can be checked against the receiver itself.
+  The two disagree by two bands. The cause is not known from the snapshot."
+- **Possible causes:** a different sensitivity constant on that radio, a non-OpenThread stack, or RSSI and link
+  quality taken from different samples. The text does not blame interference.
+- **Why:** this is the one place where the absolute scale can be checked against the receiver itself. With the cap,
+  the lane already shows the lower band.
 
 **Not raised:**
 
@@ -128,14 +159,14 @@ floor of −100 dBm.
 
 **(e) What stays unknown.**
 
-- Whether `rssi` is the average or the last RSSI.
+- Whether a given `rssi` is the average or the fallback last RSSI (the server forwards either, without saying which).
 - Each receiver's noise floor and each sender's TX power.
-- Entry age and error rates.
+- Entry age and error rates (the cluster's Age and error counters are not forwarded).
 - Which other routers a sleepy end device could hear: its table holds only its parent, so no "better parent" can be
   named.
 - The border router's own view of its links.
 - Next hops and routes.
-- Link cost per link quality: secondary sources disagree (link quality 1 costs 4 or 6), so the model does not use it.
+- The radio's actual sensitivity constant (the model assumes −100 dBm).
 
 ## 4. Example: the anonymized sample (`tests/fixtures/matter-sample.json`)
 
@@ -169,19 +200,16 @@ finding or hint").
    - By rank per receiver, the −45 dBm link gets the thinnest stroke.
 
    Band keeps width and colour telling the same thing.
-2. **Fixed nominal noise floor of −100 dBm (recommended), or a floor estimated per receiver from its own
-   link-quality and RSSI pairs.** Example: a receiver reports −75 dBm with link quality 2.
-   - Fixed: the lane is high, and nothing is flagged, because the two are only one band apart.
-   - Estimated: that receiver's limits move up by about 5 dB.
-
-   Fixed is simple and explainable. Hint d4 catches the large cases. Revisit when more captures exist.
+2. **Decided 2026-11-01: fixed constant of −100 dBm, capped by the receiver's own link quality.** Example: a receiver
+   reports −75 dBm with link quality 2. The lane is mid (cap), and nothing is flagged, because the two are one band
+   apart. Hint d4 catches the large cases. Revisit when more captures exist.
 3. **"Listed by one side" as a hint (recommended), as a finding, or not at all.** Example: Router 01 lists Router 02,
    and Router 02's table, read seconds later, does not list Router 01.
    - As a hint, it shows with the wording "may have aged out".
    - As a finding, it would count as a judged problem.
 4. **Hint d4 shown in the Findings tab (recommended) or in debug mode only.** Example: one receiver rates −60 dBm as
    link quality 1.
-   - In the Findings tab, every user sees that its colours may overstate.
+   - In the Findings tab, every user sees that the two disagree.
    - In debug mode only, the hint is quieter, but only people who debug see it.
 
 ## Sources (public documentation, read 2026-11-01)
@@ -203,8 +231,12 @@ finding or hint").
   https://github.com/matter-js/matterjs-server
 - [S11] Apple Matter framework, `MTRThreadNetworkDiagnosticsClusterNeighborTableStruct` (`averageRssi`, `lastRssi`,
   `lqi`): https://developer.apple.com/documentation/matter/mtrthreadnetworkdiagnosticsclusterneighbortablestruct
-- [S12] IEEE 802.15.4-2011, 2.4 GHz O-QPSK sensitivity −85 dBm, as cited by an Anritsu product introduction (search
-  result, secondary); CC2520 −98 dBm from a distributor listing (secondary).
 - [S13] Nordic nRF52840 product specification, radio chapter (energy detection ±6 dB, an IEEE 802.15.4 requirement):
   https://docs.nordicsemi.com/bundle/ps_nrf52840/page/radio.html
+- [S14] OpenThread source, read for semantics only: `link_quality.hpp` / `link_quality.cpp` (thresholds, link
+  costs, `RssAverager`, ComputeLinkMargin), `mac.hpp` (GetNoiseFloor), `router_table.cpp` / `router.hpp`
+  (GetLinkCost), `ot-nrf528xx` `radio.c` (−100 dBm), Zephyr OpenThread platform default (−100 dBm):
+  https://github.com/openthread/openthread
+- [S15] openthread.io, parent search configuration (`config-parent-search`):
+  https://openthread.io/reference/config/group/config-parent-search
 - Not available publicly: the Thread specification text itself. Its thresholds are taken from [S1], which quotes it.

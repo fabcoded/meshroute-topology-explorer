@@ -119,8 +119,10 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   registry through `ha_device_id`, else the border router's `host_name` or model, else "Matter node <id>". Availability
   `null` (border routers, found by mDNS) is drawn as available and said in the Details. Readings carry Thread link
   quality 0–3 and RSSI in dBm; strength `none` (seen dead) and `unknown` (no measurement) are not measured and never
-  drawn as a dead link; RSSI 127 is no value. An end device's parent is the router-role node it is linked to (the best
-  reading at the router if several, the others possibly stale); none: "parent unknown", the device stays listed.
+  drawn as a dead link; RSSI 127 is no value. Link quality 0 with a valid RSSI is a measured low reading. An end
+  device's parent is the router its own table lists (a Thread child holds only its parent); only if the child reported
+  nothing, the router-role node whose reading is best; other routers listing the child are possibly stale (a REED's or
+  FED's further routers are real links); none: "parent unknown", the device stays listed.
   Readings of an unavailable node are stale: kept for the Details, not drawn. Wi-Fi nodes and links, and nodes of
   another extended PAN id than the largest group, are ignored and counted.
 - The snapshot has no next hop per destination: no paths, no stages, no theoretical paths, no path playback and no
@@ -220,7 +222,7 @@ entry with the higher LQI wins and the others are shown as "possibly stale". `Pr
 |---|---|---|---|
 | Radio readings per direction | yes (LQI) | yes (LQI, RSSI) | yes (LQI) |
 | Routes with next hop | yes | no | partly |
-| Parents of end devices | yes | yes (role) | yes |
+| Parents of end devices | yes | yes (the end device's own table) | yes |
 | Measurement time | no (observed, 6) | yes | per answer |
 | User-started refresh | scan | refresh (not built; the panel reads the cache) | map request |
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
