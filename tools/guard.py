@@ -5,8 +5,10 @@
   python3 tools/guard.py [ROOT]
 
 - No file may name Home Assistant commands or Python helpers that return network keys or change the network
-  (DENY, matched as prefixes). The only radio traffic the project may cause is a scan the user starts, which goes
-  through `zha/topology/update`.
+  (DENY, matched as prefixes), nor ZHA's cluster, binding and attribute-writing commands and services. The only radio
+  traffic the project may cause is a scan the user starts (`zha/topology/update`) and, since 2026-11-01 (decision by
+  Fabian Schwamborn), reading a cluster's attributes once on the user's request: `zha/devices/clusters/attributes/value`
+  is the one exception to the `zha/devices/clusters` prefix, and only as that exact quoted literal (DENY_EXCEPT).
 - Files Home Assistant serves (everything under custom_components/, any text format) must not contain outside URLs,
   including ws://, wss:// and protocol-relative ones; a map background URL comes from user configuration, never from
   code. URL_ALLOW is matched exactly up to a path boundary. NAMESPACES are XML namespace names, matched exactly: they
@@ -36,13 +38,20 @@ DENY = (
     "async_get_active_dataset_tlvs", "async_get_preferred_dataset",
     # change the network or its devices
     "zha/devices/permit", "zha/devices/remove", "zha/devices/reconfigure", "zha/topology/permit",
-    "zha/devices/clusters", "zha/devices/bind", "zha/groups/", "zha/configuration/", "matter/open_commissioning_window",
-    "thread/set_", "thread/add_dataset", "thread/delete_dataset", "matter/set_", "matter/commission", "matter/remove",
+    "zha/devices/clusters", "zha/devices/bind", "zha/devices/unbind", "zha/groups/", "zha/group/", "zha/configuration/",
+    "matter/open_commissioning_window", "thread/set_", "thread/add_dataset", "thread/delete_dataset", "matter/set_",
+    "matter/commission", "matter/remove",
+    # ZHA services that write attributes, send cluster commands, bind or sound a warning device
+    "set_zigbee_cluster_attribute", "issue_zigbee_", "issue_direct_zigbee_", "service_zigbee_bind", "warning_device_",
 )
+# Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
+# whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.
+DENY_EXCEPT = ("zha/devices/clusters/attributes/value",)
+EXCEPT_LITERAL = re.compile("|".join(q + re.escape(c) + q for c in DENY_EXCEPT for q in ("'", '"', "`")))
 # Spec 3.4, v1 and "later" rows: the only commands shipped code may name (the DENY list above still applies first).
 ALLOWED_COMMANDS = {
     "config/area_registry/list", "config/device_registry/list", "config_entries/get", "zha/devices",
-    "zha/topology/update", "matter/network_topology", "matter/subscribe_network_topology",
+    "zha/topology/update", "zha/devices/clusters/attributes/value", "matter/network_topology", "matter/subscribe_network_topology",
     "thread/discover_routers", "thread/list_datasets", "mqtt/subscribe",
 }
 OWN_NAMESPACE = "meshroute_topology_explorer/"
@@ -115,8 +124,9 @@ def check(root: Path) -> list[str]:
         for n, line in enumerate(lines, 1):
             denied = False
             if rel not in SELF and (path.suffix in SOURCE or shipped):
+                rest = EXCEPT_LITERAL.sub("", line)
                 for term in DENY:
-                    if term in line:
+                    if term in rest:
                         denied = True
                         findings.append(f"{rel}:{n}: names {term}, which returns network keys or changes the network")
             if shipped and not denied:  # one finding per line is enough

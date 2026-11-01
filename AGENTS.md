@@ -10,9 +10,11 @@ matters, but the default view stays calm: raw values, tables and scans live one 
 
 ## Ground rules
 
-- **Read only.** The one thing that may cause radio traffic is a topology scan the user starts with a button.
+- **Read only.** Radio traffic only on a button the user presses: the topology scan, and reading a cluster's attribute
+  values once (`zha/devices/clusters/attributes/value`, decision by Fabian Schwamborn, 2026-11-01). Never automatic,
+  never a write, no reporting, no binding; ZHA's own device page does those.
 - **No secrets.** Never call commands that return network keys (`zha/network/*`, `otbr/*`, `thread/get_dataset*`)
-  or change the network. `tools/guard.py` checks this.
+  or change the network. `tools/guard.py` checks this and allows exactly the one attribute read.
 - **Nothing leaves the house.** No telemetry, no CDNs. A map background may load tiles only from an address the
   user configured; no outside URL is ever written into the code.
 - **Ship what you read.** No bundler and no runtime dependencies; the repository is what Home Assistant serves.
