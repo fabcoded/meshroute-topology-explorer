@@ -90,11 +90,35 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
     (source route, 5.1).
   - A routing entry can point at an unavailable device.
 
-### 3.2 Thread through Matter [later]
+### 3.2 Thread through Matter [v1.1 preview, brief a7]
 
 - `matter/network_topology` and `matter/subscribe_network_topology` (Home Assistant 2026.9 or newer). If the Matter
-  server is too old, Home Assistant answers `not_supported`; the adapter says so in the status line.
-- Nodes carry a kind (Matter device, border router, unknown Thread device, Wi-Fi access point), role, extended
+  server is too old, Home Assistant answers `not_supported`; an older Home Assistant answers `unknown_command`. Both
+  grey the Thread entry of the network switch (9.1) with "Home Assistant 2026.9 or newer is required"; ZHA stays.
+- The panel reads it once per load, only when the Matter integration is loaded (`config_entries/get`, domain
+  `matter`), always with `refresh: false`: the Matter server's cached snapshot, no radio traffic. `tools/guard.py`
+  refuses a literal `refresh: true` in shipped code; `tools/capture.py --matter` captures the same answer.
+- **Direction** (API contract of matter.js server, `packages/ws-client/src/models/model.ts`
+  NetworkTopologyConnection, and its websocket schema changelog, schema 13; confirmed by the main session,
+  2026-11-01): `source_to_target` is the source's own neighbour-table record of the target, so it is the reading
+  "source hears target", received at the source; `target_to_source` the reverse. A missing direction is `null`.
+- **Mapping** (`model/thread.js`): device key is the extended address; roles `leader` and `router` are routers (the
+  leader with the crown "L", 8), `reed`, `end_device` and `sleepy_end_device` end devices (sleepy or not), kind
+  `border_router` the role "border router" (wired, picture hub), anything else unknown. Names come from the device
+  registry through `ha_device_id`, else the border router's `host_name` or model, else "Matter node <id>". Availability
+  `null` (border routers, found by mDNS) is drawn as available and said in the Details. Readings carry Thread link
+  quality 0–3 and RSSI in dBm; strength `none` (seen dead) and `unknown` (no measurement) are not measured and never
+  drawn as a dead link; RSSI 127 is no value. An end device's parent is the router-role node it is linked to (the best
+  reading at the router if several, the others possibly stale); none: "parent unknown", the device stays listed.
+  Readings of an unavailable node are stale: kept for the Details, not drawn. Wi-Fi nodes and links, and nodes of
+  another extended PAN id than the largest group, are ignored and counted.
+- The snapshot has no next hop per destination: no paths, no stages, no theoretical paths, no path playback and no
+  direction switch for Thread (4.6). The map draws parent links solid (both directions) and every measured neighbour
+  lane dashed; a click shows the device's own lanes with values and the glyphs of its directions without a reading.
+- Limits: the snapshot is what the Matter server last read; it may list removed routers or miss end devices, and
+  border routers vanish when Thread diagnostics are off. The explorer reads only `matter/network_topology` and does not
+  reconcile it with OTBR data (`otbr/*` returns keys and is forbidden, 3.4).
+- Nodes carry a kind (`matter`, `border_router`, `thread_unknown`, `wifi_ap`), role, extended
   address, RLOC16, extended PAN id, vendor, model, last seen, availability; links carry a strength
   (strong / medium / weak / none / unknown; unknown is not drawn as a dead link), LQI and RSSI per direction, whether
   they come from a route table, a path cost; each snapshot has a collection time.
@@ -122,7 +146,8 @@ The panel and the integration call only these Home Assistant commands; `tools/gu
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
 | `meshroute_topology_explorer/*` | own settings and observations (10) | v1 |
-| `matter/network_topology`, `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
+| `matter/network_topology` with `refresh: false` | Thread topology, cached snapshot (3.2) | v1.1 preview |
+| `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
 
 Entity states and area names need no command: the panel reads `hass.states` and `hass.areas` of the `hass` object
@@ -184,9 +209,15 @@ entry with the higher LQI wins and the others are shown as "possibly stale". `Pr
 | Routes with next hop | yes | no | partly |
 | Parents of end devices | yes | yes (role) | yes |
 | Measurement time | no (observed, 6) | yes | per answer |
-| User-started refresh | scan | refresh | map request |
+| User-started refresh | scan | refresh (not built; the panel reads the cache) | map request |
+| Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
+| Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
 
-A view, fill or finding that needs a missing capability shows "not available for this network".
+A view, fill or finding that needs a missing capability shows "not available for this network". Thread (brief a7):
+the View tab greys "Communication paths" and "Return paths without a table entry" with "Not available for this
+network: Thread data has no routes."; findings are offline, parent offline and parent unknown ("The topology lists no
+link between this end device and a router."); the network carries `capabilities` and `hasRoutes()` (graph/links.js)
+is the one test for it.
 
 ## 5. Derived facts
 
@@ -307,6 +338,10 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
   right the source-route stage (5.1). Devices missing from every table are named by the findings, and that ZHA reads
   the tables by itself, every 4 hours by default, is an info button beside "Read data again" (9.1; decision by Fabian
   Schwamborn, 2026-11-01).
+- **Thread** (brief a7, board Variant A): source "Thread (Matter)"; "Links with both directions: x/y" (pairs measured
+  both ways of all linked pairs) instead of router tables; "read {time} ({age})", the snapshot's `collected_at`, with
+  the note that it was read from the Matter server's cache; "no border router listed" when the snapshot names none.
+  No banner, no "unchanged since" (the snapshot has its own time). On the sample: 3/5.
 - **Completeness** (share of available routers with a table) is not shown as a percentage and not used as a gate: each finding decides by
   its own evidence rule (5.6). Below 90 % the map also carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp and the integration has no public way to read ZHA's tables. The panel
@@ -542,7 +577,12 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   right a button **View** and directly below it a button **Legend**; bottom right the zoom group (+, −, fit); the
   status line below the map, with the source-route stage apart on its right ("Return paths assumed for 8 devices
   (source route)", "Source route off · 8 return paths unknown"; nothing when no device is concerned, 5.1); banners (incomplete data, connection lost, reading) between the top groups, or below
-  them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). No header bar: the map fills
+  them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). **Network switch** (brief a7;
+  board "Variant A", draft not yet approved by the owner; one function, `sourcePart` in ui/network-switch.js): with
+  two or more networks the status line's "Source: …" is a chip with a caret that opens a small menu upward (WAI-ARIA
+  menu button, `menuitemradio`, Esc closes); with one network it stays plain text. A network that cannot be read is
+  a greyed entry with its reason. Switching clears the selection, keeps the panels on their tab and refits the map;
+  the first load shows Zigbee. No header bar: the map fills
   the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are rounded, on the
   theme's surface with a light shadow, targets of at least 44 px.
 - **Two panels.** The **left panel** has the tabs Devices, Findings (with its count) and Details; the button Devices
@@ -575,6 +615,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   by default", and that it reloads the tables ZHA holds and starts no radio scan, 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
   when they are not kept in Home Assistant (11). Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a
   coarse one.
+- **Legend** for Thread (brief a7): parent link, neighbour (measured, from the neighbour table; no route data), the
+  glyphs "–" and "?", and "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
 - **Legend** tab (board M7), compact, in sections: **Communication paths**: every path class whatever the stage
   (decision by Fabian Schwamborn, 2026-11-01): there and back with the coordinator, the assumed return path, paths to
   other devices "(stage 2)", the computed path, "a possible path computed from the available tables (one of the cheapest by LQI)", that actual traffic may take another path, "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
@@ -649,6 +691,10 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   answer", an error), stops at the first timeout (15 s) or error and sends nothing after the dialog closes; a hint for
   sleepy devices; "Manage in ZHA" (`/config/zha/device/<ieee>/clusters`) and the note "The map is read-only: writing,
   reporting and binding are done in ZHA's device management."
+- **Details of a Thread device** (brief a7): no sub-tabs (no signature, no clusters): the head (name, role, "Thread
+  leader" where it applies), "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3",
+  "heard by X: …", the parent first), the device's findings, and the Thread facts (role, extended address, RLOC16,
+  Matter node id; "not reported" where missing).
 - **Details on click** defaults to on for wide screens and off for narrow ones. It applies to a click on the map and
   in the Devices list: it opens the left panel on Details (a closed one, or one on Devices, or following on Details),
   never takes Findings away and on narrow screens never pushes the right sheet away; selecting from Findings or a
@@ -713,6 +759,10 @@ picture under a banner and reads again when the connection is back.
   Dates and numbers follow the Home Assistant user's locale, independent of the text language.
 
 ## 11. Settings per network [v1]
+
+Each network keeps its own settings under its id (ZHA: the config entry id; Thread: `thread-` plus the extended PAN
+id). The chosen network (`network`: `zha` or `thread`) is stored under the reserved id `panel` by read-merge-write;
+the first load shows Zigbee (brief a7).
 
 View, direction (v1.1), density, communication paths (`paths`: `coordinator` or `all`; anything else counts
 as `coordinator`; `heard`: boolean, the checkbox "heard only (best 3)", default false; a stored `paths: "heard"` of A4j/A4k reads as
