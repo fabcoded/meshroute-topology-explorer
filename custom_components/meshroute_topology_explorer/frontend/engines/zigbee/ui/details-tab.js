@@ -377,7 +377,9 @@ function entity(panel, d, raw, ctx, capabilities) {
   panel.append(card(t("node.title"), h("div", { class: "chips" }, chips), h("div", { class: "kv-list" }, facts)));
 
   // The ways into Home Assistant (board M8), as links that stay in the app.
-  const links = deviceLinks(d, capabilities).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
+  // The source's own page of the device (ZHA's), where the source has one; the panel hands its adapter's builder.
+  const sourcePage = capabilities && capabilities.devicePage && ctx.devicePage ? ctx.devicePage(d, "signature") : null;
+  const links = deviceLinks(d, sourcePage).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
     key === "area" ? t("ha.area", { name: d.area || d.areaId }) : t(`ha.${key}`)));
   panel.append(card(t("ha.title"), links.length ? h("div", { class: "pills" }, links) : h("div", { class: "muted", text: t("ha.none") }),
     h("p", { class: "muted small", text: t("ha.note") })));

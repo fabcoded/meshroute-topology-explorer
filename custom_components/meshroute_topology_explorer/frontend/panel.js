@@ -19,10 +19,8 @@ import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/parse.js";
 import { KINDS } from "./graph/symbols.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
-import { sendScan } from "./adapters/zha.js";
+import { ADAPTERS, adapterFor } from "./adapters/index.js";
 import { engineFor } from "./engines/index.js";
-import { ObservationsClient } from "./adapters/zha-observations.js";
-import { ScanFollower, tablesDiffer } from "./adapters/zha-scan.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
@@ -60,7 +58,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._ui = null;
     this._view = null;
     this._settings = null;
-    this._networkKey = null; // the network the user chose ("zha" | "thread"; ui/network-switch.js), null: default
+    this._networkKey = null; // the network the user chose (an adapter's key; ui/network-switch.js), null: default
     this._networkMenu = false; // the status line's network menu is open
     this._choice = "unread"; // the stored choice: "unread", "reading", "read"
     this._source = null; // the model's network as loaded
@@ -254,13 +252,15 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     const net = this._chosen(st);
     if (!this._versionMismatch() && st.phase === "ready" && this._choice !== "reading" && net && net !== this._source) {
-      this._useNetwork(net, net === (st.networks ? st.networks.zha : st.network) ? st.raw : []);
+      // The raw answer belongs to the first network read (the controller's `network`).
+      this._useNetwork(net, net === st.network ? st.raw : []);
       return; // _useNetwork renders when the settings are in
     }
     this._render();
   }
 
-  /** The network to show from the controller's state: the chosen one, if it can be shown, else ZHA, else Thread. */
+  /** The network to show from the controller's state: the chosen one, if it can be shown, else the first adapter's
+   *  (ZHA), else the next (Thread). */
   _chosen(st) {
     if (!st.networks) return st.network;
     const key = activeNetwork(networkChoices(st), this._networkKey || DEFAULT_NETWORK);
@@ -270,7 +270,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   /** Switch the network (board Variant A): clears the selection, keeps the panels on their tab, stores the choice. */
   _chooseNetwork(key) {
     this._networkMenu = false;
-    if (key === this._networkKey && this._source && this._source.source === key) { this._render(); return; }
+    if (key === this._networkKey && this._source && adapterFor(this._source).key === key) { this._render(); return; }
     this._networkKey = key;
     if (this._hass) saveNetworkChoice((msg) => this._hass.callWS(msg), key);
     this._select(null, "devices");
@@ -321,7 +321,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     let client = this._observations;
     if (!client || client.network !== network.id) {
       if (client) client.dispose();
-      client = new ObservationsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
+      client = new (adapterFor(network).Observations)({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
       client.addEventListener("change", () => { this._dirty.add("details").add("view"); });
       this._observations = client;
       this._observationsStale = false;
@@ -422,7 +422,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const sr = status.right;
     // The source part is the network switch when there is more than one network (ui/network-switch.js).
     const choices = networkChoices(this._controller.state);
-    const source = sourcePart({ t, choices, active: net.source, open: this._networkMenu, compact,
+    const source = sourcePart({ t, choices, active: adapterFor(net).key, open: this._networkMenu, compact,
       onToggle: (open) => {
         this._networkMenu = open;
         this._renderStatus();
@@ -492,8 +492,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _renderMessage(phase, detail) {
     const ui = this._ui;
     const t = this._t;
-    const kind = { not_admin: "warn", zha_not_loaded: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
-    const retry = ["zha_not_loaded", "no_devices", "error"].includes(phase);
+    // A source the panel cannot read yet (its adapter's blocking phase, e.g. its integration not loaded) is a warning
+    // with a retry, like no devices.
+    const blocked = ADAPTERS.some((a) => a.blocking === phase);
+    const kind = blocked ? "warn"
+      : { not_admin: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
+    const retry = blocked || ["no_devices", "error"].includes(phase);
     const reload = phase === "version";
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
@@ -526,6 +530,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
+          devicePage: adapterFor(this._network).devicePage,
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
@@ -709,11 +714,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       confirm: t("scan.confirm"), cancel: t("scan.cancel"), opener });
     if (!ok || !this._source) return;
     if (!this._scan) {
+      // The scan is the source's own (capabilities.scan; adapters/index.js scan: send, follow, compare tables).
+      const adapter = adapterFor(this._source);
       const raws = new WeakMap();
-      this._scan = new ScanFollower({
-        send: () => sendScan(this._hass),
+      this._scan = new adapter.scan.Follower({
+        send: () => adapter.scan.send(this._hass),
         read: async () => {
-          const result = await readNetwork(this._hass, { matter: false }); // the scan follows ZHA only
+          // The scan follows its own source only: no other source is read every 15 seconds.
+          const result = await readNetwork(this._hass, { keys: [adapter.key] });
           if (result.phase !== "ready") return null;
           raws.set(result.network, result.raw);
           return result.network;
@@ -722,7 +730,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._scan.addEventListener("read", (e) => {
         // Only a re-read whose tables differ reaches the map: no new layout every 15 seconds for nothing.
         const network = e.detail.network;
-        if (tablesDiffer(this._source, network)) this._controller.adopt(network, raws.get(network));
+        if (adapter.scan.differ(this._source, network)) this._controller.adopt(network, raws.get(network));
       });
       this._scan.addEventListener("change", () => {
         const status = this._scan.state.status;

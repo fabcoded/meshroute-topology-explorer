@@ -13,7 +13,7 @@ import { clusterAbout, clusterAttributes, clusterName, isManufacturerSpecific, p
   from "../zcl.js";
 import { knownValue, valueText } from "./entity-values.js";
 import { readAttributes } from "./attribute-read.js";
-import { inApp, zhaDevicePath } from "../../../ui/ha-links.js";
+import { inApp } from "../../../ui/ha-links.js";
 
 let uid = 0;
 
@@ -21,7 +21,8 @@ const FOCUSABLE = "button:not([disabled]), a[href], input:not([disabled]), [tabi
 
 /** Open the dialog. ctx: { root (element to attach to, inside the shadow root), t, device (model Device), endpoint,
  *  profile, cluster, direction ("in" | "out"), states() (hass.states now), callWS, opener (focused afterwards),
- *  onClose(), timers, timeoutMs }. Returns { el, refresh() (entity states changed), close(), read() (as the button) }. */
+ *  onClose(), timers, timeoutMs, devicePage(device, tab) (the source's own page of the device, its adapter's; none:
+ *  no "Manage" link) }. Returns { el, refresh() (entity states changed), close(), read() (as the button) }. */
 export function openClusterDialog(ctx) {
   const { t, device, cluster, direction } = ctx;
   const id = `mte-cluster-${++uid}`;
@@ -46,9 +47,10 @@ export function openClusterDialog(ctx) {
   const rows = h("tbody");
   const readButton = h("button", { type: "button", class: "button read-button", text: t("read.button"),
     on: { click: () => read() } });
-  const zhaPath = zhaDevicePath(device.id, "clusters");
-  const manage = h("a", { class: "button dark", href: zhaPath, on: { click: (e) => { inApp(zhaPath)(e); if (e.defaultPrevented) finish(); } } },
-    t("read.manage"));
+  // "Manage" opens the source's own page of the device on its clusters tab (ZHA's, ctx.devicePage from its adapter).
+  const page = ctx.devicePage ? ctx.devicePage(device, "clusters") : null;
+  const manage = page ? h("a", { class: "button dark", href: page.path,
+    on: { click: (e) => { inApp(page.path)(e); if (e.defaultPrevented) finish(); } } }, t("read.manage")) : null;
   const live = h("p", { class: "small read-status", role: "status", "aria-live": "polite" });
 
   let table;

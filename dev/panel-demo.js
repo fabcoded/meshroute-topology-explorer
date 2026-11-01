@@ -12,6 +12,7 @@ import { VERSION } from "../custom_components/meshroute_topology_explorer/fronte
 import { removedTables, withoutTables } from "../tests/derive.mjs";
 import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
 import { openClusterDialog } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js";
+import { adapterFor } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
@@ -427,7 +428,7 @@ async function drive() {
     const device = el._network.devices.find((d) => d.id === id);
     el._openDialog((host) => openClusterDialog({ ...host, t: el._t, device, endpoint: Number(q.get("ep") || 1),
       profile: 0x0104, cluster: parseInt(q.get("cluster"), 16), direction: q.get("dir") === "out" ? "out" : "in",
-      opener: null }));
+      opener: null, devicePage: adapterFor(el._network).devicePage }));
     if (flag("readvalues") && el._dialog) el._dialog.read();
   }
   const panel = q.get("right") ? el._right : el._left;

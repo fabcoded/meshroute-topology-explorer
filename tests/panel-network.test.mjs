@@ -53,7 +53,7 @@ test("both networks are read; the topology is asked with refresh false, never tr
   assert.equal(result.phase, "ready");
   assert.equal(result.network.source, "zha");
   assert.equal(result.networks.thread.source, "thread");
-  assert.equal(result.thread.status, "ok");
+  assert.equal(result.reads.thread.status, "ok");
   const asks = hass.calls.filter((m) => m.type === "matter/network_topology");
   assert.deepEqual(asks, [{ type: "matter/network_topology", refresh: false }]);
 });
@@ -79,16 +79,16 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
 
 test("switch choices: one network is plain text, a greyed Thread entry names its reason; first load is Zigbee", () => {
   const zha = { id: "z" };
-  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, thread: { status: "not_loaded" } }),
+  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_loaded" } } }),
     [{ key: "zha", available: true }]);
-  const both = networkChoices({ networks: { zha, thread }, thread: { status: "ok" } });
+  const both = networkChoices({ networks: { zha, thread }, reads: { thread: { status: "ok" } } });
   assert.deepEqual(both.map((c) => c.key), ["zha", "thread"]);
   assert.equal(activeNetwork(both, null), "zha");
   assert.equal(activeNetwork(both, "thread"), "thread");
-  const greyed = networkChoices({ networks: { zha, thread: null }, thread: { status: "not_supported" } });
+  const greyed = networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_supported" } } });
   assert.deepEqual(greyed[1], { key: "thread", available: false, reason: "not_supported", message: null });
   assert.equal(activeNetwork(greyed, "thread"), "zha", "a greyed network is never shown");
-  assert.equal(activeNetwork(networkChoices({ networks: { zha: null, thread }, thread: { status: "ok" } }), "zha"), "thread");
+  assert.equal(activeNetwork(networkChoices({ networks: { zha: null, thread }, reads: { thread: { status: "ok" } } }), "zha"), "thread");
 });
 
 test("the chosen network is stored under the panel's own id, merged; a failing store is ignored", async () => {
@@ -188,7 +188,7 @@ test("merge A4w: zigpy's route records are read for ZHA only; the scan's re-read
   assert.equal(only.network.source, "thread");
   assert.equal(threadOnly.calls.filter((m) => m.type === zigpy).length, 0, "no zigpy call for Thread");
   const scan = fakeHass();
-  const reread = await readNetwork(scan, { matter: false });
+  const reread = await readNetwork(scan, { keys: ["zha"] });
   assert.equal(reread.network.source, "zha");
   assert.equal(scan.calls.filter((m) => m.type === "matter/network_topology").length, 0);
   assert.deepEqual(networkChoices(reread).map((c) => c.key), ["zha"], "a skipped read greys nothing");

@@ -156,7 +156,7 @@ test("4b: the panel shows its error state for a network without an engine", asyn
   const { PanelController } = await mod("ui/controller.js");
   const stray = { id: "x", source: "zha", devices: [], capabilities: { routes: true } };
   const controller = new PanelController({ read: async () => ({ phase: "ready", network: stray, raw: [],
-    networks: { zha: stray, thread: null }, thread: { status: "not_loaded" } }) });
+    networks: { zha: stray, thread: null }, reads: { thread: { status: "not_loaded" } } }) });
   controller.attach();
   controller.setHass({ user: { is_admin: true }, connected: true, connection: null, callWS: async () => [] });
   await new Promise((resolve) => setTimeout(resolve, 0));

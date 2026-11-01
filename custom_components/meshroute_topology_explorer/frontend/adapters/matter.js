@@ -33,3 +33,31 @@ export async function readThread(hass, registries = {}) {
   const network = ENGINES.thread.build(topology, registries);
   return network ? { status: "ok", network } : { status: "empty" };
 }
+
+/** Reasons a Thread network cannot be shown that the network switch names (it lists the network greyed); not loaded,
+ *  read and skipped are no reasons. */
+const UNAVAILABLE = Object.freeze(["not_supported", "empty", "error"]);
+
+/** One read of this source for the panel (ui/controller.js readNetwork): readThread's { status, network?, message? }
+ *  with blocking null (Thread alone never blocks the panel). The registries are read before the Matter read. */
+export async function readSource(hass, { registries }) {
+  const read = await readThread(hass, await registries());
+  return { ...read, network: read.network || null, blocking: null };
+}
+
+/** The Matter adapter as the shell sees it (adapters/index.js): key (the source its networks carry, "thread", and the
+ *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why. */
+export const adapter = Object.freeze({
+  key: "thread",
+  read: readSource,
+  blocking: null,
+  unavailable: (read) => Boolean(read && read.status && !["not_loaded", "ok", "skipped"].includes(read.status)),
+  reasonText: (choice, t) => {
+    if (choice.reason === "not_supported") return t("status.thread_not_supported");
+    if (choice.reason === "empty") return t("status.thread_empty");
+    return t("status.thread_error", { message: choice.message || "?" });
+  },
+  devicePage: null,
+  scan: null,
+  Observations: null,
+});

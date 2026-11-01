@@ -43,7 +43,10 @@ export const zigbee = Object.freeze({
     returnRoutes: ctx.settings.returnRoutes, sourceRoute: ctx.settings.sourceRoute,
     onCluster: (spec, opener) => {
       const device = ctx.network.devices.find((d) => d.id === ctx.id);
-      if (device) ctx.openDialog((host) => openClusterDialog({ ...host, t: ctx.t, device, ...spec, opener }));
+      if (device) {
+        ctx.openDialog((host) => openClusterDialog({ ...host, t: ctx.t, device, ...spec, opener,
+          devicePage: ctx.devicePage }));
+      }
     } }),
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
    *  paths without a table entry. */
