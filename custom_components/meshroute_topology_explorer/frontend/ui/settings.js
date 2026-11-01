@@ -25,7 +25,7 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
  *  not on narrow ones (spec 9.2). paths: the stage of "Communication paths" (graph/links.js PATH_STAGES: with the
  *  coordinator there and back, + paths to all devices). heard: the checkbox "heard only (best 3)", on top of either
  *  stage (default off). sourceRoute: return paths without a table entry
- *  are "assume"d (the way up reversed) or "off" (unknown). */
+ *  are "assume"d (the way up reversed), "off" (unknown) or read from "zigpy" (route records, else assumed). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
   paths: DEFAULT_PATHS, heard: false, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, sourceRoute: DEFAULT_SOURCE_ROUTE,
   pins: Object.freeze({}) });
@@ -111,7 +111,7 @@ export function sanitizeSettings(input) {
   delete out.receptionColors;
   delete out.legendOpen;
   out.labels = sanitizeLabels(src.labels);
-  // "zigpy" (reading the route records) is a later stage: until it exists, it and anything else count as "assume".
+  // off, assume or zigpy (read the route records, brief a4w); anything else counts as "assume".
   out.sourceRoute = sourceRouteMode(src.sourceRoute);
   out.pins = sanitizePins(src.pins);
   return out;

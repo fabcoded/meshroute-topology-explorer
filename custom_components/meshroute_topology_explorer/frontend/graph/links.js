@@ -17,7 +17,7 @@
 
 import { computePairs } from "../model/pairs.js";
 import { downPath, routePath, upPath } from "../model/paths.js";
-import { assumedDownPaths } from "../model/source-routes.js";
+import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "../model/source-routes.js";
 import { isActive } from "../model/normalize.js";
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";
@@ -38,13 +38,15 @@ export const CLASSES = Object.freeze(["heard", "route", "down", "up"]);
 export const BEST_HEARD = 3;
 
 /** The class of a lane under a source-route stage (model/source-routes.js), the strongest it carries: up or a
- *  measured down lane, then an assumed down lane (only with "assume"), then a route between devices, then heard
- *  (a reading without traffic); null for a lane that carries nothing and has no reading (only a route or a parent
- *  link implies it, or nothing does). */
+ *  measured down lane, then a return path of the stage (assumed under "assume"; recorded by zigpy or else assumed
+ *  under "zigpy"), then a route between devices, then heard (a reading without traffic); null for a lane that carries
+ *  nothing and has no reading (only a route or a parent link implies it, or nothing does). */
 export function laneClass(lane, sourceRoute = "off") {
   if (lane.up) return "up";
   if (lane.downMeasured) return "down";
-  if (lane.downAssumed && sourceRoute === "assume") return "down";
+  const stage = drawMode(sourceRoute);
+  if (lane.downAssumed && stage === "assume") return "down";
+  if ((lane.downRecorded || lane.downZigpyAssumed) && stage === "zigpy") return "down";
   if (lane.route) return "route";
   return lane.dir && lane.dir.state === "measured" ? "heard" : null;
 }
@@ -143,12 +145,15 @@ function addHops(set, ids) {
 /** Pairs and lanes of a network with what each lane carries, and every device's up path. Uses the model's pairs when
  *  the network carries them (buildNetwork does); otherwise computes them from devices, readings and routes, treating
  *  a reading without a `measured` flag as measured when its LQI is above 0. Returns { pairs: [{ a, b, ab, ba }],
- *  lanes: [{ pair, sender, hearer, dir, up, downMeasured, downAssumed, route }], upPaths: Map, network } with two lanes
+ *  lanes: [{ pair, sender, hearer, dir, up, downMeasured, downAssumed, downRecorded, downZigpyAssumed, route }],
+ *  upPaths: Map, network } with two lanes
  *  per pair (first b -> a, whose evidence is ab: a hears b; then a -> b) and `network` the cleaned devices, routes and
  *  pairs that the selection's paths are walked on. What a lane carries (spec 7.1):
  *  - up: a hop of a device's way to the coordinator (model/paths.js upPath);
  *  - downMeasured: a hop of the coordinator's way to a device (downPath), incomplete walks up to where they stop;
  *  - downAssumed: a hop of an assumed return path (source route, model/source-routes.js), counted only under "assume";
+ *  - downRecorded: a hop of a return path from zigpy's route record, drawn as measured, only under "zigpy";
+ *  - downZigpyAssumed: a hop of an assumed return path of a device without a record, only under "zigpy";
  *  - route: a hop of the walk of an active, current route whose owner and destination are not the coordinator. */
 export function classifyLanes(network) {
   const devices = (network.devices || []).filter((d) => d && typeof d.id === "string")
@@ -177,6 +182,10 @@ export function classifyLanes(network) {
   }
   const assumed = new Set();
   for (const walk of assumedDownPaths(net).values()) addHops(assumed, walk.ids);
+  const recorded = new Set();
+  for (const walk of zigpyRecords(net).paths.values()) addHops(recorded, walk.ids);
+  const zigpyAssumed = new Set();
+  for (const walk of returnPaths(net, "zigpy").values()) if (walk.assumed) addHops(zigpyAssumed, walk.ids);
   const route = new Set();
   const walked = new Set();
   for (const r of routes) {
@@ -193,7 +202,7 @@ export function classifyLanes(network) {
     for (const [sender, hearer, dir] of [[p.b, p.a, p.ab], [p.a, p.b, p.ba]]) {
       const k = laneKey(sender, hearer);
       lanes.push({ pair, sender, hearer, dir, up: up.has(k), downMeasured: down.has(k), downAssumed: assumed.has(k),
-        route: route.has(k) });
+        downRecorded: recorded.has(k), downZigpyAssumed: zigpyAssumed.has(k), route: route.has(k) });
     }
   });
   return { pairs: valid, lanes, upPaths, network: { ...net, pairs: valid } };

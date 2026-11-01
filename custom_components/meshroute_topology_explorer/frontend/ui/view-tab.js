@@ -100,17 +100,16 @@ export function renderView(container, ctx) {
   container.append(group(t("view.on_click"),
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
 
-  // Return paths without a table entry (source route; decision by Fabian Schwamborn, 2026-11-01): off or assume; reading
-  // the route records from zigpy is announced but not built, so its radio is disabled and says "coming later".
-  const zigpy = h("label", { class: "check-row disabled" },
-    h("input", { type: "radio", name: `${id}-sourceRoute`, value: "zigpy", disabled: true, "aria-describedby": `${id}-sr-later` }),
-    h("span", { text: t("view.sr_zigpy") }), h("span", { class: "tag", text: t("view.sr_experimental") }),
-    h("span", { class: "muted small", id: `${id}-sr-later`, text: t("view.sr_later") }));
+  // Return paths without a table entry (source route; decisions by Fabian Schwamborn, 2026-11-01): off, assume, or read
+  // zigpy's route records (brief a4w), which keeps its "experimental" tag.
   const assumedInfo = infoNote("assumed", t("view.assumed_info_label"), t("view.assumed_info"));
+  const choices = SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
+    () => ctx.onChange({ sourceRoute: v })));
+  const zigpy = choices[SOURCE_ROUTE_MODES.indexOf("zigpy")];
+  if (zigpy) zigpy.append(h("span", { class: "tag", text: t("view.sr_experimental") }));
   container.append(h("fieldset", { class: "view-group" },
     h("legend", { class: "with-info" }, h("span", { text: t("view.source_route") }), assumedInfo.button), assumedInfo.note,
-    SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
-      () => ctx.onChange({ sourceRoute: v }))), zigpy));
+    choices));
 
   // Node distance (density), with a note behind an info button.
   const densityInfo = infoNote("density", t("view.density_info_label"), t("view.density_info"));

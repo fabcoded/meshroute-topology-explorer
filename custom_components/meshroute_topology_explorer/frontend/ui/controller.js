@@ -7,6 +7,7 @@
 // first one may start a load (spec 10); later ones are checked for a lost or restored connection only.
 import { buildNetwork } from "../model/index.js";
 import { blockingState } from "./status.js";
+import { readZigpyRoutes } from "./zigpy-routes.js";
 
 /** Code of home-assistant-js-websocket for a command that died with the connection (ERR_CONNECTION_LOST in its
  *  lib/errors.ts). Pending commands are rejected with { type: "result", success: false, error: { code: 3 } }, results
@@ -39,6 +40,8 @@ export async function readNetwork(hass) {
     const [deviceRegistry, areaRegistry] = await Promise.all(
       [optional("config/device_registry/list"), optional("config/area_registry/list")]);
     const network = buildNetwork(raw, { deviceRegistry, areaRegistry, configEntries });
+    // zigpy's route records for the source-route stage "zigpy" (ui/zigpy-routes.js): read only, never fails the load.
+    network.zigpy = await readZigpyRoutes(hass);
     return { phase: "ready", network, raw };
   } catch (err) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
