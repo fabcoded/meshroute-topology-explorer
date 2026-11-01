@@ -33,7 +33,11 @@ import { renderFindings, markFindings } from "./ui/findings-tab.js";
 import { renderLegend } from "./ui/legend-tab.js";
 import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
-import { statusParts, sourceRoutePart, isIncomplete } from "./ui/status.js";
+import { statusParts, sourceRoutePart, isIncomplete, ageParts } from "./ui/status.js";
+import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
+  from "./ui/network-switch.js";
+import { renderThreadDetails } from "./ui/thread-details.js";
+import { hasRoutes } from "./graph/links.js";
 import { openClusterDialog } from "./ui/cluster-dialog.js";
 import { sourceRouteSummary } from "./model/source-routes.js";
 import { receptionText, roleText } from "./ui/format.js";
@@ -58,6 +62,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._ui = null;
     this._view = null;
     this._settings = null;
+    this._networkKey = null; // the network the user chose ("zha" | "thread"; ui/network-switch.js), null: default
+    this._networkMenu = false; // the status line's network menu is open
+    this._choice = "unread"; // the stored choice: "unread", "reading", "read"
     this._source = null; // the model's network as loaded
     this._network = null; // the same, labels translated: what every view shows
     this._raw = new Map();
@@ -237,11 +244,40 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (st.connection === "lost") this._announce(this._t("live.lost"));
       this._connection = st.connection;
     }
-    if (!this._versionMismatch() && st.phase === "ready" && st.network && st.network !== this._source) {
-      this._useNetwork(st.network, st.raw);
+    if (!this._versionMismatch() && st.phase === "ready" && networkChoices(st).length > 1 && this._choice === "unread"
+      && this._hass) {
+      // Two networks: the stored choice decides which one shows first (board Variant A: first load Zigbee).
+      this._choice = "reading";
+      loadNetworkChoice((msg) => this._hass.callWS(msg)).then((key) => {
+        if (key && !this._networkKey) this._networkKey = key;
+        this._choice = "read";
+        this._onState();
+      });
+    }
+    const net = this._chosen(st);
+    if (!this._versionMismatch() && st.phase === "ready" && this._choice !== "reading" && net && net !== this._source) {
+      this._useNetwork(net, net === (st.networks ? st.networks.zha : st.network) ? st.raw : []);
       return; // _useNetwork renders when the settings are in
     }
     this._render();
+  }
+
+  /** The network to show from the controller's state: the chosen one, if it can be shown, else ZHA, else Thread. */
+  _chosen(st) {
+    if (!st.networks) return st.network;
+    const key = activeNetwork(networkChoices(st), this._networkKey || DEFAULT_NETWORK);
+    return (key && st.networks[key]) || st.network;
+  }
+
+  /** Switch the network (board Variant A): clears the selection, keeps the panels on their tab, stores the choice. */
+  _chooseNetwork(key) {
+    this._networkMenu = false;
+    if (key === this._networkKey && this._source && this._source.source === key) { this._render(); return; }
+    this._networkKey = key;
+    if (this._hass) saveNetworkChoice((msg) => this._hass.callWS(msg), key);
+    this._select(null, "devices");
+    this._onState();
+    this._announce(this._t("status.source", { source: this._t(`source.${key}`) }));
   }
 
   /** A new network from the controller: load its settings first (density, fill and pins shape the first picture),
@@ -263,7 +299,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       await this._settings.load();
       if (token !== this._token) return;
     }
-    await this._observe(network);
+    // Observations ("unchanged since", spec 6) are about ZHA's tables; a Thread snapshot carries its own time.
+    if (network.source === "zha") await this._observe(network);
     if (token !== this._token) return;
     this._network = localize(network, this._t, this._areas());
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
@@ -336,7 +373,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const t = this._t;
     const st = this._controller.state;
     const mismatch = this._versionMismatch();
-    const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === st.network;
+    const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === this._chosen(st);
     for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
       this._left.close();
@@ -369,15 +406,32 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _renderStatus() {
     const t = this._t;
     const net = this._network;
-    const newest = this._observations ? this._observations.newest(net) : null;
-    const scan = this._scan && this._scan.state.status !== "idle" ? this._scan.state : null;
+    const zha = net.source === "zha";
+    const newest = this._observations && zha ? this._observations.newest(net) : null;
+    const scan = this._scan && zha && this._scan.state.status !== "idle" ? this._scan.state : null;
     const compact = !this._wide;
-    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact });
+    const collected = net.collectedAt ? (() => {
+      const [ageKey, ageParams] = ageParts(net.collectedAt);
+      return { time: t.when(net.collectedAt), age: t(ageKey, ageParams) };
+    })() : null;
+    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected });
     this._ui.status.classList.toggle("compact", compact);
     // The source-route stage sits apart on the right (board M1).
-    const sr = this._settings ? sourceRoutePart(sourceRouteSummary(net, this._settings.settings.sourceRoute), compact) : null;
-    const spans = parts.map(([key, params, long], i) => {
-      const span = h("span", { class: i < parts.length - 1 ? "part sep" : "part", text: t(key, params) });
+    const sr = this._settings && zha ? sourceRoutePart(sourceRouteSummary(net, this._settings.settings.sourceRoute), compact) : null;
+    // The source part is the network switch when there is more than one network (ui/network-switch.js).
+    const choices = networkChoices(this._controller.state);
+    const source = sourcePart({ t, choices, active: zha ? "zha" : "thread", open: this._networkMenu, compact,
+      onToggle: (open) => {
+        this._networkMenu = open;
+        this._renderStatus();
+        if (open) {
+          const first = this._ui.status.querySelector('.network-item[aria-checked="true"]');
+          if (first) first.focus();
+        }
+      },
+      onChoose: (key) => this._chooseNetwork(key) });
+    const spans = parts.filter(([key]) => key !== "status.source").map(([key, params, long], i, all) => {
+      const span = h("span", { class: i < all.length - 1 ? "part sep" : "part", text: t(key, params) });
       if (long) span.title = t(long, params);
       if (key === "status.unchanged" || key === "status.short_unchanged") {
         span.title = long ? `${t(long, params)}. ${t("status.unchanged_note")}` : t("status.unchanged_note");
@@ -393,7 +447,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (sr[2]) span.title = t(sr[2], sr[1]);
       spans.push(span);
     }
-    this._ui.status.replaceChildren(...spans);
+    const showSource = !compact || choices.length > 1;
+    this._ui.status.replaceChildren(...(showSource ? [source] : []), ...spans);
   }
 
   /** The controls on the map (spec 9.1). On wide screens a side panel covers its corner, so that corner's group is
@@ -451,7 +506,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (!d.isOpen || !this._dirty.has(d.tab)) continue;
       const panel = d.panel(d.tab);
       this._dirty.delete(d.tab);
-      if (d.tab === "details") {
+      if (d.tab === "details" && this._network.source === "thread") {
+        keepFocus(this._root, panel, () => renderThreadDetails(panel, { network: this._network, t, id: this._selected,
+          onSelect: (id) => this._select(id, "details") }));
+      } else if (d.tab === "details") {
         const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
         keepFocus(this._root, panel, () => renderDetails(panel, { network: this._network, t, id: this._selected,
           debug: this._debug, raw: this._raw,
@@ -470,6 +528,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           devices: this._network.devices, links: this._view ? this._view.legend() : [], debug: this._debug });
       } else if (d.tab === "view") {
         keepFocus(this._root, panel, () => renderView(panel, { t, settings: this._settings.settings,
+          routes: hasRoutes(this._network),
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",

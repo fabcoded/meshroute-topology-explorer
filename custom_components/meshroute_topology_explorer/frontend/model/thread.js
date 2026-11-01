@@ -25,7 +25,7 @@ export const RECEIVER_OF_SOURCE_TO_TARGET = "source";
 export const THREAD_SOURCE = "thread";
 /** Capabilities of a Thread network (spec 4.6): what views, stages and findings may use. */
 export const THREAD_CAPABILITIES = Object.freeze({
-  routes: false, parents: true, measurementTime: true, refresh: true, scale: "thread-lqi",
+  routes: false, parents: true, measurementTime: true, userRefresh: true, scale: "thread-lqi",
 });
 
 /** Thread roles of the snapshot -> model role (spec 4.2) and sleep. A leader is a router with the "L" crown (spec 8);

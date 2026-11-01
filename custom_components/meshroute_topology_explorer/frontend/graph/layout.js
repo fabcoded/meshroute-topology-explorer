@@ -97,7 +97,8 @@ export class Layout {
       if (a === undefined || b === undefined || a === b) continue;
       if (r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) continue;
       const key = a * this.ids.length + b;
-      const lqi = r.lqi;
+      // Thread link quality 0-3 (model/thread.js) on the same curve: 3 is the top of the scale like 255.
+      const lqi = r.scale === "thread-lqi" ? Math.min(r.lqi, 3) * 85 : r.lqi;
       if (!best.has(key) || (lqi !== null && (best.get(key).lqi === null || lqi > best.get(key).lqi))) {
         best.set(key, { a, b, lqi });
       }

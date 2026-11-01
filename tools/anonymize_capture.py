@@ -192,7 +192,7 @@ def _thread_mapping(responses: dict, mapping: dict) -> None:
             if tail.lower() in mapping:
                 mapping.setdefault(ident, f"{prefix}_{mapping[tail.lower()].upper()}")
     for n, pan in enumerate(dict.fromkeys(str(x.get("ext_pan_id")) for x in nodes if x.get("ext_pan_id")), 1):
-        mapping.setdefault(pan, f"00112233aabbcc{n:02x}")
+        mapping.setdefault(pan, f"aabbccddeeff00{n:02x}")  # synthetic like every fixture address (test_fixture)
     for n, name in enumerate(dict.fromkeys(str(x.get("network_name")) for x in nodes if x.get("network_name")), 1):
         mapping.setdefault(name, f"thread-net-{n:02d}")
     for n, host in enumerate(dict.fromkeys(str(x.get("host_name")) for x in nodes if x.get("host_name")), 1):

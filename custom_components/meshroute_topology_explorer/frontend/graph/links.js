@@ -271,9 +271,19 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
  *  the band under a selected device's way up; the glyphs for directions without a reading where the option draws
  *  them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
  *  the hearer, and with colored the reception scale. */
-export function legendEntries(theme, { debug = false, colored = false, heard = false } = {}) {
+export function legendEntries(theme, { debug = false, colored = false, heard = false, routes = true } = {}) {
   const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
   const glyphs = debug || heard;
+  if (!routes) {
+    // Thread (spec 3.2): what its map draws: parent links, measured neighbours, the glyphs a click shows, RX in dBm.
+    return [
+      { id: "parent", kind: "lane", style: sample("up") },
+      { id: "neighbour", kind: "lane", style: sample("heard") },
+      { id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
+      { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
+      { id: "rx-thread", kind: "rx" },
+    ];
+  }
   return [
     { id: "coordinator", kind: "lane", style: sample("up") },
     { id: "assumed", kind: "lane", style: sample("down", { assumed: true }) },

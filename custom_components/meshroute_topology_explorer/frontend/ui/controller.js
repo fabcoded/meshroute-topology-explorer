@@ -6,6 +6,7 @@
 // Why a separate controller: Home Assistant assigns a new `hass` object on every state change in the house. Only the
 // first one may start a load (spec 10); later ones are checked for a lost or restored connection only.
 import { buildNetwork } from "../model/index.js";
+import { buildThreadNetwork } from "../model/thread.js";
 import { blockingState } from "./status.js";
 
 /** Code of home-assistant-js-websocket for a command that died with the connection (ERR_CONNECTION_LOST in its
@@ -24,22 +25,67 @@ export function errorText(err) {
   return String(e.message || e.code || e);
 }
 
-/** One read of the network through hass.callWS. Returns { phase, network?, raw?, message? }; never throws. */
+/** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
+ *  (the server's cached snapshot; refresh true reads every node's tables over the radio and is never sent from here).
+ *  Returns { status: "ok" | "not_loaded" | "not_supported" | "empty" | "error", network?, message? }; a lost
+ *  connection is thrown to the caller. Home Assistant before 2026.9 has no such command (unknown_command), a Matter
+ *  server too old for it answers not_supported (spec 3.2): both are "not_supported". */
+export async function readThread(hass, registries = {}) {
+  let entries;
+  try {
+    entries = await hass.callWS({ type: "config_entries/get", domain: "matter" });
+  } catch (err) {
+    if (isConnectionLost(err)) throw err;
+    return { status: "not_loaded" };
+  }
+  if (!(Array.isArray(entries) && entries.some((e) => e && e.domain === "matter" && e.state === "loaded"))) {
+    return { status: "not_loaded" };
+  }
+  let topology;
+  try {
+    topology = await hass.callWS({ type: "matter/network_topology", refresh: false });
+  } catch (err) {
+    if (isConnectionLost(err)) throw err;
+    const code = String((err && (err.code || (err.error && err.error.code))) || "");
+    if (code === "not_supported" || code === "unknown_command") return { status: "not_supported" };
+    return { status: "error", message: errorText(err) };
+  }
+  const network = buildThreadNetwork(topology, registries);
+  return network ? { status: "ok", network } : { status: "empty" };
+}
+
+/** One read of the networks through hass.callWS. Returns { phase, network?, raw?, networks?: { zha, thread },
+ *  thread?: readThread's status, message? }; never throws. `network` is the ZHA network, else the Thread one; the
+ *  panel picks which of `networks` it shows (ui/network-switch.js). */
 export async function readNetwork(hass) {
   try {
     const isAdmin = Boolean(hass.user && hass.user.is_admin);
     // The zha/* commands are admin only and fail without ZHA, so the cheap checks come first.
     const configEntries = isAdmin ? await hass.callWS({ type: "config_entries/get", domain: "zha" }) : [];
+    if (!isAdmin) return { phase: "not_admin" };
+    // Names and areas are a nicety: without the registries the models fall back to the integrations' own names.
+    const optional = (type) => hass.callWS({ type }).catch((err) => { if (isConnectionLost(err)) throw err; return []; });
+    let registries = null;
+    const readRegistries = async () => {
+      if (!registries) {
+        const [deviceRegistry, areaRegistry] = await Promise.all(
+          [optional("config/device_registry/list"), optional("config/area_registry/list")]);
+        registries = { deviceRegistry, areaRegistry };
+      }
+      return registries;
+    };
     const blocked = blockingState({ isAdmin, configEntries });
-    if (blocked) return { phase: blocked };
-    const raw = await hass.callWS({ type: "zha/devices" });
-    if (!Array.isArray(raw) || raw.length === 0) return { phase: "no_devices" };
-    // Names and areas are a nicety: without the registries the model falls back to ZHA's own names.
-    const optional = (type) => hass.callWS({ type }).catch(() => []);
-    const [deviceRegistry, areaRegistry] = await Promise.all(
-      [optional("config/device_registry/list"), optional("config/area_registry/list")]);
-    const network = buildNetwork(raw, { deviceRegistry, areaRegistry, configEntries });
-    return { phase: "ready", network, raw };
+    let raw = null;
+    let zha = null;
+    if (!blocked) {
+      raw = await hass.callWS({ type: "zha/devices" });
+      if (Array.isArray(raw) && raw.length) zha = buildNetwork(raw, { ...(await readRegistries()), configEntries });
+    }
+    const thread = await readThread(hass, await readRegistries());
+    const networks = { zha, thread: thread.network || null };
+    const network = zha || networks.thread;
+    if (!network) return { phase: blocked || "no_devices", thread };
+    return { phase: "ready", network, raw: zha ? raw : [], networks, thread };
   } catch (err) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
     return { phase: "error", message: errorText(err) };
@@ -58,7 +104,8 @@ export class PanelController extends EventTarget {
      *  carries a network; the others are messages, spec 9.4), network (kept while a reload runs or the connection is
      *  down), raw zha/devices list, message,
      *  connection "ok" | "lost", loading (a reload is running while the old picture stays). */
-    this.state = { phase: "loading", network: null, raw: null, message: null, connection: "ok", loading: false };
+    this.state = { phase: "loading", network: null, raw: null, networks: null, thread: null, message: null,
+      connection: "ok", loading: false };
     this._token = 0;
     this._conn = null;
     this._onDisconnected = () => this._lost();
@@ -105,13 +152,15 @@ export class PanelController extends EventTarget {
       return;
     }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
-      message: result.message || null, loading: false });
+      networks: result.networks || null, thread: result.thread || null, message: result.message || null, loading: false });
   }
 
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
   adopt(network, raw) {
     this._token += 1;
-    this._set({ phase: "ready", network, raw: raw || null, message: null, loading: false });
+    // A followed scan reads ZHA only: the Thread network stays as it was.
+    const networks = { ...(this.state.networks || {}), zha: network };
+    this._set({ phase: "ready", network, raw: raw || null, networks, message: null, loading: false });
   }
 
   _maybeStart() {

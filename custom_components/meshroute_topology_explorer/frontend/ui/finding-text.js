@@ -33,7 +33,9 @@ export function findingText(f, t, name) {
       for (const r of e.readings || []) lines.push(t("evidence.very_low", { lqi: r.lqi, reporter: name(r.reporter) }));
       break;
     case "parent unknown":
-      if (e.verdict === "no parent") {
+      if (e.verdict === "no parent link") {
+        lines.push(t("evidence.thread_no_parent")); // Thread: no table count to hedge with (model/thread.js)
+      } else if (e.verdict === "no parent") {
         title = t("kind.no parent");
         lines.push(t("evidence.no_parent"));
       } else {

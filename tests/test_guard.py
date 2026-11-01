@@ -83,6 +83,18 @@ class GuardTest(unittest.TestCase):
         self.assertTrue(all("allow-list" in f or "changes the network" in f for f in found), found)
         self.assertTrue(any("light/turn_on" in f for f in found))
 
+    def test_matter_topology_read_only(self):
+        root = self.tree({
+            "custom_components/x/ok.js": SPDX + "hass.callWS({ type: 'matter/network_topology', refresh: false })\n",
+            "custom_components/x/radio.js": SPDX + "hass.callWS({ type: 'matter/network_topology', refresh: true })\n",
+            "custom_components/x/radio.py": "# SPDX-License-Identifier: MIT\nmsg = {'type': 'matter/network_topology', 'refresh': True}\n",
+            "custom_components/x/keys.js": SPDX + "a({ type: 'thread/get_dataset_tlv' }); b({ type: 'otbr/info' })\n",
+        })
+        found = guard.check(root)
+        self.assertFalse(any("ok.js" in f for f in found), found)
+        self.assertEqual(sum("refresh: true" in f for f in found), 2, found)
+        self.assertTrue(any("keys.js" in f and "network keys" in f for f in found), found)
+
     def test_known_bypasses_are_flagged(self):
         cases = {
             "template.js": "hass.callWS({ type: `light/turn_on` })",

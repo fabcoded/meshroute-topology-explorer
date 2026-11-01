@@ -18,7 +18,8 @@ import { SOURCE_ROUTE_MODES } from "../model/source-routes.js";
 /** Fill `container`. ctx: { t, settings (sanitized), openOnSelect (effective "Details on click"), dark (the map's
  *  theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running } or null), client
  *  (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only), idPrefix (stable, so focus
- *  is found again after a re-render), info ({ density, reload, heard, colors, assumed }: which info notes are shown), onChange(patch),
+ *  is found again after a re-render), info ({ density, reload, heard, colors, assumed }: which info notes are shown),
+ *  routes (false for a network without routes, Thread: stages and source route greyed with the reason), onChange(patch),
  *  onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(), onInfo(key, open) }. */
 export function renderView(container, ctx) {
   const { t, settings } = ctx;
@@ -68,7 +69,16 @@ export function renderView(container, ctx) {
   heardInfo && heardInfo.note,
   h("span", { class: "muted small group-note", text: t("view.paths_note") }));
   paths.classList.add("paths-group");
-  container.append(paths);
+  // A network without routes (Thread, spec 4.6) has no stages: the controls stay in view, greyed, with the reason.
+  const routes = ctx.routes !== false;
+  const unavailable = (fieldset) => {
+    if (routes) return fieldset;
+    fieldset.disabled = true;
+    fieldset.classList.add("off");
+    fieldset.append(h("span", { class: "muted small group-note", text: t("view.not_for_network") }));
+    return fieldset;
+  };
+  container.append(unavailable(paths));
 
   // Path display: grey or coloured by reception; with coloured, the user's own colours (null: the theme's own).
   const pc = settings.pathColors;
@@ -107,10 +117,10 @@ export function renderView(container, ctx) {
     h("span", { text: t("view.sr_zigpy") }), h("span", { class: "tag", text: t("view.sr_experimental") }),
     h("span", { class: "muted small", id: `${id}-sr-later`, text: t("view.sr_later") }));
   const assumedInfo = infoNote("assumed", t("view.assumed_info_label"), t("view.assumed_info"));
-  container.append(h("fieldset", { class: "view-group" },
+  container.append(unavailable(h("fieldset", { class: "view-group" },
     h("legend", { class: "with-info" }, h("span", { text: t("view.source_route") }), assumedInfo.button), assumedInfo.note,
     SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
-      () => ctx.onChange({ sourceRoute: v }))), zigpy));
+      () => ctx.onChange({ sourceRoute: v }))), zigpy)));
 
   // Node distance (density), with a note behind an info button.
   const densityInfo = infoNote("density", t("view.density_info_label"), t("view.density_info"));
@@ -143,7 +153,7 @@ export function renderView(container, ctx) {
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
         on: { click: () => ctx.onReleaseAll() } })),
     reloadInfo.note);
-  if (ctx.debug) {
+  if (ctx.debug && routes) {
     const running = Boolean(ctx.scan && ctx.scan.running);
     const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
       text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });

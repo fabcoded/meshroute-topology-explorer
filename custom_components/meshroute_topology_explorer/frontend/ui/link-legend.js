@@ -15,7 +15,7 @@ import { h, svg } from "./dom.js";
  *  nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t) {
   return entries.map((e) => {
-    const key = e.kind === "rx" ? "legend.rx" : `legend.link.${e.id}`;
+    const key = e.kind === "rx" ? (e.id === "rx-thread" ? "legend.rx_thread" : "legend.rx") : `legend.link.${e.id}`;
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
     // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
     if (e.option) row.note = t(`legend.option_${e.option}`);
@@ -75,9 +75,9 @@ function scaleSample(entry) {
 }
 
 /** "RX:" over a value, as the map writes it beside a lane. */
-function rxSample(t) {
+function rxSample(t, value = "103") {
   return h("span", { class: "rx-sample", "aria-hidden": "true" }, h("span", { class: "muted", text: t("lane.rx") }),
-    h("strong", { text: "103" }));
+    h("strong", { text: value }));
 }
 
 /** The drawing for one row. */
@@ -88,7 +88,7 @@ function sampleFor(row, t) {
   if (row.kind === "band") return bandSample(row);
   if (row.kind === "stem") return stemSample(row);
   if (row.kind === "scale") return scaleSample(row);
-  if (row.kind === "rx") return rxSample(t);
+  if (row.kind === "rx") return rxSample(t, row.id === "rx-thread" ? "\u221275 dBm" : "103"); // Thread: RSSI
   return h("span", { class: "glyph-sample" });
 }
 
