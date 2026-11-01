@@ -106,6 +106,8 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
     const userName = text(r.user_given_name) || text(entry && entry.name_by_user);
     const device = {
       id, registryId: (entry && entry.id) || null, nwk: parseAddress(r.nwk), role, label: name, labelKind: "model", name,
+      // The name the integration gave the device in Home Assistant's registry (shown on the map on request, spec 8).
+      haName: text(entry && entry.name) || text(r.name),
       area: (areaId && reg.areas.get(areaId)) || null,
       vendor: text(r.manufacturer), model: text(r.model), powerSource,
       // Picture and sleep from the device's own signature (kinds.js); sleep may also come from a parent's entry below.

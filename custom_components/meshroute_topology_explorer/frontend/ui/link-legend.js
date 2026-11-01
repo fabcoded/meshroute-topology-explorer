@@ -2,23 +2,16 @@
 // The links part of the legend, built from what the graph says it draws (GraphView.legend(), graph/links.js
 // legendEntries): the three colour-free classes (up path solid, other active route dotted, heard only dashed grey),
 // the implied lane, the width steps, the glyphs "–" and "?", the selection's band, its path hops and unknown end, and
-// the red-to-green scale while "colour by reception" is on. The samples use the entries' own stroke styles, so legend
-// and map cannot drift apart; the words come from i18n by entry id.
+// the scale of the user's reception colours while paths are coloured. The samples use the entries' own stroke styles,
+// so legend and map cannot drift apart; the words come from i18n by entry id.
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.
 import { h, svg } from "./dom.js";
 
-/** Classes shown in the small legend on the map. */
-export const SHORT_IDS = Object.freeze(["up", "route", "heard"]);
-/** Shown in the small legend too whenever the graph lists them: the reception scale while colour is on. */
-export const SHORT_EXTRA = Object.freeze(["reception"]);
-
-/** Rows for the legend: each entry of the graph with its words as `label` (an entry's own `text` is its glyph);
- *  short: only the three classes (and the reception scale while it is on), with short names. An entry the panel has
- *  no words for keeps its id as label, so nothing the map draws goes unexplained silently. */
-export function linkLegendRows(entries, t, { short = false } = {}) {
-  const list = short ? entries.filter((e) => SHORT_IDS.includes(e.id) || SHORT_EXTRA.includes(e.id)) : entries;
-  return list.map((e) => {
-    const key = short ? `legend.link_short.${e.id}` : `legend.link.${e.id}`;
+/** Rows for the legend: each entry of the graph with its words as `label` (an entry's own `text` is its glyph). An
+ *  entry the panel has no words for keeps its id as label, so nothing the map draws goes unexplained silently. */
+export function linkLegendRows(entries, t) {
+  return entries.map((e) => {
+    const key = `legend.link.${e.id}`;
     return { ...e, label: t.has(key) ? t(key) : e.id };
   });
 }
@@ -86,7 +79,7 @@ function sampleFor(row, entries) {
 }
 
 /** A list of rows with samples. */
-export function linkLegendList(entries, t, { short = false } = {}) {
-  return h("ul", { class: short ? "swatches compact" : "swatches" }, linkLegendRows(entries, t, { short }).map((row) =>
+export function linkLegendList(entries, t) {
+  return h("ul", { class: "swatches" }, linkLegendRows(entries, t).map((row) =>
     h("li", {}, sampleFor(row, entries), h("span", { text: row.label }))));
 }

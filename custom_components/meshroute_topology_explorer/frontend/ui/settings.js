@@ -3,22 +3,30 @@
 // (spec 10): meshroute_topology_explorer/settings/get answers { settings: object | null }, /settings/set takes the
 // whole object and answers {}. Saves are debounced and read-merge-write: the client reads what is stored and writes
 // back only the keys it changed, pins per device, so two panels open at once do not wipe each other's pins. If the
-// integration does not know the commands (an older version) the settings live in memory and the Settings tab says
-// so; after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned
-// before use. No DOM. Tested in Node: node --test tests/
+// integration does not know the commands (an older version) the settings live in memory and the View tab says so;
+// after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
+// use. No DOM. Tested in Node: node --test tests/
 import { DENSITY } from "../graph/layout.js";
 import { DEFAULT_LINKS } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
+import { DEFAULT_LABELS } from "../graph/labels.js";
 import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
 
-/** Defaults of spec 11. openDetailsOnSelect and legendOpen null mean "by screen width": details open on select and
- *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). nodeView: what a selected device
- *  shows (its path to the coordinator, or all its paths); receptionColors: the opt-in colouring of lanes by their
- *  reading (off by default: links carry no colour otherwise, spec 8). */
+/** Path display (spec 7.1, 8; design by Fabian Schwamborn, 2026-11-01): lanes "grey" (no colour, default) or
+ *  "coloured" by reception; bad, medium and good are the user's own colours ("#rrggbb", e.g. for colour blindness) or
+ *  null for the theme's own red, yellow and green (graph/palette.js RECEPTION_STOPS). */
+export const PATH_MODES = Object.freeze(["grey", "coloured"]);
+export const PATH_STOPS = Object.freeze(["bad", "medium", "good"]);
+export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medium: null, good: null });
+
+/** Defaults of spec 11. openDetailsOnSelect null means "by screen width": details open on a click on wide panels and
+ *  not on narrow ones (spec 9.2). nodeView: what a selected device shows (its path to the coordinator, or all its
+ *  paths). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
-  legendOpen: null, links: DEFAULT_LINKS, nodeView: DEFAULT_NODE_VIEW, receptionColors: false, pins: Object.freeze({}) });
+  links: DEFAULT_LINKS, nodeView: DEFAULT_NODE_VIEW, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS,
+  pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -55,6 +63,28 @@ export function sanitizeLinks(input) {
   return Object.fromEntries(Object.keys(DEFAULT_LINKS).map((c) => [c, typeof src[c] === "boolean" ? src[c] : DEFAULT_LINKS[c]]));
 }
 
+const HEX = /^#[0-9a-f]{6}$/i;
+/** A colour as the native colour picker gives it ("#rrggbb", lower case); anything else is null (the theme's own). */
+export function sanitizeColor(v) {
+  return typeof v === "string" && HEX.test(v) ? v.toLowerCase() : null;
+}
+
+/** Path display { mode, bad, medium, good }. Before it existed the panel stored `receptionColors: true` for colour by
+ *  reception: without a valid pathColors object that still means "coloured" with the theme's own colours. */
+export function sanitizePathColors(input, legacy) {
+  if (!isPlainObject(input)) return { ...DEFAULT_PATH_COLORS, mode: legacy === true ? "coloured" : "grey" };
+  const out = { mode: PATH_MODES.includes(input.mode) ? input.mode : DEFAULT_PATH_COLORS.mode };
+  for (const key of PATH_STOPS) out[key] = sanitizeColor(input[key]);
+  return out;
+}
+
+/** Label switches { type, name, haName } (spec 8: device type above the symbol, readable name below it, the original
+ *  Home Assistant name in a smaller grey line below that): a boolean per line, anything else falls back to its default. */
+export function sanitizeLabels(input) {
+  const src = isPlainObject(input) ? input : {};
+  return Object.fromEntries(Object.keys(DEFAULT_LABELS).map((k) => [k, typeof src[k] === "boolean" ? src[k] : DEFAULT_LABELS[k]]));
+}
+
 /** A valid settings object from whatever was stored: known keys with wrong values fall back to the defaults, broken
  *  pins are dropped, unknown keys are kept as they are (a newer version may have written them). */
 export function sanitizeSettings(input) {
@@ -64,10 +94,13 @@ export function sanitizeSettings(input) {
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
-  out.legendOpen = typeof src.legendOpen === "boolean" ? src.legendOpen : null;
   out.links = sanitizeLinks(src.links);
   out.nodeView = NODE_VIEWS.includes(src.nodeView) ? src.nodeView : DEFAULTS.nodeView;
-  out.receptionColors = src.receptionColors === true; // opt-in: anything but true is off
+  out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
+  // Replaced by pathColors, and the legend pill is gone (A4h): the next save leaves both out.
+  delete out.receptionColors;
+  delete out.legendOpen;
+  out.labels = sanitizeLabels(src.labels);
   out.pins = sanitizePins(src.pins);
   return out;
 }

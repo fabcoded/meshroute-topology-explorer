@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
-// What the drawer does on a selection or a request (spec 9.1, 9.2; ui/drawer-rule.js): it never takes a tab away,
-// closes only what it opened by itself, opens collapsed when automatic and expanded when asked for.
-// node --test "tests/**/*.test.mjs"
+// What the two panels do on a selection or a request (spec 9.1, 9.2; design by Fabian Schwamborn, 2026-11-01;
+// ui/drawer-rule.js): "Details on click" opens the left panel on Details from the map and the Devices list, never
+// takes Findings away, never pushes the right sheet away on narrow screens; buttons toggle their tab; one sheet at a
+// time on narrow screens. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect, tabVisible } from "../custom_components/meshroute_topology_explorer/frontend/ui/drawer-rule.js";
 
-const closed = { isOpen: false, tab: "details", auto: false, mode: "sheet", expanded: false };
+const shut = { isOpen: false, tab: "devices", auto: false, mode: "side", expanded: false };
+const state = (left = {}, right = {}, wide = true) => ({ wide, left: { ...shut, ...left }, right: { ...shut, tab: "view", ...right } });
+const select = (id, source, open, st) => afterSelect({ id, source, openOnSelect: open, state: st });
 
-test("open details on select: by screen width unless stored", () => {
+test("Details on click: by screen width unless stored", () => {
   assert.equal(openOnSelect(null, true), true);
   assert.equal(openOnSelect(null, false), false);
   assert.equal(openOnSelect(undefined, false), false);
@@ -16,48 +19,66 @@ test("open details on select: by screen width unless stored", () => {
   assert.equal(openOnSelect(false, true), false);
 });
 
-test("a selection on the map opens a closed drawer on Details, collapsed and automatic", () => {
-  assert.deepEqual(afterSelect({ id: "a", source: "map", openOnSelect: true, drawer: closed }),
-    { action: "open", tab: "details", expanded: false, auto: true, focus: false });
-  assert.deepEqual(afterSelect({ id: "a", source: "map", openOnSelect: false, drawer: closed }), { action: "none" });
+test("switch on: a click on the map opens the closed left panel on Details, collapsed and automatic", () => {
+  assert.deepEqual(select("a", "map", true, state()),
+    [{ panel: "left", action: "open", tab: "details", expanded: false, auto: true, focus: false }]);
+  assert.deepEqual(select("a", "map", false, state()), [], "switch off: nothing opens");
+  assert.deepEqual(select("a", "devices", false, state({ isOpen: true })), [], "switch off: the list stays");
 });
 
-test("it never takes another tab away, and follows on Details without making a user-opened drawer automatic", () => {
-  for (const tab of ["devices", "findings", "legend", "settings"]) {
-    const open = { ...closed, isOpen: true, tab };
-    assert.deepEqual(afterSelect({ id: "a", source: "map", openOnSelect: true, drawer: open }), { action: "none" }, tab);
-  }
-  const userDetails = { ...closed, isOpen: true, tab: "details", auto: false, expanded: true };
-  const answer = afterSelect({ id: "b", source: "map", openOnSelect: true, drawer: userDetails });
-  assert.equal(answer.action, "open");
-  assert.equal(answer.auto, false, "still the user's drawer");
+test("switch on: a click on the map or in the list switches Devices to Details, but never takes Findings away", () => {
+  const devices = state({ isOpen: true, tab: "devices", expanded: true });
+  const [step] = select("a", "map", true, devices);
+  assert.equal(step.tab, "details");
+  assert.equal(step.auto, false, "still the user's panel");
+  assert.deepEqual(select("a", "devices", true, devices),
+    [{ panel: "left", action: "open", tab: "details", expanded: true, auto: false, focus: "panel" }]);
+  const findings = state({ isOpen: true, tab: "findings" });
+  assert.deepEqual(select("a", "map", true, findings), [], "Findings stays");
+  assert.deepEqual(select("a", "findings", true, findings), [], "a finding selects and zooms, the list stays");
+  const details = state({ isOpen: true, tab: "details", auto: true });
+  assert.deepEqual(select("b", "details", true, details), [], "a device named in Details: Details follows by itself");
+  assert.equal(select("b", "map", true, details)[0].auto, true, "an automatic panel stays automatic");
 });
 
-test("clearing the selection closes only an automatic drawer on Details", () => {
-  const auto = { ...closed, isOpen: true, tab: "details", auto: true };
-  assert.deepEqual(afterSelect({ id: null, source: "map", openOnSelect: true, drawer: auto }), { action: "close" });
-  assert.deepEqual(afterSelect({ id: null, source: "map", openOnSelect: true, drawer: { ...auto, auto: false } }), { action: "none" });
-  assert.deepEqual(afterSelect({ id: null, source: "map", openOnSelect: true, drawer: { ...auto, tab: "findings" } }), { action: "none" });
+test("on narrow screens a click never pushes the right sheet away; on wide ones both panels may be open", () => {
+  const narrowView = state({}, { isOpen: true, mode: "sheet" }, false);
+  assert.deepEqual(select("a", "map", true, narrowView), []);
+  const wideView = state({}, { isOpen: true }, true);
+  assert.equal(select("a", "map", true, wideView).length, 1, "wide: details open beside the View panel");
 });
 
-test("selections from lists and the chip leave the drawer alone", () => {
-  for (const source of ["list", "chip"]) {
-    assert.deepEqual(afterSelect({ id: "a", source, openOnSelect: true, drawer: closed }), { action: "none" });
-    assert.deepEqual(afterSelect({ id: null, source, openOnSelect: true, drawer: { ...closed, isOpen: true, auto: true } }), { action: "none" });
-  }
+test("clearing the selection on the map closes only an automatic left panel on Details", () => {
+  const auto = state({ isOpen: true, tab: "details", auto: true });
+  assert.deepEqual(select(null, "map", true, auto), [{ panel: "left", action: "close" }]);
+  assert.deepEqual(select(null, "map", true, state({ isOpen: true, tab: "details" })), []);
+  assert.deepEqual(select(null, "map", true, state({ isOpen: true, tab: "findings", auto: true })), []);
+  assert.deepEqual(select(null, "devices", true, auto), []);
 });
 
-test("requests open expanded; keyboard requests move focus; header toggles close a tab in view", () => {
-  assert.deepEqual(detailsRequest("long-press"), { action: "open", tab: "details", expanded: true, auto: false, focus: false });
-  assert.equal(detailsRequest("context-menu").focus, false);
-  assert.equal(detailsRequest("key").focus, true);
-  assert.equal(detailsRequest("button").focus, true);
-  assert.deepEqual(tabRequest({ tab: "findings", drawer: closed }), { action: "open", tab: "findings", expanded: true, auto: false, focus: true });
-  const side = { isOpen: true, tab: "findings", mode: "side", expanded: false, auto: false };
-  assert.equal(tabVisible(side, "findings"), true);
-  assert.deepEqual(tabRequest({ tab: "findings", drawer: side }), { action: "close" });
-  assert.equal(tabRequest({ tab: "findings", drawer: side, toggle: false }).action, "open", "menu entries always open");
-  const collapsedSheet = { ...side, mode: "sheet", expanded: false };
-  assert.equal(tabVisible(collapsedSheet, "findings"), false);
-  assert.equal(tabRequest({ tab: "findings", drawer: collapsedSheet }).action, "open", "a collapsed sheet expands instead of closing");
+test("buttons open their tab expanded with focus and close it when it is already in view; one sheet at a time", () => {
+  assert.deepEqual(tabRequest({ panel: "right", tab: "legend", state: state() }),
+    [{ panel: "right", action: "open", tab: "legend", expanded: true, auto: false, focus: "tab" }]);
+  const legend = state({}, { isOpen: true, tab: "legend" });
+  assert.equal(tabVisible(legend.right, "legend"), true);
+  assert.deepEqual(tabRequest({ panel: "right", tab: "legend", state: legend }), [{ panel: "right", action: "close" }]);
+  assert.equal(tabRequest({ panel: "right", tab: "view", state: legend })[0].tab, "view", "the other tab switches");
+  // Narrow: the Devices button closes the right sheet first; a collapsed sheet expands instead of closing.
+  const narrow = state({ mode: "sheet" }, { isOpen: true, mode: "sheet", expanded: true }, false);
+  assert.deepEqual(tabRequest({ panel: "left", tab: "devices", state: narrow }).map((s) => [s.panel, s.action]),
+    [["right", "close"], ["left", "open"]]);
+  const collapsed = state({ isOpen: true, tab: "devices", mode: "sheet", expanded: false }, {}, false);
+  assert.equal(tabVisible(collapsed.left, "devices"), false);
+  assert.equal(tabRequest({ panel: "left", tab: "devices", state: collapsed }).at(-1).action, "open");
+  // Wide: the other panel stays.
+  assert.deepEqual(tabRequest({ panel: "left", tab: "devices", state: state({}, { isOpen: true }) }).map((s) => s.panel), ["left"]);
+});
+
+test("details asked for (right-click, long press, menu key) open the left panel expanded; only the key moves focus", () => {
+  assert.deepEqual(detailsRequest("long-press", state()),
+    [{ panel: "left", action: "open", tab: "details", expanded: true, auto: false, focus: false }]);
+  assert.equal(detailsRequest("context-menu", state())[0].focus, false);
+  assert.equal(detailsRequest("key", state())[0].focus, "tab");
+  const narrow = state({}, { isOpen: true, mode: "sheet" }, false);
+  assert.deepEqual(detailsRequest("key", narrow).map((s) => [s.panel, s.action]), [["right", "close"], ["left", "open"]]);
 });

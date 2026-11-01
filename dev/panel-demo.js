@@ -2,8 +2,9 @@
 // Loader of dev/panel.html (not shipped): a fake `hass` for the real panel element. callWS answers from the anonymized
 // sample, keeps the integration's settings and observations in memory (or answers "unknown_command"), and can lose
 // the connection on a timer. A scan (zha/topology/update) is acted out: afterwards the routers' tables change one after
-// another, two seconds apart, and every fifth stays as it was. A burger button at the left edge opens a menu of variants (links that reload the page
-// with their query) and three toggles that keep the other keys. See dev/panel.html for the query keys.
+// another, two seconds apart, and every fifth stays as it was. A small "dev" tab at the top centre (not part of the
+// panel) opens a menu of variants (links that reload the page with their query) and three toggles that keep the other
+// keys. See dev/panel.html for the query keys.
 import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
@@ -19,11 +20,17 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const VARIANTS = [
   ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German", "lang=de"], ["Dark", "dark=1"],
     ["German + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
-    ["Debug", "debug=1"], ["Legend collapsed", "legend=closed"], ["Narrow, legend open", "phone=1&legend=open"]]],
-  ["Node view", [["Path to coordinator: End device 06", "select=End%20device%2006"],
+    ["Debug", "debug=1"], ["Labels with HA name", "labels=type,name,ha"], ["Labels: name only", "labels=name"]]],
+  ["Panels", [["Left: Devices", "left=devices"], ["Left: Findings", "left=findings"],
+    ["Left: Details (Router 03)", "select=Router%2003&left=details"], ["Right: View", "right=view"],
+    ["Right: View, coloured", "right=view&colors=1"], ["Right: View, own colours", "right=view&colors=1&bad=0072b2&good=e69f00"],
+    ["Right: Legend", "right=legend"], ["Right: Legend, coloured", "right=legend&colors=1"], ["Both panels", "left=devices&right=view"],
+    ["Narrow: Devices", "phone=1&left=devices"], ["Narrow: View", "phone=1&right=view"], ["Narrow: Legend", "phone=1&right=legend"]]],
+  ["Node view", [["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
+    ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
-    ["All paths: Router 11", "select=Router%2011&nodeview=all"], ["Colour by reception", "select=Router%2016&colors=1"],
-    ["Colour by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
+    ["All paths: Router 11", "select=Router%2011&nodeview=all"], ["Coloured by reception", "select=Router%2016&colors=1"],
+    ["Coloured by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
     ["without-coordinator", "variant=without-coordinator"]]],
   ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
@@ -53,7 +60,7 @@ function currentVariant() {
   return all.find(([, query]) => pairs(query, { withoutToggles: true }) === base && pairs(query) === base) || null;
 }
 
-/** Burger button at the left edge and its menu. Text only through DOM nodes; links and checkboxes are native, so Tab
+/** The "dev" tab at the top centre and its menu. Text only through DOM nodes; links and checkboxes are native, so Tab
  *  reaches everything; Esc closes and returns focus to the button; a press outside or tabbing out closes it. */
 function buildVariantMenu() {
   const make = (tag, props = {}, ...children) => {
@@ -67,7 +74,8 @@ function buildVariantMenu() {
     return node;
   };
   const button = make("button", { type: "button", id: "dev-burger", className: "dev-burger", "aria-label": "Dev variants",
-    title: "Dev variants", "aria-expanded": "false", "aria-controls": "dev-menu" }, make("span"), make("span"), make("span"));
+    title: "Dev variants (dev page only, not part of the panel)", "aria-expanded": "false", "aria-controls": "dev-menu",
+    text: "dev ▾" });
   const current = currentVariant();
   const menu = make("div", { id: "dev-menu", className: "dev-menu", hidden: true, role: "dialog", "aria-label": "Dev variants" });
   menu.append(make("h2", { text: "Dev variants" }));
@@ -184,9 +192,17 @@ if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
 if (q.get("links")) initial.links = Object.fromEntries(["up", "route", "heard"].map((c) => [c, q.get("links").split(",").includes(c)])); // links=up,route
-if (q.get("legend")) initial.legendOpen = q.get("legend") === "open";
 if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all|coordinator
-if (q.get("colors")) initial.receptionColors = q.get("colors") === "1";
+// colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
+if (q.get("colors")) {
+  const hex = (key) => (q.get(key) ? `#${q.get(key)}` : null);
+  initial.pathColors = { mode: q.get("colors") === "1" ? "coloured" : "grey", bad: hex("bad"), medium: hex("medium"), good: hex("good") };
+}
+if (q.has("labels")) { // labels=type,name,ha: the lines that are on
+  const on = q.get("labels").split(",");
+  initial.labels = { type: on.includes("type"), name: on.includes("name"), haName: on.includes("ha") };
+}
+if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as A4g stored it (migration)
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
 
@@ -265,20 +281,21 @@ if (q.get("lost")) {
 async function drive() {
   for (let i = 0; i < 100 && !el._network; i++) await sleep(50);
   if (!el._network) return;
-  if (flag("debug")) el._onMenu("debug");
-  if (flag("linksopen")) el._options.linksPanel.open();
-  if (flag("nodeviewopen")) el._options.nodeViewMenu.open();
+  if (flag("debug")) el._setDebug(true);
+  if (flag("info")) el._densityInfo = true;
   // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
   const id = q.get("select") && (byLabel(q.get("select"))
     || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
-  if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); } // as a tap on the map would
-  else if (id) el._select(id, "list");
-  const tab = q.get("tab");
-  if (tab) el._toggleTab(tab, null);
-  if (q.get("scroll") === "end") { await sleep(100); el._drawer.body.scrollTop = el._drawer.body.scrollHeight; }
+  // collapsed=1: as a tap on the map ("Details on click" decides); else as from a finding (selects, no panel).
+  if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); }
+  else if (id) el._select(id, "findings");
+  if (q.get("left")) el._request("left", q.get("left"), null);
+  if (q.get("right")) el._request("right", q.get("right"), null);
+  const panel = q.get("right") ? el._right : el._left;
+  if (q.get("scroll") === "end") { await sleep(100); panel.body.scrollTop = panel.body.scrollHeight; }
   // scan=dialog opens the scan's confirmation; scan=run also confirms it (debug mode is switched on for both).
   if (q.get("scan")) {
-    if (!el._debug) el._onMenu("debug");
+    if (!el._debug) el._setDebug(true);
     el._startScan();
     await sleep(100);
     if (q.get("scan") === "run") el.shadowRoot.querySelector("dialog.confirm .primary").click();
@@ -307,8 +324,10 @@ async function replay() {
       if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
     }
     await sleep(op === "wait" ? Number(arg) : 150);
-    log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; drawer ${el._drawer.isOpen ? el._drawer.tab : "closed"}; path ${location.pathname}; `
-      + `density ${el._settings && el._settings.settings.density}; legendOpen ${el._settings && el._settings.settings.legendOpen}`);
+    log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; `
+      + `left ${el._left.isOpen ? el._left.tab : "closed"}; right ${el._right.isOpen ? el._right.tab : "closed"}; `
+      + `path ${location.pathname}; density ${el._settings && el._settings.settings.density}; `
+      + `openDetailsOnSelect ${el._settings && el._settings.settings.openDetailsOnSelect}`);
   }
   document.body.dataset.log = log.join(" | ");
 }

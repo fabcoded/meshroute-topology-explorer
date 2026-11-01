@@ -3,7 +3,7 @@
 What Meshroute Topology Explorer does, described from the user's side and from Home Assistant's public interfaces.
 It fixes behaviour, data rules and measurable acceptance, not code structure: how files and modules are cut is up to
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
-version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01.
+version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01.
 
 ## 1. Purpose and principles [v1]
 
@@ -135,7 +135,8 @@ newest data, completeness (6).
 Key: the IEEE / extended address, never a name. Network address, **role** (`coordinator`, `router`, `end device`,
 `border router`, `unknown`), power source, **kind** (light, outlet, relay, button, sensor, motion, temperature,
 thermostat, blind, lock, hub or unknown; the picture of its symbol, 8), **sleepy** (receiver off when idle: yes, no or
-unknown), vendor, model, display name, area, available, last seen. "Battery device" in the interface means an end
+unknown), vendor, model, display name, the name the integration gave it in Home Assistant's device registry, area,
+available, last seen. "Battery device" in the interface means an end
 device whose power source is a battery.
 
 ### 4.3 Radio link
@@ -290,21 +291,22 @@ the centre).
   table does not list the sender (table full, nearly full or with space), "?" when there is no table to ask (end
   device, missing or stale table) or it says LQI 0. A direction only a route or a parent link proves is a thin dotted
   grey lane without a head.
-- **Colour by reception** (request by Fabian Schwamborn, 2026-11-01; off by default, Links popover 9.1, stored 11): every
-  drawn lane with a rated reading takes its rating (5.4, relative to the hearer) on a scale from red (weakest) over
-  yellow to green (strongest); lanes without a reading or rating keep their class colour. Dash and width stay, so the
-  class and the rating still read without colour. Shades per theme keep 3:1 against the background and differ in
-  lightness (8).
+- **Path display** (request by Fabian Schwamborn, 2026-11-01; View tab 9.1, stored 11): grey (default: links carry no
+  colour) or **coloured by reception**: every drawn lane with a rated reading takes its rating (5.4, relative to the
+  hearer) on a scale from bad over medium to good, red, yellow and green unless the user chose own colours for the
+  three (for colour blindness, design 2026-11-01); lanes without a reading or rating keep their class colour. Dash and
+  width stay, so the class and the rating still read without colour. Every colour is nudged to 3:1 against the
+  background (8).
 - By default all up-path and route pairs are drawn, heard-only pairs as each device's 3 best (by the pair's better
   rating), and all pairs of the selection and of the device under the pointer; debug mode draws all. Order: heard
   only, other route, up path on top.
-- Switches choose the classes of the overview (decision by Fabian Schwamborn, 2026-11-01): Up path, Other routes,
-  Heard only, all on by default. A switched-off class is not drawn, except around the selection and the device under
+- Switches choose the classes of the overview (decision by Fabian Schwamborn, 2026-11-01; "Communication paths" in the
+  View tab, 9.1): Up path, Other routes, Heard only, all on by default. A switched-off class is not drawn, except around the selection and the device under
   the pointer and in debug mode; heard only keeps its 3-best rule when on. The switches only filter the drawing:
   springs, positions and fitting stay as they are, and a class that is off leaves the legend (debug mode keeps it).
 - Selecting a device shows its paths in the **node view** (5.1; request by Fabian Schwamborn, 2026-11-01), chosen in
-  the options group (9.1): "Path to coordinator" (default: its up and down path; the coordinator stands for Home
-  Assistant) or "All paths". Each hop is drawn on the lane of its direction of travel with an arrowhead at the hearer:
+  the View tab under "On click on a device" (9.1): only the communication path with the coordinator (default: its up
+  and down path; the coordinator stands for Home Assistant) or all routes to and from other devices. Each hop is drawn on the lane of its direction of travel with an arrowhead at the hearer:
   solid in the foreground (up-path widths by rating) where the hearer measured it, dotted where only a route or a
   parent link proves it. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; "?"
   where unknown). Where up and down differ, both are drawn; the up path also as a wide translucent band under its
@@ -383,16 +385,24 @@ user-supplied image, or map tiles from an address the user configured.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
   dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour by default: their class shows by dash (solid, dots, dashes)
-  and the foreground or grey, their rating by width (7.1). The one exception is the opt-in colour by reception (7.1):
-  red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d, #f2c230, #3fbd5c, interpolated
-  between them and nudged to 3:1 against the theme's background), CIELAB lightness at least 8 apart, so the three
-  stay apart without hue; the numbers and widths say the same.
-- Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
-  shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
+  and the foreground or grey, their rating by width (7.1). The one exception is the opt-in path display coloured by
+  reception (7.1): by default red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d,
+  #f2c230, #3fbd5c), CIELAB lightness at least 8 apart, so the three stay apart without hue; the user may replace
+  each of the three for both themes. The scale is interpolated between the three and nudged to 3:1 against the
+  theme's background; the numbers and widths say the same.
+- **Labels** (design by Fabian Schwamborn, 2026-11-01): a device's label is a block of up to three lines, each
+  switchable (View tab, stored 11): its **type** above the symbol in grey (its kind, 4.2, in the user's language,
+  "Light", "Lampe"; none for an unknown kind, whose symbol already shows "?"; on by default), its readable name below
+  the symbol (the user's name, else the model; on) and the original Home Assistant name (the device registry's name
+  the integration gave it) in a smaller grey line below that, only where it differs from the readable name (off).
+  Labels are text, never HTML. A name never loses the part that distinguishes it from similar names (cut shared
+  beginnings at word starts, keep the end); identical readable names get the network address appended. Below a scale
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
-  smaller zoom) only the coordinator, the selection and its neighbours carry labels; a label tries four places
-  around its device before it is left out.
-- A legend explains the current view, the fill and the symbols: their signs, the pictures present and the states.
+  smaller zoom) only the coordinator, the selection and its neighbours carry labels. A block tries its places around
+  its device as a whole, every line free of other devices and texts: type above and names below, then the whole
+  block below, above, right and left (with the name alone: below, above, right, left); otherwise it is left out.
+- The legend (one place: the Legend tab, 9.1) explains the current view, the fill and the symbols: their signs, the
+  pictures present and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
   per theme: role (coordinator vermillion, router bluish green, end device blue, border router reddish purple) and
   power source (mains blue, battery reddish purple, DC bluish green); devices without a category are grey with a
@@ -402,53 +412,65 @@ user-supplied image, or map tiles from an address the user configured.
 ## 9. Interaction [v1]
 
 ### 9.1 What is on screen
-- **Default:** map, legend, status line, view switch **[v1.1]** (v1 has one view), density, a findings badge with a
-  count. Nothing else.
-- **One drawer** (side on wide screens; bottom sheet on narrow ones, opened collapsed to one line) with the tabs
-  Details, Devices, Findings, Legend, Settings; at most one drawer open; it never covers the selected device (the
-  map pans if needed).
-- **Debug mode** (menu, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
+One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears twice.
+- **On the map, only:** top left a button **Devices** with the findings count as a badge, and directly below it a
+  slide switch **Details on click** (a real switch, `role="switch"`), shown only while the left panel is closed; top
+  right a button **View** and directly below it a button **Legend**; bottom right the zoom group (+, −, fit); the
+  status line below the map; banners (incomplete data, connection lost, reading) between the top groups, or below
+  them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). No header bar: the map fills
+  the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are rounded, on the
+  theme's surface with a light shadow, targets of at least 44 px.
+- **Two panels.** The **left panel** has the tabs Devices, Findings (with its count) and Details; the button Devices
+  opens it on Devices. The **right panel** has the tabs View and Legend; the buttons open it on their tab. A button
+  pressed while its tab is in view closes the panel. On wide screens they are side panels on their own side (both may
+  be open) and hide the buttons of their corner; on narrow ones the same panels are bottom sheets, one at a time
+  (opening one closes the other). A panel never covers the selected device (the map pans). Closing a panel (its ×,
+  Esc) returns focus to where it was opened.
+- **Devices:** a search field ("Name, model, area, address") and the list (9.3); a line says what a click does. With
+  Details on click on, a click on a device in the list or on the map opens its Details; while the left panel shows
+  Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
+- **View** tab, in this order: **Communication paths** (checkboxes up path, other routes, heard only; 7.1); **Path
+  display** (grey or coloured by reception; when coloured, three colour pickers bad, medium, good, prefilled with the
+  theme's red, yellow and green, freely choosable, and a way back to the defaults; 7.1, 8); **On click on a device**
+  (checkbox "Open details", the same setting as the switch on the map; the node view: only the communication path with
+  the coordinator, there and back, or all routes to and from other devices; 7.1); **Node distance (density)** with an
+  info button that says the distance comes from field strength and reception quality and the density multiplies it
+  (dense, medium, spread; 7.1); **Symbol fill** (none, role, power source); **Labels on the map** (device type above
+  the symbol, readable name below, original Home Assistant name; 8). Below a line: debug mode, "Read data again",
+  "Release all pins (n)", in debug mode the scan (6), and where the settings are kept (11).
+- **Legend** tab: the communication path classes and every other mark the map draws for links, "RX:" (the reception
+  at the hearer, a quarter of the lane before it), the colour scale while paths are coloured, the fill while one is
+  chosen, the symbols (router frame with gaps and strokes, closed frame for end devices, bed for sleeping, crown "C"
+  for the coordinator, plug for wired, arcs for radio) drawn by the map's own code, the pictures present and the
+  states (offline, selected, pinned). The links part comes from the graph's own legend entries (7.1).
+- **Debug mode** (View tab, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and
   the like) are shown in the user's language everywhere, with the raw text beside them in debug mode.
-- Wide means a panel at least 720 px wide; the side drawer takes 36 % of it within 320–400 px. The expanded sheet
-  takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by "open details on select" the
-  sheet starts collapsed to one line; opened on request (badge, menu, small legend, right-click, long press, the info
-  button) it starts expanded, since a list in one line shows nothing.
+- Wide means a panel at least 720 px wide; a side panel takes 36 % of it within 320–400 px. The expanded sheet
+  takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by Details on click from the map the
+  sheet starts collapsed to one line; opened on request (a button, right-click, long press, the menu key) it starts
+  expanded, since a list in one line shows nothing.
 - The findings badge counts findings without hints ("very low reading") and each missing table once (decision
   2026-10-31). "Data incomplete" and the hedged "parent unknown (tables of … missing)" are consequences of missing
   tables, not verdicts: the Findings tab lists them together by the table they name (a finding that lacks several
   tables under each of them, a table only one device misses flat), and the badge counts them only through that
   table. The unhedged "no parent" is a finding of its own. Hints sit in their own collapsed group.
-- No header bar (decision by Fabian Schwamborn, 2026-10-31): the map fills the panel, with floating groups at its
-  edges (rounded, light shadow, theme surface, targets of 44 px) that move out of the drawer's way: the title pill
-  "Meshroute" top left (with the sidebar button on narrow screens); the options group top right, labelled rows on
-  wide panels (Options: the menu with devices, legend, settings, debug mode, fit, release all pins, read data again;
-  Findings with the badge; Links; Node view with its current value, a single choice of "Path to coordinator" and
-  "All paths" (7.1); Fill with its current value) and one row of icons on narrow ones (menu, findings count, links,
-  fit; node view and fill are in the Settings tab there). Links opens a popover that stays open while switching: a
-  checkbox per link class (7.1), the checkbox "Colour by reception" (7.1), and below them the density (7.1) as a
-  single choice, real checkboxes and radios with 44 px rows; the zoom group bottom right; the legend bottom left, a
-  pill "Legend ›" that expands to the current fill and the three link classes (and the reception scale while colour
-  is on). The links part of every legend comes from the graph's own legend entries (7.1), path hops and the unknown
-  end included. The legend says that the number at an arrow is the LQI at the hearer.
 
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection shows its paths in the node view (quality view, 7.1) or
   plays its path (route view). Clicking the background or Esc clears it.
-- **Details** (tab of the drawer): name, vendor, model, device type (kind), addresses, area, role, for end devices
+- **Details** (tab of the left panel): name, vendor, model, device type (kind), addresses, area, role, for end devices
   whether the receiver is off when idle, parent and its availability, LQI at the parent, end-device children, relay
   load, reception; its paths in the node view as text, one line per path with every hop and the reception at its
   hearer ("To the coordinator: Sensor → Router 17 (RX 103) → Coordinator (RX 51)"), "path unknown" where a walk
   stops, a goal that is unavailable named so ("All paths" collapses above 12 lines); findings with evidence, readings
   in both directions with their reporters and ratings, routes, last seen, link to the Home Assistant device page.
-- "Open details on select" defaults to on for wide screens and off for narrow ones. Details also open with
-  right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or
-  the menu key.
-- The info button sits in a small chip on the map (name, Details, clear) while a device is selected and the drawer
-  is not on Details: below the title pill on wide panels, at the bottom left on narrow ones (thumb reach), where the
-  legend steps aside for it. "Open details on select" applies to selections on the map: it opens a closed drawer or follows
-  on the Details tab, never takes another tab away; selecting from a list (Devices, Findings, a device named in
-  Details) zooms to the device and keeps the list.
+- **Details on click** defaults to on for wide screens and off for narrow ones. It applies to a click on the map and
+  in the Devices list: it opens the left panel on Details (a closed one, or one on Devices, or following on Details),
+  never takes Findings away and on narrow screens never pushes the right sheet away; selecting from Findings or a
+  device named in Details zooms to the device and keeps the list. Clearing the selection on the map closes a panel
+  that Details on click opened and that still shows Details. Details also open with right-click on a node (captured
+  on nodes only, the browser menu stays elsewhere), long press or the menu key, whatever the switch says.
 
 ### 9.3 Gestures and keys
 - One gesture model: a press that moves less than 8 px is a tap; more is a drag (node: pin and move; background:
@@ -457,13 +479,13 @@ user-supplied image, or map tiles from an address the user configured.
 - Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
   scale, a fixed zoom at which devices of the medium layout sit one mean label width from their nearest neighbour
   (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
-  keeps the device clear of the drawer (decision by Fabian Schwamborn, 2026-10-31).
+  keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a
   halo, so the two values of a pair never share a side (7.1).
 - Keys: arrows and Enter in the device list (the keyboard path to every device; a text filter above it matches
   words in any order in name, model, vendor, area and addresses); Esc clears selection and stops
-  playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was
+  playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing a panel returns focus to where it was
   opened. Hit areas are at least 24 px on screen.
 - Every value on the canvas also exists as text; the canvas is described by the status line; playback is announced
   in a live region ("path: 3 hops, LQI 120 / 89 / 45").
@@ -502,16 +524,20 @@ picture under a banner and reads again when the connection is back.
 ## 11. Settings per network [v1]
 
 View, direction (v1.1), density, link class switches (`links`: `{ up, route, heard }`, booleans, a bad or missing
-value counts as on), node view (`nodeView`: `coordinator` or `all`; anything else counts as `coordinator`), colour by
-reception (`receptionColors`: only `true` is on, anything else off), fill (`none`, `role` or `power`; anything else, including the former `reception`, counts as `none`), "open details on select", whether the legend is expanded (`legendOpen`; by
-default expanded on wide panels, collapsed on narrow ones), pinned positions; later geo positions and map background
-address (empty by default).
+value counts as on), node view (`nodeView`: `coordinator` or `all`; anything else counts as `coordinator`), path display
+(`pathColors`: `{ mode, bad, medium, good }`; `mode` `grey` or `coloured`, anything else `grey`; each colour only as
+`#rrggbb`, anything else, `null` included, means the theme's own), labels (`labels`: `{ type, name, haName }`,
+booleans, a bad or missing value counts as its default: on, on, off), fill (`none`, `role` or `power`; anything else,
+including the former `reception`, counts as `none`), Details on click (`openDetailsOnSelect`: a boolean, else by
+width), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
+panel stored `receptionColors` (colour by reception) and `legendOpen` (the legend pill): `receptionColors: true` without
+a valid `pathColors` reads as coloured with the theme's colours; the next save leaves both keys out.
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
 reads the stored object and writes back only what it changed, so last write wins per key and pins merge per device;
 keys it does not know are kept. Stored settings are untrusted input: pins only under device addresses, coordinates
 within ±1000 base lengths. If the integration lacks the commands or the stored object cannot be read, the settings
-live in memory and the Settings tab says so; nothing stored is then overwritten. After a lost connection the panel
+live in memory and the View tab says so; nothing stored is then overwritten. After a lost connection the panel
 reads them again on reconnect.
 
 ## 12. Acceptance [v1]

@@ -12,7 +12,7 @@ import {
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { receptionColor, resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
+import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColor } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
@@ -272,6 +272,28 @@ test("colour by reception: rated lanes red to green by their hearer's rating, da
   assert.ok(ctx.calls.some((c) => c[0] === "fillText" && c[1] === "90"));
   const plain = draw({ selected: 4 });
   assert.ok(!plain.ctx.calls.some((c) => c[0] === "set" && c[1] === "strokeStyle" && c[2] === receptionColor(0.9, theme)));
+});
+
+test("the user's own colours replace the stops, nudged to 3:1; null keeps the theme's", () => {
+  for (const background of ["#ffffff", "#111111"]) {
+    const own = resolveTheme({ background });
+    const stops = background === "#ffffff" ? RECEPTION_STOPS.light : RECEPTION_STOPS.dark;
+    assert.equal(receptionColor(0, own), stops[0], "the theme's red at the weakest end");
+    // Okabe-Ito blue, orange and vermillion for a red-green colour blind user; the middle stays the theme's.
+    const custom = resolveTheme({ background, receptionStops: ["#0072b2", null, "#e69f00"] });
+    for (const r of [0, 0.25, 0.5, 0.75, 1]) {
+      assert.ok(contrastRatio(parseColor(receptionColor(r, custom)), parseColor(background)) >= 3 - 1e-9, `${background} ${r}`);
+    }
+    assert.equal(receptionColor(0.5, custom), receptionColor(0.5, own), "the middle stop is the theme's");
+    assert.notEqual(receptionColor(0, custom), receptionColor(0, own));
+    if (background === "#ffffff") assert.equal(receptionColor(0, custom), "#0072b2", "kept where it reaches 3:1");
+    // A colour too close to the background is nudged until it reaches 3:1.
+    const pale = resolveTheme({ background, receptionStops: [background, background, background] });
+    assert.ok(contrastRatio(parseColor(receptionColor(1, pale)), parseColor(background)) >= 3 - 1e-9);
+    // Junk is the theme's own.
+    const junk = resolveTheme({ background, receptionStops: ["red; x", 5, {}] });
+    assert.deepEqual([0, 0.5, 1].map((r) => receptionColor(r, junk)), [0, 0.5, 1].map((r) => receptionColor(r, own)));
+  }
 });
 
 test("hover previews the same without the band; debug shows every value", () => {
