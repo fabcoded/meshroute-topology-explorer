@@ -36,7 +36,8 @@ test("the sample: five nodes, their roles, the border router as a node, collecti
   assert.equal(br.wired, true);
   assert.equal(br.available, true, "availability null is not offline");
   assert.equal(br.availabilityKnown, false);
-  assert.equal(br.hasTable, false);
+  assert.equal(br.tableRead, false, "a border router is no Matter node: no table");
+  assert.equal("hasTable" in br, false, "no Zigbee table fields (engines cut step 7)");
   assert.equal(sample.collectedAt, "2026-01-01T12:00:00.000Z");
   assert.match(sample.id, /^thread-[A-Za-z0-9]{1,32}$/);
   assert.equal(sample.status.nodes, 5);
@@ -164,7 +165,7 @@ test("unavailable nodes: drawn offline, their readings stale and never drawn; fi
   connections: [link(1, 2, dir(3, -50), dir(3, -55))] });
   const r = byNode(net, "1");
   assert.equal(r.available, false);
-  assert.equal(r.hasTable, false);
+  assert.equal(r.tableRead, false);
   assert.equal(net.staleReadings.length, 1);
   assert.equal(net.readings.length, 1);
   const kinds = net.findings.map((f) => `${f.kind}:${byNode(net, "1").id === f.device ? 1 : f.device === byNode(net, "2").id ? 2 : 3}`);

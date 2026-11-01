@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Thread through Matter (spec 3.2, 4.6): turns the answer of `matter/network_topology` (Home Assistant 2026.9 or
-// newer, read with refresh false: the server's cached snapshot, no radio traffic) into the same Network shape the
-// ZHA model builds (model/index.js), so map, lists and details draw it with the same code. Pure, no DOM.
+// newer, read with refresh false: the server's cached snapshot, no radio traffic) into the Thread engine's network
+// (engines/thread/): devices, readings and pairs in the shared shapes the map draws (spec 4.2, 4.3; pairs { a, b, ab,
+// ba } as model/pairs.js), and only what Thread data says. No Zigbee field is filled with a default: no network
+// address (the RLOC16 is its own field), no router-table counts, no capacity, no relay load or rating; what the
+// snapshot does not name is null. Pure, no DOM.
 // node --test tests/
 //
 // What the snapshot gives and what it does not (capability set, spec 4.6): readings per direction (Thread link
@@ -105,11 +108,11 @@ function reading(reporter, subject, dir, connection) {
 }
 
 /** Why direction "hearer hears sender" has no reading (spec 4.3 wording where it fits). "–" glyph: the hearer's table
- *  was read and does not list the sender; "?": there is no table to ask (links.js unknownGlyph). */
+ *  was read and does not list the sender; "?": there is no table to ask (engines/thread/lanes.js unknownGlyph). */
 function unknownReason(hearer, r) {
   if (r && r.strength === "none") return "reported as no link";
   if (r) return "lqi 0";
-  if (!hearer.hasTable) return hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false
+  if (!hearer.tableRead) return hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false
     ? "no table (not a Matter node)" : "table missing or stale";
   return "not in the neighbour table";
 }
@@ -126,9 +129,11 @@ function largestNetwork(nodes) {
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
- *  registries (names, areas). Returns null when the answer holds no Thread node. Shape: model/index.js with engine
- *  "thread", plus `collectedAt`, `extPanId` and per device the Thread fields (extAddress, rloc16, nodeId, threadRole,
- *  leader, reed, matter, availabilityKnown). */
+ *  registries (names, areas). Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
+ *  extPanId, capabilities, collectedAt, devices, readings, staleReadings, routes (empty), links, pairs, status,
+ *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
+ *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
+ *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot). */
 export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, capabilities = THREAD_CAPABILITIES } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};
   const all = (Array.isArray(raw.nodes) ? raw.nodes : []).filter((n) => n && typeof n === "object");
@@ -166,21 +171,22 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
       || (isBorderRouter ? "Border router" : kind === "matter" && int(n.node_id) !== null ? `Matter node ${n.node_id}`
         : `Thread device ${id.slice(-5)}`);
     const device = {
-      id, registryId: (entry && entry.id) || null, nwk: int(n.rloc16), role,
+      id, registryId: (entry && entry.id) || null, role,
       label, labelKind: userName ? "user" : haName ? "ha" : "model", name: haName || label, haName,
       area: (areaId && areas.get(areaId)) || null, areaId, firmware: text(entry && entry.sw_version), entities: [],
       vendor, model,
       // The snapshot names no power source; a border router is a mains device by nature (spec 8: wired).
       powerSource: isBorderRouter ? "Mains" : null,
       kind: isBorderRouter ? "hub" : "unknown", sleepy: isBorderRouter ? false : mapped ? mapped.sleepy : null,
-      battery: false, wired: isBorderRouter,
+      // Battery or not is unknown (no power source in the snapshot), and so are relay load and rating (no routes, no
+      // Zigbee LQI scale): null, never a Zigbee default (engines cut, step 7).
+      battery: null, wired: isBorderRouter,
       // available null (border routers: seen by mDNS, not by Matter) is not "offline": drawn as available, and the
       // details say the snapshot does not report it.
       available: n.available !== false, availabilityKnown: typeof n.available === "boolean",
       lastSeen: isoTime(n.last_seen),
-      parent: null, children: [], relayLoad: 0, rating: null, hasTable: false,
-      tableSize: null, tableCapacity: null, tableCapacitySource: null, tableFull: null,
-      parentLqi: null, parentFromStaleTable: false, possiblyStaleParents: [],
+      parent: null, children: [], relayLoad: null, rating: null, tableRead: false,
+      parentLqi: null, possiblyStaleParents: [],
       // Thread fields (spec 3.2), shown in the details.
       nodeKey, nodeId: int(n.node_id), extAddress: address, rloc16: int(n.rloc16), extPanId: text(n.ext_pan_id),
       networkName: text(n.network_name), threadRole: text(n.role), leader: Boolean(mapped && mapped.leader),
@@ -218,11 +224,8 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
       const reporter = r.reporter === a.id ? a : b;
       // A table is "read" when its device reports at least one direction; an unavailable reporter's table is stale
       // (as for ZHA, spec 5.6): kept for the details, never drawn or counted.
-      if (reporter.available) { reporter.hasTable = true; readings.push(r); } else stale.push(r);
+      if (reporter.available) { reporter.tableRead = true; readings.push(r); } else stale.push(r);
     }
-  }
-  for (const d of devices) {
-    if (d.hasTable) d.tableSize = readings.filter((r) => r.reporter === d.id).length;
   }
 
   // Parent of an end device (tq2, owner decision 2026-11-01). A Thread child holds exactly one neighbour entry, its
@@ -293,19 +296,15 @@ export function threadPairs(devices, readings, links) {
     .map(({ a, b }) => ({ a, b, ab: direction(a, b), ba: direction(b, a) }));
 }
 
-/** Status line numbers (spec 6) in the shape of model/findings.js computeStatus, plus the Thread coverage: nodes, links
- *  (pairs), links measured in both directions, border routers listed, the collection time. Thread has no "router
- *  tables x/y" line and no completeness banner: every Matter node's table comes with the snapshot. */
+/** Status line numbers (spec 6) of a Thread network: devices listed in a link, devices, unavailable ones, nodes, links
+ *  (pairs), links measured in both directions, border routers listed, the collection time. No "router tables x/y"
+ *  and no completeness (engines cut, step 7): every Matter node's table comes with the snapshot. */
 export function threadStatus(devices, pairs, collectedAt) {
-  const routers = devices.filter((d) => d.role === "router" && d.available);
   const both = pairs.filter((p) => p.ab.state === "measured" && p.ba.state === "measured").length;
   return {
-    routersAvailable: routers.length,
-    routersWithTable: routers.filter((d) => d.hasTable).length,
     devicesListed: devices.filter((d) => pairs.some((p) => p.a === d.id || p.b === d.id)).length,
     devicesTotal: devices.length,
     unavailable: devices.filter((d) => !d.available).length,
-    completeness: 1,
     nodes: devices.length,
     links: pairs.length,
     linksBoth: both,

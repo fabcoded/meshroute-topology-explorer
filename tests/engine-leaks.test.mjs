@@ -118,7 +118,7 @@ test("2: the Thread legend has no Zigbee rows and no stage or option notes", asy
   }
 });
 
-test("3: unknown Thread values stay unknown (never a Zigbee default)", { todo: "step 7" }, async () => {
+test("3: unknown Thread values stay unknown (never a Zigbee default)", async () => {
   const { thread } = await engines();
   const pan = "00112233aabbcc01";
   const net = thread.build({ nodes: [
@@ -132,6 +132,11 @@ test("3: unknown Thread values stay unknown (never a Zigbee default)", { todo: "
   for (const key of ["sleepy", "powerSource", "battery", "relayLoad", "rating"]) assert.equal(d[key], null, key);
   assert.equal("hasTable" in d, false);
   assert.equal("tableFull" in d, false);
+  // No Zigbee network address (the RLOC16 is its own field) and no router-table counts in the status.
+  for (const x of net.devices) for (const key of ["nwk", "tableSize", "tableCapacity", "tableCapacitySource"]) {
+    assert.equal(key in x, false, key);
+  }
+  for (const key of ["routersWithTable", "routersAvailable", "completeness"]) assert.equal(key in net.status, false, key);
   const about = [...net.readings, ...(net.staleReadings || [])].filter((r) => r.reporter === d.id || r.subject === d.id);
   for (const r of about) {
     assert.equal(r.measured, false);

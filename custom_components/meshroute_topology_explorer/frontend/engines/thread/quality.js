@@ -133,7 +133,7 @@ export function nodeQualityFindings(network, deviceId) {
 
   // A router whose every link to another router is low: its children and its share of the mesh hang on links at
   // the margin where OpenThread would not set up a new router link. Needs the router's own table (else unknown).
-  if (d.role === "router" && d.hasTable) {
+  if (d.role === "router" && d.tableRead) {
     const links = pairs.filter((q) => q.a === d.id || q.b === d.id)
       .map((q) => (q.a === d.id ? q.b : q.a)).map((id) => byId.get(id))
       .filter((o) => o && o.available && ROUTER_ROLES.has(o.role))
@@ -152,7 +152,7 @@ export function nodeQualityFindings(network, deviceId) {
   // Listed by one side: d's table was read in this snapshot and has no live entry for a neighbour that lists d.
   // A hint, not a finding: the Matter server reads the tables one node at a time, so an entry may have aged out
   // (or appeared) in between; the two tables are of unknown age, possibly hours apart. Border routers are not Matter nodes and have no table, so they never raise it.
-  if (d.hasTable) {
+  if (d.tableRead) {
     const own = new Map(readings.filter((r) => r.reporter === d.id).map((r) => [r.subject, r]));
     const listers = readings.filter((r) => r.subject === d.id && r.measured && byId.get(r.reporter)
       && byId.get(r.reporter).available && (!own.has(r.reporter) || !own.get(r.reporter).measured));
