@@ -3,7 +3,7 @@
 // background carries the fill, none (default), role or power source; links as two lanes per pair, each with the class
 // of its own direction (links.js), optionally coloured by reception. What is drawn follows the stage of
 // "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11): the overview shows the up and down
-// lanes of all devices (stage "heard" adds each device's best heard-only partners); a selected device shows only its
+// lanes of all devices (the option "heard only" adds the selection's best heard-only partners); a selected device shows only its
 // own lanes of the stage, every hop with the reception at its hearer, its way up as a band, unknown ends as dashed
 // stems with "?", and dims the other devices; the device under the pointer previews its lanes within the overview; debug mode draws every lane
 // with its value. Labels as canvas text placed around obstacles: a block of the device's type above the symbol, its
@@ -144,9 +144,8 @@ export function sceneBackbone(scene) {
 
 /** Classes of the scene's lanes under a source-route stage ("off" or "assume"), cached per scene: { cls (per lane, one
  *  of CLASSES or null), assumed (per lane: drawn as an assumed down lane), heardOnly (per pair: a reading in some
- *  direction and no traffic in either, so no path runs over it), shown (per pair: among the best BEST_HEARD
- *  heard-only partners of one of its devices, by the best rating at the hearer, then LQI), best (per node: its best
- *  heard-only pairs, best first), counts (lanes per class, assumed counted apart as well) }. */
+ *  direction and no up, down or route lane in either), rank (per pair: its best heard lane's reception, the rating
+ *  at that lane's hearer, for ranking partners), counts (lanes per class, assumed counted apart as well) }. */
 export function sceneClasses(scene, sourceRoute = "off") {
   const mode = sourceRoute === "assume" ? "assume" : "off";
   if (scene.classCache.has(mode)) return scene.classCache.get(mode);
@@ -157,16 +156,9 @@ export function sceneClasses(scene, sourceRoute = "off") {
   // A heard-only pair ranks by its best heard lane: the rating is relative to that lane's hearer (spec 5.4).
   const rank = scene.pairs.map((p) => p.lanes.filter((i) => cls[i] === "heard").map((i) => scene.lanes[i].dir)
     .sort(better)[0] || {});
-  const best = scene.nodes.map(() => []);
-  for (const p of scene.pairs) if (heardOnly[p.index]) { best[p.a].push(p.index); best[p.b].push(p.index); }
-  const shown = scene.pairs.map(() => false);
-  for (let n = 0; n < best.length; n++) {
-    best[n] = best[n].sort((x, y) => better(rank[x], rank[y]) || x - y).slice(0, BEST_HEARD);
-    for (const p of best[n]) shown[p] = true;
-  }
   const counts = Object.fromEntries([...CLASSES, "assumed"].map((c) => [c, 0]));
   cls.forEach((c, i) => { if (c) counts[c]++; if (assumed[i]) counts.assumed++; });
-  const result = { cls, assumed, heardOnly, shown, best, counts };
+  const result = { cls, assumed, heardOnly, rank, counts };
   scene.classCache.set(mode, result);
   return result;
 }
@@ -177,19 +169,28 @@ export function sceneClasses(scene, sourceRoute = "off") {
 const strength = (cls, assumed, predicted = false) => (cls === "route" ? (predicted ? 1.5 : 2) : cls === "heard" ? 1
   : assumed ? 3 : 4);
 
+/** The heard-only partners of device i for the option "heard only (best 3)" (the one place to change the rule): pairs
+ *  with a heard lane and no up, down or route lane (sc.heardOnly), and in the stage "all" none of whose lanes the
+ *  device's own theoretical paths (`hops`, keys "s>h") take; the best BEST_HEARD by rating at the hearer. */
+function heardPartners(scene, i, sc, hops, stage) {
+  const taken = (pair) => stage !== "coordinator" && pair.lanes.some((li) => hops.has(scene.lanes[li].key));
+  return scene.pairs.filter((p) => (p.a === i || p.b === i) && sc.heardOnly[p.index] && !taken(p))
+    .sort((x, y) => better(sc.rank[x.index], sc.rank[y.index]) || x.index - y.index).slice(0, BEST_HEARD);
+}
+
 /** The lanes of node i in a stage of "Communication paths" (links.js PATH_STAGES), cached per scene: { hops: Map
  *  "s>h" -> { s, h, dir, cls, assumed, predicted } (each directed hop once, dir the reception at h with how the hop is
  *  taken, cls the class it is drawn with, predicted: only a computed route discovery takes it), ends: [{ at, toward,
  *  cls }] (incomplete paths, with the class of their path), glyphs: [{ s, h, dir }] (directions without a reading of
  *  the heard-only partners), nodes: Set of every device on a path, named as a goal or a partner, paths (the model's,
  *  for tests) }. "coordinator": the device's way up and down (model/node-paths.js); "all" adds its theoretical way to
- *  and from every other device as routes, the out tree and the in tree (spec 5.7); "heard" also its best heard-only
- *  partners in both directions. A path to or from the coordinator is up or down (the coordinator's own view lists its
+ *  and from every other device as routes, the out tree and the in tree (spec 5.7); `heard` adds its best heard-only
+ *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
  *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "off" leaves them unknown. */
-export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off") {
+export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false) {
   const mode = pathStage(stage);
   const sr = sourceRoute === "assume" ? "assume" : "off";
-  const key = `${i}|${mode}|${sr}`;
+  const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
   const ends = [];
@@ -228,19 +229,20 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off")
     ends.push({ at: at(end.at), toward: at(end.toward), cls });
     nodes.add(at(end.toward)); // the goal is named, so the stem points at something the user can read
   }
-  if (mode === "heard") {
+  if (heard) {
+    // The checkbox "heard only (best 3)" (decision by Fabian Schwamborn, 2026-11-01): the 3 best partners of device i with
+    // a reading and no lane drawn between the two in this stage: no up, down or route lane (heardOnly) and, from the
+    // stage "all" on, no hop of the device's own theoretical paths (decision of the main session, same day).
     const sc = sceneClasses(scene, sr);
-    for (const pi of sc.best[i]) {
-      const pair = scene.pairs[pi];
+    const partners = heardPartners(scene, i, sc, hops, mode);
+    for (const pair of partners) {
       nodes.add(pair.a);
       nodes.add(pair.b);
       for (const li of pair.lanes) {
         const lane = scene.lanes[li];
         if (sc.cls[li] === "heard") {
-          if (!hops.has(lane.key)) {
-            hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false, predicted: false });
-          }
-        } else if ((!lane.dir || lane.dir.state === "unknown") && !hops.has(lane.key)) {
+          hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false, predicted: false });
+        } else if (!lane.dir || lane.dir.state === "unknown") {
           glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir }); // a path hop on this lane shows its "?" itself
         }
       }
@@ -371,7 +373,7 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
  *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), paths (the stage of "Communication
- *  paths": "coordinator" | "all" | "heard", links.js PATH_STAGES), receptionColors (lanes coloured by their rating),
+ *  paths": "coordinator" | "all", links.js PATH_STAGES), heard (the checkbox "heard only", on click only), receptionColors (lanes coloured by their rating),
  *  labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is drawn:
  *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume": assumed return paths),
  *  texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh }
@@ -416,7 +418,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // but only lanes the overview of the stage draws anyway (hover never adds what the stage hides).
   const selecting = view.selected >= 0;
   const pathNode = selecting ? view.selected : view.hovered;
-  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute) : null;
+  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute, selecting && Boolean(view.heard)) : null;
   let pathHops = [];
   let pathEnds = [];
   const near = new Set(focus);

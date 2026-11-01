@@ -84,7 +84,7 @@ function cleanLabels(labels) {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), paths (the stage of "Communication paths": "coordinator", "all" or "heard", links.js),
+   *  "role" or "power"), paths (the stage of "Communication paths": "coordinator" or "all", links.js), heard (the option "heard only"),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
    *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
    *  sourceRoute ("assume" or "off": return paths without a table entry, model/source-routes.js), texts
@@ -103,6 +103,7 @@ export class GraphView extends EventTarget {
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
     this.paths = pathStage(options.paths);
+    this.heard = options.heard === true;
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
     // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "off" not.
@@ -187,13 +188,21 @@ export class GraphView extends EventTarget {
   }
 
   /** The stage of "Communication paths" (spec 7.1, 9.1; board M11): "coordinator" (default: the way up and down of
-   *  every device, on click only the device's), "all" (on click also its paths to and from other devices) or "heard"
-   *  (also the best heard-only partners); anything else counts as the default. Drawing only: the layout and the
+   *  every device, on click only the device's), or "all" (on click also its paths to and from other devices);
+   *  anything else counts as the default. Drawing only: the layout and the
    *  positions stay. */
   setPaths(stage) {
     const next = pathStage(stage);
     if (next === this.paths) return;
     this.paths = next;
+    this._invalidate();
+  }
+
+  /** The option "heard only (best 3)": on click, also the selection's 3 best heard-only partners, in either stage. */
+  setHeard(on) {
+    const next = on === true;
+    if (next === this.heard) return;
+    this.heard = next;
     this._invalidate();
   }
 
@@ -250,7 +259,7 @@ export class GraphView extends EventTarget {
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
   legend() {
-    return legendEntries(this.theme, { paths: this.paths, debug: this.debug, colored: this.receptionColors });
+    return legendEntries(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors });
   }
 
   setTheme(theme) {
@@ -547,7 +556,7 @@ export class GraphView extends EventTarget {
     this._lastFrame = now;
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, paths: this.paths, selected: this.selected, hovered: this.hovered, fps: this._fps,
+      debug: this.debug, paths: this.paths, heard: this.heard, selected: this.selected, hovered: this.hovered, fps: this._fps,
       fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
       typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
     };

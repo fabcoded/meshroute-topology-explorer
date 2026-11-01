@@ -108,7 +108,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
   assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true,
-    extra: 1, paths: "coordinator",
+    extra: 1, paths: "coordinator", heard: false,
     pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
     sourceRoute: "assume", pins: { [A]: [1.235, -2] } });
   await c.flush();
@@ -223,7 +223,8 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
 test("communication paths and path display are stored per network; old keys migrate; bad values fall back", async () => {
   assert.equal(DEFAULTS.paths, "coordinator");
   assert.deepEqual(DEFAULTS.pathColors, { mode: "grey", bad: null, medium: null, good: null }, "colour is opt-in");
-  assert.equal(sanitizeSettings({ paths: "heard" }).paths, "heard");
+  assert.deepEqual(sanitizeSettings({ paths: "heard" }).paths, "all", "the former third stage");
+  assert.equal(sanitizeSettings({ paths: "heard" }).heard, true);
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
     assert.equal(sanitizeSettings({ paths: bad }).paths, "coordinator", JSON.stringify(bad));
   }
@@ -240,11 +241,11 @@ test("communication paths and path display are stored per network; old keys migr
   assert.equal(server.stored.paths, "all");
   assert.ok(!("nodeView" in server.stored) && !("links" in server.stored), "the old keys are gone");
   assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
-  c.update({ paths: "heard" });
+  c.update({ paths: "coordinator", heard: true });
   await c.flush();
   const again = client(server, manualTimers());
   await again.load();
-  assert.equal(again.settings.paths, "heard");
+  assert.deepEqual([again.settings.paths, again.settings.heard], ["coordinator", true]);
   assert.deepEqual(again.settings.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
 });
 

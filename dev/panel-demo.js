@@ -39,12 +39,14 @@ const VARIANTS = [
     ["Cluster popup: manufacturer-specific", "select=Router%2003&left=details&dtab=cluster&cluster=0xfc7c&ep=1&dir=in"],
     ["Assumed return path: Router 02", "select=Router%2002&left=details"],
     ["Source route off: Router 02", "select=Router%2002&left=details&sourceroute=off"]]],
-  ["Communication paths", [["Stage 2 overview", "paths=all"], ["Stage 3 overview", "paths=heard"],
+  ["Communication paths", [["Stage 2 overview", "paths=all"], ["Heard-only checkbox, no selection", "heard=1"],
     ["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
     ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
     ["Stage 1 click: Router 11", "select=Router%2011&open=off"],
     ["Stage 2 click: Router 11", "select=Router%2011&open=off&paths=all"],
-    ["Stage 3 click: Router 11", "select=Router%2011&open=off&paths=heard"], ["Hover: Router 11", "hover=Router%2011"],
+    ["Stage 1 + heard: Router 11", "select=Router%2011&open=off&heard=1"],
+    ["Stage 2 + heard: Router 11", "select=Router%2011&open=off&paths=all&heard=1"],
+    ["Stored stage \"heard\" (migration)", "select=Router%2011&open=off&paths=heard"], ["Hover: Router 11", "hover=Router%2011"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
     ["Stage 2 from a stored node view", "select=Router%2011&nodeview=all"],
     ["Coloured by reception", "select=Router%2016&colors=1"],
@@ -209,7 +211,8 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
-if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|all|heard
+if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|all|heard (heard: legacy)
+if (q.get("heard")) initial.heard = q.get("heard") === "1";
 if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored before A4j (migration)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {

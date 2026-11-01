@@ -5,10 +5,10 @@
 // sender's next hop on the sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a
 // device, measured from the tables or assumed as the reversed way up, model/source-routes.js), "route" (on an active
 // route between two devices, neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry
-// several; it is drawn as its strongest. One cumulative choice, "Communication paths", says what is drawn: the stage
-// "coordinator" (default) shows the up and down lanes of all devices and, on click, only the device's way up and down;
-// "all" adds, on click, the device's paths to and from other devices; "heard" adds heard-only lanes (each device's 3
-// best partners). Hover previews within the stage; debug mode draws every lane. Line styles carry no colour: up and
+// several; it is drawn as its strongest. "Communication paths" says what is drawn: the stage "coordinator" (default)
+// shows the up and down lanes of all devices and, on click, only the device's way up and down; "all" adds, on click,
+// the device's paths to and from other devices; the option "heard only" adds, on click, heard-only lanes (the
+// device's 3 best partners). Hover previews within the stage; debug mode draws every lane. Line styles carry no colour: up and
 // down solid, assumed down dotted, routes between devices dash-dot, heard only dashed grey; width follows the lane's
 // own rating. A direction without a reading has no lane but a glyph: "–" when the hearer's table does not list the
 // sender, "?" when there is no table to ask. Opt-in: lanes coloured by reception, red to green.
@@ -22,9 +22,9 @@ import { isActive } from "../model/normalize.js";
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";
 
-/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11): three stages, each
- *  containing the previous one. */
-export const PATH_STAGES = Object.freeze(["coordinator", "all", "heard"]);
+/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11): two stages, the
+ *  second containing the first; "heard only" is a separate option (checkbox) on top of either. */
+export const PATH_STAGES = Object.freeze(["coordinator", "all"]);
 export const DEFAULT_PATHS = "coordinator";
 
 /** A stored or passed stage as one of PATH_STAGES; anything else is the default. */
@@ -51,7 +51,7 @@ export function laneClass(lane, sourceRoute = "off") {
 
 /** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1; decisions by Fabian Schwamborn,
  *  2026-11-01): up and down always; from the stage "all" on the backbone, every lane a theoretical path between two
- *  devices uses (backbone: the lane is one), drawn as a route; heard only never without a selection (stage 3 adds its
+ *  devices uses (backbone: the lane is one), drawn as a route; heard only never without a selection (the option adds its
  *  partners on click); everything in debug mode. */
 export function overviewShows(cls, stage, { backbone = false, debug = false } = {}) {
   if (debug) return true;
@@ -66,7 +66,7 @@ export const LANE_OFFSET = 3;
  *  against the frame. Own choice. */
 export const LANE_GAP = 1;
 /** The selected device's up path: a band in the foreground colour under its lanes (decision 2026-10-31; kept in A4j
- *  by the main session, 2026-11-01: in the stages "all" and "heard" it tells the way to the coordinator apart). */
+ *  by the main session, 2026-11-01: in the stage "all" it tells the way to the coordinator apart). */
 export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;
@@ -250,24 +250,23 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
  *  M7): every path class whatever the stage (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
  *  there and back with the coordinator (up and down share one row), the assumed return path, paths to other devices
- *  and the computed route discovery (stage 2, the latter marked computed), heard only (stage 3); the band under a
- *  selected device's way up; the glyphs for directions without a reading where the stage draws them (stage 3 on
- *  click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
+ *  and the computed route discovery (stage 2, the latter marked computed), heard only (the option, needs a selection);
+ *  the band under a selected device's way up; the glyphs for directions without a reading where the option draws
+ *  them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
  *  the hearer, and with colored the reception scale. */
-export function legendEntries(theme, { paths = DEFAULT_PATHS, debug = false, colored = false } = {}) {
-  const stage = pathStage(paths);
+export function legendEntries(theme, { debug = false, colored = false, heard = false } = {}) {
   const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
-  const heard = debug || stage === "heard";
+  const glyphs = debug || heard;
   return [
     { id: "coordinator", kind: "lane", style: sample("up") },
     { id: "assumed", kind: "lane", style: sample("down", { assumed: true }) },
     { id: "route", kind: "lane", style: sample("route"), stage: 2 },
     { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 2, computed: true },
-    { id: "heard", kind: "lane", style: sample("heard"), stage: 3 },
+    { id: "heard", kind: "lane", style: sample("heard"), option: "heard" },
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },
       { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.up], color: theme.foreground }] : []),
-    ...(heard ? [{ id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
+    ...(glyphs ? [{ id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
       { id: "no-table", kind: "glyph", text: "?", color: theme.muted }] : []),
     ...(debug ? [{ id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash],
       text: "?" }] : []),

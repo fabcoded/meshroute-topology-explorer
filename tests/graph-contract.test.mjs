@@ -75,7 +75,7 @@ test("the sample's lanes by class, per direction: 41 up (12 parent links), 52 do
   t.diagnostic && t.diagnostic(`lanes ${scene.lanes.length}: ${JSON.stringify(off.counts)}`);
 });
 
-test("the overview per stage: up and down lanes; from 'all' the backbone of theoretical paths; 'heard' adds nothing", () => {
+test("the overview per stage: up and down lanes; from 'all' the backbone of theoretical paths; 'heard only' adds nothing", () => {
   const { view, env } = show();
   const { scene } = view;
   const sc = sceneClasses(scene, "assume"); // the default source-route stage
@@ -96,8 +96,8 @@ test("the overview per stage: up and down lanes; from 'all' the backbone of theo
   assert.equal(two.route, backbone.length);
   assert.equal(two.predicted, backbone.filter((l) => bb.kind[l.index] === "predicted").length);
   assert.equal(two.heard + two.none + view.lastDraw.glyphs, 0);
-  // Stage 3 without a selection looks like stage 2: heard-only partners come on click.
-  view.setPaths("heard");
+  // The heard option without a selection looks like stage 2: heard-only partners come on click.
+  view.setHeard(true);
   env.flush();
   assert.deepEqual(view.lastDraw.classes, two);
   assert.equal(view.lastDraw.glyphs, 0);
@@ -140,20 +140,25 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
   for (const sourceRoute of ["assume", "off"]) {
     const { view, env } = show();
     view.setSourceRoute(sourceRoute);
-    for (const paths of ["coordinator", "all", "heard"]) {
-      view.setPaths(paths);
-      env.flush();
-      counts[`${sourceRoute} ${paths}`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
+    for (const paths of ["coordinator", "all"]) {
+      for (const heard of [false, true]) {
+        view.setPaths(paths);
+        view.setHeard(heard);
+        env.flush();
+        counts[`${sourceRoute} ${paths}${heard ? " + heard" : ""}`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
+      }
     }
     view.setDebug(true);
     env.flush();
     counts[`${sourceRoute} debug`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
   }
-  // 41 up and 54 down lanes (2 of them assumed); stages 2 and 3 the backbone, 570 lanes (with source routes off the
+  // 41 up and 54 down lanes (2 of them assumed); stage 2 the backbone, with or without the heard option (no selection), 570 lanes (with source routes off the
   // two assumed lanes are drawn as routes of the backbone).
   assert.deepEqual(counts, {
-    "assume coordinator": [95, 0], "assume all": [570, 0], "assume heard": [570, 0], "assume debug": [583, 73],
-    "off coordinator": [93, 0], "off all": [570, 0], "off heard": [570, 0], "off debug": [583, 73],
+    "assume coordinator": [95, 0], "assume coordinator + heard": [95, 0], "assume all": [570, 0],
+    "assume all + heard": [570, 0], "assume debug": [583, 73],
+    "off coordinator": [93, 0], "off coordinator + heard": [93, 0], "off all": [570, 0], "off all + heard": [570, 0],
+    "off debug": [583, 73],
   });
 });
 
@@ -190,30 +195,31 @@ test("a lane keeps its strongest class on click and hover: up and down solid, co
     Coordinator: [96, 0] });
 });
 
-test("a stage change redraws at once, with and without a selection (owner's report 2026-11-01)", () => {
+test("a stage or checkbox change redraws at once, with and without a selection (owner's report 2026-11-01)", () => {
   const { view, env } = show();
   const { scene } = view;
   const r13 = scene.nodes.findIndex((n) => n.label === "Router 13");
-  const lanes = () => view.lastDraw.lanes;
-  const stages = (selected) => {
+  const steps = (selected) => {
     view.selected = selected;
     view.setPaths("coordinator");
+    view.setHeard(false);
     view.draw();
     const out = [];
-    for (const stage of ["all", "heard", "coordinator", "all"]) {
+    // [stage, heard]: stage 2, the checkbox on, stage 1, the checkbox off, the checkbox on, stage 2.
+    for (const [stage, heard] of [["all", false], ["all", true], ["coordinator", true], ["coordinator", false],
+      ["coordinator", true], ["all", true]]) {
       const before = view.lastDraw;
       view.setPaths(stage);
+      view.setHeard(heard);
       env.flush(); // the next animation frame, nothing else
-      assert.notEqual(view.lastDraw, before, `${stage}: drawn again`);
-      out.push(lanes());
+      assert.notEqual(view.lastDraw, before, `${stage} heard ${heard}: drawn again`);
+      out.push(view.lastDraw.lanes);
     }
     return out;
   };
-  // Without a selection: the backbone appears in stage 2, stays in 3 (the same overview) and goes in stage 1.
-  assert.deepEqual(stages(-1), [570, 570, 95, 570]);
-  // With Router 13 selected: its trees in 2 and 3 (3 adds its heard-only partners where no path runs), its way up and
-  // down in 1.
-  const selected = stages(r13);
-  assert.deepEqual([selected[0] > 4, selected[1] >= selected[0], selected[2], selected[3]], [true, true, 2,
-    selected[0]]);
+  // Without a selection the checkbox changes nothing: the backbone in stage 2, the up and down lanes in stage 1.
+  assert.deepEqual(steps(-1), [570, 570, 95, 95, 95, 570]);
+  // Router 13 selected: its way up and down (2 lanes), plus its 3 heard-only partners (7 lanes); its trees in stage 2
+  // (82), where every measured neighbour is a lane of its paths, so the checkbox adds none (spec 12).
+  assert.deepEqual(steps(r13), [82, 82, 7, 2, 7, 82]);
 });

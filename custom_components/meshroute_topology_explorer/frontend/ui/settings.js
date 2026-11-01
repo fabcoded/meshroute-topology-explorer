@@ -23,10 +23,11 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
 
 /** Defaults of spec 11. openDetailsOnSelect null means "by screen width": details open on a click on wide panels and
  *  not on narrow ones (spec 9.2). paths: the stage of "Communication paths" (graph/links.js PATH_STAGES: with the
- *  coordinator there and back, + paths to all devices, + heard only). sourceRoute: return paths without a table entry
+ *  coordinator there and back, + paths to all devices). heard: the checkbox "heard only (best 3)", on top of either
+ *  stage (default off). sourceRoute: return paths without a table entry
  *  are "assume"d (the way up reversed) or "off" (unknown). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
-  paths: DEFAULT_PATHS, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, sourceRoute: DEFAULT_SOURCE_ROUTE,
+  paths: DEFAULT_PATHS, heard: false, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, sourceRoute: DEFAULT_SOURCE_ROUTE,
   pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
@@ -63,6 +64,7 @@ export function sanitizePins(input) {
  *  the node view decides: "all" reads as the stage "all", anything else as the default. */
 export function sanitizePaths(input, legacyNodeView) {
   if (PATH_STAGES.includes(input)) return input;
+  if (input === "heard") return "all"; // the former third stage (settings.heard becomes true, sanitizeSettings)
   return legacyNodeView === "all" ? "all" : DEFAULT_PATHS;
 }
 
@@ -98,6 +100,9 @@ export function sanitizeSettings(input) {
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   out.paths = sanitizePaths(src.paths, src.nodeView);
+  // Until A4l "heard" was a third stage (A4j/A4k): it now reads as the stage "all" with the checkbox on.
+  out.heard = src.paths === "heard" ? true : src.heard === true;
+  if (src.paths === "heard") out.paths = "all";
   // Replaced by paths (A4j): the next save leaves the class switches and the node view out.
   delete out.links;
   delete out.nodeView;

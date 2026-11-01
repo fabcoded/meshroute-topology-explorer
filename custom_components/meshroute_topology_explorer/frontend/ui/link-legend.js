@@ -10,14 +10,15 @@
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.
 import { h, svg } from "./dom.js";
 
-/** Rows for the legend: each entry of the graph with its words as `label` and, for a class that belongs to a stage, the
- *  stage as `note` (an entry's own `text` is its glyph). An entry the panel has no words for keeps its id as label, so
+/** Rows for the legend: each entry of the graph with its words as `label` and, for a class that belongs to a stage or option,
+ *  that as `note` (an entry's own `text` is its glyph). An entry the panel has no words for keeps its id as label, so
  *  nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t) {
   return entries.map((e) => {
     const key = e.kind === "rx" ? "legend.rx" : `legend.link.${e.id}`;
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
     // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
+    if (e.option) row.note = t(`legend.option_${e.option}`);
     if (e.stage) row.note = t(e.computed ? "legend.stage_computed" : "legend.stage", { n: e.stage });
     return row;
   });

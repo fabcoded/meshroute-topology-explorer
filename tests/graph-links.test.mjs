@@ -136,7 +136,7 @@ test("classes per direction on a small network; a direction without a reading ge
   assert.ok(glyph, "the glyph is drawn");
   assert.ok(Math.abs(glyph[2] - 797) < 1e-9 && Math.abs(glyph[3] - (400 + 125)) < 1e-9, `${glyph[2]}, ${glyph[3]}`);
   assert.equal(draw().stats.glyphs, 0, "the first stage draws no heard-only pair, so no glyph");
-  assert.equal(draw({ paths: "heard" }).stats.glyphs, 0, "nor stage 3 without a selection");
+  assert.equal(draw({ heard: true }).stats.glyphs, 0, "nor the heard option without a selection");
 });
 
 test("drawing order: lanes without class, heard only, routes, down, then up on top", () => {
@@ -342,17 +342,17 @@ test("text beside a lane stays clear of it, on its right", () => {
 
 test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows from stage 3.
+  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows with the heard option.
   const classes = ["coordinator", "assumed", "route", "discovery", "heard", "up-path"];
   assert.deepEqual(ids(), [...classes, "rx"]);
   assert.deepEqual(ids({ paths: "all" }), [...classes, "rx"]);
-  assert.deepEqual(ids({ paths: "heard" }), [...classes, "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ heard: true }), [...classes, "not-listed", "no-table", "rx"]);
   assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "implied",
     "width", "not-listed", "no-table", "path-end", "rx"]);
   const band = legendEntries(theme).find((e) => e.id === "up-path");
   assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
   assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
-  const entries = legendEntries(theme, { paths: "heard", sourceRoute: "assume", colored: true });
+  const entries = legendEntries(theme, { heard: true, sourceRoute: "assume", colored: true });
   assert.equal(entries.at(-1).id, "reception");
   assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
   assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);
@@ -362,7 +362,7 @@ test("legend entries follow the stage: the classes it draws, RX, the scale while
   assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 2]);
   assert.notEqual(entries.find((e) => e.id === "route").style.color, theme.muted);
   assert.equal(laneStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
-  assert.equal(entries.find((e) => e.id === "heard").stage, 3);
+  assert.equal(entries.find((e) => e.id === "heard").option, "heard");
   const assumed = entries.find((e) => e.id === "assumed").style;
   assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");
   assert.equal(entries.find((e) => e.id === "not-listed").text, "–");

@@ -296,7 +296,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, paths: s.paths, sourceRoute: s.sourceRoute,
+      debug: this._debug, paths: s.paths, heard: s.heard, sourceRoute: s.sourceRoute,
       receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
@@ -317,6 +317,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
       this._view.setPaths(s.paths);
+      this._view.setHeard(s.heard);
       this._view.setSourceRoute(s.sourceRoute);
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
