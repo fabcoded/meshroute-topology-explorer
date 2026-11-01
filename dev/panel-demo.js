@@ -24,6 +24,10 @@ const VARIANTS = [
   ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German locale (texts stay English)", "lang=de"], ["Dark", "dark=1"],
     ["German locale + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
     ["Debug", "debug=1"], ["Labels with HA name", "labels=type,name,ha"], ["Labels: name only", "labels=name"]]],
+  ["Thread (Matter)", [["Thread map", "network=thread"], ["Zigbee with the switch", "matter=1"],
+    ["Thread: details of the leader", "network=thread&select=Matter%20node%2014&left=details"],
+    ["Thread: View tab", "network=thread&right=view"], ["Thread: Legend", "network=thread&right=legend"],
+    ["Matter too old", "matter=notsupported"], ["Narrow: Thread", "phone=1&network=thread"]]],
   ["Panels", [["Left: Devices", "left=devices"], ["Left: Findings", "left=findings"],
     ["Left: Details (Router 03)", "select=Router%2003&left=details"], ["Right: View", "right=view"],
     ["Right: View, coloured", "right=view&colors=1"], ["Right: View, own colours", "right=view&colors=1&bad=0072b2&good=e69f00"],
@@ -206,7 +210,16 @@ const captureName = q.get("capture");
 const fixtureUrl = captureName && /^[A-Za-z0-9._-]+$/.test(captureName) ? `../captures/${captureName}.json`
   : "../tests/fixtures/zha-sample.json";
 const fixture = await (await fetch(fixtureUrl)).json();
-const responses = fixture.responses;
+// A Matter capture (capture=matter-...) has no ZHA part: ZHA then comes from the sample.
+const responses = fixture.responses["zha/devices"] ? fixture.responses
+  : (await (await fetch("../tests/fixtures/zha-sample.json")).json()).responses;
+// Thread through Matter (brief a7): matter=1 loads the Matter integration with the anonymized Matter sample,
+// matter=notsupported answers like a Matter server too old for the topology; network=thread starts on Thread (as a
+// stored choice); a capture that holds a Matter topology implies both, with its own (real) data.
+const captureTopology = fixture.responses["matter/network_topology"] || null;
+const matterMode = captureTopology ? "1" : q.get("matter") || (q.get("network") === "thread" ? "1" : null);
+const matterResponses = captureTopology ? fixture.responses
+  : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses : null;
 let devices = responses["zha/devices"];
 const variant = q.get("variant");
 if (variant) devices = withoutTables(devices, removedTables(devices)[variant] || []);
@@ -237,6 +250,7 @@ if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as A4
 if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume | zigpy
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
+if (q.get("network") === "thread" || captureTopology) store.settings.set("panel", { network: "thread" });
 
 let connected = !flag("downfirst");
 const lost = () => ({ type: "result", success: false, error: { code: 3, message: "Connection lost" } });
@@ -246,11 +260,20 @@ async function callWS(msg) {
   if (!connected) throw lost();
   const unknown = { code: "unknown_command", message: "Unknown command." };
   switch (msg.type) {
-    case "config_entries/get": return flag("nozha") ? [] : responses["config_entries/get"];
+    case "config_entries/get":
+      if (msg.domain === "matter") return matterMode ? [{ entry_id: "entry_matter", domain: "matter", title: "", state: "loaded" }] : [];
+      return flag("nozha") ? [] : responses["config_entries/get"];
+    case "matter/network_topology":
+      // The panel must never ask for a refresh (radio traffic): the fake refuses it loudly.
+      if (msg.refresh !== false) throw { code: "invalid_format", message: "dev page: refresh must be false" };
+      if (matterMode === "notsupported") throw { code: "not_supported", message: "Matter server too old" };
+      if (!matterResponses) throw unknown;
+      return matterResponses["matter/network_topology"];
     case "zha/devices":
       if (flag("error")) throw { code: "home_assistant_error", message: "ZHA did not answer" };
       return flag("empty") ? [] : currentDevices();
-    case "config/device_registry/list": return responses["config/device_registry/list"];
+    case "config/device_registry/list":
+      return [...responses["config/device_registry/list"], ...((matterResponses && matterResponses["config/device_registry/list"]) || [])];
     case "config/area_registry/list": return responses["config/area_registry/list"];
     case "zha/devices/clusters/attributes/value": return readAttribute(msg);
     case "meshroute_topology_explorer/settings/get":

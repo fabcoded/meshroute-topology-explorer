@@ -5,11 +5,15 @@
   python3 tools/anonymize_capture.py CAPTURE.json FIXTURE.json
 
 A capture holds the answers of the Home Assistant websocket commands the panel reads, under "responses":
-`zha/devices`, `config/device_registry/list`, `config/area_registry/list`, `config_entries/get`. Everything that
-identifies a home is replaced: EUI-64 addresses (also in neighbour tables, extended PAN ids and hex form), user-given
-device names, area ids and names, entity ids, registry and config-entry ids; entity names are dropped; registry
-entries that are not ZHA devices are left out; times are shifted so the newest is 2026-01-01T12:00:00, gaps kept.
-Kept for testing: device types, vendors, models, NWK addresses, LQI, relationships, routes, clusters.
+`zha/devices`, `config/device_registry/list`, `config/area_registry/list`, `config_entries/get` and, for Thread,
+`matter/network_topology` (spec 3.2). Everything that identifies a home is replaced: EUI-64 addresses (also in
+neighbour tables, extended PAN ids and hex form; Thread extended addresses as bare hex, also inside border-router ids
+such as "br_<address>"), user-given device names, area ids and names, entity ids, registry and config-entry ids, Thread
+network names and border-router host names; entity names are dropped; registry entries that are neither ZHA devices
+nor Matter nodes of the topology are left out, and a Matter node's registry name becomes "Matter node <id>"; times
+are shifted so the newest is 2026-01-01T12:00:00 (ZHA) and the topology's collection time lands there too (Thread),
+gaps kept. Kept for testing: device types, vendors, models, NWK addresses and RLOC16, LQI and RSSI, relationships,
+roles, routes, clusters.
 Before writing, the output is searched for every replaced value; any hit aborts and nothing is written.
 
 Allow-list: only the fields listed in SCHEMAS below survive, per response and per nested object (device, neighbour,
@@ -61,7 +65,21 @@ SCHEMAS = {
     "config/device_registry/list": ("list", {k: None for k in ("id", "identifiers", "area_id", "name", "manufacturer", "model")}),
     "config/area_registry/list": ("list", {k: None for k in ("area_id", "name")}),
     "config_entries/get": ("list", {k: None for k in ("entry_id", "domain", "title", "state")}),
+    # Thread through Matter (spec 3.2; schema of matter.js server, packages/ws-client/src/models/model.ts).
+    "matter/network_topology": {
+        "collected_at": None,
+        "nodes": ("list", {k: None for k in (
+            "id", "kind", "network_type", "node_id", "role", "available", "is_bridge", "ext_address", "rloc16",
+            "ext_pan_id", "network_name", "vendor_name", "model_name", "last_seen", "ha_device_id", "host_name")}),
+        "connections": ("list", {
+            **{k: None for k in ("source", "target", "network", "strength", "via_route_table", "path_cost")},
+            "source_to_target": {k: None for k in ("strength", "lqi", "rssi")},
+            "target_to_source": {k: None for k in ("strength", "lqi", "rssi")},
+        }),
+    },
 }
+THREAD_EXT = re.compile(r"^(?:0x)?[0-9a-f]{16}$", re.IGNORECASE)
+TOPOLOGY = "matter/network_topology"
 
 
 def _plain(value) -> bool:
@@ -78,6 +96,8 @@ def apply_schema(value, schema):
         if kind == "list":
             return [apply_schema(v, fields) for v in value if isinstance(v, dict)] if isinstance(value, list) else []
         return {k: apply_schema(v, fields) for k, v in value.items() if isinstance(v, dict)} if isinstance(value, dict) else {}
+    if value is None:
+        return None  # an absent object stays absent (a Thread direction nobody reported is null, not {})
     if not isinstance(value, dict):
         return {}
     return {k: apply_schema(v, schema[k]) for k, v in value.items() if k in schema}
@@ -125,6 +145,8 @@ def build_mapping(responses: dict) -> dict[str, str]:
         if device.get("device_reg_id"):
             mapping.setdefault(device["device_reg_id"], f"device{len(mapping):04d}")
 
+    _thread_mapping(responses, mapping)
+
     for n, area in enumerate(responses.get("config/area_registry/list", []), 1):
         for value in (area.get("area_id"), area.get("name")):
             if value:
@@ -133,6 +155,79 @@ def build_mapping(responses: dict) -> dict[str, str]:
         if entry.get("entry_id"):
             mapping.setdefault(entry["entry_id"], f"entry_{n:02d}")
     return mapping
+
+
+def fake_ext(n: int) -> str:
+    """Synthetic Thread extended address (bare hex, as the topology writes it), stable for the n-th address."""
+    return "aabbccdd" + f"{n:08x}"
+
+
+def _topology(responses: dict) -> dict:
+    value = responses.get(TOPOLOGY)
+    return value if isinstance(value, dict) else {}
+
+
+def _thread_mapping(responses: dict, mapping: dict) -> None:
+    """Replacements for the Thread topology: extended addresses (bare hex, any case, also inside "br_<address>"
+    ids), extended PAN ids, network names, border-router host names and Home Assistant device ids."""
+    topo = _topology(responses)
+    nodes = [n for n in topo.get("nodes", []) if isinstance(n, dict)]
+    addresses: dict[str, None] = {}
+    for node in nodes:
+        for key in ("ext_address",):
+            value = node.get(key)
+            if isinstance(value, str) and THREAD_EXT.match(value):
+                addresses.setdefault(value.lower().removeprefix("0x"))
+        ident = node.get("id")
+        if isinstance(ident, str) and "_" in ident and THREAD_EXT.match(ident.rsplit("_", 1)[1]):
+            addresses.setdefault(ident.rsplit("_", 1)[1].lower())
+    offset = sum(1 for k in mapping if EUI64.match(k))  # numbers continue after the ZHA addresses
+    for i, address in enumerate(addresses, offset + 1):
+        mapping[address] = fake_ext(i)
+        mapping[address.upper()] = fake_ext(i).upper()
+    for node in nodes:
+        ident = node.get("id")
+        if isinstance(ident, str) and "_" in ident:
+            prefix, tail = ident.rsplit("_", 1)
+            if tail.lower() in mapping:
+                mapping.setdefault(ident, f"{prefix}_{mapping[tail.lower()].upper()}")
+    for n, pan in enumerate(dict.fromkeys(str(x.get("ext_pan_id")) for x in nodes if x.get("ext_pan_id")), 1):
+        mapping.setdefault(pan, f"aabbccddeeff00{n:02x}")  # synthetic like every fixture address (test_fixture)
+    for n, name in enumerate(dict.fromkeys(str(x.get("network_name")) for x in nodes if x.get("network_name")), 1):
+        mapping.setdefault(name, f"thread-net-{n:02d}")
+    for n, host in enumerate(dict.fromkeys(str(x.get("host_name")) for x in nodes if x.get("host_name")), 1):
+        mapping.setdefault(host, f"border-router-{n:02d}")
+    for node in nodes:
+        reg = node.get("ha_device_id")
+        if isinstance(reg, str) and reg:
+            mapping.setdefault(reg, f"device{len(mapping):04d}")
+
+
+def _thread_registry(responses: dict) -> None:
+    """Registry entries of the topology's Matter nodes stay (names for the map), with the registry name replaced by
+    "Matter node <node id>": a Matter node label can be typed by the user."""
+    nodes = {n.get("ha_device_id"): n for n in _topology(responses).get("nodes", [])
+             if isinstance(n, dict) and n.get("ha_device_id")}
+    for entry in responses.get("config/device_registry/list", []):
+        node = nodes.get(entry.get("id"))
+        if node is not None:
+            label = f"{node.get('node_id') if node.get('node_id') is not None else '?'}"
+            entry["name"] = f"Matter node {label}"
+            # Matter identifiers carry the fabric id ("deviceid_<fabric>-<node>"): replaced as a whole.
+            entry["identifiers"] = [["matter", f"node-{label}"]]
+
+
+def _shift_topology(responses: dict) -> None:
+    """Move the topology's times (milliseconds since the epoch) so its collection time lands on ANCHOR, gaps kept."""
+    topo = responses.get(TOPOLOGY)
+    if not isinstance(topo, dict) or not isinstance(topo.get("collected_at"), (int, float)):
+        return
+    anchor = int(ANCHOR.replace(tzinfo=dt.timezone.utc).timestamp() * 1000)
+    delta = anchor - int(topo["collected_at"])
+    topo["collected_at"] = anchor
+    for node in topo.get("nodes", []):
+        if isinstance(node.get("last_seen"), (int, float)):
+            node["last_seen"] = int(node["last_seen"]) + delta
 
 
 def naive_utc(stamp: str) -> dt.datetime:
@@ -157,10 +252,13 @@ def anonymize(capture: dict) -> dict:
     """Return an anonymized copy of the capture; raises ValueError if any replaced value survives."""
     responses = allow_list(capture["responses"])
     zha_ids = {d.get("device_reg_id") for d in responses.get("zha/devices", [])}
-    # Only ZHA devices stay in the registry (name_by_user and everything not allow-listed is already gone).
+    matter_ids = {n.get("ha_device_id") for n in _topology(responses).get("nodes", []) if isinstance(n, dict)}
+    # Only ZHA devices and the topology's Matter nodes stay in the registry (name_by_user and everything not
+    # allow-listed is already gone).
     responses["config/device_registry/list"] = [
-        d for d in responses.get("config/device_registry/list", []) if d.get("id") in zha_ids
+        d for d in responses.get("config/device_registry/list", []) if d.get("id") in zha_ids | (matter_ids - {None})
     ]
+    _thread_registry(responses)
     for entry in responses.get("config_entries/get", []):
         entry["title"] = ""
 
@@ -168,6 +266,7 @@ def anonymize(capture: dict) -> dict:
     lower = {k.lower(): v for k, v in mapping.items()}
     out = walk(responses, lambda s: mapping.get(s, lower.get(s.lower(), s)))
     out = shift_times(out)
+    _shift_topology(out)
 
     text = json.dumps(out, ensure_ascii=False).lower()
     probes = set(mapping) | {k[2:] for k in mapping if k.startswith("0x")}  # addresses also as bare hex
@@ -190,7 +289,8 @@ def main() -> int:
         return 1
     args.fixture.write_text(json.dumps(fixture, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     devices = fixture["responses"].get("zha/devices", [])
-    print(f"{len(devices)} devices anonymized -> {args.fixture}")
+    nodes = _topology(fixture["responses"]).get("nodes", [])
+    print(f"{len(devices)} ZHA devices and {len(nodes)} Thread nodes anonymized -> {args.fixture}")
     return 0
 
 

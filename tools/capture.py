@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: MIT
 """Capture the ZHA topology from your own Home Assistant, anonymized, for tests and bug reports.
 
-  HASS_TOKEN=... python3 tools/capture.py --url http://homeassistant.local:8123 --out capture.json [--raw]
+  HASS_TOKEN=... python3 tools/capture.py --url http://homeassistant.local:8123 --out capture.json [--raw] [--matter]
 
 Needs a long-lived access token (profile page in Home Assistant). It comes from the environment variable HASS_TOKEN
 or is typed at a prompt without echo; there is no --token option on purpose, because a command line ends up in the
 shell history and in the process list. The token is never printed and never written to the file.
 Read only: the tool sends exactly the four commands in COMMANDS (spec 3.4) and nothing else, not even a topology
-scan. It talks only to the URL you give. By default the result goes through tools/anonymize_capture.py before it is
+scan. --matter adds the Thread topology (spec 3.2): `matter/network_topology` with refresh false, the Matter server's
+cached snapshot (refresh true would read every node's tables over the radio and is never sent). It talks only to the URL you give. By default the result goes through tools/anonymize_capture.py before it is
 written; --raw skips that and writes real addresses and names: do not share such a file.
 Exit codes: 0 ok, 1 usage or bad input, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout,
 6 anonymizer refused. Tests: tests/test_capture.py. Format: tools/anonymize_capture.py.
@@ -30,6 +31,8 @@ from ws_client import WebSocket, WebSocketError, WebSocketTimeout  # noqa: E402
 VERSION = "1"
 # Spec 3.4. Only the read commands; zha/topology/update would cause radio traffic and is not needed here.
 COMMANDS = ("config/area_registry/list", "config/device_registry/list", "config_entries/get", "zha/devices")
+# Spec 3.2: the cached snapshot only (Home Assistant 2026.9 or newer). Never refresh true: that is radio traffic.
+MATTER_COMMAND = "matter/network_topology"
 EXIT = {"usage": 1, "connect": 2, "auth": 3, "command": 4, "timeout": 5, "anonymizer": 6}
 
 
@@ -64,7 +67,7 @@ def read_token() -> str:
     return token
 
 
-def fetch(url: str, token: str, timeout: float, cafile: str | None) -> tuple[str, dict]:
+def fetch(url: str, token: str, timeout: float, cafile: str | None, matter: bool = False) -> tuple[str, dict]:
     """Authenticate, ask the COMMANDS one after the other; returns (ha_version, {command: answer})."""
     try:
         ws = WebSocket.connect(websocket_url(url), timeout=timeout, cafile=cafile)
@@ -73,7 +76,7 @@ def fetch(url: str, token: str, timeout: float, cafile: str | None) -> tuple[str
     except WebSocketError as exc:
         raise CaptureError("connect", str(exc)) from None
     try:
-        return _converse(ws, token, timeout)
+        return _converse(ws, token, timeout, matter)
     except WebSocketTimeout as exc:
         raise CaptureError("timeout", f"Home Assistant did not answer in time ({exc})") from None
     except WebSocketError as exc:
@@ -93,8 +96,8 @@ def _message(ws: WebSocket, timeout: float) -> dict:
     return msg
 
 
-def _converse(ws: WebSocket, token: str, timeout: float) -> tuple[str, dict]:
-    """The auth flow of the Home Assistant websocket API, then one request per command."""
+def _converse(ws: WebSocket, token: str, timeout: float, matter: bool = False) -> tuple[str, dict]:
+    """The auth flow of the Home Assistant websocket API, then one request per command (and the Matter topology)."""
     if _message(ws, timeout).get("type") != "auth_required":
         raise CaptureError("connect", "not a Home Assistant websocket (no auth_required)")
     ws.send_text(json.dumps({"type": "auth", "access_token": token}), timeout)
@@ -102,8 +105,10 @@ def _converse(ws: WebSocket, token: str, timeout: float) -> tuple[str, dict]:
     if reply.get("type") != "auth_ok":
         raise CaptureError("auth", "authentication failed: check the token (it must be a long-lived access token)")
     answers = {}
-    for msg_id, command in enumerate(COMMANDS, 1):
-        ws.send_text(json.dumps({"id": msg_id, "type": command}), timeout)
+    # (command, extra fields): the ZHA reads, then the Matter topology with refresh false on request.
+    requests = [(command, {}) for command in COMMANDS] + ([(MATTER_COMMAND, {"refresh": False})] if matter else [])
+    for msg_id, (command, extra) in enumerate(requests, 1):
+        ws.send_text(json.dumps({"id": msg_id, "type": command, **extra}), timeout)
         while True:  # events for other ids are skipped; the answer carries our id
             msg = _message(ws, timeout)
             if msg.get("type") == "result" and msg.get("id") == msg_id:
@@ -111,8 +116,9 @@ def _converse(ws: WebSocket, token: str, timeout: float) -> tuple[str, dict]:
         if not msg.get("success"):
             error = msg.get("error") if isinstance(msg.get("error"), dict) else {}
             code = str(error.get("code", "unknown"))[:40]  # the free-text message is not echoed
-            raise CaptureError("command", f"Home Assistant refused {command} (error code {code}); "
-                                          "is the ZHA integration set up and the token's user an administrator?")
+            hint = ("Home Assistant 2026.9 or newer with the Matter integration is needed" if command == MATTER_COMMAND
+                    else "is the ZHA integration set up and the token's user an administrator?")
+            raise CaptureError("command", f"Home Assistant refused {command} (error code {code}); {hint}")
         answers[command] = msg.get("result")
     version = reply.get("ha_version")
     return (version if isinstance(version, str) else ""), answers
@@ -137,7 +143,7 @@ def write_private(path: Path, data: dict) -> None:
 def run(args: argparse.Namespace) -> int:
     """Fetch, optionally anonymize, write. Errors become messages on stderr."""
     token = read_token()
-    ha_version, answers = fetch(args.url, token, args.timeout, args.cafile)
+    ha_version, answers = fetch(args.url, token, args.timeout, args.cafile, args.matter)
     capture = build_capture(ha_version, answers)
     if args.raw:
         print("WARNING: --raw writes REAL addresses, names and ids. Do not share, post or commit this file;"
@@ -150,7 +156,9 @@ def run(args: argparse.Namespace) -> int:
             raise CaptureError("anonymizer", f"anonymizer refused, nothing written: {exc}") from None
     write_private(args.out, result)
     count = len(result["responses"].get("zha/devices", []))
-    print(f"{count} ZHA devices captured ({'RAW' if args.raw else 'anonymized'}) -> {args.out}")
+    topology = result["responses"].get(MATTER_COMMAND)
+    nodes = f" and {len(topology.get('nodes') or [])} Thread nodes" if isinstance(topology, dict) else ""
+    print(f"{count} ZHA devices{nodes} captured ({'RAW' if args.raw else 'anonymized'}) -> {args.out}")
     return 0
 
 
@@ -159,6 +167,8 @@ def main(argv=None) -> int:
     parser.add_argument("--url", required=True, help="Home Assistant address, e.g. http://homeassistant.local:8123")
     parser.add_argument("--out", required=True, type=Path, help="file to write")
     parser.add_argument("--raw", action="store_true", help="skip anonymizing (real addresses; never share the file)")
+    parser.add_argument("--matter", action="store_true",
+                        help="also capture the Thread topology (matter/network_topology, cached, no radio traffic)")
     parser.add_argument("--cafile", help="extra CA certificate file for https with your own CA")
     parser.add_argument("--timeout", type=float, default=30.0, help="seconds to wait per step (default 30)")
     parser.add_argument("--token", help=argparse.SUPPRESS)

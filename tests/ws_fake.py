@@ -62,6 +62,7 @@ class FakeServer:
         self.token = token
         self.ha_version = ha_version
         self.commands: list[str] = []
+        self.messages: list[dict] = []  # every request as sent (without the auth message)
         self.received: list[bytes] = []  # raw text of every client message, to search for the token
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
@@ -156,6 +157,7 @@ class FakeServer:
         while (text := self._read_message(conn)) is not None:
             msg = json.loads(text)
             self.commands.append(msg["type"])
+            self.messages.append(msg)
             self._answer(conn, msg)
 
     def _answer(self, conn, msg: dict) -> None:

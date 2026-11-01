@@ -1,0 +1,181 @@
+{
+ "hass_version": null,
+ "language": null,
+ "responses": {
+  "matter/network_topology": {
+   "collected_at": 1767268800000,
+   "nodes": [
+    {
+     "id": "14",
+     "kind": "matter",
+     "network_type": "thread",
+     "node_id": 14,
+     "role": "leader",
+     "available": true,
+     "is_bridge": null,
+     "ext_address": "AABBCCDD00000001",
+     "rloc16": null,
+     "ext_pan_id": "aabbccddeeff0001",
+     "network_name": "thread-net-01",
+     "vendor_name": null,
+     "model_name": null,
+     "last_seen": null,
+     "ha_device_id": "device0013"
+    },
+    {
+     "id": "15",
+     "kind": "matter",
+     "network_type": "thread",
+     "node_id": 15,
+     "role": "router",
+     "available": true,
+     "is_bridge": null,
+     "ext_address": "AABBCCDD00000002",
+     "rloc16": null,
+     "ext_pan_id": "aabbccddeeff0001",
+     "network_name": "thread-net-01",
+     "vendor_name": null,
+     "model_name": null,
+     "last_seen": null,
+     "ha_device_id": "device0014"
+    },
+    {
+     "id": "16",
+     "kind": "matter",
+     "network_type": "thread",
+     "node_id": 16,
+     "role": "sleepy_end_device",
+     "available": true,
+     "is_bridge": null,
+     "ext_address": "AABBCCDD00000003",
+     "rloc16": null,
+     "ext_pan_id": "aabbccddeeff0001",
+     "network_name": "thread-net-01",
+     "vendor_name": null,
+     "model_name": null,
+     "last_seen": null,
+     "ha_device_id": "device0015"
+    },
+    {
+     "id": "18",
+     "kind": "matter",
+     "network_type": "thread",
+     "node_id": 18,
+     "role": "sleepy_end_device",
+     "available": true,
+     "is_bridge": null,
+     "ext_address": "AABBCCDD00000004",
+     "rloc16": null,
+     "ext_pan_id": "aabbccddeeff0001",
+     "network_name": "thread-net-01",
+     "vendor_name": null,
+     "model_name": null,
+     "last_seen": null,
+     "ha_device_id": "device0016"
+    },
+    {
+     "id": "br_AABBCCDD00000005",
+     "kind": "border_router",
+     "network_type": "thread",
+     "node_id": null,
+     "role": "router",
+     "available": null,
+     "is_bridge": null,
+     "ext_address": "AABBCCDD00000005",
+     "rloc16": null,
+     "ext_pan_id": "aabbccddeeff0001",
+     "network_name": "thread-net-01",
+     "vendor_name": "Home Assistant",
+     "model_name": "OpenThread Border Router",
+     "last_seen": 1767267455565,
+     "ha_device_id": null
+    }
+   ],
+   "connections": [
+    {
+     "source": "14",
+     "target": "16",
+     "network": "thread",
+     "strength": "strong",
+     "source_to_target": {
+      "strength": "medium",
+      "lqi": 2,
+      "rssi": -85
+     },
+     "target_to_source": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -75
+     },
+     "via_route_table": null,
+     "path_cost": 0
+    },
+    {
+     "source": "14",
+     "target": "15",
+     "network": "thread",
+     "strength": "strong",
+     "source_to_target": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -36
+     },
+     "target_to_source": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -36
+     },
+     "via_route_table": null,
+     "path_cost": 1
+    },
+    {
+     "source": "14",
+     "target": "br_AABBCCDD00000005",
+     "network": "thread",
+     "strength": "strong",
+     "source_to_target": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -75
+     },
+     "target_to_source": null,
+     "via_route_table": null,
+     "path_cost": 1
+    },
+    {
+     "source": "15",
+     "target": "18",
+     "network": "thread",
+     "strength": "strong",
+     "source_to_target": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -77
+     },
+     "target_to_source": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -21
+     },
+     "via_route_table": null,
+     "path_cost": 0
+    },
+    {
+     "source": "15",
+     "target": "br_AABBCCDD00000005",
+     "network": "thread",
+     "strength": "strong",
+     "source_to_target": {
+      "strength": "strong",
+      "lqi": 3,
+      "rssi": -69
+     },
+     "target_to_source": null,
+     "via_route_table": null,
+     "path_cost": 1
+    }
+   ]
+  },
+  "config/device_registry/list": []
+ }
+}

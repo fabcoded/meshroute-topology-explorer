@@ -24,6 +24,11 @@
   `meshroute_topology_explorer/` namespace). MIME types are skipped. A call to callWS/sendMessage/subscribeMessage
   whose argument is built by concatenation or a template, and a computed ["type"] key, are findings because the
   command cannot be resolved by reading.
+- Thread through Matter (spec 3.2, brief a7): `matter/network_topology` is read with `refresh: false` (the server's
+  cached snapshot). `refresh: true` makes the Matter server read every node's tables over the radio: only a button
+  the user presses may send it, and none exists yet, so a literal `refresh: true` (or `"refresh": True`) in shipped
+  code is a finding (REFRESH_TRUE). Thread dataset, TLV and OTBR commands stay denied (DENY: `thread/get_dataset`,
+  `otbr/`, `async_get_active_dataset_tlvs`).
 - Shipped code must not use callService(, callApi(, fetch(, XMLHttpRequest, WebSocket(, EventSource, sendBeacon (other
   ways to reach Home Assistant or the network) nor HTML sinks (innerHTML, outerHTML, insertAdjacentHTML,
   document.write, unsafeHTML, eval(, new Function). There is no allow mechanism: if a legitimate need appears, extend
@@ -74,6 +79,7 @@ CALL = re.compile(r"\b(?:callWS|sendMessage|subscribeMessage)\b")
 UNRESOLVED = re.compile(r"""\$\{|["'`]\s*\+|\+\s*["'`]|\[\s*["']type["']\s*\]""")
 FORBIDDEN_CALL = re.compile(
     r"\b(?:callService|callApi|fetch)\s*\(|\bXMLHttpRequest\b|\bWebSocket\s*\(|\bEventSource\b|\bsendBeacon\b")
+REFRESH_TRUE = re.compile(r"""["']?refresh["']?\s*:\s*(?:true|True|!0)\b""")
 HTML_SINK = re.compile(
     r"\b(?:innerHTML|outerHTML|insertAdjacentHTML|unsafeHTML)\b|\bdocument\s*\.\s*write\b|\beval\s*\(|\bnew\s+Function\b")
 NOT_COMMANDS = ("text/", "application/", "image/", "font/", "audio/", "video/")
@@ -107,6 +113,8 @@ def content_findings(line: str) -> list[str]:
         out.append("computed 'type' key: use a plain string literal")
     if FORBIDDEN_CALL.search(merged):
         out.append("call that could reach Home Assistant or the network outside the allow-list (spec 3.4)")
+    if REFRESH_TRUE.search(merged):
+        out.append("refresh: true causes radio traffic (Matter topology); only a user's button may send it (spec 3.2)")
     if HTML_SINK.search(merged):
         out.append("HTML sink or dynamic code: names must be set as text (AGENTS.md)")
     return out

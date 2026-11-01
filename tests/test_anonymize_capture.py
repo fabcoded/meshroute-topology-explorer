@@ -118,5 +118,83 @@ class AllowListTest(unittest.TestCase):
         self.assertEqual(anon.allow_list(sample["responses"]), sample["responses"])
 
 
+# Thread through Matter (spec 3.2): invented values only.
+EXT_A, EXT_B, EXT_BR = "02000000000000A1", "02000000000000a2", "02000000000000B3"
+TOPOLOGY = {
+    "collected_at": 1793563979505,
+    "nodes": [
+        {"id": "7", "kind": "matter", "network_type": "thread", "node_id": 7, "role": "leader", "available": True,
+         "ext_address": EXT_A, "rloc16": 1024, "ext_pan_id": "02000000000000ee", "network_name": "home-thread-x",
+         "vendor_name": None, "model_name": None, "last_seen": None, "ha_device_id": "regmatter7", "secret_extra": "x"},
+        {"id": "9", "kind": "matter", "network_type": "thread", "node_id": 9, "role": "sleepy_end_device",
+         "available": True, "ext_address": EXT_B, "ext_pan_id": "02000000000000ee", "network_name": "home-thread-x",
+         "ha_device_id": "regmatter9"},
+        {"id": "br_" + EXT_BR, "kind": "border_router", "network_type": "thread", "node_id": None, "role": "router",
+         "available": None, "ext_address": EXT_BR.lower(), "ext_pan_id": "02000000000000ee",
+         "network_name": "home-thread-x", "vendor_name": "Home Assistant", "model_name": "OpenThread Border Router",
+         "host_name": "my-house-otbr", "last_seen": 1793562635070, "ha_device_id": None},
+    ],
+    "connections": [
+        {"source": "7", "target": "9", "network": "thread", "strength": "strong",
+         "source_to_target": {"strength": "medium", "lqi": 2, "rssi": -85, "extra": 1},
+         "target_to_source": {"strength": "strong", "lqi": 3, "rssi": -75}, "via_route_table": None, "path_cost": 0},
+        {"source": "7", "target": "br_" + EXT_BR, "network": "thread", "strength": "strong",
+         "source_to_target": {"strength": "strong", "lqi": 3, "rssi": -70}, "target_to_source": None,
+         "via_route_table": None, "path_cost": 1},
+    ],
+}
+THREAD_CAPTURE = {"responses": {
+    "matter/network_topology": TOPOLOGY,
+    "config/device_registry/list": [
+        {"id": "regmatter7", "identifiers": [["matter", "deviceid_X-7"]], "area_id": "kitchen", "name": "Kitchen lamp",
+         "name_by_user": "Lamp over the table"},
+        {"id": "regother", "identifiers": [["hue", "y"]], "area_id": None, "name": "Other", "name_by_user": None},
+    ],
+    "config/area_registry/list": [{"area_id": "kitchen", "name": "Kitchen"}],
+}}
+
+
+class AnonymizeThreadTest(unittest.TestCase):
+    def setUp(self):
+        self.out = anon.anonymize(THREAD_CAPTURE)
+        self.text = json.dumps(self.out).lower()
+        self.topo = self.out["responses"]["matter/network_topology"]
+
+    def test_no_identifying_value_survives(self):
+        for value in (EXT_A, EXT_B, EXT_BR, "02000000000000ee", "home-thread-x", "my-house-otbr", "regmatter7",
+                      "kitchen", "lamp over the table", "deviceid_x-7", "1793563979505"):
+            self.assertNotIn(value.lower(), self.text, value)
+
+    def test_links_still_resolve_and_values_are_kept(self):
+        ids = [n["id"] for n in self.topo["nodes"]]
+        for c in self.topo["connections"]:
+            self.assertIn(c["source"], ids)
+            self.assertIn(c["target"], ids)
+        self.assertTrue(ids[2].startswith("br_"))
+        self.assertEqual(self.topo["nodes"][2]["ext_address"].upper(), ids[2][3:])
+        self.assertEqual(self.topo["connections"][0]["source_to_target"], {"strength": "medium", "lqi": 2, "rssi": -85})
+        self.assertIsNone(self.topo["connections"][1]["target_to_source"], "an absent direction stays null")
+        self.assertEqual(self.topo["nodes"][0]["role"], "leader")
+        self.assertEqual(self.topo["nodes"][0]["rloc16"], 1024)
+        self.assertEqual(self.topo["nodes"][2]["model_name"], "OpenThread Border Router")
+        self.assertNotIn("secret_extra", self.topo["nodes"][0])
+
+    def test_times_shift_to_the_anchor_with_gaps_kept(self):
+        self.assertEqual(self.topo["collected_at"], 1767268800000)
+        self.assertEqual(self.topo["collected_at"] - self.topo["nodes"][2]["last_seen"], 1793563979505 - 1793562635070)
+
+    def test_registry_keeps_matter_nodes_with_neutral_names(self):
+        registry = self.out["responses"]["config/device_registry/list"]
+        self.assertEqual(len(registry), 1)
+        self.assertEqual(registry[0]["name"], "Matter node 7")
+        self.assertNotIn("name_by_user", registry[0])
+        self.assertEqual(registry[0]["id"], self.topo["nodes"][0]["ha_device_id"])
+
+    def test_committed_matter_sample_passes_the_allow_list_unchanged(self):
+        path = Path(__file__).resolve().parent / "fixtures" / "matter-sample.json"
+        fixture = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(anon.allow_list(fixture["responses"]), fixture["responses"])
+
+
 if __name__ == "__main__":
     unittest.main()

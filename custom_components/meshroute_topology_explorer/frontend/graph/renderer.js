@@ -15,8 +15,8 @@ import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
-  BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, laneClass, laneGeometry,
-  laneStyle, overviewShows, pathStage, stemGeometry, textBeside, unknownGlyph,
+  BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, hasRoutes, laneClass,
+  laneGeometry, laneStyle, overviewShows, pathStage, stemGeometry, textBeside, unknownGlyph,
 } from "./links.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
@@ -81,8 +81,22 @@ export function valueText(lqi, uncertain = "0 (uncertain)") {
  *  session, 2026-11-01). Texts: the panel's words. */
 export function laneValue(dir, texts) {
   if (dir && dir.state === "implied") return dir.source === "parent" ? texts.parent : texts.route;
+  if (dir && dir.scale === "thread-lqi") return threadValue(dir);
   const text = valueText(dir ? dir.lqi : null, texts.uncertain);
   return text === "?" ? unknownGlyph(dir && dir.reason) : text;
+}
+
+/** What a Thread lane shows at its arrow (spec 7.1; board recommendation, main session 2026-11-01, M15 asks the owner):
+ *  "rssi" = the RSSI in dBm, the link quality 0-3 only where no RSSI was reported (the details list both); "lqi" = the
+ *  link quality first. The one switch for the owner's choice. */
+export const THREAD_VALUE = "rssi";
+
+/** A Thread direction's value at the arrow: "-75 dBm", or "LQI 3" (THREAD_VALUE); the unknown glyph without either. */
+export function threadValue(dir, mode = THREAD_VALUE) {
+  const rssi = dir && typeof dir.rssi === "number" ? `${String(dir.rssi).replace("-", "\u2212")} dBm` : null;
+  const lqi = dir && typeof dir.lqi === "number" ? `LQI ${dir.lqi}` : null;
+  const text = mode === "lqi" ? lqi || rssi : rssi || lqi;
+  return dir && dir.state === "measured" && text ? text : unknownGlyph(dir && dir.reason);
 }
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -149,8 +163,10 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const paths = nodes.map((n) => (classified.upPaths.get(n.id) || []).map((id) => index.get(id))
     .filter((i) => i !== undefined));
   const coordinator = nodes.findIndex((n) => n.role === "coordinator");
+  // routes false (Thread, spec 4.6): no paths and no stages; the overview draws every lane with a class and a click
+  // shows the device's own lanes (scenePaths).
   return { nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
-    pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null };
+    routes: hasRoutes(network), pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null };
 }
 
 /** The backbone the overview draws from the stage "all" on (spec 5.7, 7.1; decision by Fabian Schwamborn,
@@ -227,6 +243,24 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
   const ends = [];
   const glyphs = [];
   const nodes = new Set([i]);
+  if (scene.routes === false) {
+    // Thread (spec 3.2): no routes, so no paths: the device's own lanes, each with its class (parent link or
+    // neighbour) and its value, and the glyph of each direction without a reading.
+    const sc = sceneClasses(scene, "off");
+    for (const pair of scene.pairs) {
+      if (pair.a !== i && pair.b !== i) continue;
+      nodes.add(pair.a);
+      nodes.add(pair.b);
+      for (const li of pair.lanes) {
+        const lane = scene.lanes[li];
+        if (sc.cls[li]) hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: sc.cls[li], assumed: false, predicted: false });
+        else glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir });
+      }
+    }
+    const result = { hops, ends, glyphs, nodes, paths: [] };
+    scene.pathCache.set(key, result);
+    return result;
+  }
   const coordinator = scene.coordinator >= 0 ? scene.nodes[scene.coordinator].id : null;
   const paths = scene.pathNet
     ? nodePaths(scene.pathNet, scene.nodes[i].id, mode === "coordinator" ? "coordinator" : "all", { sourceRoute: sr })
@@ -427,7 +461,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (let i = 0; i < n; i++) [sx[i], sy[i]] = toScreen(cam, pos.x[i], pos.y[i], width, height);
   const focus = [view.selected, view.hovered].filter((i, j, all) => i >= 0 && all.indexOf(i) === j);
   const focusSet = new Set(focus);
-  const stage = pathStage(view.paths);
+  const routes = scene.routes !== false; // Thread has no stages: its overview draws every lane with a class
+  const stage = routes ? pathStage(view.paths) : "coordinator";
   const sourceRoute = drawMode(view.sourceRoute);
   const debug = Boolean(view.debug);
   const sc = sceneClasses(scene, sourceRoute);
@@ -438,7 +473,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const bb = stage !== "coordinator" && !debug ? sceneBackbone(scene) : null;
   const overview = (lane) => {
     const cls = sc.cls[lane.index];
-    if (debug || cls === "up" || cls === "down") return { cls, predicted: false };
+    if (debug || cls === "up" || cls === "down" || (!routes && cls)) return { cls, predicted: false };
     const kind = bb ? bb.kind[lane.index] : null;
     if (!kind || !overviewShows("route", stage, { backbone: true })) return null;
     return { cls: "route", predicted: kind === "predicted" };
@@ -484,7 +519,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!selecting && !debug) {
       // A preview keeps only what the overview draws, in a class it draws: routes from the stage "all" on, where the
       // backbone carries them; heard-only partners wait for the click.
-      const previewed = (cls) => overviewShows(cls, stage, { backbone: true });
+      const previewed = (cls) => (!routes ? Boolean(cls) : overviewShows(cls, stage, { backbone: true }));
       pathHops = pathHops.filter((hop) => {
         const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
         return previewed(hop.cls) && Boolean(lane) && laneShown(lane);

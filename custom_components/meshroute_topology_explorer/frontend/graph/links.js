@@ -61,6 +61,12 @@ export function overviewShows(cls, stage, { backbone = false, debug = false } = 
   return cls === "route" && backbone && pathStage(stage) !== "coordinator";
 }
 
+/** Whether a network has routes with a next hop (spec 4.6): ZHA yes; Thread through Matter no (model/thread.js), so
+ *  there are no paths, no stages and no theoretical paths, and the overview draws every measured neighbour lane. */
+export function hasRoutes(network) {
+  return !(network && network.capabilities && network.capabilities.routes === false);
+}
+
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
  *  2 px apart. */
 export const LANE_OFFSET = 3;
@@ -131,7 +137,8 @@ export function laneStyle(cls, rating, theme,
  *  sender (full, nearly full, with space, capacity unknown); "?" when there is no table to ask (end device, missing or
  *  stale table) or the table says LQI 0 (unmeasured or very weak). */
 export function unknownGlyph(reason) {
-  const listedNot = /^(table (full|nearly full|has space)|capacity unknown)/;
+  // Thread (model/thread.js): "not in the neighbour table" means the hearer's table was read and does not list it.
+  const listedNot = /^(table (full|nearly full|has space)|capacity unknown|not in the neighbour table)/;
   return typeof reason === "string" && listedNot.test(reason) ? "–" : "?";
 }
 
@@ -174,7 +181,17 @@ export function classifyLanes(network) {
   const upPaths = new Map();
   const up = new Set();
   const down = new Set();
-  for (const d of devices) {
+  if (!hasRoutes(network)) {
+    // Thread (spec 3.2, 4.6): no routes, no coordinator. The only traffic the data names is a parent link: the end
+    // device sends to its parent (drawn like "up") and the parent delivers to it ("down"); no up path, no band.
+    const available = new Set(devices.filter((d) => d.available).map((d) => d.id));
+    for (const d of devices) {
+      upPaths.set(d.id, []);
+      if (d.role !== "end device" || !d.parent || !available.has(d.id) || !available.has(d.parent)) continue;
+      up.add(laneKey(d.id, d.parent));
+      down.add(laneKey(d.parent, d.id));
+    }
+  } else for (const d of devices) {
     const { ids } = upPath(net, d.id);
     upPaths.set(d.id, ids);
     addHops(up, ids);
@@ -263,9 +280,19 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
  *  the band under a selected device's way up; the glyphs for directions without a reading where the option draws
  *  them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
  *  the hearer, and with colored the reception scale. */
-export function legendEntries(theme, { debug = false, colored = false, heard = false } = {}) {
+export function legendEntries(theme, { debug = false, colored = false, heard = false, routes = true } = {}) {
   const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
   const glyphs = debug || heard;
+  if (!routes) {
+    // Thread (spec 3.2): what its map draws: parent links, measured neighbours, the glyphs a click shows, RX in dBm.
+    return [
+      { id: "parent", kind: "lane", style: sample("up") },
+      { id: "neighbour", kind: "lane", style: sample("heard") },
+      { id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
+      { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
+      { id: "rx-thread", kind: "rx" },
+    ];
+  }
   return [
     { id: "coordinator", kind: "lane", style: sample("up") },
     { id: "assumed", kind: "lane", style: sample("down", { assumed: true }) },

@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture  # noqa: E402
 import guard  # noqa: E402
-from ws_fake import TOKEN, FakeServer  # noqa: E402
+from ws_fake import TOKEN, FakeServer, make_responses  # noqa: E402
 
 REAL_PREFIX = "00:12:4b:00"  # the fake server's "real" addresses; must never survive anonymizing
 
@@ -85,6 +85,35 @@ class CaptureTest(unittest.TestCase):
         for command in server.commands:
             self.assertIn(command, guard.ALLOWED_COMMANDS)
         self.assertNotIn("zha/topology/update", server.commands)
+
+    def test_matter_topology_on_request_cached_and_anonymized(self):
+        responses = make_responses()
+        topo = json.loads((ROOT / "tests" / "fixtures" / "matter-sample.json").read_text(encoding="utf-8").replace(
+            "aabbccdd", "02124b00").replace("AABBCCDD", "02124B00").replace("thread-net-01", "my-home-net"))[
+            "responses"]["matter/network_topology"]
+        responses["matter/network_topology"] = topo
+        with FakeServer(responses=responses) as server:
+            code, out, err = self.run_tool(server, "--matter")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(server.messages[-1], {"id": 5, "type": "matter/network_topology", "refresh": False})
+        self.assertNotIn(True, [m.get("refresh") for m in server.messages])
+        text = self.out.read_text(encoding="utf-8")
+        self.assertNotIn("02124b00", text.lower())
+        self.assertNotIn("my-home-net", text)
+        data = json.loads(text)
+        self.assertEqual(len(data["responses"]["matter/network_topology"]["nodes"]), 5)
+        self.assertIn("5 Thread nodes", out)
+
+    def test_without_matter_flag_no_topology_is_asked(self):
+        with FakeServer() as server:
+            self.run_tool(server)
+        self.assertNotIn("matter/network_topology", server.commands)
+
+    def test_matter_refused_names_the_requirement(self):
+        with FakeServer() as server:  # the fake knows no matter/network_topology: unknown_command
+            code, _, err = self.run_tool(server, "--matter")
+        self.assertEqual(code, capture.EXIT["command"])
+        self.assertIn("2026.9", err)
 
     def test_source_names_only_allowed_commands(self):
         """The guard checks shipped code only; this applies its rules to the tool and its websocket client."""
