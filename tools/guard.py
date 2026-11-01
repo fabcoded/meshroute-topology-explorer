@@ -13,6 +13,9 @@
   including ws://, wss:// and protocol-relative ones; a map background URL comes from user configuration, never from
   code. URL_ALLOW is matched exactly up to a path boundary. NAMESPACES are XML namespace names, matched exactly: they
   name a vocabulary and are never fetched, and document.createElementNS() needs the SVG one to draw icons.
+- Shipped Python may read zigpy's route records (custom_components/*/zigpy_routes.py: each device's address and relay
+  list, decision by Fabian Schwamborn, 2026-11-01) and nothing else of zigpy or ZHA: PY_DENY names the internals that
+  hold network settings, keys or their saved copies, and the calls that send to the radio or change the network.
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
 - Shipped files (everything under custom_components/ except vendor/) may only have the extensions in SHIPPED_EXT.
@@ -43,6 +46,14 @@ DENY = (
     "matter/commission", "matter/remove",
     # ZHA services that write attributes, send cluster commands, bind or sound a warning device
     "set_zigbee_cluster_attribute", "issue_zigbee_", "issue_direct_zigbee_", "service_zigbee_bind", "warning_device_",
+)
+# Shipped Python only (it runs inside Home Assistant next to zigpy): internals beyond the route records (spec 3.4).
+PY_DENY = (
+    # hold network settings, keys or saved copies of them
+    "network_info", "node_info", "backups", ".state", "CONF_NWK", "get_zha_data", "yaml_config",
+    # send to the radio or change the network or its devices
+    "permit", "form_network", "reset_network", "write_network", "load_network", "send_packet", "request(", "broadcast(",
+    "energy_scan", ".topology", "scan(", "zdo", "bind(", "write_attributes", "read_attributes", ".remove(", "leave(",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.
@@ -130,6 +141,10 @@ def check(root: Path) -> list[str]:
                     if term in rest:
                         denied = True
                         findings.append(f"{rel}:{n}: names {term}, which returns network keys or changes the network")
+                for term in PY_DENY if shipped and path.suffix == ".py" else ():
+                    if term in line:
+                        denied = True
+                        findings.append(f"{rel}:{n}: names {term}: zigpy or ZHA internals beyond the route records (spec 3.4)")
             if shipped and not denied:  # one finding per line is enough
                 findings.extend(f"{rel}:{n}: {msg}" for msg in content_findings(line))
             if shipped:
