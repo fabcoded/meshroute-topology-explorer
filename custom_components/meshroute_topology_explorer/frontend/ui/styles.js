@@ -232,7 +232,7 @@ td.id, .id { font-size: 12px; color: var(--mte-muted); }
 .link { display: inline; min-height: 24px; padding: 2px 0; border: none; background: none; color: inherit; font: inherit;
   text-align: left; text-decoration: underline; text-decoration-color: var(--mte-muted); text-underline-offset: 2px;
   cursor: pointer; }
-/* Board M8: entity ids in a code font; .link resets `font`, so the class .mono needs this rule after it. */
+/* Board M8: entity ids in a code font; .link resets font, so the class .mono needs this rule after it. */
 .link.mono { font-family: var(--ha-font-family-code, ui-monospace, Menlo, monospace); font-size: 13px; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0 0; }
 .facts dt { color: var(--mte-muted); }

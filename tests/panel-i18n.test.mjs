@@ -172,3 +172,9 @@ test("board texts M1 and M8: fit button, IEEE label and mains power badge (brief
     assert.equal(STRINGS.de[key], de, `de ${key}`);
   }
 });
+
+test("the style sheet module loads, with the code font on linked ids and a 20 px device row indent (brief a4o)", async () => {
+  const { STYLES } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/styles.js");
+  assert.match(STYLES, /\.link\.mono \{ font-family: var\(--ha-font-family-code/);
+  assert.match(STYLES, /\.device-row \{[^}]*padding: 10px 0;/);
+});
