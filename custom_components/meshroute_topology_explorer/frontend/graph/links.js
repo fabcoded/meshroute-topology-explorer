@@ -101,12 +101,16 @@ export function widthStep(rating) {
  *  2026-11-01), routes between devices dash-dot, heard only dashed grey; the lane's own rating sets the width.
  *  state "unknown" (a path hop nothing proves) keeps the class's dash in grey at the thinnest width. colored: "colour
  *  by reception" is on, so a rated lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
- *  the class still reads without colour. */
-export function laneStyle(cls, rating, theme, { colored = false, assumed = false, state = "measured" } = {}) {
+ *  the class still reads without colour. predicted: a route hop that only a computed route discovery takes (spec 5.7;
+ *  decision by the main session, 2026-11-01): the same dash-dot in the lighter grey, never coloured, so a computed
+ *  hop never looks like one a table proves. */
+export function laneStyle(cls, rating, theme,
+  { colored = false, assumed = false, state = "measured", predicted = false } = {}) {
   if (!cls) return { color: theme.muted, width: WIDTHS.implied[0], dash: [0.01, 3], cap: "round", head: false };
   const unknown = state === "unknown";
   const width = WIDTHS[cls][unknown ? 0 : widthStep(rating)];
   const tint = (fallback) => (unknown ? theme.muted : (colored && receptionColor(rating, theme)) || fallback);
+  if (cls === "route" && predicted) return { color: theme.muted, width, dash: [...DASH.route], cap: "butt", head: true };
   if (cls === "down" && assumed) {
     const w = WIDTHS.route[1];
     return { color: unknown ? theme.muted : theme.foreground, width: w, dash: [0.01, w + DASH.assumedGap], cap: "round",
@@ -244,8 +248,9 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
  *  M7): the classes the stage draws (all in debug mode) with their stroke samples, "RX:" at the hearer, and with
  *  colored the reception scale. Up and down share one row ("there and back with the coordinator"); the assumed return
- *  path shows while source routes are assumed; routes between devices from the stage "all", heard only from "heard"
- *  (each with its stage); the band under a selected device's way up; the glyphs for directions without a reading where the stage draws them (heard only, debug);
+ *  path shows while source routes are assumed; routes between devices and the computed route discovery from the stage
+ *  "all", heard only from "heard" (each with its stage); the band under a selected device's way up; the glyphs for
+ *  directions without a reading where the stage draws them (heard only, debug);
  *  debug mode adds the lane without traffic or reading, the width steps and the unknown end. */
 export function legendEntries(theme,
   { paths = DEFAULT_PATHS, sourceRoute = "off", debug = false, colored = false } = {}) {
@@ -256,7 +261,8 @@ export function legendEntries(theme,
     { id: "coordinator", kind: "lane", style: sample("up") },
     ...(debug || sourceRoute === "assume"
       ? [{ id: "assumed", kind: "lane", style: sample("down", { assumed: true }) }] : []),
-    ...(debug || stage !== "coordinator" ? [{ id: "route", kind: "lane", style: sample("route"), stage: 2 }] : []),
+    ...(debug || stage !== "coordinator" ? [{ id: "route", kind: "lane", style: sample("route"), stage: 2 },
+      { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 2 }] : []),
     ...(heard ? [{ id: "heard", kind: "lane", style: sample("heard"), stage: 3 }] : []),
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },

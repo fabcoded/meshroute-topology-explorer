@@ -4,7 +4,9 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detailsOf, hopValue, pathLine } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
+import { detailsOf, hopValue, howText, pathLine, pathParts, stopText, theoryRows, weakestHop }
+  from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
+import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { lqiText, rankText, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
@@ -66,15 +68,18 @@ test("paths as text: every hop with the reception at its hearer, unknown ends sa
     "hin: Router 01 \u2192 Coordinator \u00B7 RX 101",
     "zur\u00FCck: Coordinator \u2192 Weg unbekannt",
   ]);
-  // All paths: out and in paths are named by their other end.
+  // All paths: the way with the coordinator, then out and in paths to and from every other available device (spec
+  // 5.7), named by their other end.
   const all = lines("Router 11", "all");
-  assert.equal(all.length, 11);
+  assert.equal(all.length, 2 + 2 * 40);
   assert.ok(all.includes("to Router 30: Router 11 \u2192 Router 27 \u00B7 RX 134 \u2192 Router 30 \u00B7 RX 108"));
   assert.ok(all.includes("from Router 01: Router 01 \u2192 Router 11 \u00B7 RX 142"));
   assert.ok(all.includes("to Router 26: Router 11 \u2192 Router 26 \u00B7 RX Route"), "a hop only a route proves");
-  // A route to an unavailable device names it as unavailable instead of inventing a reception.
-  const toOffline = detailsOf(network, byLabel("Router 01"), "all").paths.filter((p) => !p.complete && p.ids.at(-1) === p.to);
-  assert.deepEqual(toOffline.map((p) => pathLine(p, en, name)), ["to Router 08: Router 01 \u2192 Router 08 (unavailable)"]);
+  // A walk that reaches an unavailable goal names it as unavailable instead of inventing a reception.
+  const [r01, r08] = [byLabel("Router 01"), byLabel("Router 08")];
+  const walk = routePath(network, r01, r08);
+  const toOffline = { kind: "out", from: r01, to: r08, ...walk, hops: pathHops(network, walk.ids) };
+  assert.equal(pathLine(toOffline, en, name), "to Router 08: Router 01 \u2192 Router 08 (unavailable)");
   // An unavailable router: alone, its way up unknown.
   const off = network.devices.find((d) => !d.available);
   assert.equal(pathLine(detailsOf(network, off.id).paths[0], en, name), `there: ${off.label} \u2192 path unknown`);
@@ -82,4 +87,47 @@ test("paths as text: every hop with the reception at its hearer, unknown ends sa
   assert.equal(hopValue({ state: "unknown", lqi: 0 }, en), "0 (uncertain)");
   assert.equal(hopValue({ state: "unknown", lqi: null }, en), "?");
   assert.equal(hopValue({ state: "implied", source: "route" }, de), "Route");
+});
+
+test("theoretical paths per device: a row per other device, shortest first, hops with how they are taken", () => {
+  const network = sampleNetwork();
+  const byLabel = (label) => network.devices.find((d) => d.label === label).id;
+  const name = (id) => network.devices.find((d) => d.id === id).label;
+  const en = translator("en");
+  const de = translator("de");
+  const info = detailsOf(network, byLabel("End device 06"), "all");
+  assert.equal(info.theory.length, 40, "every other available device but the coordinator");
+  const count = (p) => p.hops.length;
+  for (let i = 1; i < info.theory.length; i++) {
+    const [a, b] = [info.theory[i - 1], info.theory[i]];
+    assert.ok(count(a.out) < count(b.out) || (count(a.out) === count(b.out) && count(a.in) <= count(b.in)), name(b.id));
+  }
+  // The parent first: one hop there (parent) and one back (child).
+  const first = info.theory[0];
+  assert.equal(name(first.id), "Router 17");
+  assert.deepEqual([first.out.hops.map((h) => h.how), first.in.hops.map((h) => h.how)], [["parent"], ["child"]]);
+  // Router 13: out by the parent, then a discovery from it; the steps name how each hop is taken.
+  const r13 = info.theory.find((r) => name(r.id) === "Router 13");
+  const steps = pathParts(r13.out, de, name).steps.map((s) => `${s.name}${s.how ? ` (${howText(s.how, de)})` : ""}`);
+  assert.equal(steps[1], "Router 17 (Parent)");
+  assert.ok(r13.out.hops.every((h) => h.how), "every hop says how it is taken");
+  // In the stage "coordinator", and for the coordinator, there are no theoretical rows.
+  assert.equal(detailsOf(network, byLabel("End device 06"), "coordinator").theory.length, 0);
+  const coordinator = network.devices.find((d) => d.role === "coordinator").id;
+  assert.equal(detailsOf(network, coordinator, "all").theory.length, 0);
+  // Words in both languages.
+  assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, de)),
+    ["Tabelle", "Nachbar", "Routensuche (berechnet)", "Parent", "Kind"]);
+  assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, en)),
+    ["table", "neighbour", "route discovery (computed)", "parent", "child"]);
+  assert.equal(de("details.theory_title", { count: 40 }), "Wege zu anderen Ger\u00E4ten (theoretisch) \u00B7 40");
+  assert.equal(stopText("no link", de), "keine Verbindung");
+  assert.equal(stopText("loop", en), "loop");
+  // The weakest hop: "?" first, else the lowest LQI, else what implies it.
+  const m = (lqi) => ({ state: "measured", lqi });
+  assert.equal(weakestHop([m(120), m(40), m(90)]).lqi, 40);
+  assert.equal(weakestHop([m(120), { state: "unknown", lqi: null }]).state, "unknown");
+  assert.equal(weakestHop([{ state: "implied", source: "parent" }]).source, "parent");
+  assert.equal(weakestHop([]), null);
+  assert.deepEqual(theoryRows([], name), []);
 });

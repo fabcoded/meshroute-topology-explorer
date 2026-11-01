@@ -93,30 +93,41 @@ test("classes per direction: up, down measured or assumed, routes between device
 
 test("overview: up and down lanes of all devices in every stage; 'heard' adds the best heard-only partners", () => {
   const coordinator = draw().stats;
-  assert.deepEqual(coordinator.classes, { heard: 0, route: 0, down: 5, up: 5, assumed: 1, none: 0 });
+  assert.deepEqual(coordinator.classes, { heard: 0, route: 0, down: 5, up: 5, assumed: 1, predicted: 0, none: 0 });
   assert.equal(coordinator.glyphs, 0, "only in their direction, nothing else");
   assert.deepEqual(draw({ paths: "all" }).stats.classes, coordinator.classes, "stage 2 adds only on click");
   const heard = draw({ paths: "heard" }).stats;
-  assert.deepEqual(heard.classes, { heard: 3, route: 0, down: 5, up: 5, assumed: 1, none: 0 });
+  assert.deepEqual(heard.classes, { heard: 3, route: 0, down: 5, up: 5, assumed: 1, predicted: 0, none: 0 });
   assert.equal(heard.glyphs, 1, "r2 -> r3: r3's table does not list r2");
   const off = draw({ sourceRoute: "off" }).stats;
-  assert.deepEqual(off.classes, { heard: 0, route: 0, down: 4, up: 5, assumed: 0, none: 0 }, "no assumed return path");
+  assert.deepEqual(off.classes, { heard: 0, route: 0, down: 4, up: 5, assumed: 0, predicted: 0, none: 0 }, "no assumed return path");
 });
 
 test("click: everything else off; stage 1 the way up and down, stage 2 adds routes, stage 3 the heard partners", () => {
   const r2 = at("r2");
   const one = draw({ selected: r2 }).stats;
-  assert.deepEqual(one.classes, { heard: 0, route: 0, down: 2, up: 2, assumed: 0, none: 0 });
+  assert.deepEqual(one.classes, { heard: 0, route: 0, down: 2, up: 2, assumed: 0, predicted: 0, none: 0 });
   assert.equal(one.lanes, 4, "no other lane is drawn");
   assert.deepEqual(one.paths.values.map((v) => [ID[v.s], ID[v.h], v.text]).sort(),
     [["c", "r1", "180"], ["r1", "c", "200"], ["r1", "r2", "140"], ["r2", "r1", "150"]], "RX at every hop");
   const two = draw({ selected: r2, paths: "all" }).stats;
-  assert.deepEqual(two.classes, { heard: 0, route: 1, down: 2, up: 2, assumed: 0, none: 0 }, "r1 -> r4 on the way to r4");
-  assert.ok(two.paths.values.some((v) => ID[v.s] === "r1" && ID[v.h] === "r4" && v.text === "70" && v.cls === "route"));
+  // Stage 2: the way to and from every other device (spec 5.7). Out: r2 -> r1 and r2 -> r3 directly (r2 hears both),
+  // r2 -> r1 -> r4 by the tables, r2 -> r1 -> e1 by discovery to the parent, which delivers. In: r1 and e1 by r1's
+  // table; r3 does not hear r2 and r4 has no entry: their ways are what a discovery finds (r3 -> c -> r1 -> r2 costs
+  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4), drawn lighter and counted apart; hops on the way up or down keep it.
+  assert.deepEqual(two.paths.values.map((v) => [ID[v.s], ID[v.h], v.text, v.cls, v.predicted]).sort(), [
+    ["c", "r1", "180", "down", false], ["e1", "r1", "60", "route", false], ["r1", "c", "200", "up", false],
+    ["r1", "e1", "Parent", "route", false], ["r1", "r2", "140", "down", false], ["r1", "r4", "70", "route", false],
+    ["r2", "r1", "150", "up", false], ["r2", "r3", "?", "route", false], ["r3", "c", "120", "route", true],
+    ["r4", "r1", "80", "route", true]]);
+  assert.deepEqual(two.classes, { heard: 0, route: 6, down: 2, up: 2, assumed: 0, predicted: 2, none: 0 });
+  assert.equal(two.paths.ends, 0, "every way complete");
   const three = draw({ selected: r2, paths: "heard" }).stats;
-  assert.deepEqual(three.classes, { heard: 1, route: 1, down: 2, up: 2, assumed: 0, none: 0 }, "r3 -> r2, heard");
-  assert.equal(three.glyphs, 1, "and the glyph of the direction without a reading");
-  assert.equal(three.paths.values.length, 6, "with RX");
+  // Stage 3 adds r2's heard-only partner r3 (no route between them): r3 -> r2, which no path takes, as heard; its
+  // other direction carries the theoretical neighbour hop with its "?", so no glyph doubles it.
+  assert.deepEqual(three.classes, { heard: 1, route: 6, down: 2, up: 2, assumed: 0, predicted: 2, none: 0 });
+  assert.equal(three.glyphs, 0);
+  assert.equal(three.paths.values.length, 11, "with RX");
   // The assumed return path of r3 on its own click: dotted, its value the hearer's reading.
   const r3 = draw({ selected: at("r3") }).stats;
   assert.equal(r3.classes.assumed, 1);
@@ -142,7 +153,7 @@ test("hover previews the device's lanes of the stage, dims the rest, and never a
 
 test("debug mode draws every lane of every class with values on both lanes, with and without a selection", () => {
   const { stats, ctx } = draw({ debug: true });
-  assert.deepEqual(stats.classes, { heard: 4, route: 1, down: 5, up: 5, assumed: 1, none: 0 });
+  assert.deepEqual(stats.classes, { heard: 4, route: 1, down: 5, up: 5, assumed: 1, predicted: 0, none: 0 });
   assert.equal(stats.lanes + stats.glyphs, 16, "every lane or its glyph");
   for (const v of ["200", "180", "150", "140", "80", "70", "50", "40", "30"]) {
     assert.ok(ctx.calls.some((c) => c[0] === "fillText" && c[1].startsWith(`${v} ←`)), v);
@@ -196,12 +207,15 @@ test("the three stages, their hints and the legend's words in English and German
     "view.paths": "Kommunikationspfade", "view.paths_coordinator": "mit dem Koordinator, hin und zurück",
     "view.paths_coordinator_hint": "ohne Auswahl alle Geräte; bei Klick nur die Wege des Geräts, mit RX",
     "view.paths_all": "+ Wege zu allen Geräten (theoretisch)",
-    "view.paths_all_hint": "bei Klick: vom Gerät zu jedem anderen Gerät und zurück, aus den Routingtabellen",
-    "view.paths_heard": "+ nur gehört (beste 3)", "view.paths_heard_hint": "dazu Geräte, die man hört, über die aber kein Weg läuft",
+    "view.paths_all_hint":
+      "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
+    "view.paths_heard": "+ nur gehört (beste 3)",
+    "view.paths_heard_hint": "ohne Auswahl wie Stufe 2; bei Klick dazu die 3 besten nur gehörten Partner des Geräts",
     "view.paths_note": "Jede Stufe enthält die vorige. Debug zeigt alles.",
     "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
     "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
-    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.heard": "nur gehört", "legend.stage": "(Stufe {n})",
+    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "Weg nach Routensuche (berechnet)",
+    "legend.link.heard": "nur gehört", "legend.stage": "(Stufe {n})",
     "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
   };
   for (const [key, text] of Object.entries(de)) {
@@ -210,6 +224,12 @@ test("the three stages, their hints and the legend's words in English and German
   }
   assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
   assert.equal(STRINGS.en["view.paths_note"], "Every stage includes the previous one. Debug shows everything.");
+  // Texts of the main session (2026-11-01, owner's decisions on the stage-2 overview and the stage-3 click).
+  assert.equal(STRINGS.en["view.paths_all_hint"],
+    "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
+  assert.equal(STRINGS.en["view.paths_heard_hint"],
+    "without a selection as stage 2; on click the device's 3 best heard-only partners");
+  assert.equal(STRINGS.en["legend.link.discovery"], "path a route discovery would find (computed)");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
     "legend.link.up", "legend.link.path"]) {
     assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);

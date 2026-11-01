@@ -142,7 +142,7 @@ test("drawing order: lanes without class, heard only, routes, down, then up on t
   const { stats } = draw({ debug: true });
   const rank = stats.order.map((c) => (c === "none" ? -1 : CLASSES.indexOf(c)));
   assert.deepEqual(rank, [...rank].sort((a, b) => a - b));
-  assert.deepEqual(stats.classes, { heard: 2, route: 1, down: 0, up: 2, assumed: 0, none: 2 });
+  assert.deepEqual(stats.classes, { heard: 2, route: 1, down: 0, up: 2, assumed: 0, predicted: 0, none: 2 });
 });
 
 test("selection: only its lanes, its way up as a band, every hop with RX at its hearer, the unknown way down", () => {
@@ -210,12 +210,17 @@ test("a value sits a quarter of its lane before the hearer, on the right of trav
 });
 
 test("stage 'all': paths to and from other devices join the click as routes; hover previews only what the stage draws", () => {
-  // r1's own route to c is its up path; r2 owns a route towards r1: an in path r2 -> r1 ("Route", no reading).
+  // r1's own route to c is its up path. Stage 2 adds its theoretical way to and from every other device (spec 5.7):
+  // r1 delivers to its child e1 ("Parent": the parent link implies the hop), e1 sends to its parent (r1 hears it at
+  // 90), r2's table leads to r1 ("Route"); nothing leads between r1 and r3 (no table read, no reading), so those two
+  // walks and the down path from c end in "?" stems.
   const coordinatorView = draw({ selected: 1 });
   assert.equal(coordinatorView.stats.paths.hops, 1, "r1 -> c");
   const all = draw({ selected: 1, paths: "all" });
   const values = all.stats.paths.values.map((v) => [v.s, v.h, v.text, v.cls]).sort();
-  assert.deepEqual(values, [[1, 0, "200", "up"], [2, 1, "Route", "route"]]);
+  assert.deepEqual(values, [[1, 0, "200", "up"], [1, 4, "Parent", "route"], [2, 1, "Route", "route"],
+    [4, 1, "90", "route"]]);
+  assert.equal(all.stats.paths.ends, 4, "c -> r1, r1 -> r2, r1 -> r3, r3 -> r1");
   const hover = draw({ hovered: 1, paths: "all" });
   assert.equal(hover.stats.paths.hops, 1, "the route waits for the click");
   assert.equal(hover.stats.classes.route, 0);
@@ -252,7 +257,7 @@ test("up and down hop of one pair are drawn on its two lanes, each on the right 
   assert.ok(v200[3] < 400 && v200[2] < 350, `${v200[2]}, ${v200[3]}`);
   assert.ok(v120[3] > 400 && v120[2] > 350, `${v120[2]}, ${v120[3]}`);
   // The overview draws both: up and down, each in its own direction only.
-  assert.deepEqual(draw({ net }).stats.classes, { heard: 0, route: 0, down: 1, up: 1, assumed: 0, none: 0 });
+  assert.deepEqual(draw({ net }).stats.classes, { heard: 0, route: 0, down: 1, up: 1, assumed: 0, predicted: 0, none: 0 });
 });
 
 test("the unknown end: a short dashed stem on the right of the way towards the goal", () => {
@@ -336,10 +341,12 @@ test("legend entries follow the stage: the classes it draws, RX, the scale while
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
   assert.deepEqual(ids(), ["coordinator", "up-path", "rx"]);
   assert.deepEqual(ids({ sourceRoute: "assume" }), ["coordinator", "assumed", "up-path", "rx"]);
-  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "up-path", "rx"]);
-  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "heard", "up-path", "not-listed", "no-table", "rx"]);
-  assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "heard", "up-path", "implied", "width",
-    "not-listed", "no-table", "path-end", "rx"]);
+  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "discovery",
+    "up-path", "rx"]);
+  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "discovery", "heard", "up-path", "not-listed",
+    "no-table", "rx"]);
+  assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "implied",
+    "width", "not-listed", "no-table", "path-end", "rx"]);
   const band = legendEntries(theme).find((e) => e.id === "up-path");
   assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
   assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
@@ -348,6 +355,11 @@ test("legend entries follow the stage: the classes it draws, RX, the scale while
   assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
   assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);
   assert.equal(entries.find((e) => e.id === "route").stage, 2);
+  // A hop only a computed route discovery takes: the same dash-dot in the lighter grey, never in a reception colour.
+  const discovery = entries.find((e) => e.id === "discovery");
+  assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 2]);
+  assert.notEqual(entries.find((e) => e.id === "route").style.color, theme.muted);
+  assert.equal(laneStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
   assert.equal(entries.find((e) => e.id === "heard").stage, 3);
   const assumed = entries.find((e) => e.id === "assumed").style;
   assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");

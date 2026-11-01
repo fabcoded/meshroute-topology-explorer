@@ -173,6 +173,14 @@ p { margin: 4px 0; }
 .card-details[open] > :not(summary) { margin-top: 6px; }
 .path-line { line-height: 1.5; overflow-wrap: anywhere; }
 .path-line.assumed { color: var(--mte-muted); }
+/* Theoretical paths (spec 9.2): a row per device, name left, the ways there and back right; opened, its hops. */
+.theory-row > summary { display: grid; grid-template-columns: 1em minmax(0, 1fr) auto auto; gap: 8px; margin-top: 0;
+  min-height: 28px; font-weight: 400; }
+.theory-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theory-way { white-space: nowrap; font-size: 13px; min-width: 64px; text-align: right; }
+.theory-way small { font-size: 12px; color: var(--mte-muted); }
+.theory-line { font-size: 13px; padding-left: 1em; }
+.how { color: var(--mte-muted); font-size: 12px; }
 .rx small, .reading-rx small { font-size: 12px; color: var(--mte-muted); }
 .rx b, .reading-rx b { font-weight: 700; color: var(--mte-fg); }
 .unknown { color: var(--mte-muted); font-style: italic; }

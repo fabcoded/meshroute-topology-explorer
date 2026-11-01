@@ -32,6 +32,13 @@ const nextHop = (c, owner, destination) => {
   return route ? route.nextHop : null;
 };
 
+/** The active, current routing entry of `owner` towards `destination` that path walks follow (the first one in the
+ *  network's order), or null. Shared with the theoretical paths (theoretical.js), so both read the tables alike. */
+export function activeRoute(network, owner, destination) {
+  const m = lookups(network).routes.get(owner);
+  return (m && m.get(destination)) || null;
+}
+
 /** Path from `id` to the coordinator: { ids, complete }. `ids` ends where the walk stopped. */
 export function upPath(network, id) {
   const c = lookups(network);

@@ -2,7 +2,8 @@
 // What the Details tab shows for one device (spec 9.2), gathered from the Network as plain data: parent and its
 // availability, children, relay load, readings in both directions with reporter and rating, its own routing entries,
 // its findings, and its paths in the node view as text lines, so every value the map draws at a hop also exists as
-// text (spec 9.3). No DOM; details-tab.js renders it. Tested in Node: node --test tests/
+// text (spec 9.3); in the stages "all" and "heard" its theoretical paths per other device (spec 5.7) with how each hop
+// is taken. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { lqiText } from "./format.js";
 
@@ -26,14 +27,55 @@ export function pathParts(path, t, name) {
     : path.kind === "in" ? t("details.path_in", { name: name(path.from) })
       : path.kind === "up" ? t("details.path_up")
         : t(path.assumed ? "details.path_down_assumed" : "details.path_down");
-  const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null },
-    ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t) }))] : [];
+  const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null, how: null },
+    ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t), how: hop.how || null,
+      noEntry: hop.noEntry || null }))] : [];
   let tail = null;
   if (!path.complete) {
-    if (unknownEnd(path) || !steps.length) tail = t("details.path_unknown");
+    if (unknownEnd(path) || !steps.length) {
+      // A theoretical walk says why it stopped (spec 5.7); the walks of 5.1 stop only where a table or entry is missing.
+      tail = path.reason && path.reason !== "unavailable"
+        ? `${t("details.path_unknown")} (${stopText(path.reason, t)})` : t("details.path_unknown");
+    }
     else steps[steps.length - 1] = { name: t("details.path_unavailable", { name: name(path.to) }), rx: null };
   }
   return { prefix, steps, tail };
+}
+
+/** Words for how a theoretical hop is taken (spec 5.7): table, neighbour, route discovery (computed), parent, child. */
+export function howText(how, t) {
+  return t(`details.how_${how}`);
+}
+
+/** Why a theoretical path stopped (model/theoretical.js reasons), in words. */
+export function stopText(reason, t) {
+  return t(`details.stop_${String(reason || "unknown").replace(/ /g, "_")}`);
+}
+
+/** The weakest hop of a path for its row: a hop nothing proves ("?") first, else the lowest measured LQI, else the
+ *  first hop only a route or a parent link implies; null without hops. */
+export function weakestHop(hops) {
+  if (!hops.length) return null;
+  const unknown = hops.find((h) => h.state !== "measured" && h.state !== "implied");
+  if (unknown) return unknown;
+  const measured = hops.filter((h) => h.state === "measured");
+  return measured.length ? measured.reduce((a, b) => (b.lqi < a.lqi ? b : a)) : hops[0];
+}
+
+/** The theoretical paths of a node view per other device (spec 5.7, 9.2): [{ id, out, in }] with out the path from
+ *  the device and in the path back, sorted by the hop count of the way there, then of the way back, then by name;
+ *  incomplete ways last. Paths without `how` on their hops (up, down, the coordinator's routes) are not theoretical. */
+export function theoryRows(paths, name) {
+  const rows = new Map();
+  for (const p of paths) {
+    if ((p.kind !== "out" && p.kind !== "in") || !p.hops.some((h) => h.how)) continue;
+    const id = p.kind === "out" ? p.to : p.from;
+    if (!rows.has(id)) rows.set(id, { id, out: null, in: null });
+    rows.get(id)[p.kind] = p;
+  }
+  const count = (p) => (p && p.complete ? p.hops.length : Infinity);
+  return [...rows.values()].sort((a, b) => count(a.out) - count(b.out) || count(a.in) - count(b.in)
+    || name(a.id).localeCompare(name(b.id)));
 }
 
 /** One path as a line of text: "there: Sensor → Router 17 · RX 103 → Coordinator · RX 51"; an incomplete path ends
@@ -64,6 +106,7 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
       direct: r.direct, stale: r.stale }))
     .sort((a, b) => a.destination.label.localeCompare(b.destination.label));
   const parent = device.parent ? byId.get(device.parent) || null : null;
+  const paths = nodePaths(network, id, nodeView, { sourceRoute });
   return {
     device,
     parent,
@@ -79,6 +122,7 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
     routes,
     findings: network.findings.filter((f) => f.device === id),
     routingEntries: network.routes.filter((r) => r.owner === id).length,
-    paths: nodePaths(network, id, nodeView, { sourceRoute }),
+    paths,
+    theory: theoryRows(paths, (x) => (byId.get(x) || { label: x }).label),
   };
 }
