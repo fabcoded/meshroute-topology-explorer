@@ -224,3 +224,27 @@ export function theoreticalPath(network, from, to) {
   }
   return result(target.available, "unavailable");
 }
+
+const laneCache = new WeakMap(); // network -> theoreticalLanes
+
+/** Every lane the theoretical paths between any two available devices use, the coordinator's included: Map
+ *  "sender>hearer" -> { sender, hearer, hows (Set of how it is taken) }. The stage-2 overview draws this backbone (decisions by
+ *  Fabian Schwamborn, 2026-11-01: every lane any path uses). Computed once per network; on the sample 1722 paths. */
+export function theoreticalLanes(network) {
+  let lanes = laneCache.get(network);
+  if (lanes) return lanes;
+  lanes = new Map();
+  const devices = (network.devices || []).filter((d) => d.available);
+  for (const a of devices) {
+    for (const b of devices) {
+      if (a === b) continue;
+      for (const hop of theoreticalPath(network, a.id, b.id).hops) {
+        const key = `${hop.sender}>${hop.hearer}`;
+        if (!lanes.has(key)) lanes.set(key, { sender: hop.sender, hearer: hop.hearer, hows: new Set() });
+        lanes.get(key).hows.add(hop.how);
+      }
+    }
+  }
+  laneCache.set(network, lanes);
+  return lanes;
+}

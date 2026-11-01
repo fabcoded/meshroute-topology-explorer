@@ -245,10 +245,16 @@ test("sample, stage 2 of a click: an out and an in path to every other available
     assert.deepEqual(now.ids, before.ids, labelOf.get(r.destination));
     assert.ok(kinds(now).every((k) => k === "table" || k === "child"), labelOf.get(r.destination));
   }
-  // An unavailable device has no theoretical paths; the coordinator keeps its routes (stage 1).
+  // An unavailable device has no theoretical paths. The coordinator gets its trees in stage 2 like any device, from
+  // its own table on (decision by Fabian Schwamborn, 2026-11-01); stage 1 keeps its routes.
   const off = sample.devices.find((d) => !d.available);
   assert.deepEqual(nodePaths(sample, off.id, "all").map((p) => p.kind), ["up", "down"]);
-  assert.ok(nodePaths(sample, coordinator.id, "all").every((p) => !p.hops.some((h) => h.how)));
+  const tally = Object.fromEntries(HOWS.map((h) => [h, 0]));
+  const trees = nodePaths(sample, coordinator.id, "all");
+  for (const p of trees) for (const h of p.hops) tally[h.how]++;
+  assert.equal(trees.length, 82);
+  assert.deepEqual(tally, { parent: 12, child: 12, table: 115, neighbour: 7, discovery: 3 });
+  assert.ok(nodePaths(sample, coordinator.id).every((p) => !p.hops.some((h) => h.how)));
 });
 
 test("a click stays well under 100 ms of model time on the sample (CPU time, fresh caches)", (t) => {

@@ -48,9 +48,13 @@ test("path to coordinator: up and down path per device, the numbers of spec 12",
   assert.deepEqual([others.length, up, down, differ], [44, 41, 33, 23]);
   // Every incomplete path on the sample stops short of its goal, so it has a visible unknown end.
   assert.deepEqual(ends, { up: 3, down: 11 });
-  // The coordinator stands for Home Assistant: its paths with Home Assistant are all its paths, in both modes.
-  assert.deepEqual(nodePaths(sample, coordinator.id), nodePaths(sample, coordinator.id, "all"));
-  assert.ok(nodePaths(sample, coordinator.id).every((p) => p.kind === "out" || p.kind === "in"));
+  // The coordinator stands for Home Assistant: in stage 1 its paths are the routes it holds and the routes towards it;
+  // stage 2 gives it the theoretical trees like any device (decision by Fabian Schwamborn, 2026-11-01).
+  const own = nodePaths(sample, coordinator.id);
+  assert.ok(own.length && own.every((p) => (p.kind === "out" || p.kind === "in") && !p.hops.some((h) => h.how)));
+  const trees = nodePaths(sample, coordinator.id, "all");
+  assert.deepEqual([trees.filter((p) => p.kind === "out").length, trees.filter((p) => p.kind === "in").length], [41, 41]);
+  assert.ok(trees.every((p) => p.complete && p.hops.every((h) => h.how)));
   assert.deepEqual(nodePaths(sample, "no:such:device"), []);
 });
 
@@ -106,10 +110,10 @@ test("all paths on the sample: out to and in from every other available device, 
   assert.deepEqual(tally, {
     up: { total: 44, complete: 41, unknown: 3, offline: 0 },
     down: { total: 44, complete: 33, unknown: 11, offline: 0 },
-    // 41 available devices besides the coordinator, 40 goals each (spec 5.7); the coordinator adds its 30 routes and
-    // the 29 routes towards it.
-    out: { total: 41 * 40 + 30, complete: 1670, unknown: 0, offline: 0 },
-    in: { total: 41 * 40 + 29, complete: 1669, unknown: 0, offline: 0 },
+    // 41 available devices besides the coordinator, 40 goals each (spec 5.7); the coordinator adds its trees to and
+    // from all 41.
+    out: { total: 41 * 40 + 41, complete: 1681, unknown: 0, offline: 0 },
+    in: { total: 41 * 40 + 41, complete: 1681, unknown: 0, offline: 0 },
   });
   // "All paths" includes the path to the coordinator first, and never repeats it.
   const r11 = byLabel("Router 11");

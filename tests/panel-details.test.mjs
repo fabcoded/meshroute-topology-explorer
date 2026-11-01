@@ -111,10 +111,11 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   const steps = pathParts(r13.out, de, name).steps.map((s) => `${s.name}${s.how ? ` (${howText(s.how, de)})` : ""}`);
   assert.equal(steps[1], "Router 17 (Parent)");
   assert.ok(r13.out.hops.every((h) => h.how), "every hop says how it is taken");
-  // In the stage "coordinator", and for the coordinator, there are no theoretical rows.
+  // In the stage "coordinator" there are no theoretical rows.
   assert.equal(detailsOf(network, byLabel("End device 06"), "coordinator").theory.length, 0);
   const coordinator = network.devices.find((d) => d.role === "coordinator").id;
-  assert.equal(detailsOf(network, coordinator, "all").theory.length, 0);
+  assert.equal(detailsOf(network, coordinator, "coordinator").theory.length, 0, "the coordinator's stage 1: its routes");
+  assert.equal(detailsOf(network, coordinator, "all").theory.length, 41, "stage 2: its trees, like any device");
   // Words in both languages.
   assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, de)),
     ["Tabelle", "Nachbar", "Routensuche (berechnet)", "Parent", "Kind"]);

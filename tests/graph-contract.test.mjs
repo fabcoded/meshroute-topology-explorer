@@ -10,7 +10,9 @@ import { readFileSync } from "node:fs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { BEST_HEARD } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { sceneBackbone, sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { theoreticalLanes, theoreticalPath }
+  from "../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js";
 import { FakeCanvas, fakeEnv } from "./graph-fakes.mjs";
 
 const r = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
@@ -73,7 +75,7 @@ test("the sample's lanes by class, per direction: 41 up (12 parent links), 52 do
   t.diagnostic && t.diagnostic(`lanes ${scene.lanes.length}: ${JSON.stringify(off.counts)}`);
 });
 
-test("the overview per stage: up and down lanes, from 'heard' each device's best heard-only partners; debug all", () => {
+test("the overview per stage: up and down lanes; from 'all' the backbone of theoretical paths; 'heard' adds nothing", () => {
   const { view, env } = show();
   const { scene } = view;
   const sc = sceneClasses(scene, "assume"); // the default source-route stage
@@ -83,29 +85,54 @@ test("the overview per stage: up and down lanes, from 'heard' each device's best
   assert.equal(drawn.up + drawn.down, traffic, "every up and down lane");
   assert.equal(drawn.route + drawn.heard + drawn.none, 0, "nothing else");
   assert.equal(drawn.assumed, sc.counts.assumed, "assumed return paths, dotted");
+  // Stage 2 (decision by Fabian Schwamborn, 2026-11-01): every lane any theoretical path uses, as a route where it is
+  // not up or down, lighter where only a computed route discovery takes it.
   view.setPaths("all");
   env.flush();
-  assert.deepEqual(view.lastDraw.classes, drawn, "stage 2 adds only on click");
-  // Stage 3: each device's best heard-only partners (by the best rating at the hearer), both lanes where heard.
-  for (let i = 0; i < scene.nodes.length; i++) {
-    const own = scene.pairs.filter((p) => sc.heardOnly[p.index] && (p.a === i || p.b === i));
-    const rank = (p) => Math.max(...p.lanes.filter((l) => sc.cls[l] === "heard").map((l) => scene.lanes[l].dir.rating ?? -1));
-    const sorted = own.map(rank).sort((x, y) => y - x);
-    const threshold = sorted[Math.min(BEST_HEARD, sorted.length) - 1];
-    for (const p of own) if (rank(p) > threshold) assert.ok(sc.shown[p.index], "its best heard-only partners are shown");
-    assert.ok(sc.best[i].length <= BEST_HEARD);
-  }
+  const bb = sceneBackbone(scene);
+  const backbone = scene.lanes.filter((l) => bb.kind[l.index] && sc.cls[l.index] !== "up" && sc.cls[l.index] !== "down");
+  const two = view.lastDraw.classes;
+  assert.deepEqual([two.up, two.down, two.assumed], [drawn.up, drawn.down, drawn.assumed], "stage 1 as it was");
+  assert.equal(two.route, backbone.length);
+  assert.equal(two.predicted, backbone.filter((l) => bb.kind[l.index] === "predicted").length);
+  assert.equal(two.heard + two.none + view.lastDraw.glyphs, 0);
+  // Stage 3 without a selection looks like stage 2: heard-only partners come on click.
   view.setPaths("heard");
   env.flush();
-  const heard = scene.lanes.filter((l) => sc.cls[l.index] === "heard" && sc.shown[l.pair]).length;
-  assert.equal(view.lastDraw.classes.heard, heard);
-  assert.ok(heard < sc.counts.heard);
-  assert.equal(view.lastDraw.classes.route, 0, "routes between devices only on click");
+  assert.deepEqual(view.lastDraw.classes, two);
+  assert.equal(view.lastDraw.glyphs, 0);
   view.setDebug(true);
   env.flush();
   const all = view.lastDraw.classes;
   assert.equal(all.up + all.down + all.route + all.heard + all.none + view.lastDraw.glyphs, scene.lanes.length,
     "every lane, or its glyph");
+});
+
+test("spec 12: the backbone on the sample, 570 lanes: 95 up or down, the rest by their strongest kind", () => {
+  const { view } = show();
+  const { scene } = view;
+  const lanes = theoreticalLanes(scene.pathNet);
+  const sc = sceneClasses(scene, "assume");
+  const key = (l) => `${scene.nodes[l.s].id}>${scene.nodes[l.h].id}`;
+  const stage1 = new Set(scene.lanes.filter((l) => sc.cls[l.index] === "up" || sc.cls[l.index] === "down").map(key));
+  const order = ["table", "child", "parent", "neighbour", "discovery"];
+  const rest = {};
+  let inStage1 = 0;
+  for (const [k, { hows }] of lanes) {
+    if (stage1.has(k)) { inStage1++; continue; }
+    const kind = order.find((o) => hows.has(o));
+    rest[kind] = (rest[kind] || 0) + 1;
+  }
+  assert.deepEqual([lanes.size, inStage1, stage1.size], [570, 95, 95], "every up and down lane is on some path");
+  assert.deepEqual(rest, { neighbour: 427, table: 29, discovery: 19 });
+  // The coordinator's trees add no lane: its ways are up and down lanes or lanes other paths use already.
+  const without = new Set();
+  const devices = network.devices.filter((d) => d.available && d.role !== "coordinator");
+  for (const a of devices) for (const b of devices) {
+    if (a !== b) for (const h of theoreticalPath(scene.pathNet, a.id, b.id).hops) without.add(`${h.sender}>${h.hearer}`);
+  }
+  assert.equal(without.size, 570);
+  assert.deepEqual(sceneBackbone(scene).counts, { route: 551, predicted: 19 });
 });
 
 test("spec 12: lanes the overview draws per stage, with source routes assumed and off, and in debug mode", () => {
@@ -122,9 +149,43 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
     env.flush();
     counts[`${sourceRoute} debug`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
   }
-  // 41 up and 54 down lanes (2 of them assumed); "heard" adds 112 heard-only lanes and their 6 glyphs.
+  // 41 up and 54 down lanes (2 of them assumed); stages 2 and 3 the backbone, 570 lanes (with source routes off the
+  // two assumed lanes are drawn as routes of the backbone).
   assert.deepEqual(counts, {
-    "assume coordinator": [95, 0], "assume all": [95, 0], "assume heard": [207, 6], "assume debug": [583, 73],
-    "off coordinator": [93, 0], "off all": [93, 0], "off heard": [205, 6], "off debug": [583, 73],
+    "assume coordinator": [95, 0], "assume all": [570, 0], "assume heard": [570, 0], "assume debug": [583, 73],
+    "off coordinator": [93, 0], "off all": [570, 0], "off heard": [570, 0], "off debug": [583, 73],
   });
+});
+
+test("a lane keeps its strongest class on click and hover: up and down solid, computed only where nothing proves it", () => {
+  const { view, env } = show();
+  const { scene } = view;
+  const sc = sceneClasses(scene, "assume");
+  const bb = sceneBackbone(scene);
+  view.setPaths("all");
+  const tally = {};
+  for (const label of ["End device 06", "Router 13", "Router 11", "Coordinator"]) {
+    const i = scene.nodes.findIndex((n) => n.label === label);
+    for (const focus of [{ selected: i, hovered: -1 }, { selected: -1, hovered: i }]) {
+      view.selected = focus.selected;
+      view.hovered = focus.hovered;
+      view.draw();
+      const { paths, classes } = view.lastDraw;
+      for (const v of paths.values) {
+        const lane = scene.laneByKey.get(`${v.s}>${v.h}`);
+        const own = sc.cls[lane.index];
+        if (own === "up" || own === "down") assert.equal(v.cls, own, `${label}: ${v.s}>${v.h} stays ${own}`);
+        if (v.predicted) assert.equal(bb.kind[lane.index], "predicted", `${label}: ${v.s}>${v.h} is computed only`);
+        if (bb.kind[lane.index] === "route" && v.cls === "route") assert.equal(v.predicted, false);
+      }
+      // On click only the focus's lanes are drawn; hover lays them over the dimmed overview.
+      if (focus.selected >= 0) tally[label] = [paths.hops, classes.predicted];
+      else assert.equal(paths.hops, tally[label][0], `${label}: hover previews every hop of the click`);
+    }
+  }
+  env.flush();
+  // Hops on click, of which drawn as computed: few, as most lanes are someone's up or down lane or a table's or
+  // neighbour's hop as well.
+  assert.deepEqual(tally, { "End device 06": [85, 2], "Router 13": [82, 1], "Router 11": [82, 0],
+    Coordinator: [96, 0] });
 });

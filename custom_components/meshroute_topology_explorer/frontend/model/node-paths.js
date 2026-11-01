@@ -56,11 +56,11 @@ export function pathHops(network, ids) {
  *  "neighbour", "discovery"), a discovery hop with its link cost, the path with the reason it stopped and the path cost
  *  of its discovery part. The way to and from the coordinator is the up and down path, so it is not repeated; an
  *  unavailable device has none (its tables are stale, 5.1). Unknown modes count as "coordinator". The coordinator
- *  stands for Home Assistant: its paths to and from Home Assistant are all its paths, so it shows the routes it holds
- *  and the routes towards it in both modes (an empty map on its click would say nothing; its way to each device is
- *  that device's down path, decision by the main session, 2026-11-01). sourceRoute "assume" replaces an unknown down
- *  path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed: true,
- *  and so do its hops. The default "off" gives the measured paths of spec 5.1 only. */
+ *  stands for Home Assistant: in "coordinator" mode it shows the routes it holds and the routes towards it (an empty
+ *  map on its click would say nothing); in "all" its theoretical way to every available device and back, from its own
+ *  table on, like any device (decision by Fabian Schwamborn, 2026-11-01). sourceRoute "assume" replaces an unknown
+ *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
+ *  true, and so do its hops. The default "off" gives the measured paths of spec 5.1 only. */
 export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off" } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
@@ -84,7 +84,7 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute =
     add("down", coordinator, id, assumed || downPath(network, id));
   }
   if (mode !== "all" && id !== coordinator) return out;
-  if (id === coordinator) {
+  if (id === coordinator && mode !== "all") {
     const { destinations, owners } = routeEnds(network, id);
     for (const d of destinations) add("out", id, d, routePath(network, id, d));
     for (const o of owners) add("in", o, id, routePath(network, o, id));

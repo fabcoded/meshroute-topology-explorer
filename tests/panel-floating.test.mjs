@@ -68,7 +68,7 @@ test("the links legend is built from the graph's entries, with words for every e
       assert.deepEqual(lanes.map((r) => r.id), ["coordinator", "assumed", "route", "discovery", "heard", "implied"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
       assert.deepEqual(rows.filter((r) => r.note).map((r) => [r.id, r.note]),
-        [["route", t("legend.stage", { n: 2 })], ["discovery", t("legend.stage", { n: 2 })],
+        [["route", t("legend.stage", { n: 2 })], ["discovery", t("legend.stage_computed", { n: 2 })],
           ["heard", t("legend.stage", { n: 3 })]], "a class names its stage");
       const scale = rows.find((r) => r.id === "reception");
       assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), `${lang} scale`);
@@ -77,10 +77,11 @@ test("the links legend is built from the graph's entries, with words for every e
   }
   const t = translator("de");
   const rows = linkLegendRows(legendEntries(resolveTheme({}), { paths: "heard" }), t);
-  assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Weg zu einem anderen Gerät",
-    "Weg nach Routensuche (berechnet)", "nur gehört", "Band: der Weg des ausgewählten Geräts zum Koordinator", t("legend.link.not-listed"),
+  assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Rückweg angenommen (Source Route)",
+    "Weg zu einem anderen Gerät", "Weg nach Routensuche", "nur gehört", "Band: der Weg des ausgewählten Geräts zum Koordinator", t("legend.link.not-listed"),
     t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
-  assert.equal(rows[1].note, "(Stufe 2)");
+  assert.deepEqual(rows.slice(2, 5).map((r) => `${r.label} ${r.note}`), ["Weg zu einem anderen Gerät (Stufe 2)",
+    "Weg nach Routensuche (berechnet, Stufe 2)", "nur gehört (Stufe 3)"]);
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");

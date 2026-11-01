@@ -49,12 +49,14 @@ export function laneClass(lane, sourceRoute = "off") {
   return lane.dir && lane.dir.state === "measured" ? "heard" : null;
 }
 
-/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1): up and down always, heard-only
- *  lanes of a shown pair from the stage "heard" on; routes between devices only on click; everything in debug mode. */
-export function overviewShows(cls, stage, { shown = false, debug = false } = {}) {
+/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1; decisions by Fabian Schwamborn,
+ *  2026-11-01): up and down always; from the stage "all" on the backbone, every lane a theoretical path between two
+ *  devices uses (backbone: the lane is one), drawn as a route; heard only never without a selection (stage 3 adds its
+ *  partners on click); everything in debug mode. */
+export function overviewShows(cls, stage, { backbone = false, debug = false } = {}) {
   if (debug) return true;
   if (cls === "up" || cls === "down") return true;
-  return cls === "heard" && pathStage(stage) === "heard" && shown;
+  return cls === "route" && backbone && pathStage(stage) !== "coordinator";
 }
 
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
@@ -246,24 +248,22 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
 }
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
- *  M7): the classes the stage draws (all in debug mode) with their stroke samples, "RX:" at the hearer, and with
- *  colored the reception scale. Up and down share one row ("there and back with the coordinator"); the assumed return
- *  path shows while source routes are assumed; routes between devices and the computed route discovery from the stage
- *  "all", heard only from "heard" (each with its stage); the band under a selected device's way up; the glyphs for
- *  directions without a reading where the stage draws them (heard only, debug);
- *  debug mode adds the lane without traffic or reading, the width steps and the unknown end. */
-export function legendEntries(theme,
-  { paths = DEFAULT_PATHS, sourceRoute = "off", debug = false, colored = false } = {}) {
+ *  M7): every path class whatever the stage (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
+ *  there and back with the coordinator (up and down share one row), the assumed return path, paths to other devices
+ *  and the computed route discovery (stage 2, the latter marked computed), heard only (stage 3); the band under a
+ *  selected device's way up; the glyphs for directions without a reading where the stage draws them (stage 3 on
+ *  click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
+ *  the hearer, and with colored the reception scale. */
+export function legendEntries(theme, { paths = DEFAULT_PATHS, debug = false, colored = false } = {}) {
   const stage = pathStage(paths);
   const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
   const heard = debug || stage === "heard";
   return [
     { id: "coordinator", kind: "lane", style: sample("up") },
-    ...(debug || sourceRoute === "assume"
-      ? [{ id: "assumed", kind: "lane", style: sample("down", { assumed: true }) }] : []),
-    ...(debug || stage !== "coordinator" ? [{ id: "route", kind: "lane", style: sample("route"), stage: 2 },
-      { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 2 }] : []),
-    ...(heard ? [{ id: "heard", kind: "lane", style: sample("heard"), stage: 3 }] : []),
+    { id: "assumed", kind: "lane", style: sample("down", { assumed: true }) },
+    { id: "route", kind: "lane", style: sample("route"), stage: 2 },
+    { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 2, computed: true },
+    { id: "heard", kind: "lane", style: sample("heard"), stage: 3 },
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },
       { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.up], color: theme.foreground }] : []),

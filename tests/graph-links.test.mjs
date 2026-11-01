@@ -124,7 +124,7 @@ function draw({ selected = -1, hovered = -1, debug = false, net = NET, ...extra 
 }
 
 test("classes per direction on a small network; a direction without a reading gets a glyph mid-way", () => {
-  const { scene, ctx, stats } = draw({ paths: "heard" });
+  const { scene, ctx, stats } = draw({ debug: true });
   const sc = sceneClasses(scene, "off");
   const cls = Object.fromEntries(scene.lanes.map((l) => [`${scene.nodes[l.s].id}>${scene.nodes[l.h].id}`, sc.cls[l.index]]));
   assert.deepEqual(cls, { "r1>c": "up", "c>r1": "heard", "r1>e1": null, "e1>r1": "up", "r2>r1": "route", "r1>r2": null,
@@ -136,6 +136,7 @@ test("classes per direction on a small network; a direction without a reading ge
   assert.ok(glyph, "the glyph is drawn");
   assert.ok(Math.abs(glyph[2] - 797) < 1e-9 && Math.abs(glyph[3] - (400 + 125)) < 1e-9, `${glyph[2]}, ${glyph[3]}`);
   assert.equal(draw().stats.glyphs, 0, "the first stage draws no heard-only pair, so no glyph");
+  assert.equal(draw({ paths: "heard" }).stats.glyphs, 0, "nor stage 3 without a selection");
 });
 
 test("drawing order: lanes without class, heard only, routes, down, then up on top", () => {
@@ -219,12 +220,14 @@ test("stage 'all': paths to and from other devices join the click as routes; hov
   const all = draw({ selected: 1, paths: "all" });
   const values = all.stats.paths.values.map((v) => [v.s, v.h, v.text, v.cls]).sort();
   assert.deepEqual(values, [[1, 0, "200", "up"], [1, 4, "Parent", "route"], [2, 1, "Route", "route"],
-    [4, 1, "90", "route"]]);
+    [4, 1, "90", "up"]], "e1 -> r1 is e1's up lane and stays solid");
   assert.equal(all.stats.paths.ends, 4, "c -> r1, r1 -> r2, r1 -> r3, r3 -> r1");
+  // The overview of stage 2 carries every lane a theoretical path takes, so hover previews r1's hops without adding a
+  // lane; the "?" stems of incomplete ways wait for the click.
   const hover = draw({ hovered: 1, paths: "all" });
-  assert.equal(hover.stats.paths.hops, 1, "the route waits for the click");
-  assert.equal(hover.stats.classes.route, 0);
-  assert.ok(!hover.ctx.calls.some((c) => c[0] === "fillText" && c[1] === "Route"));
+  assert.equal(hover.stats.paths.hops, 4);
+  assert.equal(hover.stats.lanes, draw({ paths: "all" }).stats.lanes, "no lane the overview does not draw");
+  assert.equal(hover.stats.paths.ends, all.stats.paths.ends, "the unknown ends as on the click");
 });
 
 test("up and down hop of one pair are drawn on its two lanes, each on the right of its own travel", () => {
@@ -339,12 +342,11 @@ test("text beside a lane stays clear of it, on its right", () => {
 
 test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  assert.deepEqual(ids(), ["coordinator", "up-path", "rx"]);
-  assert.deepEqual(ids({ sourceRoute: "assume" }), ["coordinator", "assumed", "up-path", "rx"]);
-  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "discovery",
-    "up-path", "rx"]);
-  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "discovery", "heard", "up-path", "not-listed",
-    "no-table", "rx"]);
+  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows from stage 3.
+  const classes = ["coordinator", "assumed", "route", "discovery", "heard", "up-path"];
+  assert.deepEqual(ids(), [...classes, "rx"]);
+  assert.deepEqual(ids({ paths: "all" }), [...classes, "rx"]);
+  assert.deepEqual(ids({ paths: "heard" }), [...classes, "not-listed", "no-table", "rx"]);
   assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "implied",
     "width", "not-listed", "no-table", "path-end", "rx"]);
   const band = legendEntries(theme).find((e) => e.id === "up-path");

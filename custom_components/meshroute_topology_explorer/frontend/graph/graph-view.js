@@ -250,8 +250,7 @@ export class GraphView extends EventTarget {
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
   legend() {
-    return legendEntries(this.theme, { paths: this.paths, sourceRoute: this.sourceRoute, debug: this.debug,
-      colored: this.receptionColors });
+    return legendEntries(this.theme, { paths: this.paths, debug: this.debug, colored: this.receptionColors });
   }
 
   setTheme(theme) {
