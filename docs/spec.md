@@ -228,11 +228,14 @@ entry with the higher LQI wins and the others are shown as "possibly stale". `Pr
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
 | Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
 
-A view, fill or finding that needs a missing capability shows "not available for this network". Thread (brief a7):
-the View tab greys "Communication paths" and "Return paths without a table entry" with "Not available for this
-network: Thread data has no routes."; findings are offline, parent offline and parent unknown ("The topology lists no
-link between this end device and a router."); the network carries `capabilities` and `hasRoutes()` (graph/links.js)
-is the one test for it.
+A view, option or finding that needs a missing capability is not offered (decision by Fabian Schwamborn, 2026-11-01:
+hidden, not greyed). Thread (brief a7, engines cut): the View tab shows none of "Communication paths", "Path display"
+(colour by reception waits for the Thread reception model) and "Return paths without a table entry", but one line in
+their place: "Thread data names neighbours and parents, not routes; there are no path views."; debug mode offers the
+scan only where the source has one (`capabilities.scan`); findings are offline, parent offline and parent unknown
+("The topology lists no link between this end device and a router."). Each network carries `engine` and
+`capabilities`, stamped by the build of its source; `engineFor()` (engines/index.js) finds its viewer engine and never
+falls back to one; the map's lanes still test `hasRoutes()` (graph/links.js) until the cut moves them.
 
 ## 5. Derived facts
 
@@ -868,7 +871,7 @@ reads them again on reconnect.
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
 | Click classes (A4n) | Hops of a click in stage 2 drawn computed, before and after: Router 13 1 of 82 and 20 of 82; End device 06 2 of 85 and 34 of 85; Router 11 0 of 82 and 9 of 82; the coordinator 0 of 96 (its trees take no discovery). The overview keeps 95 / 570 lanes, 19 computed only. Router 13 -> Router 21 (route discovery over Router 11): Router 11 -> Router 21 is drawn computed, Router 13 -> Router 11 a proven route, as Router 13 reaches Router 11 itself as a neighbour. |
-| Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node, measured as the layout's own CPU time (process.cpuUsage, about 1.5 s alone), best of up to three runs so that a loaded machine does not decide it; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time: process CPU time in a child process started with V8's `--single-threaded` flag (tests/click-time.mjs; main session decision 2026-11-01, A4z), so the compiler's and garbage collector's helper threads are not counted, after two warm-up rounds of the four measured clicks, each the best of three fresh networks; slowest click 8–30 ms, median 14 ms of 7 runs (Node 18.19 under WSL). Measured in the test process itself the same clicks read a median of 117 ms (one warm-up click) and up to 110 ms beside the other suites (two warm-up rounds); a click in the routing table takes under 6 ms; the backbone is computed once per network (about 20–70 ms wall on the sample). |
+| Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node, measured as the layout's own CPU time (process.cpuUsage) in a child process started with V8's `--single-threaded` flag (tests/layout-time.mjs; main session decision 2026-11-01, brief eng1), best of three runs of the same deterministic layout; about 0.9–1.2 s (Node 18.19 under WSL); 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time: process CPU time in a child process started with V8's `--single-threaded` flag (tests/click-time.mjs; main session decision 2026-11-01, A4z), so the compiler's and garbage collector's helper threads are not counted, after two warm-up rounds of the four measured clicks, each the best of three fresh networks; slowest click 8–30 ms, median 14 ms of 7 runs (Node 18.19 under WSL). Measured in the test process itself the same clicks read a median of 117 ms (one warm-up click) and up to 110 ms beside the other suites (two warm-up rounds); a click in the routing table takes under 6 ms; the backbone is computed once per network (about 20–70 ms wall on the sample). |
 | Calm default | Default view state shows only the elements listed in 9.1. |
 | Accessibility | Keyboard path to every device and value; hit areas ≥ 24 px; reduced motion honoured; 3:1 contrast of graphic elements. |
 | Tests | No device needed; each suite under a minute; fixtures anonymized. |

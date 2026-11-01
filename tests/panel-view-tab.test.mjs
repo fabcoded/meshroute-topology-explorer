@@ -25,11 +25,16 @@ globalThis.document = { createElement: (tag) => new FakeNode(tag), createElement
 const { renderView } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/view-tab.js");
 const { sanitizeSettings } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
 const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
+const { ENGINES } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/index.js");
+const { sampleNetwork } = await import("./panel-fixture.mjs");
+const network = sampleNetwork();
 
 function render(stored) {
   const patches = [];
   const container = new FakeNode("div");
-  renderView(container, { t: translator("en"), settings: sanitizeSettings(stored), openOnSelect: false, dark: false,
+  const settings = sanitizeSettings(stored);
+  renderView(container, { t: translator("en"), settings, groups: ENGINES.zigbee.options(network, settings),
+    openOnSelect: false, dark: false,
     debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", onChange: (p) => patches.push(p),
     onOpenDetails() {}, onDebug() {}, onReload() {}, onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
   const all = container.walk();

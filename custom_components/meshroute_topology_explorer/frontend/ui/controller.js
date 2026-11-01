@@ -4,66 +4,23 @@
 // whatever `state` says and listens for "change". Tested with a fake hass: node --test tests/
 //
 // Why a separate controller: Home Assistant assigns a new `hass` object on every state change in the house. Only the
-// first one may start a load (spec 10); later ones are checked for a lost or restored connection only.
-import { buildNetwork } from "../model/index.js";
-import { buildThreadNetwork } from "../model/thread.js";
+// first one may start a load (spec 10); later ones are checked for a lost or restored connection only. The reads
+// themselves are the adapters' (adapters/zha.js, adapters/matter.js); this module composes them.
+import { readThread } from "../adapters/matter.js";
+import { readZha, readZhaEntries } from "../adapters/zha.js";
+import { errorText, isConnectionLost } from "../adapters/ws.js";
 import { blockingState } from "./status.js";
-import { readZigpyRoutes } from "./zigpy-routes.js";
+import { engineFor } from "../engines/index.js";
 
-/** Code of home-assistant-js-websocket for a command that died with the connection (ERR_CONNECTION_LOST in its
- *  lib/errors.ts). Pending commands are rejected with { type: "result", success: false, error: { code: 3 } }, results
- *  of the server with { code, message }; both forms are accepted, as its own isConnectionLost() does. */
-const ERR_CONNECTION_LOST = 3;
-
-export function isConnectionLost(err) {
-  return Boolean(err) && (err.code === ERR_CONNECTION_LOST || (err.error && err.error.code === ERR_CONNECTION_LOST));
-}
-
-/** Readable text of a websocket error ({ code, message }, { error: { ... } }, Error or anything else). */
-export function errorText(err) {
-  if (!err) return "unknown error";
-  const e = err.error || err;
-  return String(e.message || e.code || e);
-}
-
-/** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
- *  (the server's cached snapshot; refresh true reads every node's tables over the radio and is never sent from here).
- *  Returns { status: "ok" | "not_loaded" | "not_supported" | "empty" | "error", network?, message? }; a lost
- *  connection is thrown to the caller. Home Assistant before 2026.9 has no such command (unknown_command), a Matter
- *  server too old for it answers not_supported (spec 3.2): both are "not_supported". */
-export async function readThread(hass, registries = {}) {
-  let entries;
-  try {
-    entries = await hass.callWS({ type: "config_entries/get", domain: "matter" });
-  } catch (err) {
-    if (isConnectionLost(err)) throw err;
-    return { status: "not_loaded" };
-  }
-  if (!(Array.isArray(entries) && entries.some((e) => e && e.domain === "matter" && e.state === "loaded"))) {
-    return { status: "not_loaded" };
-  }
-  let topology;
-  try {
-    topology = await hass.callWS({ type: "matter/network_topology", refresh: false });
-  } catch (err) {
-    if (isConnectionLost(err)) throw err;
-    const code = String((err && (err.code || (err.error && err.error.code))) || "");
-    if (code === "not_supported" || code === "unknown_command") return { status: "not_supported" };
-    return { status: "error", message: errorText(err) };
-  }
-  const network = buildThreadNetwork(topology, registries);
-  return network ? { status: "ok", network } : { status: "empty" };
-}
-
-/** One read of the networks through hass.callWS. Returns { phase, network?, raw?, networks?: { zha, thread },
- *  thread?: readThread's status, message? }; never throws. `network` is the ZHA network, else the Thread one; the
- *  panel picks which of `networks` it shows (ui/network-switch.js). matter: false skips the Matter topology (the
- *  scan's re-reads, which only follow ZHA's tables). */
+/** One read of the networks through hass.callWS, one adapter per data source (adapters/). Returns { phase, network?,
+ *  raw?, networks?: { zha, thread }, thread?: readThread's status, message? }; never throws. `network` is the ZHA
+ *  network, else the Thread one; the panel picks which of `networks` it shows (ui/network-switch.js). matter: false
+ *  skips the Matter topology (the scan's re-reads, which only follow ZHA's tables). */
 export async function readNetwork(hass, { matter = true } = {}) {
   try {
     const isAdmin = Boolean(hass.user && hass.user.is_admin);
     // The zha/* commands are admin only and fail without ZHA, so the cheap checks come first.
-    const configEntries = isAdmin ? await hass.callWS({ type: "config_entries/get", domain: "zha" }) : [];
+    const configEntries = isAdmin ? await readZhaEntries(hass) : [];
     if (!isAdmin) return { phase: "not_admin" };
     // Names and areas are a nicety: without the registries the models fall back to the integrations' own names.
     const optional = (type) => hass.callWS({ type }).catch((err) => { if (isConnectionLost(err)) throw err; return []; });
@@ -77,17 +34,8 @@ export async function readNetwork(hass, { matter = true } = {}) {
       return registries;
     };
     const blocked = blockingState({ isAdmin, configEntries });
-    let raw = null;
-    let zha = null;
-    if (!blocked) {
-      raw = await hass.callWS({ type: "zha/devices" });
-      if (Array.isArray(raw) && raw.length) {
-        zha = buildNetwork(raw, { ...(await readRegistries()), configEntries });
-        // zigpy's route records for the source-route stage "zigpy" (ui/zigpy-routes.js): read only, never fails the
-        // load; ZHA only, never for Thread.
-        zha.zigpy = await readZigpyRoutes(hass);
-      }
-    }
+    const { raw, network: zha } = blocked ? { raw: null, network: null }
+      : await readZha(hass, { configEntries, registries: readRegistries });
     // The scan's re-reads (matter: false) follow ZHA only: no Matter read every 15 seconds.
     const thread = matter ? await readThread(hass, await readRegistries()) : { status: "skipped" };
     const networks = { zha, thread: thread.network || null };
@@ -98,6 +46,16 @@ export async function readNetwork(hass, { matter = true } = {}) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
     return { phase: "error", message: errorText(err) };
   }
+}
+
+/** Why a ready read cannot be shown, or null: every network it carries must name a known engine and declare its
+ *  capabilities (engines/index.js engineFor). There is no default engine; such a read becomes the error state. */
+function engineProblem(networks) {
+  for (const network of networks) {
+    if (!network) continue;
+    try { engineFor(network); } catch (err) { return errorText(err); }
+  }
+  return null;
 }
 
 export class PanelController extends EventTarget {
@@ -159,6 +117,13 @@ export class PanelController extends EventTarget {
       this._set(keep ? { connection: "lost", loading: false } : { phase: "disconnected", connection: "lost", loading: false });
       return;
     }
+    const problem = result.phase === "ready"
+      ? engineProblem([result.network, ...Object.values(result.networks || {})]) : null;
+    if (problem) {
+      this._set({ phase: "error", network: null, raw: null, networks: null, thread: result.thread || null,
+        message: problem, loading: false });
+      return;
+    }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
       networks: result.networks || null, thread: result.thread || null, message: result.message || null, loading: false });
   }
@@ -166,6 +131,11 @@ export class PanelController extends EventTarget {
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
   adopt(network, raw) {
     this._token += 1;
+    const problem = engineProblem([network]);
+    if (problem) {
+      this._set({ phase: "error", network: null, raw: null, networks: null, message: problem, loading: false });
+      return;
+    }
     // A followed scan reads ZHA only: the Thread network stays as it was.
     const networks = { ...(this.state.networks || {}), zha: network };
     this._set({ phase: "ready", network, raw: raw || null, networks, message: null, loading: false });

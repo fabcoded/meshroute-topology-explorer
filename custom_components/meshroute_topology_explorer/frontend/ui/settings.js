@@ -12,7 +12,7 @@ import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";
 import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "../model/source-routes.js";
 import { normalizeIeee } from "../model/parse.js";
-import { errorText, isConnectionLost } from "./controller.js";
+import { errorText, isConnectionLost } from "../adapters/ws.js";
 
 /** Path display (spec 7.1, 8; design by Fabian Schwamborn, 2026-11-01): lanes "grey" (no colour, default) or
  *  "coloured" by reception; bad, medium and good are the user's own colours ("#rrggbb", e.g. for colour blindness) or

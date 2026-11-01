@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: MIT
+// Leak tests of the viewer engines (engines-cut proposal of 2026-11-01, section 5): one engine per network type, and
+// nothing of one network's meaning leaks into the other's view or into the shared code. Each test is written against
+// the target interface; a test whose step has not landed yet carries `todo` with that step, runs, and does not fail
+// the suite. A step that makes a test true removes its `todo`.
+// node --test tests/
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+
+const FRONTEND = new URL("../custom_components/meshroute_topology_explorer/frontend/", import.meta.url);
+const mod = (path) => import(new URL(path, FRONTEND));
+const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
+const zhaResponses = load("zha-sample.json");
+const topology = load("matter-sample.json")["matter/network_topology"];
+
+/** The engines and both sample networks, built through the engines' own `build`. */
+async function engines() {
+  const { ENGINES, engineFor } = await mod("engines/index.js");
+  const { zigbee, thread } = ENGINES;
+  const registries = { deviceRegistry: zhaResponses["config/device_registry/list"],
+    areaRegistry: zhaResponses["config/area_registry/list"], configEntries: zhaResponses["config_entries/get"] };
+  const zigbeeNet = zigbee.build(zhaResponses["zha/devices"], registries);
+  const threadNet = thread.build(topology, {});
+  return { ENGINES, engineFor, zigbee, thread, zigbeeNet, threadNet };
+}
+
+// A minimal fake DOM for the View tab (the same idea as tests/panel-view-tab.test.mjs).
+class FakeNode {
+  constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.style = {};
+    this.className = ""; this.classList = { add: (c) => { this.className = `${this.className} ${c}`.trim(); } }; }
+  append(...kids) { this.children.push(...kids); }
+  replaceChildren(...kids) { this.children = kids; }
+  setAttribute(k, v) { this.attrs[k] = v; }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  walk(out = []) { out.push(this); for (const c of this.children) if (c instanceof FakeNode) c.walk(out); return out; }
+}
+globalThis.Node = FakeNode;
+globalThis.document = { createElement: (tag) => new FakeNode(tag), createElementNS: (ns, tag) => new FakeNode(tag),
+  createTextNode: (text) => ({ text }) };
+
+/** Render the View tab with the groups an engine offers; returns every node. */
+async function renderViewTab(groups, extra = {}) {
+  const { renderView } = await mod("ui/view-tab.js");
+  const { sanitizeSettings } = await mod("ui/settings.js");
+  const { translator } = await mod("ui/i18n.js");
+  const container = new FakeNode("div");
+  renderView(container, { t: translator("en"), settings: sanitizeSettings({}), groups, openOnSelect: false, dark: false,
+    debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {},
+    onOpenDetails() {}, onDebug() {}, onReload() {}, onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {},
+    ...extra });
+  return container.walk();
+}
+
+/** Every settings key the controls of an engine's option groups write, sub-options included. */
+function optionKeys(groups) {
+  const keys = [];
+  const walk = (c) => {
+    if (c.key) keys.push(c.key);
+    for (const o of c.options || []) for (const child of o.children || []) walk(child);
+  };
+  for (const g of groups) for (const c of g.controls || []) walk(c);
+  return keys;
+}
+
+/** Every .js file under a frontend folder, as paths relative to the frontend. */
+function jsFiles(folder) {
+  const root = new URL(folder, FRONTEND);
+  if (!existsSync(root)) return [];
+  const out = [];
+  for (const name of readdirSync(root)) {
+    const rel = `${folder}${name}`;
+    if (statSync(new URL(rel, FRONTEND)).isDirectory()) out.push(...jsFiles(`${rel}/`));
+    else if (name.endsWith(".js")) out.push(rel);
+  }
+  return out;
+}
+
+/** Module specifiers a file imports (static `from "…"` and dynamic `import("…")`), resolved against the frontend. */
+function importsOf(rel) {
+  const src = readFileSync(new URL(rel, FRONTEND), "utf8");
+  const specs = [...src.matchAll(/(?:from\s+|import\s*\(\s*)"([^"]+)"/g)].map((m) => m[1]);
+  return specs.map((s) => new URL(s, new URL(rel, FRONTEND)).href.slice(FRONTEND.href.length));
+}
+
+/** Network-specific UI modules under ui/ that the cut moves into an engine (section 3); everything else under ui/ is
+ *  a shared frame. */
+const ENGINE_UI = new Set(["ui/details.js", "ui/details-tab.js", "ui/cluster-dialog.js", "ui/attribute-read.js",
+  "ui/entity-values.js", "ui/raw-values.js", "ui/finding-text.js", "ui/thread-details.js", "ui/scan.js",
+  "ui/observations-client.js"]);
+const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"),
+  ...jsFiles("ui/").filter((f) => !ENGINE_UI.has(f))];
+
+// Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
+const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "no-table", "path-end"];
+
+test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: hidden, not greyed)", async () => {
+    const { zigbee, thread, zigbeeNet, threadNet } = await engines();
+    const { sanitizeSettings } = await mod("ui/settings.js");
+    const s = sanitizeSettings({});
+    const zigbeeKeys = new Set(optionKeys(zigbee.options(zigbeeNet, s)));
+    assert.ok(zigbeeKeys.has("paths") && zigbeeKeys.has("sourceRoute"), "the Zigbee groups are data");
+    assert.deepEqual(optionKeys(thread.options(threadNet, s)).filter((k) => zigbeeKeys.has(k)), []);
+    const inputs = (await renderViewTab(thread.options(threadNet, s))).filter((n) => n.tag === "input");
+    const zigbeeInput = (n) => /-(paths|sourceRoute|heard|pathMode|color-)/.test(`${n.name || ""} ${n.attrs.id || ""}`);
+    assert.deepEqual(inputs.filter(zigbeeInput).map((n) => n.name || n.attrs.id), []);
+  });
+
+test("2: the Thread legend has no Zigbee rows and no stage or option notes", async () => {
+  const { thread } = await engines();
+  const { resolveTheme } = await mod("graph/palette.js");
+  const theme = resolveTheme({});
+  for (const view of [{}, { debug: true, heard: true, colored: true }]) {
+    const rows = thread.legend(theme, view);
+    assert.ok(rows.length > 0);
+    assert.deepEqual(rows.map((r) => r.id).filter((id) => ZIGBEE_LEGEND.includes(id)), []);
+    assert.deepEqual(rows.filter((r) => r.stage !== undefined || r.option !== undefined), []);
+  }
+});
+
+test("3: unknown Thread values stay unknown (never a Zigbee default)", { todo: "step 7" }, async () => {
+  const { thread } = await engines();
+  const pan = "00112233aabbcc01";
+  const net = thread.build({ nodes: [
+    { id: "1", network_type: "thread", ext_pan_id: pan, ext_address: "AABBCCDD00000001" },
+    { id: "2", network_type: "thread", ext_pan_id: pan, ext_address: "AABBCCDD00000002", kind: "matter", role: "router",
+      available: true },
+  ], connections: [{ source: "2", target: "1", network: "thread", source_to_target: { strength: "unknown" },
+    target_to_source: { strength: "unknown" } }] }, {});
+  const d = net.devices.find((x) => x.nodeKey === "1");
+  assert.equal(d.role, "unknown");
+  for (const key of ["sleepy", "powerSource", "battery", "relayLoad", "rating"]) assert.equal(d[key], null, key);
+  assert.equal("hasTable" in d, false);
+  assert.equal("tableFull" in d, false);
+  const about = [...net.readings, ...(net.staleReadings || [])].filter((r) => r.reporter === d.id || r.subject === d.id);
+  for (const r of about) {
+    assert.equal(r.measured, false);
+    assert.equal(r.lqi, null);
+    assert.equal(r.rssi, null);
+  }
+});
+
+test("4a: there is no default engine: a network without a known engine or without capabilities throws", async () => {
+  const { engineFor, zigbee, thread, zigbeeNet, threadNet } = await engines();
+  assert.equal(engineFor(zigbeeNet), zigbee);
+  assert.equal(engineFor(threadNet), thread);
+  const caps = { routes: true };
+  for (const bad of [null, undefined, {}, { capabilities: caps }, { engine: "zigbee" }, { engine: "zwave", capabilities: caps },
+    { ...zigbeeNet, engine: undefined }, { ...threadNet, capabilities: undefined }]) {
+    assert.throws(() => engineFor(bad), /engine|capabilit/i);
+  }
+});
+
+test("4b: the panel shows its error state for a network without an engine", async () => {
+  const { PanelController } = await mod("ui/controller.js");
+  const stray = { id: "x", source: "zha", devices: [], capabilities: { routes: true } };
+  const controller = new PanelController({ read: async () => ({ phase: "ready", network: stray, raw: [],
+    networks: { zha: stray, thread: null }, thread: { status: "not_loaded" } }) });
+  controller.attach();
+  controller.setHass({ user: { is_admin: true }, connected: true, connection: null, callWS: async () => [] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await controller.reload();
+  assert.equal(controller.state.phase, "error");
+  assert.match(String(controller.state.message), /engine/i);
+});
+
+test("4c: nothing is ever treated as routes: true by default (no hasRoutes in the shell)", { todo: "step 6a/6b" },
+  async () => {
+    const links = await mod("graph/links.js");
+    assert.equal("hasRoutes" in links, false);
+    for (const rel of sharedFiles()) {
+      assert.doesNotMatch(readFileSync(new URL(rel, FRONTEND), "utf8"), /hasRoutes|routes !== false/, rel);
+    }
+  });
+
+test("5a: the engines do not import each other", async () => {
+  const zigbeeFiles = jsFiles("engines/zigbee/");
+  const threadFiles = jsFiles("engines/thread/");
+  assert.ok(zigbeeFiles.length && threadFiles.length, "both engines exist");
+  for (const rel of threadFiles) assert.deepEqual(importsOf(rel).filter((p) => p.startsWith("engines/zigbee/")), [], rel);
+  for (const rel of zigbeeFiles) assert.deepEqual(importsOf(rel).filter((p) => p.startsWith("engines/thread/")), [], rel);
+});
+
+test("5b: shared code reaches the engines only through engines/index.js", async () => {
+  for (const rel of sharedFiles()) {
+    const inside = importsOf(rel).filter((p) => p.startsWith("engines/") && p !== "engines/index.js");
+    assert.deepEqual(inside, [], rel);
+  }
+});
+
+test("6: the shared code has no network words", { todo: "steps 6-10" }, () => {
+  const tokens = [/\bzha\b/i, /\bzigpy\b/i, /\bthread\b/i, /\bmatter\b/i, /sourceRoute/, /PATH_STAGES/, /hasRoutes/,
+    /nodePaths/, /theoretical/, /thread-lqi/, /\.source ===/, /routes === false/];
+  const roles = /\b(coordinator|end device|border router)\b/;
+  for (const rel of sharedFiles().filter((f) => f === "panel.js" || f.startsWith("graph/") || f.startsWith("ui/"))) {
+    const src = readFileSync(new URL(rel, FRONTEND), "utf8");
+    for (const token of tokens) assert.doesNotMatch(src, token, rel);
+    if (rel !== "graph/symbols.js" && rel !== "graph/palette.js") assert.doesNotMatch(src, roles, rel);
+  }
+});
+
+test("7: the Thread focus is the device's own lanes: no band, no ends", { todo: "step 6b" }, async () => {
+  const { thread, threadNet } = await engines();
+  const { buildScene } = await mod("graph/renderer.js");
+  const scene = buildScene(threadNet, (s) => s.length * 6);
+  thread.scene.classify(scene);
+  for (let i = 0; i < scene.nodes.length; i++) {
+    const focus = thread.scene.focus(scene, i, {});
+    assert.equal(focus.band, null);
+    assert.deepEqual(focus.ends, []);
+    for (const hop of focus.hops) assert.ok(hop.s === i || hop.h === i, `hop ${hop.s}>${hop.h} of ${i}`);
+  }
+});
+
+test("8: Thread settings are untouched: stored Zigbee keys come back verbatim and are never written",
+  { todo: "step 5" }, async () => {
+    const { threadNet } = await engines();
+    const { SettingsClient } = await mod("ui/settings.js");
+    const zigbeeKeys = { paths: "heard", sourceRoute: "bogus", heard: "yes", returnRoutes: 7 };
+    const stored = new Map([[threadNet.id, { ...zigbeeKeys, density: "medium" }]]);
+    const callWS = async (msg) => {
+      if (msg.type.endsWith("/get")) return { settings: stored.get(msg.network) || null };
+      stored.set(msg.network, msg.settings);
+      return {};
+    };
+    const client = new SettingsClient({ callWS, network: threadNet.id, timers: { setTimeout: () => 0, clearTimeout() {} } });
+    await client.load();
+    for (const [key, value] of Object.entries(zigbeeKeys)) assert.equal(client.settings[key], value, key);
+    client.update({ density: "dense" });
+    await client.flush();
+    assert.deepEqual(stored.get(threadNet.id), { ...zigbeeKeys, density: "dense" });
+  });
+
+test("9: Thread findings use their own kinds only, even with link quality 1 on every link", async () => {
+  const { thread } = await engines();
+  const pan = "00112233aabbcc01";
+  const node = (id, role, extra = {}) => ({ id: String(id), kind: "matter", network_type: "thread", node_id: id, role,
+    available: true, ext_address: `AABBCCDD000000${String(id).padStart(2, "0")}`, ext_pan_id: pan, ...extra });
+  const weak = { strength: "weak", lqi: 1, rssi: -95 };
+  const net = thread.build({ nodes: [node(1, "leader"), node(2, "router"), node(3, "end_device"),
+    node(4, "sleepy_end_device", { available: false }), node(5, "end_device")],
+  connections: [[1, 2], [2, 3], [1, 4]].map(([a, b]) => ({ source: String(a), target: String(b), network: "thread",
+    strength: "weak", source_to_target: weak, target_to_source: weak, path_cost: 1 })) }, {});
+  const kinds = new Set(net.findings.map((f) => f.kind));
+  assert.ok(kinds.size > 0, "the fixture raises findings");
+  for (const kind of kinds) assert.ok(["offline", "parent offline", "parent unknown"].includes(kind), kind);
+  for (const kind of ["very low reading", "weak reception", "data incomplete", "route to offline device"]) {
+    assert.equal(kinds.has(kind), false, kind);
+  }
+});
+
+test("10a: Thread values are never on the Zigbee scale", async () => {
+  const { thread, threadNet } = await engines();
+  const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
+  const dirs = threadNet.pairs.flatMap((p) => [p.ab, p.ba]);
+  dirs.push({ state: "measured", scale: "thread-lqi", lqi: 0, rssi: null }, { state: "unknown", scale: "thread-lqi",
+    lqi: 0, rssi: null, reason: "lqi 0" }, { state: "measured", scale: "thread-lqi", lqi: 3, rssi: null });
+  for (const dir of dirs) {
+    const value = thread.laneValue(dir, texts);
+    assert.doesNotMatch(value, /^\d+$/, JSON.stringify(dir));
+    assert.ok(!value.includes("(uncertain)"), JSON.stringify(dir));
+  }
+});
+
+test("10b: the layout reads Thread link quality as a quality from 0 to 1, RSSI alone as none", { todo: "step 6c" },
+  async () => {
+    const { thread } = await engines();
+    assert.equal(thread.springQuality({ scale: "thread-lqi", lqi: 3, rssi: -60 }), 1);
+    assert.equal(thread.springQuality({ scale: "thread-lqi", lqi: null, rssi: -60 }), null);
+  });
+
+test("11: the Thread status line has no Zigbee parts and no completeness banner", async () => {
+  const { thread, threadNet } = await engines();
+  for (const compact of [false, true]) {
+    const status = thread.status(threadNet, { compact, collected: { time: "12:00", age: "now" } });
+    const keys = status.parts.map(([key]) => key);
+    assert.deepEqual(keys.filter((k) => /^status\.(short_)?(tables|sr_|unchanged|scan_)/.test(k)), [], keys.join());
+    assert.equal(status.right, null);
+    assert.equal(status.incomplete, null);
+  }
+});
+
+test("12: Thread never offers the scan: no scan button in debug mode without capabilities.scan", async () => {
+    const { thread, zigbee, zigbeeNet, threadNet } = await engines();
+    const { sanitizeSettings } = await mod("ui/settings.js");
+    const s = sanitizeSettings({});
+    const scanButton = (all) => all.some((n) => n.tag === "button" && n.attrs.id === "v-scan");
+    assert.equal(threadNet.capabilities.scan, false);
+    assert.equal(scanButton(await renderViewTab(thread.options(threadNet, s), { debug: true, routes: true,
+      canScan: Boolean(threadNet.capabilities.scan) })), false);
+    assert.equal(scanButton(await renderViewTab(zigbee.options(zigbeeNet, s), { debug: true, routes: false,
+      canScan: Boolean(zigbeeNet.capabilities.scan) })), true);
+  });
+
+test("13: every text key of the Thread engine resolves without the Zigbee table", { todo: "step 9" }, async () => {
+  const texts = await mod("engines/thread/texts.js");
+  assert.ok(texts && Object.keys(texts).length);
+});
+
+test("14: Zigbee parity: the engine builds exactly what the data model builds", async () => {
+  const { zigbee } = await engines();
+  const { buildNetwork } = await mod("model/index.js");
+  const registries = { deviceRegistry: zhaResponses["config/device_registry/list"],
+    areaRegistry: zhaResponses["config/area_registry/list"], configEntries: zhaResponses["config_entries/get"] };
+  assert.deepEqual(zigbee.build(zhaResponses["zha/devices"], registries), buildNetwork(zhaResponses["zha/devices"], registries));
+});

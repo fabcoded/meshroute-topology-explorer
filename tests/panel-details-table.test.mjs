@@ -20,7 +20,7 @@ globalThis.document = { createElement: (tag) => new FakeNode(tag), createElement
   createTextNode: (text) => ({ text }) };
 
 const { renderDetails } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/details-tab.js");
-const { sourceRoutePart } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/status.js");
+const { sourceRoutePart } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js");
 const { sourceRouteSummary } = await import("../custom_components/meshroute_topology_explorer/frontend/model/source-routes.js");
 const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
 const { sampleNetwork } = await import("./panel-fixture.mjs");

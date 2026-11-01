@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Words for a finding (spec 5.6): its title and the sentences that name its evidence and the tables it lacks.
-// Shared by the Details and Findings tabs. Pure: t is the translator (i18n.js), name(id) labels a device.
-// Tested in Node on the sample and its derived variants: node --test tests/
+// Words for a Zigbee finding (spec 5.6): its title and the sentences that name its evidence and the tables it lacks.
+// The Zigbee engine's findings text (engines/zigbee/index.js), used by its Details and the Findings tab. Pure: t is
+// the translator (i18n.js), name(id) labels a device. Tested in Node on the sample and its derived variants:
+// node --test tests/
 
 /** { title, lines: [text] } for one finding. */
 export function findingText(f, t, name) {
@@ -33,9 +34,7 @@ export function findingText(f, t, name) {
       for (const r of e.readings || []) lines.push(t("evidence.very_low", { lqi: r.lqi, reporter: name(r.reporter) }));
       break;
     case "parent unknown":
-      if (e.verdict === "no parent link") {
-        lines.push(t("evidence.thread_no_parent")); // Thread: no table count to hedge with (model/thread.js)
-      } else if (e.verdict === "no parent") {
+      if (e.verdict === "no parent") {
         title = t("kind.no parent");
         lines.push(t("evidence.no_parent"));
       } else {

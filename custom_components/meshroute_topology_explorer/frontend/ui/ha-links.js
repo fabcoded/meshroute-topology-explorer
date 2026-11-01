@@ -34,12 +34,13 @@ export const historyPath = (entityIds) => withEntities("/history", entityIds);
 export const entitiesPath = (registryId) => `/config/entities?${new URLSearchParams({ device: registryId })}`;
 
 /** The links of the Entity tab for a device: [{ key, path }] in the board's order; a link whose target is unknown
- *  (no registry entry, no area, no entities) is left out. source: the network's adapter ("zha"). */
-export function deviceLinks(device, source = "zha") {
+ *  (no registry entry, no area, no entities) is left out. capabilities: the network's (spec 4.6); `devicePage` says
+ *  the source has its own device page (ZHA's). */
+export function deviceLinks(device, capabilities) {
   const ids = Array.isArray(device.entities) ? device.entities : [];
   const out = [];
   if (device.registryId) out.push({ key: "device", path: devicePagePath(device.registryId) });
-  if (source === "zha") out.push({ key: "zha", path: zhaDevicePath(device.id, "signature") });
+  if (capabilities && capabilities.devicePage) out.push({ key: "zha", path: zhaDevicePath(device.id, "signature") });
   if (device.areaId) out.push({ key: "area", path: areaPath(device.areaId) });
   if (ids.length) out.push({ key: "logbook", path: logbookPath(ids) }, { key: "history", path: historyPath(ids) });
   if (device.registryId) out.push({ key: "entities", path: entitiesPath(device.registryId) });

@@ -23,9 +23,11 @@ import { normalizeIeee } from "./parse.js";
 export const RECEIVER_OF_SOURCE_TO_TARGET = "source";
 /** Text of the status line's source part. */
 export const THREAD_SOURCE = "thread";
-/** Capabilities of a Thread network (spec 4.6): what views, stages and findings may use. */
+/** Capabilities of a Thread network read through Matter (spec 4.6): what views, stages and findings may use. No
+ *  routes, no ratings (the Zigbee LQI scale), no scan, observations, clusters, route records or device page. */
 export const THREAD_CAPABILITIES = Object.freeze({
-  routes: false, parents: true, measurementTime: true, userRefresh: true, scale: "thread-lqi",
+  routes: false, parents: true, ratings: false, measurementTime: true, userRefresh: true, scan: false,
+  observations: false, clusters: false, routeRecords: false, devicePage: false, scale: "thread-lqi",
 });
 
 /** Thread roles of the snapshot -> model role (spec 4.2) and sleep. A leader is a router with the "L" crown (spec 8);
@@ -124,10 +126,10 @@ function largestNetwork(nodes) {
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
- *  registries (names, areas). Returns null when the answer holds no Thread node. Shape: model/index.js, plus
- *  `capabilities`, `collectedAt`, `extPanId` and per device the Thread fields (extAddress, rloc16, nodeId, threadRole,
+ *  registries (names, areas). Returns null when the answer holds no Thread node. Shape: model/index.js with engine
+ *  "thread", plus `collectedAt`, `extPanId` and per device the Thread fields (extAddress, rloc16, nodeId, threadRole,
  *  leader, reed, matter, availabilityKnown). */
-export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry } = {}) {
+export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, capabilities = THREAD_CAPABILITIES } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};
   const all = (Array.isArray(raw.nodes) ? raw.nodes : []).filter((n) => n && typeof n === "object");
   const unresolved = { neighbours: 0, routes: 0, duplicates: 0, ignored: 0 };
@@ -255,11 +257,12 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry } = 
   const pairs = threadPairs(devices, readings, links);
   const collectedAt = isoTime(raw.collected_at);
   return {
+    engine: "thread",
     source: THREAD_SOURCE,
     // Settings are kept per network (spec 11): the extended PAN id names a Thread network (spec 4.1).
     id: `thread-${(pan || "unknown").replace(/[^A-Za-z0-9]/g, "").slice(0, 32) || "unknown"}`,
     extPanId: pan,
-    capabilities: THREAD_CAPABILITIES,
+    capabilities,
     collectedAt,
     devices, readings, staleReadings: stale, routes: [], links, pairs,
     status: threadStatus(devices, pairs, collectedAt),

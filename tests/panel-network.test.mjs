@@ -5,10 +5,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { readNetwork, readThread } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { readNetwork } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { readThread } from "../custom_components/meshroute_topology_explorer/frontend/adapters/matter.js";
 import { activeNetwork, loadNetworkChoice, networkChoices, PANEL_STORE, saveNetworkChoice }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/network-switch.js";
-import { ageParts, statusParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { ageParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { threadParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/status.js";
 import { SettingsClient } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { buildScene, laneValue, scenePaths, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
@@ -126,13 +128,13 @@ test("settings are kept per network: the Thread id is its own and valid for the 
 
 test("status line for Thread: coverage, collection time with age, missing border routers", () => {
   const t = translator("en");
-  const parts = statusParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
+  const parts = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
   assert.deepEqual(parts.map(([k]) => k), ["status.source", "status.thread_links", "status.thread_read"]);
   assert.equal(t(parts[1][0], parts[1][1]), "Links with both directions: 3/5");
   assert.equal(t(parts[2][0], parts[2][1]), "read 14:14 (5 min ago)");
   const noBr = { ...thread, status: { ...thread.status, borderRouters: 0 } };
-  assert.equal(statusParts(noBr, {}).at(-1)[0], "status.thread_no_br");
-  assert.deepEqual(statusParts(thread, { compact: true }).map(([k]) => k), ["status.short_thread_links"]);
+  assert.equal(threadParts(noBr, {}).at(-1)[0], "status.thread_no_br");
+  assert.deepEqual(threadParts(thread, { compact: true }).map(([k]) => k), ["status.short_thread_links"]);
   assert.deepEqual(ageParts("2026-01-01T12:00:00Z", Date.parse("2026-01-01T12:07:30Z")), ["status.age_minutes", { n: 7 }]);
   assert.deepEqual(ageParts("2026-01-01T12:00:00Z", Date.parse("2026-01-01T15:00:00Z")), ["status.age_hours", { n: 3 }]);
 });

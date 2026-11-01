@@ -33,7 +33,7 @@ test("1.4b: no 'weakest RX' summary: the heading names hop counts and the marker
 });
 
 test("1.4c: the status line gives exact router-table counts, not a completeness percentage", async () => {
-  const { statusParts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/status.js");
+  const { statusParts } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js");
   const { sampleNetwork } = await import("./panel-fixture.mjs");
   const network = sampleNetwork();
   for (const compact of [false, true]) {
@@ -54,8 +54,12 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
   globalThis.document = { createElement: (tag) => new Node(tag), createElementNS: (ns, tag) => new Node(tag), createTextNode: (text) => ({ text }) };
   const { renderView } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/view-tab.js");
   const { sanitizeSettings } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
+  const { ENGINES } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/index.js");
+  const { sampleNetwork } = await import("./panel-fixture.mjs");
   const container = new Node("div");
-  renderView(container, { t, settings: sanitizeSettings({ paths: "all" }), openOnSelect: false, dark: false, debug: false, pinCount: 0,
+  const settings = sanitizeSettings({ paths: "all" });
+  renderView(container, { t, settings, groups: ENGINES.zigbee.options(sampleNetwork(), settings), openOnSelect: false,
+    dark: false, debug: false, pinCount: 0,
     scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
     onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
   const all = container.walk();

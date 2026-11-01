@@ -310,6 +310,8 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .sub-option.off { opacity: 0.45; }
 .check-row.sub-option.off { cursor: default; }
 .group-note { margin-top: 2px; }
+/* A network type's one-line note in place of a group it does not have (Thread: no path views). */
+.view-note { margin: 0 0 18px; }
 .info-note { margin: 2px 0 6px; }
 .findings-jump { align-self: flex-start; min-height: 32px; }
 .radio-line { display: flex; flex-wrap: wrap; column-gap: 20px; }
@@ -321,7 +323,6 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
   background: var(--mte-card); cursor: pointer; }
 .color-note { flex: 1 1 8em; }
 .color-row.off { opacity: 0.45; }
-.view-group.off > :not(legend):not(.group-note) { opacity: 0.45; }
 .color-row.off .color-pick, .color-row.off .color-pick input { cursor: default; }
 .check-row.disabled { cursor: default; color: var(--mte-muted); flex-wrap: wrap; column-gap: 8px; row-gap: 0; }
 .check-row.disabled:hover { background: none; }

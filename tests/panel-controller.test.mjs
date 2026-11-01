@@ -4,7 +4,8 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PanelController, readNetwork, isConnectionLost } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { PanelController, readNetwork } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { isConnectionLost } from "../custom_components/meshroute_topology_explorer/frontend/adapters/ws.js";
 import { responses } from "./panel-fixture.mjs";
 
 const LOST = { type: "result", success: false, error: { code: 3, message: "Connection lost" } };
