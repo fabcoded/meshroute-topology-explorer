@@ -258,12 +258,19 @@ test("sample, stage 2 of a click: an out and an in path to every other available
 });
 
 test("a click stays well under 100 ms of model time on the sample (CPU time, fresh caches)", (t) => {
-  // Process CPU time also counts the engine's compiler and garbage collector threads, so one warm-up compiles the
-  // code and each click counts its best of three fresh networks (no cached lookups or discovery trees).
-  const warm = sampleNetwork();
-  nodePaths(warm, byLabel("Router 11"), "all");
+  // Process CPU time also counts the engine's compiler and garbage collector threads, so two warm-up rounds over the
+  // four clicks compile the code first (with one Router 11 click, End device 06's first measured clicks still paid the
+  // optimising compiler's threads: 60-130 ms CPU at 15-30 ms wall, brief a4z), and each click counts its best of three
+  // fresh networks (no cached lookups or discovery trees).
+  const labels = ["Router 11", "Router 13", "Router 03", "End device 06"];
+  for (let round = 0; round < 2; round++) {
+    for (const label of labels) {
+      const warm = sampleNetwork();
+      nodePaths(warm, warm.devices.find((d) => d.label === label).id, "all");
+    }
+  }
   let worst = 0;
-  for (const label of ["Router 11", "Router 13", "Router 03", "End device 06"]) {
+  for (const label of labels) {
     let best = Infinity;
     for (let i = 0; i < 3; i++) {
       const network = sampleNetwork();
@@ -274,8 +281,8 @@ test("a click stays well under 100 ms of model time on the sample (CPU time, fre
     }
     worst = Math.max(worst, best);
   }
-  // About 10 to 35 ms here alone, up to 65 ms beside the other suites (2026-11-01, Node 18 under WSL); the limit is
-  // the brief's.
+  // About 30 to 45 ms here alone (2026-11-01, Node 18 under WSL, brief a4z), more beside the other suites; the limit
+  // is the brief's.
   t.diagnostic && t.diagnostic(`slowest click ${worst.toFixed(1)} ms CPU`);
   assert.ok(worst < 100, `${worst} ms CPU`);
 });
