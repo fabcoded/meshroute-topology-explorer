@@ -5,6 +5,7 @@
 // text (spec 9.3); in the stages "all" and "heard" its theoretical paths per other device (spec 5.7) with how each hop
 // is taken. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
+import { zigpyRecords } from "../model/source-routes.js";
 import { lqiText } from "./format.js";
 import { unknownGlyph } from "../graph/links.js";
 
@@ -42,7 +43,7 @@ export function pathParts(path, t, name) {
   const prefix = path.kind === "out" ? t("details.path_out", { name: name(path.to) })
     : path.kind === "in" ? t("details.path_in", { name: name(path.from) })
       : path.kind === "up" ? t("details.path_up")
-        : t(path.assumed ? "details.path_down_assumed" : "details.path_down");
+        : t(path.assumed ? "details.path_down_assumed" : path.recorded ? "details.path_down_recorded" : "details.path_down");
   const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null, how: null },
     ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t), how: hop.how || null,
       noEntry: hop.noEntry || null, basis: hopBasis(hop, t, name) }))] : [];
@@ -95,8 +96,10 @@ export function pathLine(path, t, name) {
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", model/node-paths.js), with the source-route stage `sourceRoute` ("off" or
- *  "assume", model/source-routes.js). */
+ *  `nodeView` ("coordinator" or "all", model/node-paths.js), with the source-route stage `sourceRoute` ("off",
+ *  "assume" or "zigpy", model/source-routes.js). record (stage "zigpy" only, else null): { radio, differs } with
+ *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
+ *  the coordinator's side, without both ends), or null. */
 export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const device = byId.get(id);
@@ -113,6 +116,9 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
     .sort((a, b) => a.destination.label.localeCompare(b.destination.label));
   const parent = device.parent ? byId.get(device.parent) || null : null;
   const paths = nodePaths(network, id, nodeView, { sourceRoute });
+  const differs = sourceRoute === "zigpy" ? zigpyRecords(network).differs.get(id) : null;
+  const record = sourceRoute === "zigpy" ? { radio: (network.zigpy && network.zigpy.radio) || null,
+    differs: differs ? differs.slice(1, -1) : null } : null;
   return {
     device,
     parent,
@@ -129,6 +135,7 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
     findings: network.findings.filter((f) => f.device === id),
     routingEntries: network.routes.filter((r) => r.owner === id).length,
     paths,
+    record,
     theory: theoryRows(paths, (x) => (byId.get(x) || { label: x }).label),
   };
 }

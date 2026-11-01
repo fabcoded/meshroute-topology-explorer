@@ -42,8 +42,8 @@ test("spec 12: measured down paths stay 33 of 44, the assumption adds 8 (41 of 4
   const withAssumed = others.filter((d) => downPathWith(sample, d.id, "assume").complete).length;
   const off = others.filter((d) => downPathWith(sample, d.id, "off").complete).length;
   assert.deepEqual([others.length, measured, off, withAssumed], [44, 33, 33, 41]);
-  assert.deepEqual(sourceRouteSummary(sample, "assume"), { mode: "assume", count: 8 });
-  assert.deepEqual(sourceRouteSummary(sample, "off"), { mode: "off", count: 8 });
+  assert.deepEqual(sourceRouteSummary(sample, "assume"), { mode: "assume", count: 8, recorded: 0, zigpy: null });
+  assert.deepEqual(sourceRouteSummary(sample, "off"), { mode: "off", count: 8, recorded: 0, zigpy: null });
 });
 
 test("an end device the coordinator has an entry for is reached through its parent, never assumed", () => {
@@ -106,10 +106,11 @@ test("a small network: the rule step by step", () => {
   assert.ok(!a.has(ieee(0)));
 });
 
-test("the setting: off and assume, anything else (the later zigpy stage included) counts as assume", () => {
-  assert.deepEqual(SOURCE_ROUTE_MODES, ["off", "assume"]);
+test("the setting: off, assume and zigpy (brief a4w), anything else counts as assume", () => {
+  assert.deepEqual(SOURCE_ROUTE_MODES, ["off", "assume", "zigpy"]);
   assert.equal(DEFAULT_SOURCE_ROUTE, "assume");
-  for (const [input, out] of [["off", "off"], ["assume", "assume"], ["zigpy", "assume"], [null, "assume"], [7, "assume"]]) {
+  for (const [input, out] of [["off", "off"], ["assume", "assume"], ["zigpy", "zigpy"], ["Zigpy", "assume"], [null, "assume"],
+    [7, "assume"]]) {
     assert.equal(sourceRouteMode(input), out);
     assert.equal(sanitizeSettings({ sourceRoute: input }).sourceRoute, out);
   }

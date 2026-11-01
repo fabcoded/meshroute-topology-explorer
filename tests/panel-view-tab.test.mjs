@@ -65,3 +65,17 @@ test("View tab: a change of the checkbox or a radio is reported at once, as one 
   radios[1].fire("change");
   assert.deepEqual(patches, [{ heard: true }, { paths: "all" }]);
 });
+
+test("View tab: three source-route stages, 'Read from zigpy' enabled with its tag (brief a4w)", () => {
+  const sr = (stored) => {
+    const { all, patches } = render(stored);
+    return { radios: all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-sourceRoute"), all, patches };
+  };
+  const { radios, all, patches } = sr({});
+  assert.deepEqual(radios.map((r) => [r.value, r.checked, Boolean(r.disabled)]),
+    [["off", false, false], ["assume", true, false], ["zigpy", false, false]]);
+  assert.ok(all.some((n) => n.className === "tag" && n.textContent === "experimental"));
+  radios[2].fire("change");
+  assert.deepEqual(patches, [{ sourceRoute: "zigpy" }]);
+  assert.equal(sr({ sourceRoute: "zigpy" }).radios.find((r) => r.checked).value, "zigpy");
+});

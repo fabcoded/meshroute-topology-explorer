@@ -8,7 +8,7 @@
 import { downPath, routeEnds, routePath, upPath } from "./paths.js";
 import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
-import { assumedDownPaths } from "./source-routes.js";
+import { drawMode, returnPaths } from "./source-routes.js";
 
 /** The node views (spec 9.1, 11): the default shows the way to and from the coordinator, which stands for Home
  *  Assistant; "all" adds the device's theoretical way to every other device and back (spec 5.7). */
@@ -61,7 +61,8 @@ export function pathHops(network, ids) {
  *  map on its click would say nothing); in "all" its theoretical way to every available device and back, from its own
  *  table on, like any device (decision by Fabian Schwamborn, 2026-11-01). sourceRoute "assume" replaces an unknown
  *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
- *  true, and so do its hops. The default "off" gives the measured paths of spec 5.1 only. */
+ *  true, and so do its hops. "zigpy" replaces it by zigpy's route record where one passes the gate (recorded: true,
+ *  drawn as measured), else assumes as "assume" does. The default "off" gives the measured paths of spec 5.1 only. */
 export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off" } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
@@ -77,12 +78,12 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute =
       ...(how[i] ? { how: how[i].how } : {}), ...(how[i] && how[i].cost ? { cost: how[i].cost } : {}),
       ...(how[i] && how[i].reason ? { noEntry: how[i].reason } : {}) }));
     out.push({ kind, from, to, ids: walk.ids, complete: walk.complete, hops, assumed,
-      reason: walk.reason ?? null, cost: walk.cost ?? null });
+      ...(walk.recorded === true ? { recorded: true } : {}), reason: walk.reason ?? null, cost: walk.cost ?? null });
   };
   if (id !== coordinator) {
     add("up", id, coordinator, upPath(network, id));
-    const assumed = sourceRoute === "assume" ? assumedDownPaths(network).get(id) : null;
-    add("down", coordinator, id, assumed || downPath(network, id));
+    const stage = drawMode(sourceRoute);
+    add("down", coordinator, id, (stage !== "off" && returnPaths(network, stage).get(id)) || downPath(network, id));
   }
   if (mode !== "all" && id !== coordinator) return out;
   if (id === coordinator && mode !== "all") {

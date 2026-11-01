@@ -147,6 +147,41 @@ class GuardTest(unittest.TestCase):
         self.assertIn("zha/devices/clusters/attributes/value", guard.ALLOWED_COMMANDS)
         self.assertEqual(guard.DENY_EXCEPT, ("zha/devices/clusters/attributes/value",))
 
+    def test_shipped_python_reads_only_route_records(self):
+        """PY_DENY (decision 2026-11-01, brief a4w): zigpy's network settings, keys, saved copies and radio calls."""
+        py = "# SPDX-License-Identifier: MIT\n"
+        denied = {
+            "settings": "info = app.state.network_info",
+            "keys": "key = app.config[CONF_NWK]",
+            "saved": "copies = app.backups.backups",
+            "permit": "await app.permit(60)",
+            "request": "await dev.request(0, 6, 1, 1, 1, b'')",
+            "zdo": "await dev.zdo.Mgmt_Lqi_req(0)",
+            "scan": "await app.topology.scan()",
+            "energy": "await app.energy_scan(channels, 4, 1)",
+            "leave": "await app.remove(ieee)",
+            "write": "await cluster.write_attributes({0: 1})",
+            "zha_data": "data = get_zha_data(hass)",
+        }
+        for name, code in denied.items():
+            with self.subTest(name):
+                root = self.tree({f"custom_components/x/{name}.py": py + code + "\n"})
+                self.assertTrue(guard.check(root), code)
+        # The route records themselves pass, and the rule is for shipped Python only (tests and tools may name them).
+        allowed = "app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
+        root = self.tree({"custom_components/x/routes.py": py + allowed, "tests/fake.py": py + "app.state.network_info\n",
+                          "custom_components/x/panel.js": SPDX + "// permit joining is a raw value name\n"})
+        self.assertEqual(guard.check(root), [])
+
+    def test_shipped_python_of_the_repository_names_no_internal(self):
+        root = Path(__file__).resolve().parent.parent / "custom_components"
+        files = sorted(root.rglob("*.py"))
+        self.assertTrue(any(f.name == "zigpy_routes.py" for f in files))
+        for f in files:
+            text = f.read_text(encoding="utf-8")
+            for term in guard.PY_DENY + guard.DENY:
+                self.assertNotIn(term, text, f"{f.name} names {term}")
+
     def test_virtualenv_is_skipped(self):
         root = self.tree({".venv/lib/x.py": "print(1)\n"})
         self.assertEqual(guard.check(root), [])

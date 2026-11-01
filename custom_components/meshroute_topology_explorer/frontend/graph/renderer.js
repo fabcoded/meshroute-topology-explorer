@@ -21,6 +21,7 @@ import {
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { theoreticalLanes } from "../model/theoretical.js";
+import { drawMode } from "../model/source-routes.js";
 
 /** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
 const ROLES = new Set(["coordinator", "router", "end device", "border router", "unknown"]);
@@ -48,7 +49,7 @@ const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
  *  by the graph view to zoom on a tap when the paths are too short to read (spec 9.3). */
 export function shortestFocusLane(view, index, cam) {
   const { scene, pos, width, height } = view;
-  const route = scenePaths(scene, index, pathStage(view.paths), view.sourceRoute === "assume" ? "assume" : "off",
+  const route = scenePaths(scene, index, pathStage(view.paths), drawMode(view.sourceRoute),
     Boolean(view.heard));
   const size = symbolSize(cam.k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
@@ -170,15 +171,16 @@ export function sceneBackbone(scene) {
   return scene.backbone;
 }
 
-/** Classes of the scene's lanes under a source-route stage ("off" or "assume"), cached per scene: { cls (per lane, one
- *  of CLASSES or null), assumed (per lane: drawn as an assumed down lane), heardOnly (per pair: a reading in some
+/** Classes of the scene's lanes under a source-route stage ("off", "assume" or "zigpy"), cached per scene: { cls (per
+ *  lane, one of CLASSES or null), assumed (per lane: drawn as an assumed down lane; a lane of a recorded return path
+ *  is drawn as measured), heardOnly (per pair: a reading in some
  *  direction and no up, down or route lane in either), rank (per pair: its best heard lane's reception, the rating
  *  at that lane's hearer, for ranking partners), counts (lanes per class, assumed counted apart as well) }. */
 export function sceneClasses(scene, sourceRoute = "off") {
-  const mode = sourceRoute === "assume" ? "assume" : "off";
+  const mode = drawMode(sourceRoute);
   if (scene.classCache.has(mode)) return scene.classCache.get(mode);
   const cls = scene.lanes.map((l) => laneClass(l, mode));
-  const assumed = scene.lanes.map((l, i) => cls[i] === "down" && !l.downMeasured);
+  const assumed = scene.lanes.map((l, i) => cls[i] === "down" && !l.downMeasured && !(mode === "zigpy" && l.downRecorded));
   const heardOnly = scene.pairs.map((p) => p.lanes.some((i) => cls[i] === "heard")
     && p.lanes.every((i) => cls[i] === "heard" || cls[i] === null));
   // A heard-only pair ranks by its best heard lane: the rating is relative to that lane's hearer (spec 5.4).
@@ -214,10 +216,11 @@ function heardPartners(scene, i, sc, hops, stage) {
  *  for tests) }. "coordinator": the device's way up and down (model/node-paths.js); "all" adds its theoretical way to
  *  and from every other device as routes, the out tree and the in tree (spec 5.7); `heard` adds its best heard-only
  *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
- *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "off" leaves them unknown. */
+ *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "zigpy" recorded ones as
+ *  measured and assumed ones for the rest, "off" leaves them unknown. */
 export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false) {
   const mode = pathStage(stage);
-  const sr = sourceRoute === "assume" ? "assume" : "off";
+  const sr = drawMode(sourceRoute);
   const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
@@ -402,7 +405,7 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), paths (the stage of "Communication
  *  paths": "coordinator" | "all", links.js PATH_STAGES), heard (the checkbox "heard only", on click only), receptionColors (lanes coloured by their rating),
  *  labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is drawn:
- *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume": assumed return paths),
+ *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume" | "zigpy": return paths),
  *  texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh }
  *  arrays by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs with a lane or glyph drawn), lanes, glyphs, values, labels, dropped,
@@ -425,7 +428,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const focus = [view.selected, view.hovered].filter((i, j, all) => i >= 0 && all.indexOf(i) === j);
   const focusSet = new Set(focus);
   const stage = pathStage(view.paths);
-  const sourceRoute = view.sourceRoute === "assume" ? "assume" : "off";
+  const sourceRoute = drawMode(view.sourceRoute);
   const debug = Boolean(view.debug);
   const sc = sceneClasses(scene, sourceRoute);
   // What the overview of the stage draws (decisions by Fabian Schwamborn, 2026-11-01): up and down lanes; from "all"

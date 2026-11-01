@@ -31,7 +31,8 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(panel["config"], {"version": ha_stubs.load(".const").VERSION})
         self.assertEqual(sorted(self.rec.commands), [
             "meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set",
-            "meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set"])
+            "meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set",
+            "meshroute_topology_explorer/zigpy_routes"])
 
     def test_panel_and_static_path_details(self):
         const = ha_stubs.load(".const")
@@ -56,7 +57,7 @@ class SetupTest(unittest.TestCase):
         ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
         self.assertEqual(self.hass.http.async_register_static_paths.await_count, 1)
         self.assertEqual(len(self.rec.panels), 3)
-        self.assertEqual(len(self.rec.commands), 4)
+        self.assertEqual(len(self.rec.commands), 5)
 
 
 if __name__ == "__main__":

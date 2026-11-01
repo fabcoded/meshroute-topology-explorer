@@ -97,7 +97,7 @@ function deviceButton(ctx, dev, note) {
 function communication(panel, info, ctx, name) {
   const { t } = ctx;
   const d = info.device;
-  panel.append(pathsCard(info.paths, ctx, name));
+  panel.append(pathsCard(info.paths, ctx, name, info.record));
   if (info.theory.length) panel.append(theoryCard(info.theory, ctx, name));
 
   if (d.role === "end device") {
@@ -151,8 +151,11 @@ function communication(panel, info, ctx, name) {
 /** The path card (board M4): "Communication path with the coordinator" with the lines there and back; for the
  *  coordinator, whose paths are its routes, "All paths" collapsed when long. Each hop names the device that hears it
  *  and the reception there, the value in bold; an assumed return path (source route) says so in its prefix and in a
- *  note. A device's theoretical paths have their own card (theoryCard). */
-function pathsCard(all_, ctx, name) {
+ *  note, and so does one from zigpy's route record (stage "zigpy", `record` of detailsOf), whose note names the radio
+ *  library and that the record has no time; a record that takes another way than a complete measured down path is
+ *  one line, not drawn (decision of the main session, 2026-11-01). A device's theoretical paths have their own card
+ *  (theoryCard). */
+function pathsCard(all_, ctx, name, record = null) {
   const t = ctx.t;
   const own = all_.filter((p) => p.kind === "up" || p.kind === "down");
   const paths = own.length ? own : all_; // the coordinator has no up or down path: its routes are its paths
@@ -171,7 +174,15 @@ function pathsCard(all_, ctx, name) {
   });
   const body = lines.length ? lines : [h("div", { class: "muted", text: t("details.paths_none") })];
   const notes = [h("p", { class: "muted small", text: t("details.paths_note") })];
+  if (record && record.differs) {
+    const text = record.differs.length ? t("details.path_record_differs", { via: record.differs.map(name).join(" → ") })
+      : t("details.path_record_differs_direct");
+    lines.push(h("div", { class: "path-line muted", text }));
+  }
   if (paths.some((p) => p.assumed)) notes.push(h("p", { class: "muted small", text: t("details.paths_assumed_note") }));
+  if (paths.some((p) => p.recorded)) {
+    notes.push(h("p", { class: "muted small", text: t("details.paths_recorded_note", { radio: (record && record.radio) || "?" }) }));
+  }
   if (!all) return card(t("details.paths_coordinator"), ...body, ...notes);
   return card(null, h("details", { class: "card-details", open: paths.length <= PATHS_OPEN },
     h("summary", { class: "card-title", text: t("details.paths_all", { count: paths.length }) }), ...body, ...notes));

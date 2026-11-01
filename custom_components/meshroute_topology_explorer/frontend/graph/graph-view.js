@@ -93,7 +93,7 @@ export class GraphView extends EventTarget {
    *  option "heard only"),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
    *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
-   *  sourceRoute ("assume" or "off": return paths without a table entry, model/source-routes.js), texts
+   *  sourceRoute ("assume", "zigpy" or "off": return paths without a table entry, model/source-routes.js), texts
    *  ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light", ... } }), seed, debug, env (timers and
    *  media queries, injectable for tests). */
   constructor(canvas, options = {}) {
@@ -112,7 +112,8 @@ export class GraphView extends EventTarget {
     this.heard = options.heard === true;
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
-    // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "off" not.
+    // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "zigpy"
+    // draws zigpy's route records as measured and assumes the rest; "off" not.
     this.sourceRoute = sourceRouteMode(options.sourceRoute);
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
       kinds: {}, ...(options.texts || {}) };
@@ -212,8 +213,9 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Return paths without a table entry (spec 5.1, 9.1): "assume" draws the way up reversed as assumed, "off" leaves
-   *  them unknown; anything else counts as "assume". Drawing only. */
+  /** Return paths without a table entry (spec 5.1, 9.1): "assume" draws the way up reversed as assumed, "zigpy" the
+   *  route records as measured and the rest as assumed, "off" leaves them unknown; anything else counts as "assume".
+   *  Drawing only. */
   setSourceRoute(mode) {
     const next = sourceRouteMode(mode);
     if (next === this.sourceRoute) return;

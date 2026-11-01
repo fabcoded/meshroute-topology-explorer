@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 """Websocket commands of the panel: settings and observations per network (docs/spec.md section 10).
 
-Commands: meshroute_topology_explorer/{settings,observations}/{get,set}. Registered once per Home Assistant run
+Commands: meshroute_topology_explorer/{settings,observations}/{get,set}, and zigpy_routes (zigpy_routes.py: zigpy's
+route records, read only). Registered once per Home Assistant run
 (commands cannot be unregistered). They stay answerable after the config entry is unloaded: the store lives in
 hass.data and the panel is simply gone, so nobody calls them.
 """
@@ -17,6 +18,8 @@ from homeassistant.helpers.json import json_bytes
 
 from .const import DOMAIN, MAX_PAYLOAD_BYTES, NETWORK_ID_PATTERN
 from .store import KINDS, PanelStore, StoreUnavailable
+from .zigpy_routes import COMMAND as ZIGPY_ROUTES_COMMAND
+from .zigpy_routes import ws_zigpy_routes
 
 ERR_PAYLOAD_TOO_LARGE = "payload_too_large"
 ERR_STORAGE_UNAVAILABLE = "storage_unavailable"
@@ -100,11 +103,12 @@ async def async_remove_data(hass: HomeAssistant) -> None:
 
 
 def async_register_commands(hass: HomeAssistant) -> None:
-    """Register the four commands, once per run."""
+    """Register the five commands, once per run."""
     if hass.data.get(_REGISTERED_KEY):
         return
     for kind in KINDS:
         for writing in (False, True):
             command = f"{DOMAIN}/{kind}/{'set' if writing else 'get'}"
             websocket_api.async_register_command(hass, command, _make_handler(kind, writing), _passthrough)
+    websocket_api.async_register_command(hass, ZIGPY_ROUTES_COMMAND, ws_zigpy_routes, _passthrough)
     hass.data[_REGISTERED_KEY] = True

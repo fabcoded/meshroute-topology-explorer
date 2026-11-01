@@ -24,11 +24,28 @@ const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", 
 const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_scan_over", stopped: "status.short_scan_over",
   "not-sent": "status.short_scan_not_sent" };
 
+/** Reasons the integration gives when zigpy cannot be read (zigpy_routes.py), and the error code of an older
+ *  integration; anything else is shown as it came. */
+const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "error", "unknown_command"];
+
 /** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
- *  (model/source-routes.js sourceRouteSummary: { mode, count }); null when no device is concerned. Long and short form,
- *  [key, params, longKey] like the other parts. */
+ *  (model/source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned.
+ *  Long and short form, [key, params, longKey] like the other parts. In the stage "zigpy" the part counts recorded and
+ *  assumed return paths; when zigpy could not be read it says so, the reason being the part's description. */
 export function sourceRoutePart(summary, compact = false) {
-  if (!summary || !summary.count) return null;
+  if (!summary) return null;
+  if (summary.mode === "zigpy") {
+    const z = summary.zigpy || {};
+    const reason = ZIGPY_REASONS.includes(z.reason) ? z.reason : null;
+    const params = { count: summary.count, recorded: summary.recorded || 0, reason: reason || z.reason || "?" };
+    if (z.status !== "ok") {
+      const why = reason ? `status.zigpy_reason_${reason}` : "status.sr_zigpy_reason";
+      return compact ? ["status.short_sr_zigpy_failed", params, "status.sr_zigpy_failed"] : ["status.sr_zigpy_failed", params, why];
+    }
+    if (!summary.count && !summary.recorded) return null;
+    return compact ? ["status.short_sr_zigpy", params, "status.sr_zigpy"] : ["status.sr_zigpy", params];
+  }
+  if (!summary.count) return null;
   const long = summary.mode === "off" ? "status.sr_off" : "status.sr_assumed";
   const short = summary.mode === "off" ? "status.short_sr_off" : "status.short_sr_assumed";
   return compact ? [short, { count: summary.count }, long] : [long, { count: summary.count }];

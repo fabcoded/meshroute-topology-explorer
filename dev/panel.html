@@ -34,7 +34,9 @@
        dtab=communication|entity|cluster   the Details sub-tab (with select=)
        cluster=0x0006&ep=1&dir=in|out      open that cluster's details; readvalues=1 then reads its attributes
        readfail=error|timeout              the synthetic attribute read fails (sleepy end devices always fail)
-       sourceroute=off|assume              return paths without a table entry (stored setting) -->
+       sourceroute=off|assume|zigpy        return paths without a table entry (stored setting); zigpy answers with
+                                           synthetic route records (tests/zigpy-fake.mjs)
+       zigpy=unsupported                   the route records cannot be read (ZHA not loaded) -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
