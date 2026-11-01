@@ -271,11 +271,16 @@ test("10a: Thread values are never on the Zigbee scale", async () => {
   }
 });
 
-test("10b: the layout reads Thread link quality as a quality from 0 to 1, RSSI alone as none", { todo: "step 6c" },
-  async () => {
+test("10b: the layout reads Thread link quality as a quality from 0 to 1, RSSI alone as none", async () => {
     const { thread } = await engines();
     assert.equal(thread.springQuality({ scale: "thread-lqi", lqi: 3, rssi: -60 }), 1);
     assert.equal(thread.springQuality({ scale: "thread-lqi", lqi: null, rssi: -60 }), null);
+    // The layout knows no reading scale: the engine's quality is its only input.
+    assert.doesNotMatch(readFileSync(new URL("graph/layout.js", FRONTEND), "utf8"), /thread-lqi|\.scale\b|\* 85\b/);
+    const { threadNet } = await engines();
+    const { Layout } = await mod("graph/layout.js");
+    const layout = new Layout(threadNet, { quality: thread.springQuality });
+    assert.ok(layout.springQuality.length > 0 && layout.springQuality.every((q) => q > 0 && q <= 1));
   });
 
 test("11: the Thread status line has no Zigbee parts and no completeness banner", async () => {

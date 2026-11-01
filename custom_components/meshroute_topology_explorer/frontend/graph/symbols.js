@@ -175,6 +175,9 @@ export function tracePath(ctx, ops) {
 
 // ---- composition -----------------------------------------------------------------------------------------------
 
+/** Roles the map knows (spec 4.2, the shared vocabulary of both network types); anything else is drawn as unknown. */
+export const ROLES = Object.freeze(["coordinator", "router", "end device", "border router", "unknown"]);
+
 /** Which parts a device's symbol has, from the data model's device (role, kind, sleepy) and, for later sources, the
  *  flags radio (default true), wired and leader:
  *  { picture, router, radio, cable, mark: "C" | "L" | null, bed }. Routers, coordinators and border routers get the

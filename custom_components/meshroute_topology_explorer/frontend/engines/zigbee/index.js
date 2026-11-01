@@ -4,7 +4,7 @@
 // changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildNetwork } from "../../model/index.js";
-import { laneValue, legendEntries, unknownGlyph } from "./lanes.js";
+import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderDetails } from "../../ui/details-tab.js";
 import { findingText } from "../../ui/finding-text.js";
 import { connection } from "./connection.js";
@@ -21,6 +21,8 @@ export const zigbee = Object.freeze({
   laneValue: (dir, texts) => laneValue(dir, texts),
   /** "–" where the hearer's table was read and does not list the sender, "?" where there is no table to ask. */
   unknownGlyph: (reason) => unknownGlyph(reason),
+  /** A reading's quality 0..1 for the layout's springs (LQI / 255), or null for no spring. */
+  springQuality: (reading) => springQuality(reading),
   /** The link rows of the legend (board M7): every path class with the stage or option that draws it. */
   legend: (theme, view = {}) => legendEntries(theme, view),
   /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
@@ -38,9 +40,11 @@ export const zigbee = Object.freeze({
   options: (network, settings) => zigbeeOptions(network, settings),
   /** What its map draws (graph/renderer.js): lanes and classify once per scene, then per view the overview's look
    *  of every lane and the focus of a selected or hovered device (scene.js). classes: the counters of the drawn
-   *  lanes. */
+   *  lanes; anchors: always labelled (the coordinator); labelRank: label order; fit: how the fitted view frames the
+   *  map ("base": at density factor 1). */
   scene: Object.freeze({ lanes: zigbeeScene.lanes, classify: zigbeeScene.classify, viewKey: zigbeeScene.viewKey,
-    overview: zigbeeScene.overview, focus: zigbeeScene.focus, classes: zigbeeScene.CLASSES }),
+    overview: zigbeeScene.overview, focus: zigbeeScene.focus, classes: zigbeeScene.CLASSES,
+    anchors: zigbeeScene.anchors, labelRank: zigbeeScene.labelRank, fit: zigbeeScene.FIT }),
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
    *  (ui/settings.js) keeps every other key. */
   settings,

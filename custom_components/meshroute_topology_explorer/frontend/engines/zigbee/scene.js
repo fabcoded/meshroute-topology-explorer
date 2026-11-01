@@ -219,6 +219,23 @@ function look(cls, assumed = false, predicted = false) {
   return { cls, stroke: strokeOf(cls, { assumed, predicted }), rank: rankOf(cls, predicted), assumed, predicted };
 }
 
+/** Devices always labelled (spec 8): the coordinator, the anchor of every Zigbee path. */
+export function anchors(scene) {
+  const out = [];
+  for (let i = 0; i < scene.nodes.length; i++) if (scene.nodes[i].role === "coordinator") out.push(i);
+  return out;
+}
+
+const LABEL_RANK = Object.freeze({ coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 });
+/** Label order of everyone else (the more central a role, the earlier it claims its place). */
+export function labelRank(node) {
+  return LABEL_RANK[node.role];
+}
+
+/** How the fitted view frames a Zigbee map: "base", the base layout at density factor 1, so medium density reaches
+ *  about a fifth past the window and spread further (owner decision, Fabian Schwamborn, 2026-11-01). */
+export const FIT = "base";
+
 /** Cache key of this engine's view settings: the view of "Communication paths", the source-route stage, debug. */
 export function viewKey(view) {
   return `${pathStage(view.paths)}|${drawMode(view.sourceRoute)}|${view.debug ? 1 : 0}`;
@@ -245,7 +262,8 @@ export function overview(scene, view) {
     else if (debug || cls === "up" || cls === "down") o = { cls, predicted: false };
     else {
       const kind = bb ? bb.kind[lane.index] : null;
-      if (kind && overviewShows("route", stage, { backbone: true })) o = { cls: "route", predicted: kind === "predicted" };
+      const shows = kind && overviewShows("route", stage, { backbone: true });
+      if (shows) o = { cls: "route", predicted: kind === "predicted" };
     }
     return o && look(o.cls, o.cls === "down" && sc.assumed[lane.index], o.predicted);
   });

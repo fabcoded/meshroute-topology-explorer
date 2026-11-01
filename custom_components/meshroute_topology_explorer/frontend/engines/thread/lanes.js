@@ -5,6 +5,14 @@
 // stages. Drawn by the shared renderer through the engine (engines/index.js). Pure. node --test tests/
 import { laneStyle } from "../../graph/links.js";
 
+/** A reading's quality for the layout's springs (spec 7.1): Thread link quality 1..3 as 1/3..1; null where it is no
+ *  spring: link quality 0 or none (an RSSI alone gives no spring; the reception model, quality.js, is not wired
+ *  yet). */
+export function springQuality(r) {
+  if (!r || r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) return null;
+  return Math.min(r.lqi, 3) / 3;
+}
+
 /** Glyph for a direction without a reading: "–" where the hearer's neighbour table was read and does not list the
  *  sender (model/thread.js reason "not in the neighbour table"), "?" where there is no table to ask. */
 export function unknownGlyph(reason) {

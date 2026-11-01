@@ -37,6 +37,8 @@ const FIRST_BUDGET_MS = 40;
 const ZOOM_ANIMATION_MS = 200;
 /** Screen margin of the fitted view: room for labels under the outer devices. */
 const FIT_MARGIN = 56;
+/** Room beyond half the widest label at the sides of a "contain" fit (CSS pixels). Own choice. */
+const CONTAIN_GAP = 8;
 /** A revealed device keeps this much room to the edge of the free area (CSS pixels): its label fits beside it. */
 const REVEAL_MARGIN = 48;
 /** A tap on the map zooms to the working scale when the shortest lane of the selection's paths would be shorter than
@@ -159,7 +161,8 @@ export class GraphView extends EventTarget {
 
   /** Change the density (spec 7.1): every position is drawn at base × D, so all lines get longer or shorter while
    *  symbols, labels and the zoom stay as they are. No new layout. The selection keeps its place on screen; without
-   *  one, the point at the centre of the view stays there. */
+   *  one, the point at the centre of the view stays there, except under a "contain" fit (Thread) that the user has
+   *  not moved away from: that view is fitted again. */
   setDensity(density) {
     if (!(density > 0) || density === this.density) return;
     const ratio = density / this.density;
@@ -171,10 +174,15 @@ export class GraphView extends EventTarget {
     const anchor = this.selected >= 0 ? toScreen(target, this.pos.x[this.selected], this.pos.y[this.selected],
       this.width, this.height) : null;
     this._sync();
+    // A "contain" fit frames the drawn map, so its zoom follows the density; the base fit does not move with it.
+    const contain = Boolean(this.scene.engine) && this.scene.engine.scene.fit === "contain";
+    if (contain) this.fitK = this._fitCamera().k;
     if (anchor) {
       const i = this.selected;
       this.cam = { k, cx: this.pos.x[i] - (anchor[0] - this.width / 2) / k,
         cy: this.pos.y[i] - (anchor[1] - this.height / 2) / k };
+    } else if (contain && this.autoFit) {
+      this.cam = this._fitCamera(); // the user has not moved the view: it keeps containing the map
     } else {
       this.cam = { k, cx: target.cx * ratio, cy: target.cy * ratio };
     }
@@ -449,7 +457,9 @@ export class GraphView extends EventTarget {
     const scene = this.scene;
     const l0 = baseLength(scene.labels, this._measure, NODE_DIAMETER);
     const pinned = new Map([...this.pinned].map(([id, p]) => [id, { x: p.x * l0, y: p.y * l0 }]));
-    this.layout = new Layout(this.network, { baseLength: l0, density: 1, seed: this.seed, pinned });
+    // The springs read each reading's quality through the network's engine (no engine: no springs).
+    const quality = scene.engine ? scene.engine.springQuality : () => null;
+    this.layout = new Layout(this.network, { baseLength: l0, density: 1, seed: this.seed, pinned, quality });
     const n = scene.nodes.length;
     this._toLayout = Int32Array.from(scene.nodes, (node) => this.layout.index.get(node.id));
     this.pos = { x: new Float64Array(n), y: new Float64Array(n), pinned: new Uint8Array(n), mesh: new Uint8Array(n) };
@@ -478,15 +488,34 @@ export class GraphView extends EventTarget {
     this._scaleCache = null;
   }
 
-  /** The fitted view of the base layout (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the density, so a dense map
-   *  sits smaller inside the margin and a spread one reaches past the window. */
+  /** The fitted view, as the network's engine frames its map (engine.scene.fit). "base" (Zigbee): the base layout
+   *  (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the
+   *  density, so a dense map sits smaller inside the margin and a spread one reaches past the window. "contain"
+   *  (Thread): the drawn map at the active density, every device inside with room for its label beside and below
+   *  it (main session, 2026-11-01). */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
     const d = this.density;
     const box = bounds(this.pos.x, this.pos.y);
+    const engine = this.scene && this.scene.engine;
+    if (engine && engine.scene.fit === "contain") return this._containCamera(box);
     const base = box && { minX: box.minX / d, minY: box.minY / d, maxX: box.maxX / d, maxY: box.maxY / d };
     const cam = fitCamera(base, this.width, this.height, FIT_MARGIN);
     return { k: cam.k, cx: cam.cx * d, cy: cam.cy * d };
+  }
+
+  /** The "contain" fit: the drawn box (positions at the active density) inside the window, keeping half the widest
+   *  label free left and right of the outer devices and FIT_MARGIN (the symbol and its label lines) above and below.
+   *  A single device or an empty map sits at zoom 1, like fitCamera. */
+  _containCamera(box) {
+    if (!box) return fitCamera(null, this.width, this.height, FIT_MARGIN);
+    const widest = this.scene.labels.reduce((w, label) => Math.max(w, this._measure(label)), 0);
+    const side = Math.max(FIT_MARGIN, widest / 2 + CONTAIN_GAP);
+    const w = box.maxX - box.minX;
+    const h = box.maxY - box.minY;
+    const k = w < 1 && h < 1 ? 1 : Math.min(Math.max(this.width - 2 * side, 1) / Math.max(w, 1),
+      Math.max(this.height - 2 * FIT_MARGIN, 1) / Math.max(h, 1));
+    return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 };
   }
 
   _screenOf(i) {

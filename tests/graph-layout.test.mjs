@@ -17,6 +17,7 @@ import { buildNetwork } from "../custom_components/meshroute_topology_explorer/f
 import { syntheticNetwork } from "./synthetic-network.mjs";
 import { fidelity, spearman } from "./fidelity.mjs";
 import { labelWidth as measure } from "./graph-fakes.mjs";
+import { springQuality as quality } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 
 const responses = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
 const sample = buildNetwork(responses["zha/devices"], { deviceRegistry: responses["config/device_registry/list"],
@@ -25,11 +26,15 @@ const l0Of = (network) => baseLength(displayLabels(network.devices, measure), me
 const report = (t, msg) => (t.diagnostic ? t.diagnostic(msg) : console.log(msg));
 
 test("spring factor follows f(q) = 1 + 5 (1 - q)^2; LQI 0 or no value has none", () => {
-  assert.equal(springFactor(255), 1);
-  assert.equal(springFactor(127.5), 1 + 5 * 0.25);
-  assert.ok(Math.abs(springFactor(1) - (1 + 5 * (254 / 255) ** 2)) < 1e-12);
+  // The layout takes a quality 0..1 from the engine (engines cut step 6c); Zigbee's is LQI / 255.
+  assert.equal(springFactor(quality({ lqi: 255 })), 1);
+  assert.equal(springFactor(0.5), 1 + 5 * 0.25);
+  assert.ok(Math.abs(springFactor(quality({ lqi: 1 })) - (1 + 5 * (254 / 255) ** 2)) < 1e-12);
   for (const unknown of [0, null, undefined, NaN, "157", -3]) assert.equal(springFactor(unknown), null, "no spring");
-  for (let v = 1; v < 255; v++) assert.ok(springFactor(v) > springFactor(v + 1), "strictly falling");
+  for (const unknown of [0, null, undefined, NaN, "157", -3]) assert.equal(quality({ lqi: unknown }), null, "no spring");
+  for (let v = 1; v < 255; v++) {
+    assert.ok(springFactor(quality({ lqi: v })) > springFactor(quality({ lqi: v + 1 })), "strictly falling");
+  }
 });
 
 test("L0 is node diameter plus mean label width, with an injected measure", () => {
@@ -49,16 +54,16 @@ test("positions use only + - * / and sqrt: no engine-dependent maths in layout.j
 });
 
 test("same network and seed give the same layout, whatever the input order; another seed differs", () => {
-  const a = new Layout(sample, { baseLength: 90, seed: 3 });
+  const a = new Layout(sample, { quality, baseLength: 90, seed: 3 });
   a.run();
   const rnd = seededRandom(99);
   const shuffle = (list) => list.map((v) => [rnd(), v]).sort((p, q) => p[0] - q[0]).map((p) => p[1]);
   const b = new Layout({ ...sample, devices: shuffle(sample.devices), readings: shuffle(sample.readings) },
-    { baseLength: 90, seed: 3 });
+    { quality, baseLength: 90, seed: 3 });
   b.run();
   assert.deepEqual([...a.x], [...b.x]);
   assert.deepEqual([...a.y], [...b.y]);
-  const c = new Layout(sample, { baseLength: 90, seed: 4 });
+  const c = new Layout(sample, { quality, baseLength: 90, seed: 4 });
   c.run();
   assert.notDeepEqual([...a.x], [...c.x]);
 });
@@ -67,13 +72,13 @@ test("fidelity on the sample: rank correlation of drawn length and LQI <= -0.75 
   // The map computes one layout in base units (D = 1) and draws it at base x D (spec 7.1): every density shows the
   // same proportions, so the correlation is the same in each.
   const l0 = l0Of(sample);
-  const layout = new Layout(sample, { baseLength: l0, density: 1, seed: 1 });
+  const layout = new Layout(sample, { quality, baseLength: l0, density: 1, seed: 1 });
   layout.run();
   assert.ok(layout.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
   assert.ok(layout.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
-  const known = layout.springLengths().filter((x) => x.lqi !== null);
+  const known = layout.springLengths().filter((x) => x.quality !== null);
   const rhos = Object.entries(DENSITY).map(([name, d]) => {
-    const rho = spearman(known.map((x) => x.length * d), known.map((x) => x.lqi));
+    const rho = spearman(known.map((x) => x.length * d), known.map((x) => x.quality));
     report(t, `fidelity ${name} (D=${d}, L0=${l0.toFixed(1)}): ${rho.toFixed(3)} after ${layout.steps} steps`);
     assert.ok(rho <= -0.75, `${name}: ${rho}`);
     return rho;
@@ -119,7 +124,7 @@ test("devices without readings sit evenly on an ellipse just outside the mesh, i
       { reporter: "a", subject: "ghost", lqi: 50 }, // unknown device: ignored
     ],
   };
-  const layout = new Layout(net, { baseLength: 80, seed: 2 });
+  const layout = new Layout(net, { quality, baseLength: 80, seed: 2 });
   layout.run();
   assert.deepEqual(layout.ringIds(), ["x1", "x2", "x3", "x4"]);
   const { x: cx, y: cy, a, b } = layout.ringShape;
@@ -141,7 +146,7 @@ test("devices without readings sit evenly on an ellipse just outside the mesh, i
 test("ring places are spaced evenly by arc length", () => {
   // No mesh: the ring is the bare ellipse, so every place is unmoved.
   const layout = new Layout({ devices: ["p", "q", "r", "s", "t", "u"].map((id) => ({ id })), readings: [] },
-    { baseLength: 100 });
+    { quality, baseLength: 100 });
   layout.run();
   const ring = layout.ringIds().map((id) => layout.position(id));
   const chords = ring.map((p, i) => Math.hypot(ring[(i + 1) % ring.length].x - p.x, ring[(i + 1) % ring.length].y - p.y));
@@ -149,7 +154,7 @@ test("ring places are spaced evenly by arc length", () => {
 });
 
 test("on the sample the ring adds at most K to the mesh's height", () => {
-  const layout = new Layout(sample, { baseLength: l0Of(sample), seed: 1 });
+  const layout = new Layout(sample, { quality, baseLength: l0Of(sample), seed: 1 });
   layout.run();
   assert.ok(layout.ringIds().length >= 1);
   const ys = (ids) => ids.map((id) => layout.position(id).y);
@@ -161,7 +166,7 @@ test("on the sample the ring adds at most K to the mesh's height", () => {
 test("pinned devices stay where they are, the others still settle", () => {
   const ids = sample.devices.map((d) => d.id).sort();
   const pinned = new Map([[ids[1], { x: 500, y: -300 }], [ids[5], { x: -200, y: 40 }]]);
-  const layout = new Layout(sample, { baseLength: 90, seed: 1, pinned });
+  const layout = new Layout(sample, { quality, baseLength: 90, seed: 1, pinned });
   layout.run();
   for (const [id, p] of pinned) {
     assert.deepEqual(layout.position(id), p);
@@ -186,7 +191,7 @@ test("LQI 0, no value and readings marked unmeasured are no springs: such device
       { reporter: "a", subject: "b", lqi: 120 }, { reporter: "b", subject: "c", lqi: 0 },
       { reporter: "c", subject: "d", lqi: null }, { reporter: "d", subject: "a", lqi: 80, measured: false },
     ],
-  }, { baseLength: 100 });
+  }, { quality, baseLength: 100 });
   assert.equal(layout.rest.length, 1);
   assert.deepEqual(layout.ringIds(), ["c", "d"]);
 });
@@ -199,10 +204,10 @@ test("duplicate readings keep the better value; self and unknown readings are dr
       { reporter: "a", subject: "b", lqi: 20 }, { reporter: "a", subject: "a", lqi: 255 },
       { reporter: "b", subject: "z", lqi: 255 }, null,
     ],
-  }, { baseLength: 100 });
+  }, { quality, baseLength: 100 });
   assert.equal(layout.rest.length, 1);
-  assert.equal(layout.springLqi[0], 180);
-  assert.equal(layout.rest[0], 100 * springFactor(180));
+  assert.equal(layout.springQuality[0], 180 / 255);
+  assert.equal(layout.rest[0], 100 * springFactor(180 / 255));
 });
 
 test("Barnes-Hut: exact at theta 0, and a forced Barnes-Hut layout still settles faithfully", () => {
@@ -224,7 +229,7 @@ test("Barnes-Hut: exact at theta 0, and a forced Barnes-Hut layout still settles
     assert.ok(Math.hypot(ax - ex, ay - ey) < 0.1 * Math.hypot(ex, ey) + 1e-6, "approximation within 10 %");
   }
   const net = syntheticNetwork({ devices: 300, readings: 3000, seed: 7 });
-  const layout = new Layout(net, { baseLength: l0Of(net), seed: 1, params: { exactBelow: 0 } });
+  const layout = new Layout(net, { quality, baseLength: l0Of(net), seed: 1, params: { exactBelow: 0 } });
   layout.run();
   assert.ok(layout.lastMove < SETTLE_MOVE);
   assert.ok(fidelity(layout) <= -0.75);

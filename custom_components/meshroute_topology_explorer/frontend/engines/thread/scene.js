@@ -36,6 +36,28 @@ export function classify(scene) {
   return scene;
 }
 
+/** Devices always labelled, the anchors of a Thread map (owner decision, Fabian Schwamborn, 2026-11-01): the leader
+ *  and the border routers. */
+export function anchors(scene) {
+  const out = [];
+  for (let i = 0; i < scene.nodes.length; i++) {
+    const device = scene.network.devices[i];
+    if (scene.nodes[i].role === "border router" || (device && device.leader === true)) out.push(i);
+  }
+  return out;
+}
+
+const LABEL_RANK = Object.freeze({ "border router": 1, router: 2, unknown: 3, "end device": 4 });
+/** Label order of everyone else: border routers, routers, unknown, end devices. */
+export function labelRank(node) {
+  return LABEL_RANK[node.role] ?? 3;
+}
+
+/** How the fitted view frames a Thread map: "contain", every device and its label inside the window at the active
+ *  density (main session, 2026-11-01: a network of a few devices, each an extreme of its box, would otherwise reach
+ *  past the window at medium density). */
+export const FIT = "contain";
+
 /** Cache key of the engine's view: only debug mode changes what a Thread map draws. */
 export function viewKey(view) {
   return view && view.debug ? "debug" : "plain";
@@ -54,8 +76,8 @@ export function overview(scene, view) {
 }
 
 /** The focus of device i: its own lanes, each with its class and value, and the glyph of each own direction without
- *  a reading (the renderer draws them on click). { hops: [{ s, h, dir, cls, stroke, rank, assumed, predicted }], ends: [], glyphs: [{ s, h,
- *  dir }], nodes: Set (i and its partners), band: null }. */
+ *  a reading (the renderer draws them on click). { hops: [{ s, h, dir, cls, stroke, rank, assumed, predicted }],
+ *  ends: [], glyphs: [{ s, h, dir }], nodes: Set (i and its partners), band: null }. */
 export function focus(scene, i) {
   classify(scene);
   const hops = [];
@@ -67,8 +89,8 @@ export function focus(scene, i) {
     nodes.add(pair.b);
     for (const li of pair.lanes) {
       const lane = scene.lanes[li];
-      if (scene.classes[li]) hops.push({ s: lane.s, h: lane.h, dir: lane.dir, ...look(scene.classes[li], lane.toParent) });
-      else glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir });
+      if (!scene.classes[li]) glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir });
+      else hops.push({ s: lane.s, h: lane.h, dir: lane.dir, ...look(scene.classes[li], lane.toParent) });
     }
   }
   return { hops, ends: [], glyphs, nodes, band: null };

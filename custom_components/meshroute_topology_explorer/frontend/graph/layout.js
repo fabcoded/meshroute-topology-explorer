@@ -4,8 +4,10 @@
 // differently, which would let the same seed drift apart between browsers.
 // Model: one spring per reading with rest length L = L0 × D × f(q), repulsion between all devices of the mesh scaled
 // with (L0 × D)², a pull to the centre (Eades 1984; Fruchterman and Reingold 1991: displacement capped by a cooling
-// temperature). Devices without readings sit on a ring just outside the mesh. Pinned devices do not move.
-// Usage: const layout = new Layout(network, { baseLength, density, seed }); layout.run(); layout.position(id)
+// temperature). Devices without readings sit on a ring just outside the mesh. Pinned devices do not move. q is the
+// reading's quality from 0 to 1 as the network's engine reads it (engine.springQuality; engines cut, section 2): the
+// layout knows no reading scale.
+// Usage: const layout = new Layout(network, { baseLength, density, seed, quality }); layout.run(); layout.position(id)
 // node --test tests/
 
 import { buildQuadtree, quadtreeForce } from "./quadtree.js";
@@ -29,11 +31,10 @@ export const PARAMS = Object.freeze({
   theta: 0.8, // Barnes-Hut opening criterion
 });
 
-/** f(q) of spec 7.1 for a measured LQI of 1..255. A reading of 0 or without a value is no spring (spec 7.1), so it
- *  has no factor: null. */
-export function springFactor(lqi) {
-  if (typeof lqi !== "number" || !(lqi > 0)) return null;
-  const q = Math.min(lqi, 255) / 255;
+/** f(q) of spec 7.1 for a reading's quality q in (0, 1] (engine.springQuality; Zigbee: LQI / 255). A reading
+ *  without a quality is no spring (spec 7.1), so it has no factor: null. */
+export function springFactor(q) {
+  if (typeof q !== "number" || !(q > 0)) return null;
   return 1 + 5 * (1 - q) * (1 - q); // a product, not **: Math.pow may be approximated per engine
 }
 
@@ -59,9 +60,11 @@ export function seededRandom(seed) {
 }
 
 export class Layout {
-  /** network: { devices: [{ id }], readings: [{ reporter, subject, lqi }] }; options: baseLength (L0), density (D),
-   *  seed, pinned (Map or object id -> { x, y }), params (overrides of PARAMS). */
-  constructor(network, { baseLength: l0 = 100, density = 1, seed = 1, pinned = null, params = {} } = {}) {
+  /** network: { devices: [{ id }], readings: [{ reporter, subject, ... }] }; options: baseLength (L0), density (D),
+   *  seed, pinned (Map or object id -> { x, y }), params (overrides of PARAMS), quality (reading -> 0..1 or null: the
+   *  network engine's springQuality; without it no reading is a spring). */
+  constructor(network, { baseLength: l0 = 100, density = 1, seed = 1, pinned = null, params = {}, quality = () => null }
+    = {}) {
     this.params = { ...PARAMS, ...params };
     this.K = l0 * density;
     // Sorted ids: the result does not depend on the order in which the adapter lists devices.
@@ -75,7 +78,7 @@ export class Layout {
     this.pinned = new Uint8Array(n);
     this.mesh = new Uint8Array(n);
     this.degree = new Uint32Array(n);
-    this._buildSprings(network.readings || []);
+    this._buildSprings(network.readings || [], quality);
     this._random = seededRandom(seed);
     this._place(pinned);
     this.temperature = this.params.heat * this.K;
@@ -85,29 +88,26 @@ export class Layout {
     this.placeRing();
   }
 
-  /** One spring per distinct (reporter, subject) with a measured value; a duplicate keeps the better value. Readings
-   *  of LQI 0 or without a value (the model marks them measured: false) are no springs: 0 may mean unmeasured, and
-   *  the links view draws such a direction as unknown (decision 2026-10-31). Readings that name unknown devices or a
-   *  device hearing itself are dropped. */
-  _buildSprings(readings) {
+  /** One spring per distinct (reporter, subject) with a quality (the engine's springQuality: null for a reading that
+   *  is no spring, such as LQI 0 or no value, which may mean unmeasured and is drawn as unknown; decision
+   *  2026-10-31); a duplicate keeps the better quality. Readings that name unknown devices or a device hearing itself
+   *  are dropped. */
+  _buildSprings(readings, quality) {
     const best = new Map();
     for (const r of readings) {
       const a = this.index.get(r && r.reporter);
       const b = this.index.get(r && r.subject);
       if (a === undefined || b === undefined || a === b) continue;
-      if (r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) continue;
+      const q = quality(r);
+      if (typeof q !== "number" || !(q > 0)) continue;
       const key = a * this.ids.length + b;
-      // Thread link quality 0-3 (model/thread.js) on the same curve: 3 is the top of the scale like 255.
-      const lqi = r.scale === "thread-lqi" ? Math.min(r.lqi, 3) * 85 : r.lqi;
-      if (!best.has(key) || (lqi !== null && (best.get(key).lqi === null || lqi > best.get(key).lqi))) {
-        best.set(key, { a, b, lqi });
-      }
+      if (!best.has(key) || q > best.get(key).q) best.set(key, { a, b, q });
     }
     const springs = [...best.values()].sort((p, q) => p.a - q.a || p.b - q.b);
     this.springA = new Uint32Array(springs.map((s) => s.a));
     this.springB = new Uint32Array(springs.map((s) => s.b));
-    this.springLqi = springs.map((s) => s.lqi);
-    this.rest = new Float64Array(springs.map((s) => this.K * springFactor(s.lqi)));
+    this.springQuality = springs.map((s) => s.q);
+    this.rest = new Float64Array(springs.map((s) => this.K * springFactor(s.q)));
     for (const s of springs) {
       this.mesh[s.a] = 1;
       this.mesh[s.b] = 1;
@@ -302,7 +302,7 @@ export class Layout {
     return taken;
   }
 
-  /** For each spring: its reading's LQI (null if unknown) and the drawn distance. Used by the fidelity check. */
+  /** For each spring: its reading's quality (0..1) and the drawn distance. Used by the fidelity check. */
   springLengths() {
     const out = [];
     for (let s = 0; s < this.rest.length; s++) {
@@ -310,7 +310,7 @@ export class Layout {
       const b = this.springB[s];
       const dx = this.x[b] - this.x[a];
       const dy = this.y[b] - this.y[a];
-      out.push({ lqi: this.springLqi[s], length: Math.sqrt(dx * dx + dy * dy) });
+      out.push({ quality: this.springQuality[s], length: Math.sqrt(dx * dx + dy * dy) });
     }
     return out;
   }

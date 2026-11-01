@@ -144,6 +144,13 @@ export function classifyLanes(network) {
   return { pairs: valid, lanes, upPaths, network: { ...net, pairs: valid } };
 }
 
+/** A reading's quality for the layout's springs (spec 7.1): its LQI on 0..255 as 0..1; null where it is no spring
+ *  (LQI 0 or no value, which may mean unmeasured; the model marks such a reading measured: false). */
+export function springQuality(r) {
+  if (!r || r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) return null;
+  return Math.min(r.lqi, 255) / 255;
+}
+
 /** Glyph for a direction without a reading (spec 4.3 reasons): "–" when the hearer has a table that does not list the
  *  sender (full, nearly full, with space, capacity unknown); "?" when there is no table to ask (end device, missing or
  *  stale table) or the table says LQI 0 (unmeasured or very weak). */

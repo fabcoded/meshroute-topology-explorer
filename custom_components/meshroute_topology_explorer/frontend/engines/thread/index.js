@@ -4,7 +4,7 @@
 // cut moves it here step by step without changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildThreadNetwork } from "../../model/thread.js";
-import { laneValue, legendEntries, unknownGlyph } from "./lanes.js";
+import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderThreadDetails } from "../../ui/thread-details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
@@ -28,6 +28,8 @@ export const thread = Object.freeze({
   laneValue: (dir, texts) => laneValue(dir, texts),
   /** "–" where the hearer's neighbour table was read and does not list the sender, "?" where there is none. */
   unknownGlyph: (reason) => unknownGlyph(reason),
+  /** A reading's quality 0..1 for the layout's springs (link quality / 3), or null: RSSI alone is no spring. */
+  springQuality: (reading) => springQuality(reading),
   /** The link rows of the legend: parent links, measured neighbours, the glyphs, RX in dBm; no stages. */
   legend: (theme) => legendEntries(theme),
   /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner. */
@@ -46,9 +48,11 @@ export const thread = Object.freeze({
    *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
   options: () => THREAD_OPTIONS,
   /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's own
-   *  lanes, no band, no ends (scene.js). */
+   *  lanes, no band, no ends (scene.js). anchors: the leader and the border routers, always labelled; fit "contain":
+   *  the whole network in the window at the active density. */
   scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
-    overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES }),
+    overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
+    anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
   /** Its own settings keys: none. */
   settings: SETTINGS,
 });

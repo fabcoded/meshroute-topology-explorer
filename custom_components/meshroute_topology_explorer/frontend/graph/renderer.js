@@ -16,10 +16,8 @@ import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import { BAND, DIM, LANE_OFFSET, STEM, VALUE_AT, laneGeometry, laneStyle, stemGeometry, textBeside } from "./links.js";
 import { engineFor } from "../engines/index.js";
-import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
+import { ROLES, SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 
-/** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
-const ROLES = new Set(["coordinator", "router", "end device", "border router", "unknown"]);
 /** The node diameter in L0 (spec 7.1): every device has the same symbol size. */
 export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
@@ -86,7 +84,7 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const labels = displayLabels(devices, measure, maxLabelWidth);
   const ha = haLabels(devices, (text) => measure(text) * SMALL_SHARE, maxLabelWidth); // drawn in the smaller font
   const nodes = devices.map((d, i) => {
-    const role = ROLES.has(d.role) ? d.role : "unknown";
+    const role = ROLES.includes(d.role) ? d.role : "unknown";
     const parts = symbolParts({ ...d, role });
     return {
       id: d.id,
@@ -475,8 +473,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   }
 
   // Text, in order of importance. A label block tries its places around its device and is left out if all would
-  // cover another device or text already placed (the details list everything); the coordinator and the focus are
-  // always labelled, in the first place if nothing else is free. Order: coordinator and focus, the reception at the
+  // cover another device or text already placed (the details list everything); the engine's anchors and the focus are
+  // always labelled, in the first place if nothing else is free. Order: anchors and focus, the reception at the
   // hops of the focus's paths, "?" and "path unknown" at their unknown ends, the other devices on the paths,
   // everyone else from LABEL_SCALE up, values on other lanes (debug).
   ctx.globalAlpha = 1;
@@ -614,8 +612,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       return;
     }
   };
-  const always = [];
-  for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
+  // The engine's anchors are always labelled (Zigbee: the coordinator; Thread: the leader and the border routers).
+  const always = engine ? engine.scene.anchors(scene).filter((i) => !focusSet.has(i)) : [];
   for (const i of [...focus, ...always]) label(i, true);
   // Values of the strongest hops claim their places first (the engine's rank; Zigbee: the way up and down, then
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
@@ -627,10 +625,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);
   if (labelsForAll(k, view.labelZoom)) {
-    const rank = { coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 };
+    // Everyone else in the engine's label order (labelRank: the more central a role, the earlier).
+    const rank = (i) => engine.scene.labelRank(scene.nodes[i]);
     const rest = [];
     for (let i = 0; i < n; i++) if (!near.has(i) && !always.includes(i)) rest.push(i);
-    rest.sort((a, b) => rank[scene.nodes[a].role] - rank[scene.nodes[b].role] || a - b);
+    rest.sort((a, b) => rank(a) - rank(b) || a - b);
     for (const i of rest) label(i, false);
   }
   for (const t of laneTexts) if (!t.path) value(t);
