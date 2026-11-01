@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// The Devices tab: a filter field and a single-select listbox of every device, the keyboard path to each of them
-// (spec 9.3). Arrows move the active row, Enter (or a click) selects the device and zooms to it. Focus stays on the
-// listbox; the active row is announced through aria-activedescendant (WAI-ARIA listbox pattern). Runs in the browser;
-// the keyboard model is ListModel in device-list.js.
+// The Devices tab of the left panel: a search field, a line on what a click does, and a single-select listbox of every
+// device, the keyboard path to each of them (spec 9.3). Arrows move the active row, Enter (or a click) selects the
+// device and zooms to it; with "Details on click" on, the panel then shows its Details. Focus stays on the listbox;
+// the active row is announced through aria-activedescendant (WAI-ARIA listbox pattern). Runs in the browser; the
+// keyboard model is ListModel in device-list.js.
 import { h } from "./dom.js";
 import { ListModel, deviceRows } from "./device-list.js";
 import { receptionText, roleText } from "./format.js";
@@ -21,17 +22,25 @@ export class DevicesTab {
     this.filter = h("input", { type: "search", class: "filter", autocomplete: "off", spellcheck: false,
       on: { input: () => this._onFilter(), keydown: (e) => this._onFilterKey(e) } });
     this.count = h("p", { class: "muted small", "aria-live": "polite" });
+    this.searchText = h("span", { class: "filter-title" });
+    this.hint = h("p", { class: "muted small devices-hint" });
     this.list = h("ul", { role: "listbox", class: "devices", tabIndex: 0, on: { keydown: (e) => this._onKey(e) } });
-    this.el = h("div", { class: "devices-tab" }, h("label", { class: "filter-label" }, this.filter), this.count, this.list);
+    this.el = h("div", { class: "devices-tab" }, h("label", { class: "filter-label" }, this.searchText, this.filter),
+      this.hint, this.count, this.list);
   }
 
   setNetwork(network, t) {
     this.t = t;
     this.model.setRows(deviceRows(network));
+    this.searchText.textContent = t("devices.search");
     this.filter.placeholder = t("devices.filter");
-    this.filter.setAttribute("aria-label", t("devices.filter"));
     this.list.setAttribute("aria-label", t("devices.list"));
     this._render();
+  }
+
+  /** The line under the search field: what a click on a device does, by "Details on click". */
+  setHint(openOnSelect) {
+    if (this.t) this.hint.textContent = this.t(openOnSelect ? "devices.hint_on" : "devices.hint_off");
   }
 
   /** The selected device changed elsewhere (map, findings): mark it and make it the active row. */
@@ -83,7 +92,8 @@ export class DevicesTab {
       this._countText = countText;
     }
     this.list.replaceChildren(...rows.map((r) => {
-      const meta = [roleText(r.role, t), r.area, r.available ? receptionText(r.rating, t) : t("devices.unavailable")]
+      const kind = r.kind && r.kind !== "unknown" ? t(`kind_short.${r.kind}`) : null;
+      const meta = [kind, roleText(r.role, t), r.area, r.available ? receptionText(r.rating, t) : t("devices.unavailable")]
         .filter(Boolean).join(" · ");
       return h("li", { role: "option", id: this.prefix + r.id.replace(/:/g, ""), class: "device-row",
         "aria-selected": r.id === this.selected ? "true" : "false",

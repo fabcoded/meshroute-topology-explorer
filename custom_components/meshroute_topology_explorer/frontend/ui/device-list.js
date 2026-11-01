@@ -10,7 +10,7 @@ const PAGE = 10;
  *  user may type: label, ZHA name, vendor, model, area, IEEE and network address (as 0x1234 and decimal). */
 export function deviceRows(network) {
   return network.devices.map((d) => ({
-    id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating,
+    id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating, kind: d.kind || null,
     search: [d.label, d.name, d.vendor, d.model, d.area, d.id,
       typeof d.nwk === "number" ? `0x${d.nwk.toString(16).padStart(4, "0")} ${d.nwk}` : ""]
       .filter(Boolean).join(" ").toLowerCase(),

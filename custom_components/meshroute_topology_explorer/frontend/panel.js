@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Entry module of the Meshroute Topology Explorer panel: the quality view of a ZHA network (spec 6-11). Home
 // Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
-// Layout (spec 9.1; decision by Fabian Schwamborn, 2026-10-31): no header bar; the map fills the panel with floating
-// groups at its edges: title pill (with the sidebar button on narrow screens) top left, options group top right,
-// zoom group bottom right, legend pill bottom left; one drawer (Details, Devices, Findings, Legend, Settings) and the
-// status line.
+// Layout (spec 9.1; design by Fabian Schwamborn, 2026-11-01, "one place per thing"): no header bar; the map fills the
+// panel. On the map only: top left "Devices" with the findings count and below it the slide switch "Details on click"
+// (with the sidebar button on narrow screens), top right "View" and below it "Legend", the zoom group bottom right,
+// the status line. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide
+// screens and bottom sheets on narrow ones (one sheet at a time).
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
 // Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
 // since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
@@ -12,30 +13,28 @@
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
-import { DEFAULT_LINKS } from "./graph/links.js";
 import { resolveTheme } from "./graph/palette.js";
-import { normalizeIeee, NODE_VIEWS } from "./model/index.js";
+import { normalizeIeee, KINDS } from "./model/index.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
 import { ObservationsClient } from "./ui/observations-client.js";
 import { ScanFollower, tablesDiffer } from "./ui/scan.js";
 import { confirmDialog } from "./ui/dialog.js";
-import { SettingsClient, pinsForView, presentPins, DENSITY_NAMES } from "./ui/settings.js";
-import { FILLS } from "./graph/palette.js";
+import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
 import { languageOf, translator, localize } from "./ui/i18n.js";
-import { drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
-import { OptionsGroup } from "./ui/options-group.js";
-import { Drawer } from "./ui/drawer.js";
+import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
+import { MapButtons } from "./ui/map-buttons.js";
+import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
 import { DevicesTab } from "./ui/devices-tab.js";
 import { renderDetails } from "./ui/details-tab.js";
 import { renderFindings, markFindings } from "./ui/findings-tab.js";
-import { renderLegend, renderLegendPill } from "./ui/legend-tab.js";
-import { renderSettings } from "./ui/settings-tab.js";
+import { renderLegend } from "./ui/legend-tab.js";
+import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
 import { statusParts, isIncomplete } from "./ui/status.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
-import { h, icon, iconButton } from "./ui/dom.js";
+import { h, iconButton } from "./ui/dom.js";
 import { STYLES } from "./ui/styles.js";
 import { versionMismatch } from "./ui/version.js";
 
@@ -62,7 +61,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._selected = null;
     this._debug = false; // never stored (spec 9.1)
     this._wide = true;
-    this._drawerAuto = false; // the drawer was opened by "open details on select", not by the user
+    this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
+    this._densityInfo = false; // the density note in the View tab is shown
     this._dirty = new Set();
     this._connection = "ok";
     this._controller = new PanelController();
@@ -103,7 +103,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   set narrow(value) {
     this._narrow = Boolean(value);
-    if (this._ui) this._renderHeader();
+    if (this._ui) this._renderButtons();
   }
   get narrow() { return this._narrow; }
 
@@ -116,7 +116,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   connectedCallback() {
     if (!this._ui) this._build();
     this._resize.observe(this._ui.map);
-    this._resize.observe(this._options.el); // its width bounds the band for banners (floatingLayout)
+    // Their sizes bound the band for banners (floatingLayout).
+    this._resize.observe(this._buttons.left);
+    this._resize.observe(this._buttons.right);
     this._media = globalThis.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
     if (this._media) this._media.addEventListener("change", this._onMedia);
     document.addEventListener("visibilitychange", this._onPageHide);
@@ -134,7 +136,6 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._media) this._media.removeEventListener("change", this._onMedia);
     document.removeEventListener("visibilitychange", this._onPageHide);
     window.removeEventListener("pagehide", this._onPageHide);
-    this._options.closeMenus();
     if (this._settings) this._settings.flush();
     if (this._observations) this._observations.flush();
     // A hidden panel does not keep reading zha/devices: following the scan ends here (the scan itself goes on).
@@ -147,62 +148,37 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _build() {
     const ui = {};
     this._ui = ui;
-    ui.sidebar = iconButton("menu", "", () => {
+    // The controls on the map: Devices (with the findings count) and the switch top left, View and Legend top right.
+    this._buttons = new MapButtons({
       // Custom panels bring their own sidebar button on narrow screens. Home Assistant's menu button fires the
       // bubbling, composed event "hass-toggle-menu", which the main shell handles (home-assistant/frontend,
       // ha-menu-button).
-      this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true }));
+      onSidebar: () => this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true })),
+      onDevices: (button) => this._request("left", "devices", button),
+      onSwitch: (on) => this._setOpenOnSelect(on),
+      onView: (button) => this._request("right", "view", button),
+      onLegend: (button) => this._request("right", "legend", button),
     });
-    ui.title = h("h1", { class: "title" });
-    // Top left: the title as a small floating pill; on narrow screens the sidebar button joins it.
-    ui.titlePill = h("div", { class: "title-pill float" }, ui.sidebar, ui.title);
-    // Top right: the options group (labelled rows; icons on narrow screens).
-    this._options = new OptionsGroup({
-      menuItems: () => this._menuItems(), onMenu: (id) => this._onMenu(id),
-      onFindings: (button) => this._toggleTab("findings", button),
-      links: () => (this._settings ? this._settings.settings.links : DEFAULT_LINKS),
-      onLink: (cls, on) => this._settings && this._settings.update({ links: { ...this._settings.settings.links, [cls]: on } }),
-      colors: () => Boolean(this._settings && this._settings.settings.receptionColors),
-      onColors: (on) => this._settings && this._settings.update({ receptionColors: on }),
-      densityItems: () => DENSITY_NAMES.map((name) => ({ id: name, type: "radio", label: this._t(`density.${name}`),
-        checked: this._settings && this._settings.settings.density === name })),
-      onDensity: (name) => this._settings && this._settings.update({ density: name }),
-      nodeViewItems: () => NODE_VIEWS.map((name) => ({ id: name, type: "radio", label: this._t(`nodeview.${name}`),
-        checked: this._settings && this._settings.settings.nodeView === name })),
-      onNodeView: (name) => this._settings && this._settings.update({ nodeView: name }),
-      fillItems: () => FILLS.map((name) => ({ id: name, type: "radio", label: this._t(`fill.${name}`),
-        checked: this._settings && this._settings.settings.fill === name })),
-      onFill: (name) => this._settings && this._settings.update({ fill: name }),
-      onFit: () => this._view && this._view.fit(),
-    });
-    this._menu = this._options.menu;
-    ui.menuButton = this._options.menuButton;
 
     ui.canvas = h("canvas", { "aria-describedby": "mte-status" });
     ui.incomplete = h("div", { class: "banner incomplete float" }, h("strong"), h("span"));
     ui.lost = h("div", { class: "banner lost float", role: "alert" });
     ui.loading = h("div", { class: "banner loading float", role: "status" });
-    ui.chipName = h("span", { class: "chip-name" });
-    ui.chipDetails = h("button", { type: "button", class: "chip-details", on: { click: () => this._openDetails(this._selected, "button") } },
-      icon("info", 18), h("span"));
-    ui.chipClear = iconButton("close", "", () => this._select(null, "chip"));
-    ui.chip = h("div", { class: "chip float" }, ui.chipName, ui.chipDetails, ui.chipClear);
-    ui.top = h("div", { class: "top" }, ui.incomplete, ui.lost, ui.loading, ui.chip);
+    ui.top = h("div", { class: "top" }, ui.incomplete, ui.lost, ui.loading);
     ui.zoomIn = iconButton("plus", "", () => this._view && this._view.zoomIn());
     ui.zoomOut = iconButton("minus", "", () => this._view && this._view.zoomOut());
     ui.zoomFit = iconButton("fit", "", () => this._view && this._view.fit());
     ui.zoom = h("div", { class: "zoom float" }, ui.zoomIn, ui.zoomOut, ui.zoomFit);
-    // Bottom left: the legend pill, collapsed or expanded as stored (settings.legendOpen).
-    ui.mini = h("div", { class: "legend-box float" });
     ui.message = h("div", { class: "message" });
 
-    this._drawer = new Drawer({ onChange: () => this._onDrawer() });
-    this._drawer.fallback = ui.canvas;
-    this._devicesTab = new DevicesTab({ onSelect: (id) => this._select(id, "list") });
-    this._drawer.panel("devices").append(this._devicesTab.el);
+    this._left = new Drawer({ tabs: LEFT_TABS, side: "left", onChange: () => this._onDrawer() });
+    this._right = new Drawer({ tabs: RIGHT_TABS, side: "right", onChange: () => this._onDrawer() });
+    for (const d of [this._left, this._right]) d.fallback = ui.canvas;
+    this._devicesTab = new DevicesTab({ onSelect: (id) => this._select(id, "devices") });
+    this._left.panel("devices").append(this._devicesTab.el);
 
-    ui.map = h("div", { class: "map" }, ui.canvas, ui.top, ui.zoom, ui.mini, ui.titlePill, this._options.el,
-      this._drawer.el, ui.message);
+    ui.map = h("div", { class: "map" }, ui.canvas, ui.top, ui.zoom, this._buttons.left, this._buttons.right,
+      this._left.el, this._right.el, ui.message);
     ui.status = h("section", { class: "status", id: "mte-status" });
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
@@ -216,19 +192,16 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _retranslate() {
     const t = this._t;
     const ui = this._ui;
-    ui.title.textContent = t("app.short_title");
-    ui.title.title = t("app.title");
     ui.canvas.setAttribute("aria-label", t("map.label"));
     ui.lost.textContent = t("map.connection_lost");
     ui.loading.textContent = t("map.loading");
-    ui.chipDetails.lastChild.textContent = t("selection.details");
     ui.status.setAttribute("aria-label", t("status.label"));
-    for (const [button, key] of [[ui.sidebar, "header.sidebar"], [ui.zoomIn, "zoom.in"],
-      [ui.zoomOut, "zoom.out"], [ui.zoomFit, "zoom.fit"], [ui.chipClear, "selection.clear"]]) {
+    for (const [button, key] of [[ui.zoomIn, "zoom.in"], [ui.zoomOut, "zoom.out"], [ui.zoomFit, "zoom.fit"]]) {
       button.setAttribute("aria-label", t(key));
       button.title = t(key);
     }
-    this._drawer.setTexts(t);
+    this._left.setTexts(t, t("panel.left_label"));
+    this._right.setTexts(t, t("panel.right_label"));
     if (this._source) {
       // The coordinator's label is translated, so the map gets the new network (same layout seed, same picture).
       this._network = localize(this._source, t);
@@ -236,7 +209,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (this._view) this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
       this._devicesTab.setNetwork(this._network, t);
       this._devicesTab.setSelected(this._selected);
-      this._dirty = new Set(["details", "findings", "legend", "settings"]);
+      this._dirty = new Set(["details", "findings", "legend", "view"]);
     }
     this._onState();
   }
@@ -288,7 +261,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
     this._devicesTab.setNetwork(this._network, this._t);
     this._devicesTab.setSelected(this._selected);
-    this._dirty = new Set(["details", "findings", "legend", "settings"]);
+    this._dirty = new Set(["details", "findings", "legend", "view"]);
     this._render();
   }
 
@@ -299,7 +272,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (!client || client.network !== network.id) {
       if (client) client.dispose();
       client = new ObservationsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
-      client.addEventListener("change", () => { this._dirty.add("details").add("settings"); });
+      client.addEventListener("change", () => { this._dirty.add("details").add("view"); });
       this._observations = client;
       this._observationsStale = false;
       await client.load();
@@ -314,8 +287,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, links: s.links, nodeView: s.nodeView, receptionColors: s.receptionColors,
-      texts: this._graphTexts() });
+      debug: this._debug, links: s.links, nodeView: s.nodeView, receptionColors: s.pathColors.mode === "coloured",
+      receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
@@ -335,10 +308,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setFill(s.fill);
       this._view.setLinks(s.links);
       this._view.setNodeView(s.nodeView);
-      this._view.setReceptionColors(s.receptionColors);
+      this._view.setReceptionColors(s.pathColors.mode === "coloured");
+      this._view.setReceptionStops(stopsOf(s.pathColors));
+      this._view.setLabels(s.labels);
     }
     // The details carry the selection's paths as text, in the node view's mode.
-    this._dirty.add("settings").add("legend").add("details");
+    this._dirty.add("view").add("legend").add("details");
     this._render();
   }
 
@@ -350,12 +325,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const st = this._controller.state;
     const mismatch = this._versionMismatch();
     const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === st.network;
-    this._renderHeader(ready);
-
-    for (const el of [ui.canvas, ui.top, ui.zoom, ui.mini, ui.status, this._options.el]) el.hidden = !ready;
+    for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
-      ui.chip.hidden = true; // on narrow screens it sits on the map itself, outside ui.top
-      this._drawer.close();
+      this._left.close();
+      this._right.close();
       this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message);
       if (this._view) this._view.resize();
       return;
@@ -363,9 +336,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.message.hidden = true;
     if (this._view) this._view.resize();
     const net = this._network;
+    this._renderButtons();
 
-    // Status line (spec 6): source, tables, devices in a table, completeness, the 4-hour hint. "Observed unchanged
-    // since" and the scan come with the next slice (observations through the integration); statusParts has the seam.
+    // Status line (spec 6): source, tables, devices in a table, completeness, the 4-hour hint, "observed unchanged
+    // since" and a followed scan.
     this._renderStatus();
     const incomplete = isIncomplete(net.status);
     ui.incomplete.hidden = !incomplete;
@@ -375,15 +349,6 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     ui.lost.hidden = st.connection !== "lost";
     ui.loading.hidden = !st.loading || st.connection === "lost";
-    this._renderChip();
-    // Above an expanded sheet the map keeps little room: the legend steps aside (the Legend tab is one tap away).
-    // On narrow screens the selection chip takes its place at the bottom.
-    ui.mini.hidden = (this._drawer.mode === "sheet" && this._drawer.isOpen && this._drawer.expanded)
-      || (!this._wide && Boolean(this._selected) && !ui.chip.hidden);
-    renderLegendPill(ui.mini, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
-      links: this._view ? this._view.legend() : [], open: this._legendOpen(),
-      onToggle: () => this._settings.update({ legendOpen: !this._legendOpen() }),
-      onMore: () => this._toggleTab("legend", ui.mini, false) });
     this._renderTabs();
   }
 
@@ -413,29 +378,32 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }));
   }
 
-  /** The title pill and the options group (the panel has no header bar, spec 9.1). */
-  _renderHeader(ready = this._ui && !this._ui.canvas.hidden) {
-    const ui = this._ui;
-    const t = this._t;
-    ui.sidebar.hidden = !this._narrow;
-    this._options.el.hidden = !ready;
-    if (!ready || !this._settings || !this._network) return;
-    const s = this._settings.settings;
-    this._options.update({ t, count: badgeCount(this._network.findings), density: t(`density.${s.density}`),
-      nodeView: t(`nodeview.${s.nodeView}`), fill: t(`fill.${s.fill}`) });
+  /** The controls on the map (spec 9.1). On wide screens a side panel covers its corner, so that corner's group is
+   *  hidden while its panel is open; the switch shows only while the left panel is closed. */
+  _renderButtons() {
+    if (!this._ui || !this._network) return;
+    const side = this._left.mode === "side";
+    this._buttons.update({ t: this._t, count: badgeCount(this._network.findings), openOnSelect: this._openOnSelect(),
+      narrow: this._narrow, hideLeft: side && this._left.isOpen, hideRight: side && this._right.isOpen,
+      leftOpen: this._left.isOpen });
   }
 
-  /** Whether the legend pill is expanded: as stored, else by width (expanded on wide panels, spec 11). */
-  _legendOpen() {
-    const stored = this._settings ? this._settings.settings.legendOpen : null;
-    return stored === null || stored === undefined ? this._wide : stored;
+  /** "Details on click": as stored, else by width (spec 9.2). */
+  _openOnSelect() {
+    return openOnSelect(this._settings ? this._settings.settings.openDetailsOnSelect : null, this._wide);
   }
 
-  /** Words the map draws itself: LQI 0, the values of implied lanes, "RX:" above a value, an unknown path's end. */
+  _setOpenOnSelect(on) {
+    if (this._settings) this._settings.update({ openDetailsOnSelect: Boolean(on) });
+  }
+
+  /** Words the map draws itself: LQI 0, the values of implied lanes, "RX:" above a value, an unknown path's end, and
+   *  the device types above the symbols. */
   _graphTexts() {
     const t = this._t;
+    const kinds = Object.fromEntries(KINDS.filter((k) => k !== "unknown").map((k) => [k, t(`kind_short.${k}`)]));
     return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route"), rx: t("lane.rx"),
-      pathUnknown: t("lane.path_unknown") };
+      pathUnknown: t("lane.path_unknown"), kinds };
   }
 
   _renderMessage(phase, detail) {
@@ -452,50 +420,48 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (reload) ui.message.append(h("button", { type: "button", class: "button", text: t("message.reload"), on: { click: () => location.reload() } }));
   }
 
-  /** The selection chip: name, a Details button (the info button of spec 9.2) and clear. Hidden while the drawer is
-   *  on Details, where the collapsed sheet's one line already names the selection. */
-  _renderChip() {
-    const ui = this._ui;
-    const device = this._device(this._selected);
-    ui.chip.hidden = !device || (this._drawer.isOpen && this._drawer.tab === "details");
-    if (!device) return;
-    ui.chipName.textContent = device.label;
-    ui.chipDetails.setAttribute("aria-label", this._t("selection.details_label", { name: device.label }));
-  }
-
-  /** Render the tab that can be seen, if its content is out of date; others wait until they are shown. */
+  /** Render the tabs that can be seen, if their content is out of date; others wait until they are shown. */
   _renderTabs() {
-    const d = this._drawer;
     const t = this._t;
-    this._drawer.setSummary(this._summary());
-    if (d.isOpen && d.tab === "devices") this._devicesTab.showActive();
-    if (!d.isOpen || !this._dirty.has(d.tab)) return;
-    const panel = d.panel(d.tab);
-    this._dirty.delete(d.tab);
-    if (d.tab === "details") {
-      const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
-      renderDetails(panel, { network: this._network, t, id: this._selected, debug: this._debug, raw: this._raw,
-        nodeView: this._settings.settings.nodeView,
-        observedSince: seen ? t.when(seen) : null,
-        pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
-        onSelect: (id) => this._select(id, "list"), onRelease: (id) => this._release([id]) });
-    } else if (d.tab === "findings") {
-      renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "list") });
-    } else if (d.tab === "legend") {
-      renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
-        devices: this._network ? this._network.devices : [], links: this._view ? this._view.legend() : [], debug: this._debug });
-    } else if (d.tab === "settings") {
-      keepFocus(this._root, panel, () => renderSettings(panel, { t, settings: this._settings.settings, wide: this._wide,
-        pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings, idPrefix: "mte-settings",
-        observations: this._debug ? this._observations : null,
-        onChange: (patch) => this._settings.update(patch), onReleaseAll: () => this._release(null) }));
+    const findings = badgeCount(this._network.findings);
+    this._left.setTabCount("findings", findings);
+    this._devicesTab.setHint(this._openOnSelect());
+    for (const d of [this._left, this._right]) {
+      d.setSummary(this._summary(d));
+      if (d.isOpen && d.tab === "devices") this._devicesTab.showActive();
+      if (!d.isOpen || !this._dirty.has(d.tab)) continue;
+      const panel = d.panel(d.tab);
+      this._dirty.delete(d.tab);
+      if (d.tab === "details") {
+        const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
+        renderDetails(panel, { network: this._network, t, id: this._selected, debug: this._debug, raw: this._raw,
+          nodeView: this._settings.settings.nodeView,
+          observedSince: seen ? t.when(seen) : null,
+          pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
+          onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) });
+      } else if (d.tab === "findings") {
+        renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "findings") });
+      } else if (d.tab === "legend") {
+        renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
+          devices: this._network.devices, links: this._view ? this._view.legend() : [], debug: this._debug });
+      } else if (d.tab === "view") {
+        keepFocus(this._root, panel, () => renderView(panel, { t, settings: this._settings.settings,
+          openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
+          pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
+          scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",
+          observations: this._debug ? this._observations : null, infoOpen: this._densityInfo,
+          onChange: (patch) => this._settings.update(patch), onOpenDetails: (on) => this._setOpenOnSelect(on),
+          onDebug: (on) => this._setDebug(on), onReload: () => this._controller.reload(),
+          onReleaseAll: () => this._release(null), onScan: (button) => this._startScan(button),
+          onScanStop: () => this._scan && this._scan.stop(),
+          onInfo: (open) => { this._densityInfo = open; this._dirty.add("view"); this._render(); } }));
+      }
     }
   }
 
-  /** One line for the collapsed sheet. */
-  _summary() {
+  /** One line for a collapsed sheet. */
+  _summary(d) {
     const t = this._t;
-    const d = this._drawer;
     if (d.tab === "details") {
       const device = this._device(this._selected);
       return device ? `${device.label} · ${device.available ? receptionText(device.rating, t) : t("devices.unavailable")}` : t("tab.details");
@@ -506,11 +472,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     return t(`tab.${d.tab}`);
   }
 
-  // ---- selection and drawer ------------------------------------------------------------------------------------
+  // ---- selection and panels ------------------------------------------------------------------------------------
 
-  /** Select a device (null clears). source: "map" (the view already selected it and keeps it clear of the drawer),
-   *  "list" (Devices, Findings, a device named in Details: select and zoom to it, spec 9.3) or "chip". What the drawer
-   *  does follows ui/drawer-rule.js. */
+  /** Select a device (null clears). source: "map" (the view already selected it and keeps it clear of the panels),
+   *  "devices" (the Devices list), "findings" or "details" (a device named there): select and zoom to it (spec 9.3).
+   *  What the panels do follows ui/drawer-rule.js. */
   _select(id, source) {
     const t = this._t;
     this._selected = id;
@@ -519,49 +485,55 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (id) this._view.reveal(id, this._view.insets, { zoom: true });
     }
     this._devicesTab.setSelected(id);
-    markFindings(this._drawer.panel("findings"), id);
+    markFindings(this._left.panel("findings"), id);
     this._dirty.add("details");
-    const stored = this._settings ? this._settings.settings.openDetailsOnSelect : null;
-    this._applyDrawer(afterSelect({ id, source, openOnSelect: openOnSelect(stored, this._wide), drawer: this._drawerState() }));
+    const focusInLeft = this._left.el.contains(this._root.activeElement);
+    this._apply(afterSelect({ id, source, openOnSelect: this._openOnSelect(), state: this._panelState() }),
+      null, { focusInLeft });
     const device = this._device(id);
     this._announce(device ? t("live.selected", { name: device.label, role: roleText(device.role, t),
       reception: device.available ? receptionText(device.rating, t) : t("devices.unavailable") }) : t("live.cleared"));
     this._render();
   }
 
-  /** Details asked for explicitly (right-click, long press, menu key, the info button). */
+  /** Details asked for explicitly (right-click, long press, menu key). */
   _openDetails(id, via) {
-    if (id && id !== this._selected) this._select(id, via === "button" ? "chip" : "map");
-    this._applyDrawer(detailsRequest(via), via === "button" ? this._ui.canvas : this._root.activeElement);
+    if (id && id !== this._selected) this._select(id, "map");
+    this._apply(detailsRequest(via, this._panelState()), this._root.activeElement);
   }
 
-  /** Header (badge, small legend; toggle) and menu (always opens): a tab of the drawer. */
-  _toggleTab(tab, opener, toggle = true) {
-    this._applyDrawer(tabRequest({ tab, drawer: this._drawerState(), toggle }), opener);
+  /** A button on the map asks for a tab of a panel; pressed again while that tab is in view, it closes the panel. */
+  _request(panel, tab, opener) {
+    this._apply(tabRequest({ panel, tab, state: this._panelState() }), opener);
   }
 
-  _drawerState() {
-    const d = this._drawer;
-    return { isOpen: d.isOpen, tab: d.tab, mode: d.mode, expanded: d.expanded, auto: this._drawerAuto };
+  _panelState() {
+    const of = (d) => ({ isOpen: d.isOpen, tab: d.tab, mode: d.mode, expanded: d.expanded });
+    return { wide: this._wide, left: { ...of(this._left), auto: this._leftAuto }, right: of(this._right) };
   }
 
-  /** Carry out an answer of drawer-rule.js. */
-  _applyDrawer(answer, opener = null) {
-    if (answer.action === "close") {
-      this._drawer.close();
-    } else if (answer.action === "open") {
-      this._drawerAuto = answer.auto;
-      this._drawer.open(answer.tab, { expanded: answer.expanded, focus: answer.focus, opener });
+  /** Carry out the steps of drawer-rule.js. focusInLeft: focus was inside the left panel when a list selection
+   *  switched it to Details, so it follows into the Details. */
+  _apply(steps, opener = null, { focusInLeft = false } = {}) {
+    for (const step of steps) {
+      const d = step.panel === "left" ? this._left : this._right;
+      if (step.action === "close") {
+        d.close();
+        continue;
+      }
+      if (step.panel === "left") this._leftAuto = step.auto;
+      d.open(step.tab, { expanded: step.expanded, focus: step.focus === "tab", opener });
+      if (step.focus === "panel" && focusInLeft) d.focusPanel();
     }
   }
 
   _onDrawer() {
-    if (!this._drawer.isOpen) this._drawerAuto = false;
+    if (!this._left.isOpen) this._leftAuto = false;
     this._layout();
     this._render();
   }
 
-  /** Sizes: wide or narrow, the drawer's mode and size, and the insets that keep the selection clear of it. */
+  /** Sizes: wide or narrow, the panels' mode and size, and the insets that keep the selection clear of them. */
   _layout() {
     if (!this._ui || !this._ui.map.isConnected) return;
     const rect = this._ui.map.getBoundingClientRect();
@@ -569,30 +541,32 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const wide = isWide(rect.width);
     if (wide !== this._wide) {
       this._wide = wide;
-      this._dirty.add("settings");
-      this._renderHeader();
-      if (this._network && !this._ui.status.hidden) this._render(); // status forms, legend default by width
+      this._dirty.add("view");
+      // Two sheets would cover each other: on a narrow screen the right one gives way.
+      if (!wide && this._left.isOpen && this._right.isOpen) this._right.close();
+      if (this._network && !this._ui.status.hidden) this._render(); // status forms, "Details on click" by width
     }
-    const g = drawerGeometry({ width: rect.width, height: rect.height, open: this._drawer.isOpen, expanded: this._drawer.expanded });
-    this._drawer.setMode(g.mode, g.size);
-    // Floating groups: out of the drawer's way by the same insets that keep the selection clear of it.
-    this._options.setMode(wide ? "rows" : "icons");
-    const optionsBox = this._options.el.getBoundingClientRect();
-    const f = floatingLayout({ width: rect.width, height: rect.height, insets: g.insets,
-      options: { width: optionsBox.width, height: optionsBox.height } });
-    this.style.setProperty("--inset-right", `${g.insets.right}px`);
-    this.style.setProperty("--inset-bottom", `${g.insets.bottom}px`);
-    this.style.setProperty("--band-right", `${f.band.right}px`);
+    const size = (d) => drawerGeometry({ width: rect.width, height: rect.height, open: d.isOpen, expanded: d.expanded, side: d.side });
+    const gl = size(this._left);
+    const gr = size(this._right);
+    this._left.setMode(gl.mode, gl.size);
+    this._right.setMode(gr.mode, gr.size);
+    const insets = combinedInsets(gl.insets, gr.insets);
+    this._renderButtons();
+    const box = (el) => {
+      if (el.hidden) return { width: 0, height: 0 };
+      const r = el.getBoundingClientRect();
+      return { width: r.width, height: r.height };
+    };
+    const f = floatingLayout({ width: rect.width, height: rect.height, insets, left: box(this._buttons.left),
+      right: box(this._buttons.right) });
+    this.style.setProperty("--inset-left", `${insets.left}px`);
+    this.style.setProperty("--inset-right", `${insets.right}px`);
+    this.style.setProperty("--inset-bottom", `${insets.bottom}px`);
     this.style.setProperty("--band-top", `${f.band.top}px`);
-    this.style.setProperty("--legend-max-width", `${f.legend.maxWidth}px`);
-    this.style.setProperty("--legend-max-height", `${f.legend.maxHeight}px`);
-    // The selection chip: in the band below the title on wide screens, near the bottom (thumb reach) on narrow ones.
-    const chipHome = f.chip.place === "band" ? this._ui.top : this._ui.map;
-    if (this._ui.chip.parentNode !== chipHome) {
-      if (chipHome === this._ui.top) this._ui.top.append(this._ui.chip); else this._ui.map.insertBefore(this._ui.chip, this._ui.zoom);
-      this._ui.chip.classList.toggle("chip-bottom", chipHome !== this._ui.top);
-    }
-    if (this._view) this._view.setInsets(g.insets);
+    this.style.setProperty("--band-left", `${f.band.left}px`);
+    this.style.setProperty("--band-right", `${f.band.right}px`);
+    if (this._view) this._view.setInsets(insets);
   }
 
   /** Release pins: the given ids, or all pins of devices in the network (null). */
@@ -604,30 +578,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._render();
   }
 
-  _menuItems() {
-    const t = this._t;
-    const pins = this._settings ? presentPins(this._settings.settings.pins, this._network).length : 0;
-    return [
-      { id: "devices", label: t("menu.devices") }, { id: "legend", label: t("menu.legend") },
-      { id: "settings", label: t("menu.settings") }, { type: "separator" },
-      { id: "debug", type: "checkbox", checked: this._debug, label: t("menu.debug") },
-      { id: "fit", label: t("menu.fit") },
-      { id: "release", label: t("menu.release_pins", { count: pins }), disabled: !pins },
-      { id: "reload", label: t("menu.reload") },
-      // The scan exists in debug mode only (spec 6, 9.1): it causes radio traffic.
-      ...(this._debug ? [{ type: "separator" },
-        this._scan && this._scan.running ? { id: "scan-stop", label: t("menu.scan_stop") } : null,
-        { id: "scan", label: t(this._scan && this._scan.running ? "menu.scan_running" : "menu.scan"),
-          disabled: Boolean(this._scan && this._scan.running) }].filter(Boolean) : []),
-    ];
-  }
-
   /** Ask, then start a scan and follow it (spec 6). */
-  async _startScan() {
+  async _startScan(opener = null) {
     const t = this._t;
     const ok = await confirmDialog(this._ui.app, { title: t("scan.title"),
       paragraphs: [t("scan.body_radio"), t("scan.body_auto"), t("scan.body_follow")],
-      confirm: t("scan.confirm"), cancel: t("scan.cancel"), opener: this._ui.menuButton });
+      confirm: t("scan.confirm"), cancel: t("scan.cancel"), opener });
     if (!ok || !this._source) return;
     if (!this._scan) {
       const raws = new WeakMap();
@@ -653,33 +609,21 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           this._scanStatus = status;
         }
         if (this._network) this._renderStatus();
+        this._dirty.add("view"); // the scan buttons follow its state
+        if (this._network) this._renderTabs();
       });
     }
     this._scan.start(this._source);
   }
 
-  _onMenu(id) {
-    if (id === "devices" || id === "legend" || id === "settings") {
-      this._toggleTab(id, this._ui.menuButton, false);
-    } else if (id === "debug") {
-      // Debug mode (spec 9.1): every pair as lanes with reporters, raw tables in Details. Never stored.
-      this._debug = !this._debug;
-      if (this._view) this._view.setDebug(this._debug);
-      // Leaving debug mode clears what a finished scan left in the status line; a running one stays (spec 9.4).
-      if (!this._debug && this._scan && !this._scan.running) this._scan.clear();
-      this._dirty.add("details").add("legend").add("settings");
-      this._render();
-    } else if (id === "fit") {
-      if (this._view) this._view.fit();
-    } else if (id === "release") {
-      this._release(null);
-    } else if (id === "reload") {
-      this._controller.reload();
-    } else if (id === "scan") {
-      this._startScan();
-    } else if (id === "scan-stop") {
-      if (this._scan) this._scan.stop();
-    }
+  /** Debug mode (spec 9.1): every pair as lanes with reporters, raw tables in Details, the scan. Never stored. */
+  _setDebug(on) {
+    this._debug = Boolean(on);
+    if (this._view) this._view.setDebug(this._debug);
+    // Leaving debug mode clears what a finished scan left in the status line; a running one stays (spec 9.4).
+    if (!this._debug && this._scan && !this._scan.running) this._scan.clear();
+    this._dirty.add("details").add("legend").add("view");
+    this._render();
   }
 
   // ---- helpers -------------------------------------------------------------------------------------------------
@@ -704,7 +648,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _applyTheme() {
     if (!this._ui || !this._view) return;
     this._view.setTheme(this._readTheme());
-    this._dirty.add("legend");
+    this._dirty.add("legend").add("view"); // the colour pickers show the theme's own colours
     this._render();
   }
 
@@ -713,6 +657,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._ui.live.textContent = "";
     requestAnimationFrame(() => { this._ui.live.textContent = text; });
   }
+}
+
+/** The user's reception colours as GraphView takes them: [bad, medium, good], null for the theme's own. */
+function stopsOf(pathColors) {
+  return [pathColors.bad, pathColors.medium, pathColors.good];
 }
 
 /** Re-render a container without losing the focused control: it is found again by id or by name and value. */

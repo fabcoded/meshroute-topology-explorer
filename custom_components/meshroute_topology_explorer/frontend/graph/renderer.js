@@ -562,10 +562,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   }
   for (const t of laneTexts) if (!t.path) value(t);
 
+  // Bottom left: the top corners carry the panel's buttons.
   if (view.debug && typeof view.fps === "number") {
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    haloText(ctx, `${Math.round(view.fps)} fps`, 8, 8, theme);
+    ctx.textBaseline = "bottom";
+    haloText(ctx, `${Math.round(view.fps)} fps`, 8, height - 8, theme);
   }
   const classes = Object.fromEntries(CLASSES.map((c) => [c, drawn.filter((p) => p.cls === c).length]));
   const paths = route ? { hops: route.hops.size, ends: ends.length,

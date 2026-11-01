@@ -84,7 +84,7 @@ test("stored link switches: booleans kept, anything else falls back to on, the k
 
 test("texts for the switches exist in both languages", () => {
   for (const lang of ["en", "de"]) {
-    for (const key of ["options.links", "links.title", "links.density", ...LINK_CLASSES.map((c) => `links.${c}`)]) {
+    for (const key of ["view.paths", "view.density", ...LINK_CLASSES.map((c) => `view.link_${c}`)]) {
       assert.ok(STRINGS[lang][key] && STRINGS[lang][key].trim(), `${lang} ${key}`);
     }
   }

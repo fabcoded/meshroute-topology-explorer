@@ -22,6 +22,7 @@ export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "
 export { fingerprints, updateObservations, newestChange } from "./observations.js";
 export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";
+export { KINDS } from "./kinds.js";
 
 /** Build a Network from the answer of `zha/devices` and, optionally, the registry answers and the ZHA config entry
  *  list (`config_entries/get`), which names the network. */
