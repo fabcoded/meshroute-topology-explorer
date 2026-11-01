@@ -45,12 +45,16 @@ test("path to coordinator: up and down path per device, the numbers of spec 12",
       p.hops.forEach((h, i) => { assert.equal(h.sender, p.ids[i]); assert.equal(h.hearer, p.ids[i + 1]); });
     }
   }
-  assert.deepEqual([others.length, up, down, differ], [44, 41, 29, 20]);
+  assert.deepEqual([others.length, up, down, differ], [44, 41, 33, 23]);
   // Every incomplete path on the sample stops short of its goal, so it has a visible unknown end.
-  assert.deepEqual(ends, { up: 3, down: 15 });
-  // The coordinator stands for Home Assistant: its paths with Home Assistant are all its paths, in both modes.
-  assert.deepEqual(nodePaths(sample, coordinator.id), nodePaths(sample, coordinator.id, "all"));
-  assert.ok(nodePaths(sample, coordinator.id).every((p) => p.kind === "out" || p.kind === "in"));
+  assert.deepEqual(ends, { up: 3, down: 11 });
+  // The coordinator stands for Home Assistant: in stage 1 its paths are the routes it holds and the routes towards it;
+  // stage 2 gives it the theoretical trees like any device (decision by Fabian Schwamborn, 2026-11-01).
+  const own = nodePaths(sample, coordinator.id);
+  assert.ok(own.length && own.every((p) => (p.kind === "out" || p.kind === "in") && !p.hops.some((h) => h.how)));
+  const trees = nodePaths(sample, coordinator.id, "all");
+  assert.deepEqual([trees.filter((p) => p.kind === "out").length, trees.filter((p) => p.kind === "in").length], [41, 41]);
+  assert.ok(trees.every((p) => p.complete && p.hops.every((h) => h.how)));
   assert.deepEqual(nodePaths(sample, "no:such:device"), []);
 });
 
@@ -58,24 +62,28 @@ test("reception at every hop: the hearer's LQI of the sender, or what implies th
   const [u, w] = nodePaths(sample, byLabel("End device 06"));
   assert.deepEqual(u.ids.map((id) => labelOf.get(id)), ["End device 06", "Router 17", "Router 13", "Coordinator"]);
   assert.deepEqual(u.hops.map(hopText), ["103", "111", "51"]);
-  assert.deepEqual(w.ids.map((id) => labelOf.get(id)), ["Coordinator", "Router 16", "Router 17", "End device 06"]);
+  // The coordinator's own entry for the end device leads to its parent Router 17, which delivers to its child (A4k).
+  assert.deepEqual(w.ids.map((id) => labelOf.get(id)), ["Coordinator", "Router 13", "Router 17", "End device 06"]);
   // The end device has no table: that it hears its parent is implied by the parent link.
-  assert.deepEqual(w.hops.map(hopText), ["114", "168", "parent"]);
+  assert.deepEqual(w.hops.map(hopText), ["104", "124", "parent"]);
   // Router 16: up and down differ (one hop up, four down).
   const [u16, w16] = nodePaths(sample, byLabel("Router 16"));
   assert.deepEqual(u16.hops.map(hopText), ["46"]);
   assert.deepEqual(w16.hops.map(hopText), ["192", "140", "123", "188"]);
-  // Every hop of a complete path on the sample has a reading or a route or parent behind it.
+  // Every hop of a complete path on the sample has a reading or a route or parent behind it, except a theoretical
+  // direct hop to a neighbour that the sender lists and the hearer does not (spec 5.7): its reception stays unknown,
+  // with the hearer's reason.
   for (const d of others) for (const p of nodePaths(sample, d.id, "all")) {
-    if (p.complete) assert.ok(p.hops.every((h) => h.state !== "unknown"), labelOf.get(d.id));
+    if (!p.complete) continue;
+    for (const h of p.hops) if (h.state === "unknown") assert.ok(h.how === "neighbour" && h.reason, labelOf.get(d.id));
   }
 });
 
 test("an incomplete path ends where its walk stopped, short of its goal", () => {
-  const id = byLabel("End device 08");
+  const id = byLabel("Router 01");
   const [u, w] = nodePaths(sample, id);
   assert.equal(u.complete, true);
-  // The coordinator's route reaches neither the device nor (by entries) its parent: unknown from the coordinator on.
+  // The coordinator holds no entry for Router 01 (it reaches it by source route): unknown from the coordinator on.
   assert.deepEqual(w.ids, [coordinator.id]);
   assert.deepEqual(unknownEnd(w), { at: coordinator.id, toward: id });
   // An unavailable router has no usable path at all: it stands alone, its way up unknown.
@@ -86,7 +94,7 @@ test("an incomplete path ends where its walk stopped, short of its goal", () => 
   assert.equal(unknownEnd(u), null, "complete paths have no unknown end");
 });
 
-test("all paths on the sample: out along own routes, in along others' routes, per kind complete or unknown", () => {
+test("all paths on the sample: out to and in from every other available device, per kind complete or unknown", () => {
   const tally = {};
   for (const d of sample.devices) {
     for (const p of nodePaths(sample, d.id, "all")) {
@@ -101,9 +109,11 @@ test("all paths on the sample: out along own routes, in along others' routes, pe
   }
   assert.deepEqual(tally, {
     up: { total: 44, complete: 41, unknown: 3, offline: 0 },
-    down: { total: 44, complete: 29, unknown: 15, offline: 0 },
-    out: { total: 98, complete: 82, unknown: 14, offline: 2 },   // 2: routes to unavailable devices (spec 12)
-    in: { total: 97, complete: 85, unknown: 10, offline: 2 },
+    down: { total: 44, complete: 33, unknown: 11, offline: 0 },
+    // 41 available devices besides the coordinator, 40 goals each (spec 5.7); the coordinator adds its trees to and
+    // from all 41.
+    out: { total: 41 * 40 + 41, complete: 1681, unknown: 0, offline: 0 },
+    in: { total: 41 * 40 + 41, complete: 1681, unknown: 0, offline: 0 },
   });
   // "All paths" includes the path to the coordinator first, and never repeats it.
   const r11 = byLabel("Router 11");
@@ -111,11 +121,23 @@ test("all paths on the sample: out along own routes, in along others' routes, pe
   assert.deepEqual(all.slice(0, 2), nodePaths(sample, r11));
   assert.ok(!all.some((p) => p.kind === "out" && p.to === coordinator.id));
   assert.ok(!all.some((p) => p.kind === "in" && p.from === coordinator.id));
-  // Router 11 reaches Router 30 through Router 27; Router 01 reaches Router 11 directly.
+  // Router 11 reaches Router 30 through Router 27 by its table; Router 01 reaches Router 11 by its table, directly.
   const to30 = all.find((p) => p.kind === "out" && labelOf.get(p.to) === "Router 30");
   assert.deepEqual(to30.ids.map((id) => labelOf.get(id)), ["Router 11", "Router 27", "Router 30"]);
   assert.deepEqual(to30.hops.map(hopText), ["134", "108"]);
-  assert.deepEqual(all.filter((p) => p.kind === "in").map((p) => labelOf.get(p.from)), ["Router 01"]);
+  assert.deepEqual(to30.hops.map((h) => h.how), ["table", "table"]);
+  const from01 = all.find((p) => p.kind === "in" && labelOf.get(p.from) === "Router 01");
+  assert.deepEqual(from01.ids.map((id) => labelOf.get(id)), ["Router 01", "Router 11"]);
+  assert.deepEqual(from01.hops.map((h) => h.how), ["table"]);
+  // A walk by entries that reaches the parent of an end-device goal ends with the parent's delivery to its child:
+  // Router 13 keeps "End device 06 via Router 17", and Router 17, the parent, keeps no entry for its own child. The
+  // walk used to stop there and was then replaced by the walk towards the parent, which Router 13 has no entry for.
+  const r13 = byLabel("Router 13");
+  const toE06 = nodePaths(sample, r13, "all").find((p) => p.kind === "out" && labelOf.get(p.to) === "End device 06");
+  assert.deepEqual(toE06.ids.map((id) => labelOf.get(id)), ["Router 13", "Router 17", "End device 06"]);
+  assert.equal(toE06.complete, true);
+  assert.deepEqual(toE06.hops.map(hopText), ["124", "parent"]);
+  assert.deepEqual(toE06.hops.map((h) => h.how), ["table", "child"]);
   // Unknown modes count as the default.
   assert.deepEqual(nodePaths(sample, r11, "bogus"), nodePaths(sample, r11));
 });
@@ -136,7 +158,7 @@ function synth(specs) {
 }
 const C = "Coordinator", R = "Router", E = "EndDevice";
 
-test("all paths: loops stop, missing tables end in unknown, in paths come from every owner of a route", () => {
+test("all paths: a theoretical way to every available device and back, each hop with how it is taken", () => {
   const n = synth([
     [0, C, { nb: [[1, 200], [2, 180]], rt: [[3, 1], [5, 2]] }],
     [1, R, { nb: [[0, 190], [3, 120], [2, 90]], rt: [[0, 0], [3, 3], [5, 2], [6, 2]] }],
@@ -144,27 +166,28 @@ test("all paths: loops stop, missing tables end in unknown, in paths come from e
     [3, R, { nb: [[1, 110]], rt: [[0, 1], [6, 1]] }],
     [4, R],                                                                  // no table
     [5, R],
-    [6, R],
+    [6, R, { avail: false }],
   ]);
   const paths = nodePaths(n, ieee(1), "all");
+  assert.deepEqual(paths.map((p) => `${p.kind} ${p.kind === "in" ? p.from.slice(-2) : p.to.slice(-2)}`),
+    ["up 00", "down 01", "out 02", "out 03", "out 04", "out 05", "in 02", "in 03", "in 04", "in 05"],
+    "every available device but the coordinator and itself; not the unavailable 6");
   const out = Object.fromEntries(paths.filter((p) => p.kind === "out").map((p) => [p.to, p]));
   assert.deepEqual(out[ieee(3)].ids, [ieee(1), ieee(3)]);
-  assert.equal(out[ieee(3)].complete, true);
-  assert.deepEqual(out[ieee(3)].hops.map(hopText), ["110"]);
+  assert.deepEqual(out[ieee(3)].hops.map((h) => [hopText(h), h.how]), [["110", "table"]]);
   // Loop for destination 5: 1 -> 2 -> 1 is stopped at 2; the path ends there with 5 unknown.
   assert.deepEqual(out[ieee(5)].ids, [ieee(1), ieee(2)]);
   assert.deepEqual(unknownEnd(out[ieee(5)]), { at: ieee(2), toward: ieee(5) });
-  // Router 4 has no table: the way to 6 is unknown from 4 on.
-  assert.deepEqual(out[ieee(6)].ids, [ieee(1), ieee(2), ieee(4)]);
-  assert.equal(out[ieee(6)].complete, false);
-  assert.deepEqual(unknownEnd(out[ieee(6)]), { at: ieee(4), toward: ieee(6) });
-  // 4 has no table to read, but 2's route to 6 through 4 implies the hop.
-  assert.deepEqual(out[ieee(6)].hops.map(hopText), ["80", "route"]);   // router 2 hears 1 at 80
-  // In: only routes whose destination is the device count (3's route to the coordinator passes 1, but ends at 0).
-  const into = paths.filter((p) => p.kind === "in");
-  assert.deepEqual(into.map((p) => p.from), [], "nobody routes towards router 1 here");
-  const into0 = nodePaths(n, ieee(3), "all").filter((p) => p.kind === "in").map((p) => p.from);
-  assert.deepEqual(into0, [ieee(1)], "router 1 owns the only route towards 3 besides the coordinator");
+  assert.equal(out[ieee(5)].reason, "loop");
+  // Router 4 has no table: nothing leads there (no entry, no reading, no link), and nothing leads on from there.
+  assert.deepEqual([out[ieee(4)].ids, out[ieee(4)].reason], [[ieee(1)], "no link"]);
+  const in4 = paths.find((p) => p.kind === "in" && p.from === ieee(4));
+  assert.deepEqual([in4.ids, in4.reason], [[ieee(4)], "table not read"]);
+  // 2 hears 1 (and 1 hears 2): the way back from 2 is a direct neighbour hop; 3 routes to the coordinator only.
+  const in2 = paths.find((p) => p.kind === "in" && p.from === ieee(2));
+  assert.deepEqual(in2.hops.map((h) => [hopText(h), h.how]), [["90", "neighbour"]]);
+  const in3 = paths.find((p) => p.kind === "in" && p.from === ieee(3));
+  assert.deepEqual(in3.hops.map((h) => [hopText(h), h.how]), [["120", "neighbour"]]);
   // The coordinator's own route to 3 is router 3's down path, not an "in" path.
   const [, down3] = nodePaths(n, ieee(3), "all");
   assert.deepEqual(down3.ids, [ieee(0), ieee(1), ieee(3)]);
@@ -178,10 +201,12 @@ test("pathHops: a hop without a pair (unavailable hearer) is unknown, never weak
   assert.equal(pathHops(n, [ieee(0)]).length, 0);
 });
 
-test("end device: out and in paths are only its up and down path (it has no routes)", () => {
+test("end device: its way up and down, and to every other device through its parent", () => {
   const n = synth([[0, C, { nb: [[1, 200]], rt: [[1, 1]] }], [1, R, { nb: [[0, 190], [2, 100, "Child"]], rt: [[0, 0]] }], [2, E]]);
   const all = nodePaths(n, ieee(2), "all");
-  assert.deepEqual(all.map((p) => p.kind), ["up", "down"]);
+  assert.deepEqual(all.map((p) => p.kind), ["up", "down", "out", "in"]);
+  assert.deepEqual(all[2].hops.map((h) => h.how), ["parent"]);
+  assert.deepEqual(all[3].hops.map((h) => h.how), ["child"]);
   assert.deepEqual(all[0].hops.map(hopText), ["100", "200"]);   // router 1 hears it at 100, the coordinator router 1 at 200
   assert.deepEqual(all[1].hops.map(hopText), ["190", "parent"]);
 });

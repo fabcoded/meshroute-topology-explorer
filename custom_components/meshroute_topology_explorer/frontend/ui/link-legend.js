@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: MIT
 // The links part of the legend (board M7), built from what the graph says it draws (GraphView.legend(),
-// graph/links.js legendEntries): the classes of the current stage of "Communication paths" (there and back with the
-// coordinator solid, an assumed return path dotted, paths to other devices dash-dot with their stage, heard only
-// dashed grey with its stage), the band under a selected device's way up, in debug mode also the lane without traffic or reading, the width steps and the unknown
+// graph/links.js legendEntries): every path class whatever the stage (there and back with the coordinator solid, an
+// assumed return path dotted, paths to other devices dash-dot and the computed route discovery dash-dot in grey with
+// their stage, heard only dashed grey with its stage), the band under a selected device's way up, in debug mode also
+// the lane without traffic or reading, the width steps and the unknown
 // end, the glyphs "–" and "?" where the stage draws them, "RX:" at the hearer, and the scale of the reception colours
 // while paths are coloured. The samples use the entries' own stroke styles, so legend and map cannot drift apart; the
 // words come from i18n by entry id.
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.
 import { h, svg } from "./dom.js";
 
-/** Rows for the legend: each entry of the graph with its words as `label` and, for a class that belongs to a stage, the
- *  stage as `note` (an entry's own `text` is its glyph). An entry the panel has no words for keeps its id as label, so
+/** Rows for the legend: each entry of the graph with its words as `label` and, for a class that belongs to a stage or option,
+ *  that as `note` (an entry's own `text` is its glyph). An entry the panel has no words for keeps its id as label, so
  *  nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t) {
   return entries.map((e) => {
     const key = e.kind === "rx" ? "legend.rx" : `legend.link.${e.id}`;
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
-    if (e.stage) row.note = t("legend.stage", { n: e.stage });
+    // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
+    if (e.option) row.note = t(`legend.option_${e.option}`);
+    if (e.stage) row.note = t(e.computed ? "legend.stage_computed" : "legend.stage", { n: e.stage });
     return row;
   });
 }

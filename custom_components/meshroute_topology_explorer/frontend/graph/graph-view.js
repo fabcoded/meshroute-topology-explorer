@@ -83,8 +83,9 @@ function cleanLabels(labels) {
 }
 
 export class GraphView extends EventTarget {
-  /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), paths (the stage of "Communication paths": "coordinator", "all" or "heard", links.js),
+  /** options: theme (colours, see palette.js), density (0.8 / 1.2 / 1.9, e.g. the stored setting), fill ("none",
+   *  "role" or "power"), paths (the stage of "Communication paths": "coordinator" or "all", links.js), heard (the
+   *  option "heard only"),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
    *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
    *  sourceRoute ("assume" or "off": return paths without a table entry, model/source-routes.js), texts
@@ -103,6 +104,7 @@ export class GraphView extends EventTarget {
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
     this.paths = pathStage(options.paths);
+    this.heard = options.heard === true;
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
     // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "off" not.
@@ -187,13 +189,21 @@ export class GraphView extends EventTarget {
   }
 
   /** The stage of "Communication paths" (spec 7.1, 9.1; board M11): "coordinator" (default: the way up and down of
-   *  every device, on click only the device's), "all" (on click also its paths to and from other devices) or "heard"
-   *  (also the best heard-only partners); anything else counts as the default. Drawing only: the layout and the
+   *  every device, on click only the device's), or "all" (on click also its paths to and from other devices);
+   *  anything else counts as the default. Drawing only: the layout and the
    *  positions stay. */
   setPaths(stage) {
     const next = pathStage(stage);
     if (next === this.paths) return;
     this.paths = next;
+    this._invalidate();
+  }
+
+  /** The option "heard only (best 3)": on click, also the selection's 3 best heard-only partners, in either stage. */
+  setHeard(on) {
+    const next = on === true;
+    if (next === this.heard) return;
+    this.heard = next;
     this._invalidate();
   }
 
@@ -250,8 +260,7 @@ export class GraphView extends EventTarget {
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
   legend() {
-    return legendEntries(this.theme, { paths: this.paths, sourceRoute: this.sourceRoute, debug: this.debug,
-      colored: this.receptionColors });
+    return legendEntries(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors });
   }
 
   setTheme(theme) {
@@ -313,7 +322,7 @@ export class GraphView extends EventTarget {
 
   /** The working scale (spec 7.1, 9.3): the zoom at which, in the base layout (D = 1), the median distance from a
    *  device to its nearest neighbour equals the mean label width. It does not compensate the density: at the same
-   *  zoom a spread map shows 1.5 label widths between neighbours, a dense one 0.7. Revealing with zoom goes here. */
+   *  zoom a spread map shows 1.9 label widths between neighbours, a medium one 1.2, a dense one 0.8. Revealing with zoom goes here. */
   get workingZoom() {
     const { nearest, meanLabel } = this._scales();
     return nearest > 0 ? meanLabel / nearest : this.fitK;
@@ -480,7 +489,7 @@ export class GraphView extends EventTarget {
     this._scaleCache = null;
   }
 
-  /** The fitted view of the medium layout (D = 1), centred on the map: fit never undoes the density, so a dense map
+  /** The fitted view of the base layout (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the density, so a dense map
    *  sits smaller inside the margin and a spread one reaches past the window. */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
@@ -548,7 +557,7 @@ export class GraphView extends EventTarget {
     this._lastFrame = now;
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, paths: this.paths, selected: this.selected, hovered: this.hovered, fps: this._fps,
+      debug: this.debug, paths: this.paths, heard: this.heard, selected: this.selected, hovered: this.hovered, fps: this._fps,
       fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
       typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
     };

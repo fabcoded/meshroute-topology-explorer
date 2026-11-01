@@ -36,21 +36,24 @@ test("on the sample: 8 devices get an assumed return path, each its up path reve
   assert.equal(assumed.get(byLabel("Router 02")).ids.length, 3);
 });
 
-test("spec 12: measured down paths stay 29 of 44, the assumption adds 8 (37 of 44)", () => {
+test("spec 12: measured down paths stay 33 of 44, the assumption adds 8 (41 of 44)", () => {
   const others = sample.devices.filter((d) => d.role !== "coordinator");
   const measured = others.filter((d) => downPath(sample, d.id).complete).length;
   const withAssumed = others.filter((d) => downPathWith(sample, d.id, "assume").complete).length;
   const off = others.filter((d) => downPathWith(sample, d.id, "off").complete).length;
-  assert.deepEqual([others.length, measured, off, withAssumed], [44, 29, 29, 37]);
+  assert.deepEqual([others.length, measured, off, withAssumed], [44, 33, 33, 41]);
   assert.deepEqual(sourceRouteSummary(sample, "assume"), { mode: "assume", count: 8 });
   assert.deepEqual(sourceRouteSummary(sample, "off"), { mode: "off", count: 8 });
 });
 
-test("an end device the coordinator has an entry for stays unknown, as do devices without a complete way up", () => {
+test("an end device the coordinator has an entry for is reached through its parent, never assumed", () => {
   const assumed = assumedDownPaths(sample);
-  // The coordinator routes towards these end devices through their parents, but the walk stops: a gap, not a source route.
+  // The coordinator's entries for these end devices lead to their parents, which deliver to their children. A4i read
+  // the stop at the parent as a gap that only the assumption could hide; it was the walk (A4k).
   for (const l of ["TRADFRI on/off switch", "RWL022", "End device 08", "End device 10"]) {
-    assert.equal(downPath(sample, byLabel(l)).complete, false, l);
+    const down = downPath(sample, byLabel(l));
+    assert.equal(down.complete, true, l);
+    assert.equal(down.ids.at(-2), sample.devices.find((d) => d.id === byLabel(l)).parent, l);
     assert.ok(!assumed.has(byLabel(l)), l);
   }
   for (const d of sample.devices.filter((x) => !x.available)) assert.ok(!assumed.has(d.id), "unavailable");

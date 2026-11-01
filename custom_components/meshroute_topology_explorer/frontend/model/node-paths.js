@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
-// The paths of one device for the node view (spec 5.1, 7.1; request by Fabian Schwamborn, 2026-11-01): "Path to
-// coordinator" is its up and down path; "All paths" adds every route it owns, followed hop by hop through each next
-// hop's own entry to the destination, and every route of another device towards it. Each hop carries the reception
-// at its hearer from the pair evidence (4.3). Walks stop where a table or entry is missing, at a loop or an
-// unavailable hop, and say so: unknown beats wrong. Pure functions over a Network. node --test tests/
+// The paths of one device for the node view (spec 5.1, 5.7, 7.1; decisions by Fabian Schwamborn, 2026-11-01): "Path
+// to coordinator" is its up and down path; "All paths" adds its theoretical way to every other available device and
+// back (theoretical.js: routing table first, then the next hop's table and so on, else a neighbour, else what a route
+// discovery would find). Each hop carries the reception at its hearer from the pair evidence (4.3). Walks stop at a
+// loop, an unavailable device or where nothing leads on, and say so: unknown beats wrong. Pure functions over a
+// Network. node --test tests/
 import { downPath, routeEnds, routePath, upPath } from "./paths.js";
+import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
 import { assumedDownPaths } from "./source-routes.js";
 
 /** The node views (spec 9.1, 11): the default shows the way to and from the coordinator, which stands for Home
- *  Assistant; "all" every path the routing tables give for the device. */
+ *  Assistant; "all" adds the device's theoretical way to every other device and back (spec 5.7). */
 export const NODE_VIEWS = Object.freeze(["coordinator", "all"]);
 export const DEFAULT_NODE_VIEW = "coordinator";
 
@@ -46,16 +48,19 @@ export function pathHops(network, ids) {
 }
 
 /** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
- *  assumed }].
+ *  assumed, reason, cost }].
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
- *  device); "all" adds out paths to the destinations of the device's own active routes and in paths from the owners
- *  of active routes towards it. The coordinator's own route to the device is the down path and the device's route
- *  to the coordinator its up path, so neither appears twice. Unknown modes count as "coordinator". The coordinator
- *  stands for Home Assistant: its paths to and from Home Assistant are all its paths, so it shows them in both modes
- *  (an empty map on its click would say nothing). sourceRoute "assume" replaces an unknown down path by the up path
- *  reversed where source-routes.js says the assumption applies; that path carries assumed: true, and so do its hops.
- *  The default "off" gives the measured paths of spec 5.1 only. */
+ *  device); "all" adds, for every other available device except the coordinator (in the network's order), the
+ *  theoretical out path to it and in path from it (spec 5.7), each hop with `how` ("parent", "child", "table",
+ *  "neighbour", "discovery"), a discovery hop with its link cost, the path with the reason it stopped and the path cost
+ *  of its discovery part. The way to and from the coordinator is the up and down path, so it is not repeated; an
+ *  unavailable device has none (its tables are stale, 5.1). Unknown modes count as "coordinator". The coordinator
+ *  stands for Home Assistant: in "coordinator" mode it shows the routes it holds and the routes towards it (an empty
+ *  map on its click would say nothing); in "all" its theoretical way to every available device and back, from its own
+ *  table on, like any device (decision by Fabian Schwamborn, 2026-11-01). sourceRoute "assume" replaces an unknown
+ *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
+ *  true, and so do its hops. The default "off" gives the measured paths of spec 5.1 only. */
 export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off" } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
@@ -64,8 +69,14 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute =
   const out = [];
   const add = (kind, from, to, walk) => {
     const assumed = walk.assumed === true;
-    const hops = pathHops(network, walk.ids).map((h) => (assumed ? { ...h, assumed } : h));
-    out.push({ kind, from, to, ids: walk.ids, complete: walk.complete, hops, assumed });
+    const how = walk.hops || [];
+    // A theoretical hop keeps how it is taken, its link cost (discovery) and why its holder had no entry (`noEntry`:
+    // "table not read" or "entry inactive"); `reason` stays the evidence's, which the map's glyphs read.
+    const hops = pathHops(network, walk.ids).map((h, i) => ({ ...h, ...(assumed ? { assumed } : {}),
+      ...(how[i] ? { how: how[i].how } : {}), ...(how[i] && how[i].cost ? { cost: how[i].cost } : {}),
+      ...(how[i] && how[i].reason ? { noEntry: how[i].reason } : {}) }));
+    out.push({ kind, from, to, ids: walk.ids, complete: walk.complete, hops, assumed,
+      reason: walk.reason ?? null, cost: walk.cost ?? null });
   };
   if (id !== coordinator) {
     add("up", id, coordinator, upPath(network, id));
@@ -73,9 +84,16 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute =
     add("down", coordinator, id, assumed || downPath(network, id));
   }
   if (mode !== "all" && id !== coordinator) return out;
-  const { destinations, owners } = routeEnds(network, id);
-  for (const d of destinations) if (d !== coordinator) add("out", id, d, routePath(network, id, d));
-  for (const o of owners) if (o !== coordinator) add("in", o, id, routePath(network, o, id));
+  if (id === coordinator && mode !== "all") {
+    const { destinations, owners } = routeEnds(network, id);
+    for (const d of destinations) add("out", id, d, routePath(network, id, d));
+    for (const o of owners) add("in", o, id, routePath(network, o, id));
+    return out;
+  }
+  if (!device.available) return out;
+  const goals = devices.filter((d) => d.id !== id && d.id !== coordinator && d.available);
+  for (const d of goals) add("out", id, d.id, theoreticalPath(network, id, d.id));
+  for (const d of goals) add("in", d.id, id, theoreticalPath(network, d.id, id));
   return out;
 }
 

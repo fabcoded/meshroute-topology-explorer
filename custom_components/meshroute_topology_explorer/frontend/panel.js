@@ -66,7 +66,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._debug = false; // never stored (spec 9.1)
     this._wide = true;
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
-    this._info = { density: false, reload: false }; // which info notes the View tab shows
+    this._info = { density: false, reload: false, heard: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
     this._cluster = null; // the open cluster dialog, if any
     this._dirty = new Set();
@@ -296,7 +296,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, paths: s.paths, sourceRoute: s.sourceRoute,
+      debug: this._debug, paths: s.paths, heard: s.heard, sourceRoute: s.sourceRoute,
       receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
@@ -317,6 +317,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
       this._view.setPaths(s.paths);
+      this._view.setHeard(s.heard);
       this._view.setSourceRoute(s.sourceRoute);
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
@@ -361,7 +362,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderTabs();
   }
 
-  /** Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" (with its caveat as the
+  /** Status line (spec 6, board M1): source, tables, completeness, "unchanged since" (with its caveat as the
    *  part's description), a followed scan with its stop button, and the source-route stage on the right. Below the
    *  wide breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions. */
   _renderStatus() {

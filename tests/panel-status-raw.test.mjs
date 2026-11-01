@@ -17,9 +17,9 @@ test("status line (board M1): source, tables, completeness, observed unchanged s
   const en = translator("en");
   const de = translator("de");
   const text = (t) => parts.map(([key, params]) => t(key, params)).join(" · ");
-  assert.match(text(en), /observed unchanged since 14:32/);
+  assert.match(text(en), /unchanged since 14:32/);
   assert.match(text(en), /scan running: tables changed since the scan started: 11 of 29 \(an unchanged table may also have been answered\)/);
-  assert.match(text(de), /beobachtet unverändert seit 14:32/);
+  assert.match(text(de), /unverändert seit 14:32/);
   assert.match(text(de), /Scan läuft: seit Scanbeginn geänderte Tabellen: 11 von 29/);
   for (const status of ["ended", "stopped", "not-sent"]) {
     const [key, params] = statusParts(network, { scan: { status, changed: 3, total: 29, message: "Connection lost" } })[3];

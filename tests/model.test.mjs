@@ -40,11 +40,11 @@ test("sample: path numbers of spec 12", () => {
   const down = others.map((d) => downPath(sample, d.id));
   assert.equal(others.length, 44);
   assert.equal(up.filter((p) => p.complete).length, 41);  // stale tables are never followed
-  assert.equal(down.filter((p) => p.complete).length, 29);
+  assert.equal(down.filter((p) => p.complete).length, 33);
   // "differ": complete down path that is not the reverse of the up path
   const differ = others.filter((d, i) => down[i].complete &&
     JSON.stringify([...up[i].ids].reverse()) !== JSON.stringify(down[i].ids)).length;
-  assert.equal(differ, 20);
+  assert.equal(differ, 23);
   assert.equal(sample.findings.filter((f) => f.kind === "route to offline device").length, 2);
   assert.ok(up.every((p) => !p.complete || p.ids.at(-1) === coordinator.id));
   assert.ok(down.every((p) => !p.complete || p.ids[0] === coordinator.id));

@@ -67,7 +67,7 @@ test("the new menu: every control on the map and in both panels has words in Eng
   const words = {
     "map.devices": "Geräte", "map.details_on_click": "Details bei Klick", "map.view": "Ansicht", "map.legend": "Legende",
     "tab.devices": "Geräte", "tab.findings": "Befunde", "tab.details": "Details", "tab.view": "Ansicht", "tab.legend": "Legende",
-    "view.paths": "Kommunikationspfade", "view.paths_heard": "+ nur gehört (beste 3)",
+    "view.paths": "Kommunikationspfade", "view.paths_heard": "nur gehört (beste 3)",
     "view.path_display": "Pfaddarstellung", "view.grey": "grau",
     "view.coloured": "farbig nach Empfang", "view.bad": "schlecht", "view.medium": "mittel", "view.good": "gut",
     "view.colors_note": "frei wählbar, z. B. für Farbenblinde", "view.on_click": "Bei Klick auf ein Gerät",

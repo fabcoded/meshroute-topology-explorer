@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // The Details tab (spec 9.2; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the device's name and one
 // line "type · role · vendor model", then a segmented control with three sub-tabs, each a stack of cards:
-// - Communication: the path with the coordinator there and back with the reception at every hop (or all its paths),
-//   parent or children, findings, who hears it and whom it hears with RX and the rank relative to the reporter, its
-//   tables and load; raw tables in debug mode;
+// - Communication: the path with the coordinator there and back with the reception at every hop (the coordinator: all
+//   its routes), in the stages "all" and "heard" its theoretical paths to every other device (spec 5.7), parent or
+//   children, findings, who hears it and whom it hears with RX and the rank relative to the reporter, its tables and
+//   load; raw tables in debug mode;
 // - Entity: the node card (badges for logical type, power, receiver when idle, frequency band, stack revision; then
 //   addresses, manufacturer with code, model, firmware, quirk, buffers, last heard), the ways into Home Assistant and
 //   the device's entities, each opening Home Assistant's more-info dialog;
@@ -11,7 +12,7 @@
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
 import { h } from "./dom.js";
-import { detailsOf, pathParts } from "./details.js";
+import { detailsOf, hopValue, howText, pathParts, weakestHop } from "./details.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, percent, rankText, roleText } from "./format.js";
 import { formatNwk } from "../model/parse.js";
@@ -97,6 +98,7 @@ function communication(panel, info, ctx, name) {
   const { t } = ctx;
   const d = info.device;
   panel.append(pathsCard(info.paths, ctx, name));
+  if (info.theory.length) panel.append(theoryCard(info.theory, ctx, name));
 
   if (d.role === "end device") {
     const rows = [];
@@ -146,12 +148,15 @@ function communication(panel, info, ctx, name) {
   }
 }
 
-/** The path card (board M4): "Communication path with the coordinator" with the lines there and back, or "All paths"
- *  collapsed when long. Each hop names the device that hears it and the reception there, the value in bold; an
- *  assumed return path (source route) says so in its prefix and in a note. */
-function pathsCard(paths, ctx, name) {
+/** The path card (board M4): "Communication path with the coordinator" with the lines there and back; for the
+ *  coordinator, whose paths are its routes, "All paths" collapsed when long. Each hop names the device that hears it
+ *  and the reception there, the value in bold; an assumed return path (source route) says so in its prefix and in a
+ *  note. A device's theoretical paths have their own card (theoryCard). */
+function pathsCard(all_, ctx, name) {
   const t = ctx.t;
-  const all = ctx.nodeView === "all" || paths.some((p) => p.kind === "out" || p.kind === "in");
+  const own = all_.filter((p) => p.kind === "up" || p.kind === "down");
+  const paths = own.length ? own : all_; // the coordinator has no up or down path: its routes are its paths
+  const all = !own.length && paths.length > 0;
   const lines = paths.map((p) => {
     const { prefix, steps, tail } = pathParts(p, t, name);
     const nodes = [`${prefix}: `];
@@ -169,6 +174,44 @@ function pathsCard(paths, ctx, name) {
   if (!all) return card(t("details.paths_coordinator"), ...body, ...notes);
   return card(null, h("details", { class: "card-details", open: paths.length <= PATHS_OPEN },
     h("summary", { class: "card-title", text: t("details.paths_all", { count: paths.length }) }), ...body, ...notes));
+}
+
+/** "Paths to other devices (theoretical)" (spec 5.7, 9.2; brief a4k): a row per other device, the shortest first,
+ *  with the hops there (→) and back (←) and each way's weakest RX; a row opens to both ways, every hop with the
+ *  reception at its hearer and how it is taken (table, neighbour, route discovery, parent, child), a discovery with its
+ *  path cost. Collapsed above PATHS_OPEN rows, like "All paths". */
+function theoryCard(rows, ctx, name) {
+  const t = ctx.t;
+  const way = (p, arrow) => {
+    if (!p) return h("span", { class: "theory-way" });
+    const weak = p.complete ? weakestHop(p.hops) : null;
+    return h("span", { class: "theory-way" }, `${arrow} ${p.complete ? p.hops.length : "?"}`,
+      weak ? [" · ", h("small", { text: `${t("details.rx")} ` }), h("b", { text: hopValue(weak, t) })] : null);
+  };
+  const line = (p, label) => {
+    const { steps, tail } = pathParts(p, t, name);
+    const nodes = [h("span", { class: "muted", text: `${label}: ` })];
+    steps.forEach((s, i) => {
+      if (i) nodes.push(" → ");
+      nodes.push(s.name);
+      if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
+      const notes = [s.how && howText(s.how, t), s.noEntry && t(`details.no_entry_${s.noEntry.replace(/ /g, "_")}`)]
+        .filter(Boolean);
+      // A middle dot, not brackets: "Routensuche (berechnet)" carries its own.
+      if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));
+    });
+    if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
+    // The cost of the whole path, in a place of its own at the end of the row (not read as the last hop's).
+    if (p.cost !== null && p.cost !== undefined) nodes.push(h("span", { class: "how theory-cost", text: t("details.theory_cost", { cost: p.cost }) }));
+    return h("div", { class: "path-line theory-line" }, nodes);
+  };
+  const items = rows.map((r) => h("details", { class: "theory-row" },
+    h("summary", {}, h("span", { class: "theory-name", text: name(r.id) }), way(r.out, "\u2192"), way(r.in, "\u2190")),
+    r.out ? line(r.out, t("details.path_up")) : null, r.in ? line(r.in, t("details.path_down")) : null));
+  return card(null, h("details", { class: "card-details theory", open: rows.length <= PATHS_OPEN },
+    h("summary", { class: "card-title", text: t("details.theory_title", { count: rows.length }) }),
+    h("p", { class: "muted small", text: t("details.theory_note") }),
+    h("p", { class: "muted small", text: t("details.theory_head") }), ...items));
 }
 
 /** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (board M4). */
