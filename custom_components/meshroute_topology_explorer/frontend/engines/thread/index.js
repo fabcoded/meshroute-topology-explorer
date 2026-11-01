@@ -3,9 +3,9 @@
 // now a facade over the modules that hold that meaning today (model/thread.js, graph/links.js, graph/renderer.js); the
 // cut moves it here step by step without changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
-import { buildThreadNetwork } from "../../model/thread.js";
+import { buildThreadNetwork } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
-import { renderThreadDetails } from "../../ui/thread-details.js";
+import { renderThreadDetails } from "./details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 import * as threadScene from "./scene.js";
@@ -24,7 +24,7 @@ const THREAD_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null,
 
 export const thread = Object.freeze({
   key: "thread",
-  /** Network from the answer of `matter/network_topology` and the registries (model/thread.js); null without a node. */
+  /** Network from the answer of `matter/network_topology` and the registries (model.js, from-matter.js); null without a node. */
   build: (payload, options = {}) => buildThreadNetwork(payload, options),
   /** The value under "RX:" of a direction: RSSI in dBm, else link quality 0-3, "Parent" for a parent link, else a
    *  glyph; never a number on the Zigbee LQI scale. */

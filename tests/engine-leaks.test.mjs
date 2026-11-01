@@ -85,7 +85,7 @@ function importsOf(rel) {
 
 /** Network-specific UI modules under ui/ that the cut moves into an engine (section 3); everything else under ui/ is
  *  a shared frame. */
-const ENGINE_UI = new Set(["ui/thread-details.js", "ui/scan.js", "ui/observations-client.js"]);
+const ENGINE_UI = new Set(["ui/scan.js", "ui/observations-client.js"]);
 const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"),
   ...jsFiles("ui/").filter((f) => !ENGINE_UI.has(f))];
 

@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildThreadNetwork, extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET,
-  THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
+  THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 

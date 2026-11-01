@@ -15,8 +15,8 @@ import { SettingsClient } from "../custom_components/meshroute_topology_explorer
 import { buildScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { ENGINES } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 import { laneValue, legendEntries, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
-import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/ui/thread-details.js";
-import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
+import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/details.js";
+import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;

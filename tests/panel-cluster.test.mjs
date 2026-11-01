@@ -10,7 +10,7 @@ import { deviceLinks, devicePagePath, zhaDevicePath, logbookPath, historyPath, e
   from "../custom_components/meshroute_topology_explorer/frontend/ui/ha-links.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
+import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 
 const st = (state, attributes = {}) => ({ state, attributes });
 

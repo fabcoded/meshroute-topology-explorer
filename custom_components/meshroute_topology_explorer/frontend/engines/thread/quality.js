@@ -23,7 +23,7 @@
 // Cap rule (tq2, owner decision 2026-11-01): where both RSSI and the receiver's own link quality exist, the band is
 // the lower of the RSSI band and the link-quality band, because the receiver's class accounts for its own constant.
 // Link quality 0 with a valid RSSI is a measured low reading (basis "rssi"); with no valid RSSI it gives no band.
-import { threadLqi, threadRssi } from "../../model/thread.js";
+import { threadLqi, threadRssi } from "./from-matter.js";
 
 /** Nominal receiver noise floor (dBm) that turns link-margin limits into RSSI limits; see the header. */
 export const NOMINAL_NOISE_FLOOR_DBM = -100;
