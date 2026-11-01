@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 // The "Links" popover of the options group (decision by Fabian Schwamborn, 2026-11-01; spec 9.1): one checkbox per
-// link class (up path, other routes, heard only) and, right below, the density as a single choice. Real checkboxes
+// link class (up path, other routes, heard only), the opt-in "colour by reception", and below them the density as a
+// single choice. Real checkboxes
 // and radios inside labels, so state is announced and every target is at least 44 px. Unlike a menu it stays open
 // while the user switches several classes; Esc and a press outside close it. Runs in the browser.
 import { h } from "./dom.js";
 import { LINK_CLASSES } from "./links-rows.js";
 
 export class LinksPanel {
-  /** button: the group's Links row; handlers: links() -> { up, route, heard }, onLink(cls, on); densityItems() ->
-   *  [{ id, label, checked }], onDensity(id). Texts arrive with update(). */
+  /** button: the group's Links row; handlers: links() -> { up, route, heard }, onLink(cls, on); colors() -> boolean,
+   *  onColors(on); densityItems() -> [{ id, label, checked }], onDensity(id). Texts arrive with update(). */
   constructor(button, handlers) {
     this.button = button;
     this.handlers = handlers;
@@ -59,6 +60,9 @@ export class LinksPanel {
       h("div", { class: "pop-head", text: t("links.title") }),
       ...LINK_CLASSES.map((c) => row("checkbox", "link", `link-${c}`, t(`links.${c}`), Boolean(links[c]),
         (e) => this.handlers.onLink(c, e.target.checked))),
+      h("div", { class: "sep", role: "separator" }),
+      row("checkbox", "colors", "colors", t("links.colors"), Boolean(this.handlers.colors && this.handlers.colors()),
+        (e) => this.handlers.onColors && this.handlers.onColors(e.target.checked)),
       h("div", { class: "sep", role: "separator" }),
       h("div", { class: "pop-head", text: t("links.density") }),
       ...this.handlers.densityItems().map((d) => row("radio", "density", `density-${d.id}`, d.label, d.checked,

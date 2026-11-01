@@ -26,6 +26,9 @@ export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
 const LINE_HEIGHT = 14;
+/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT,
+ *  decision by Fabian Schwamborn, 2026-11-01), then a little further back, then closer to the hearer. Own choice. */
+const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
 
 /** Hit radius at zoom k: the symbol and 4 px around it (this covers its rounded corners), at least MIN_HIT across. */
 export function hitRadius(k) {
@@ -206,12 +209,14 @@ class RectGrid {
       this.cells.get(key).push(r);
     });
   }
-  hits(r) {
+  /** Whether r overlaps anything placed; with soft: true, dimmed symbols (marked soft) do not count. */
+  hits(r, { soft = false } = {}) {
     let hit = false;
     this._keys(r, (key) => {
       if (hit) return;
       for (const q of this.cells.get(key) || []) {
         if (q.owner !== undefined && q.owner === r.owner) continue; // a label may touch its own symbol
+        if (soft && q.soft) continue;
         if (r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) { hit = true; return; }
       }
     });
@@ -292,17 +297,21 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   let lanes = 0;
   ctx.font = theme.font;
   // A lane's value: "RX:" over the value at the hearer, beside the lane on its right, a quarter of the lane before
-  // the hearer (VALUE_AT); on a short lane it moves back just enough to stay beside its own lane. No room: the
-  // details list it (spec 9.3).
+  // the hearer (VALUE_AT); on a short lane it moves back just enough to stay beside its own lane. If that spot is
+  // taken, it tries a little further back and a little closer to the hearer, always beside its own lane. No room:
+  // the details list it (spec 9.3).
   const addValue = (lane, text, extra) => {
     const w = Math.max(measure(texts.rx), measure(text));
     const h = 2 * LINE_HEIGHT;
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
     if (along + 8 > lane.len) return null;
     const half = along / 2 / lane.len;
-    const at = Math.max(half, Math.min(1 - half, VALUE_AT));
-    const [tx, ty] = textBeside(lane, w + 4, h, 1, at);
-    const t = { lines: [texts.rx, text], x: tx, y: ty, w, h, ...extra };
+    const spots = [];
+    for (const share of VALUE_SPOTS) {
+      const at = Math.max(half, Math.min(1 - half, share));
+      if (!spots.some((p) => Math.abs(p.at - at) < 0.02)) spots.push({ at, xy: textBeside(lane, w + 4, h, 1, at) });
+    }
+    const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy), ...extra };
     laneTexts.push(t);
     return t;
   };
@@ -351,7 +360,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       let text = laneValue(dir, texts);
       if (view.debug && dir.state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
       const t = addValue(lane, text, { path: true, alpha: 1 });
-      pathValues.push({ s, h, text, x: t ? t.x : null, y: t ? t.y : null, drawn: false, ref: t });
+      pathValues.push({ s, h, text, drawn: false, ref: t });
     }
     lanes += strokeLanes(ctx, items);
     ctx.setLineDash(STEM.dash);
@@ -399,7 +408,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const x = sx[i];
     const y = sy[i];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
-    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i });
+    // A dimmed device is a soft obstacle: the reception at a path hop may cover it, a label may not.
+    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i, soft: dimming && !near.has(i) });
     const value = node.available ? fillColor(node, view.fill, theme) : null;
     const fill = node.available ? value || theme.node : theme.background;
     // The neutral fill is designed for the theme's own line colour; no flip (spec 8).
@@ -446,8 +456,16 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     shown++;
   };
   const value = (t) => {
-    const rect = { x: t.x - t.w / 2 - 2, y: t.y - t.h / 2, w: t.w + 4, h: t.h };
-    if (placed.hits(rect)) return false;
+    let rect = null;
+    for (const [x, y] of t.spots) {
+      const r = { x: x - t.w / 2 - 2, y: y - t.h / 2, w: t.w + 4, h: t.h };
+      if (placed.hits(r, { soft: t.path })) continue;
+      rect = r;
+      t.x = x;
+      t.y = y;
+      break;
+    }
+    if (!rect) return false;
     placed.add(rect);
     ctx.globalAlpha = t.alpha;
     haloText(ctx, t.lines[0], t.x, t.y - LINE_HEIGHT / 2, theme, theme.muted);
@@ -496,7 +514,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   }
   const classes = Object.fromEntries(CLASSES.map((c) => [c, drawn.filter((p) => p.cls === c).length]));
   const paths = route ? { hops: route.hops.size, ends: ends.length,
-    values: pathValues.map(({ s, h, text, x, y, drawn: shownValue }) => ({ s, h, text, x, y, drawn: shownValue })) } : null;
+    values: pathValues.map(({ s, h, text, ref, drawn: shownValue }) => ({ s, h, text, x: ref ? ref.x : null,
+      y: ref ? ref.y : null, drawn: shownValue })) } : null;
   return { sx, sy, lines: drawn.length, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }
