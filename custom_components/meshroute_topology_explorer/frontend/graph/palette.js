@@ -202,7 +202,9 @@ export function fillColor(node, fill, theme) {
  *  theme brightness: weakest, middle and strongest rating. Own choice of shades: each keeps 3:1 against the default
  *  light (#ffffff, #fafafa) or dark (#111111, #1c1c1c) background, and the three differ by at least 8 in CIELAB
  *  lightness (light: 49, 58, 41; dark: 60, 81, 68), so they stay apart without hue too. Dash, width and the value
- *  beside the lane still say everything: colour never carries meaning alone (spec 8). */
+ *  beside the lane still say everything: colour never carries meaning alone (spec 8).
+ *  The user may replace any of the three with an own colour (design by Fabian Schwamborn, 2026-11-01: "frei wählbar,
+ *  z. B. für Farbenblinde"); it is nudged to 3:1 like these. */
 export const RECEPTION_STOPS = Object.freeze({
   light: Object.freeze(["#d93a26", "#b58300", "#1d6f31"]),
   dark: Object.freeze(["#f2604d", "#f2c230", "#3fbd5c"]),
@@ -210,10 +212,17 @@ export const RECEPTION_STOPS = Object.freeze({
 /** Steps of the precomputed reception scale: far finer than the eye tells apart on a 3 px line. */
 const RECEPTION_STEPS = 64;
 
+/** The theme's own stops for a background (dark or light). */
+export function receptionStops(dark) {
+  return dark ? RECEPTION_STOPS.dark : RECEPTION_STOPS.light;
+}
+
 /** The reception scale for a background: RECEPTION_STEPS + 1 colours from weakest to strongest, interpolated in sRGB
- *  between the stops and each nudged to 3:1 against the background (a user's theme may differ from the defaults). */
-function receptionScale(bg) {
-  const stops = (luminance(bg) < 0.18 ? RECEPTION_STOPS.dark : RECEPTION_STOPS.light).map(parseColor);
+ *  between the stops and each nudged to 3:1 against the background (a user's theme may differ from the defaults).
+ *  custom: [bad, medium, good], each a colour that replaces the theme's stop, or null to keep it. */
+function receptionScale(bg, custom = []) {
+  const own = receptionStops(luminance(bg) < 0.18);
+  const stops = own.map((c, i) => parseColor(Array.isArray(custom) && custom[i]) || parseColor(c));
   const out = [];
   for (let i = 0; i <= RECEPTION_STEPS; i++) {
     const x = (i / RECEPTION_STEPS) * (stops.length - 1);
@@ -232,7 +241,8 @@ export function receptionColor(rating, theme) {
 
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
  *  default, picked by the background's luminance. The grey of devices without a value (node) is always derived
- *  (noValueGrey), so it cannot be mistaken for a rating. */
+ *  (noValueGrey), so it cannot be mistaken for a rating. input.receptionStops: the user's [bad, medium, good] (each
+ *  a colour or null) for colour by reception. */
 export function resolveTheme(input = {}) {
   const bgIn = parseColor(input.background);
   const base = bgIn && luminance(bgIn) < 0.18 ? DARK : LIGHT;
@@ -257,7 +267,7 @@ export function resolveTheme(input = {}) {
     font: typeof input.font === "string" && input.font ? input.font : base.font,
     lineRange: range,
     categories,
-    reception: receptionScale(bg),
+    reception: receptionScale(bg, input.receptionStops),
     dark: luminance(bg) < 0.18,
   };
 }

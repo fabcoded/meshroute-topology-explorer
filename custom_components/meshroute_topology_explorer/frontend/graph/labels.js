@@ -1,12 +1,41 @@
 // SPDX-License-Identifier: MIT
-// Label text and visibility rules of the map (spec 8). The text itself comes from the data model (device.label,
-// already unique); this module only shortens it to fit and decides when everyone is labelled. Pure functions, no
+// Label text and visibility rules of the map (spec 8). A device's label is a block of up to three lines (design by
+// Fabian Schwamborn, 2026-11-01): its type above the symbol, its readable name below it (the data model's
+// device.label, already unique) and, optionally, the original Home Assistant name in a smaller grey line under that.
+// This module composes the block, shortens names to fit and decides when everyone is labelled. Pure functions, no
 // DOM: text width comes from an injected measure(text) function. Labels are drawn as canvas text, never as HTML.
 // node --test tests/
 
 export const ELLIPSIS = "…";
 /** Widest label at zoom 1, in CSS pixels; about 20 characters of the 12 px label font. Own choice. */
 export const MAX_LABEL_WIDTH = 128;
+
+/** Which lines a label block has by default (spec 11, settings `labels`): type and readable name. */
+export const DEFAULT_LABELS = Object.freeze({ type: true, name: true, haName: false });
+
+/** The lines of one device's label block. node: { kind (its picture, null when unknown), label (shortened readable
+ *  name), haLabel (shortened Home Assistant name, null when it equals the readable one) }; show: { type, name,
+ *  haName }; kinds: the device types in the user's language, by picture. Answer: { above: [line], below: [line] },
+ *  a line being { text, role: "type" | "name" | "ha" }. A device whose kind is unknown has no type line: its symbol
+ *  already shows a question mark, and "unknown" above every such device would only add noise. */
+export function labelLines(node, show = DEFAULT_LABELS, kinds = {}) {
+  const above = [];
+  const below = [];
+  const type = node.kind && Object.hasOwn(kinds, node.kind) ? kinds[node.kind] : null;
+  if (show.type && typeof type === "string" && type) above.push({ text: type, role: "type" });
+  if (show.name && node.label) below.push({ text: node.label, role: "name" });
+  if (show.haName && node.haLabel) below.push({ text: node.haLabel, role: "ha" });
+  return { above, below };
+}
+
+/** The original Home Assistant names to show under the readable ones, in the same order: shortened against each other
+ *  like the readable names, null where a device has none or it equals its readable name (nothing to add). */
+export function haLabels(devices, measure, maxWidth = MAX_LABEL_WIDTH) {
+  const names = devices.map((d) => (typeof d.haName === "string" && d.haName.trim()) || null);
+  const shown = names.map((n, i) => (n && n !== devices[i].label ? n : null));
+  const pool = shown.filter(Boolean);
+  return shown.map((n) => (n ? shortenName(n, pool, measure, maxWidth) : null));
+}
 
 /** Indices where a word starts (after a space), in ascending order. */
 function wordStarts(name) {

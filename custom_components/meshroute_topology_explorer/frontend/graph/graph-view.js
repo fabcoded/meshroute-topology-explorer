@@ -15,7 +15,7 @@
 import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
-import { LABEL_SCALE } from "./labels.js";
+import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
 import { DEFAULT_LINKS, legendEntries } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
@@ -70,17 +70,33 @@ function defaultEnv() {
   };
 }
 
+/** [bad, medium, good]: a colour string or null each. */
+function cleanStops(stops) {
+  return [0, 1, 2].map((i) => (Array.isArray(stops) && typeof stops[i] === "string" && stops[i] ? stops[i] : null));
+}
+
+/** Label lines { type, name, haName }: booleans, defaults from labels.js (spec 8, 11). */
+function cleanLabels(labels) {
+  const src = labels && typeof labels === "object" ? labels : {};
+  return Object.fromEntries(Object.keys(DEFAULT_LABELS).map((k) =>
+    [k, typeof src[k] === "boolean" ? src[k] : DEFAULT_LABELS[k]]));
+}
+
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
    *  "role" or "power"), links (class switches), nodeView ("coordinator" or "all": what a selected device shows),
-   *  receptionColors (lanes coloured by their reading), texts ({ uncertain, parent, route, rx, pathUnknown }), seed,
-   *  debug, env (timers and media queries, injectable for tests). */
+   *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
+   *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label), texts
+   *  ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light", ... } }), seed, debug, env (timers and
+   *  media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.env = { ...defaultEnv(), ...(options.env || {}) };
-    this.theme = resolveTheme(options.theme);
+    this._themeInput = options.theme || {};
+    this.receptionStops = cleanStops(options.receptionStops);
+    this.theme = resolveTheme({ ...this._themeInput, receptionStops: this.receptionStops });
     this.density = options.density || DENSITY.medium;
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
@@ -88,8 +104,9 @@ export class GraphView extends EventTarget {
     this.links = { ...DEFAULT_LINKS, ...(options.links || {}) };
     this.nodeView = NODE_VIEWS.includes(options.nodeView) ? options.nodeView : DEFAULT_NODE_VIEW;
     this.receptionColors = options.receptionColors === true;
+    this.labels = cleanLabels(options.labels);
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
-      ...(options.texts || {}) };
+      kinds: {}, ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
@@ -193,6 +210,25 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
+  /** The user's colours for colour by reception (spec 8): [bad, medium, good], each a colour or null for the theme's
+   *  own; they are nudged to 3:1 against the background like the theme's. Drawing only. */
+  setReceptionStops(stops) {
+    const next = cleanStops(stops);
+    if (next.every((c, i) => c === this.receptionStops[i])) return;
+    this.receptionStops = next;
+    this.theme = resolveTheme({ ...this._themeInput, receptionStops: next });
+    this._invalidate();
+  }
+
+  /** Which lines a device's label has (spec 8): { type (above the symbol), name (below), haName (below the name,
+   *  smaller) }, booleans; a missing one keeps its value. Drawing only: the layout and its base length stay. */
+  setLabels(labels) {
+    const next = cleanLabels({ ...this.labels, ...(labels || {}) });
+    if (Object.keys(next).every((k) => next[k] === this.labels[k])) return;
+    this.labels = next;
+    this._invalidate();
+  }
+
   /** Choose the fill of the devices (spec 8): "none" (default), "role" or "power"; anything else is ignored. */
   setFill(fill) {
     if (!FILLS.includes(fill) || fill === this.fill) return;
@@ -201,7 +237,8 @@ export class GraphView extends EventTarget {
   }
 
   /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane, { parent, route } on
-   *  a lane that a parent link or a route implies, { rx } above a lane's value, { pathUnknown } at an unknown end. */
+   *  a lane that a parent link or a route implies, { rx } above a lane's value, { pathUnknown } at an unknown end,
+   *  { kinds } the device types above the symbols, by picture. */
   setTexts(texts) {
     this.texts = { ...this.texts, ...texts };
     this._invalidate();
@@ -213,7 +250,8 @@ export class GraphView extends EventTarget {
   }
 
   setTheme(theme) {
-    this.theme = resolveTheme(theme);
+    this._themeInput = theme || {};
+    this.theme = resolveTheme({ ...this._themeInput, receptionStops: this.receptionStops });
     this._widths.clear();
     this._invalidate();
   }
@@ -506,7 +544,7 @@ export class GraphView extends EventTarget {
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, links: this.links, selected: this.selected, hovered: this.hovered, fps: this._fps,
-      fill: this.fill, nodeView: this.nodeView, receptionColors: this.receptionColors,
+      fill: this.fill, nodeView: this.nodeView, receptionColors: this.receptionColors, labels: this.labels,
       texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);

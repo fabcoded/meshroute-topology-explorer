@@ -6,10 +6,11 @@
 // debug mode. A selected device (or, without one, the device under the pointer) shows its paths in the node view
 // (model/node-paths.js): every hop on the lane of its direction of travel with the reception at its hearer, unknown
 // ends as dashed stems with "?", the up path as a band, everything else dimmed. Labels as canvas text placed around
-// obstacles. Also hit testing, which shares the symbols' size. Pure except for the context passed in.
+// obstacles: a block of the device's type above the symbol, its readable name below and optionally the original Home
+// Assistant name under that (labels.js). Also hit testing, which shares the symbols' size. Pure except for the context passed in.
 // node --test tests/
 
-import { displayLabels, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
+import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
@@ -26,6 +27,10 @@ export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
 const LINE_HEIGHT = 14;
+/** The original Home Assistant name is a smaller line (design by Fabian Schwamborn, 2026-11-01): 10 px in a 12 px
+ *  label font, scaled by this share; its line is a little lower too. Own choice. */
+const SMALL_SHARE = 10 / 12;
+const SMALL_LINE_HEIGHT = 12;
 /** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT,
  *  decision by Fabian Schwamborn, 2026-11-01), then a little further back, then closer to the hearer. Own choice. */
 const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
@@ -53,7 +58,8 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** Order of two pairs for the default view: higher rating first, then higher LQI; unknown last. */
 const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
 
-/** Static part of the picture for one network: nodes with display labels; pairs with their evidence per direction
+/** Static part of the picture for one network: nodes with display labels (readable name, Home Assistant name, kind
+ *  for the type line); pairs with their evidence per direction
  *  (ab: a hears b, ba: b hears a; { state, lqi, rating, source, reason } from the data model), class and whether the
  *  default view shows them; every device's up path as node indices; neighbours. */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
@@ -65,15 +71,22 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     devices.push(d);
   }
   const labels = displayLabels(devices, measure, maxLabelWidth);
-  const nodes = devices.map((d, i) => ({
-    id: d.id,
-    role: ROLES.has(d.role) ? d.role : "unknown",
-    parts: symbolParts({ ...d, role: ROLES.has(d.role) ? d.role : "unknown" }),
-    label: labels[i],
-    available: d.available !== false,
-    rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
-    power: powerCategory(d.powerSource),
-  }));
+  const ha = haLabels(devices, (text) => measure(text) * SMALL_SHARE, maxLabelWidth); // drawn in the smaller font
+  const nodes = devices.map((d, i) => {
+    const role = ROLES.has(d.role) ? d.role : "unknown";
+    const parts = symbolParts({ ...d, role });
+    return {
+      id: d.id,
+      role,
+      parts,
+      label: labels[i],
+      haLabel: ha[i],
+      kind: parts.picture && parts.picture !== "unknown" ? parts.picture : null,
+      available: d.available !== false,
+      rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
+      power: powerCategory(d.powerSource),
+    };
+  });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const neighbours = nodes.map(() => new Set());
   const { pairs: classed, upPaths, network: pathNet } = classifyPairs({ ...network, devices });
@@ -247,7 +260,8 @@ const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(","
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
  *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), links (class switches), nodeView
  *  ("coordinator" | "all": what the focused device's paths are), receptionColors (lanes coloured by their rating),
- *  texts ({ uncertain, parent, route, rx, pathUnknown }, words drawn on the map) }; pos: { x, y, pinned, mesh } arrays
+ *  labels ({ type, name, haName }: lines of a label block), texts ({ uncertain, parent, route, rx, pathUnknown,
+ *  kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh } arrays
  *  by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
  *  class), order (class of each pair in drawing order), symbols (devices drawn), size (symbol size on screen),
@@ -423,9 +437,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     symbols++;
   }
 
-  // Text, in order of importance. A label tries below, above, right and left of its device and is left out if all
-  // four would cover another device or text already placed (the details list everything); the coordinator and the
-  // focus are always labelled, below if nothing else is free. Order: coordinator and focus, the reception at the
+  // Text, in order of importance. A label block tries its places around its device and is left out if all would
+  // cover another device or text already placed (the details list everything); the coordinator and the focus are
+  // always labelled, in the first place if nothing else is free. Order: coordinator and focus, the reception at the
   // hops of the focus's paths, "?" and "path unknown" at their unknown ends, the other devices on the paths,
   // everyone else from LABEL_SCALE up, values on other lanes (debug).
   ctx.globalAlpha = 1;
@@ -436,25 +450,62 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   let values = 0;
   let shown = 0;
   let dropped = 0;
+  // A label block (labels.js labelLines): type above the symbol, readable name and Home Assistant name below it. It
+  // tries its places in turn: split around the symbol, then the whole block below, above, right and left (places that
+  // come out the same, as with the name alone, are tried once: below, above, right, left). Every line must be free.
+  const smallFont = theme.font.replace(/(\d+(?:\.\d+)?)px/, (m, px) => `${Math.round(Number(px) * SMALL_SHARE * 10) / 10}px`);
+  const lineOf = (line) => {
+    const small = line.role === "ha";
+    return { ...line, w: measure(line.text) * (small ? SMALL_SHARE : 1) + 4, h: small ? SMALL_LINE_HEIGHT : LINE_HEIGHT };
+  };
+  /** Line boxes { line, cx, cy } stacked downwards from top, each centred on cx or aligned at an edge. */
+  const stack = (lines, top, x, align) => {
+    let y = top;
+    return lines.map((line) => {
+      const cx = align === "left" ? x + line.w / 2 : align === "right" ? x - line.w / 2 : x;
+      const box = { line, cx, cy: y + line.h / 2 };
+      y += line.h;
+      return box;
+    });
+  };
+  const places = (x, y, above, below) => {
+    const r = half;
+    const all = [...above, ...below];
+    const height = all.reduce((sum, l) => sum + l.h, 0);
+    const aboveHeight = above.reduce((sum, l) => sum + l.h, 0);
+    const out = [
+      [...stack(above, y - r - 3 - aboveHeight, x, "center"), ...stack(below, y + r + 3, x, "center")],
+      stack(all, y + r + 3, x, "center"),
+      stack(all, y - r - 3 - height, x, "center"),
+      stack(all, y - height / 2, x + r + 4, "left"),
+      stack(all, y - height / 2, x - r - 4, "right"),
+    ];
+    const seen = new Set();
+    return out.filter((boxes) => {
+      const key = boxes.map((b) => `${b.cx.toFixed(1)},${b.cy.toFixed(1)}`).join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const rectOf = (b) => ({ x: b.cx - b.line.w / 2, y: b.cy - b.line.h / 2, w: b.line.w, h: b.line.h });
   const label = (i, forced) => {
     if (!onScreen(i)) return;
     const node = scene.nodes[i];
-    const w = measure(node.label) + 4;
-    const r = half;
-    const h = LINE_HEIGHT;
-    const spots = [
-      [sx[i], sy[i] + r + 3 + h / 2], [sx[i], sy[i] - r - 3 - h / 2],
-      [sx[i] + r + 4 + w / 2, sy[i]], [sx[i] - r - 4 - w / 2, sy[i]],
-    ];
-    let spot = null;
-    for (const [cx, cy] of spots) {
-      if (!placed.hits({ x: cx - w / 2, y: cy - h / 2, w, h, owner: i })) { spot = [cx, cy]; break; }
-    }
+    const { above, below } = labelLines(node, view.labels || DEFAULT_LABELS, texts.kinds || {});
+    if (!above.length && !below.length) return;
+    const options = places(sx[i], sy[i], above.map(lineOf), below.map(lineOf));
+    let spot = options.find((boxes) => boxes.every((b) => !placed.hits({ ...rectOf(b), owner: i }))) || null;
     if (!spot && !forced) { dropped++; return; }
-    if (!spot) spot = spots[0];
-    placed.add({ x: spot[0] - w / 2, y: spot[1] - h / 2, w, h });
+    if (!spot) spot = options[0];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
-    haloText(ctx, node.label, spot[0], spot[1], theme);
+    for (const b of spot) {
+      placed.add(rectOf(b));
+      const small = b.line.role === "ha";
+      if (small) ctx.font = smallFont;
+      haloText(ctx, b.line.text, b.cx, b.cy, theme, b.line.role === "name" ? theme.foreground : theme.muted);
+      if (small) ctx.font = theme.font;
+    }
     ctx.globalAlpha = 1;
     shown++;
   };

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_LINKS, legendEntries, pairDrawn } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
+import { receptionColor, resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { sanitizeLinks, sanitizeSettings, DEFAULTS } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { LINK_CLASSES } from "../custom_components/meshroute_topology_explorer/frontend/ui/links-rows.js";
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -126,4 +126,29 @@ test("node view and colour by reception: drawing only, junk ignored, the legend 
   assert.equal(view.nodeView, "all", "an unknown mode is ignored");
   assert.equal(view.receptionColors, false, "anything but true is off");
   assert.ok(!view.legend().some((e) => e.id === "reception"));
+});
+
+test("own reception colours and label lines: drawing only, the legend's scale follows the colours", () => {
+  const canvas = new FakeCanvas(800, 600);
+  const env = fakeEnv();
+  const view = new GraphView(canvas, { env, receptionColors: true, receptionStops: ["#0072b2", null, 7], labels: { haName: "yes" } });
+  assert.deepEqual(view.receptionStops, ["#0072b2", null, null]);
+  assert.deepEqual(view.labels, { type: true, name: true, haName: false }, "defaults: type and name");
+  view.setNetwork(NET);
+  env.flush();
+  const before = JSON.stringify([...view.pos.x, ...view.pos.y]);
+  const scale = () => view.legend().find((e) => e.id === "reception").colors;
+  assert.equal(scale()[0], "#0072b2");
+  view.setReceptionStops(["#e69f00", null, null]);
+  env.flush();
+  const orange = (background) => receptionColor(0, resolveTheme({ background, receptionStops: ["#e69f00"] }));
+  assert.equal(scale()[0], orange(undefined), "orange, nudged to 3:1 on the light default");
+  view.setTheme({ background: "#111111" });
+  assert.equal(scale()[0], orange("#111111"), "a new theme keeps the user's colours");
+  assert.equal(orange("#111111"), "#e69f00", "on dark it reaches 3:1 as it is");
+  view.setLabels({ haName: true, type: false });
+  view.setLabels({ name: "junk" });
+  assert.deepEqual(view.labels, { type: false, name: true, haName: true }, "a bad value keeps the default");
+  env.flush();
+  assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before, "nothing moves");
 });
