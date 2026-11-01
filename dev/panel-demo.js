@@ -10,6 +10,7 @@
 import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
+import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
@@ -38,7 +39,10 @@ const VARIANTS = [
     ["Cluster popup: sleepy device fails", "select=End%20device%2006&left=details&dtab=cluster&cluster=0x0001&ep=1&dir=in&readvalues=1"],
     ["Cluster popup: manufacturer-specific", "select=Router%2003&left=details&dtab=cluster&cluster=0xfc7c&ep=1&dir=in"],
     ["Assumed return path: Router 02", "select=Router%2002&left=details"],
-    ["Source route off: Router 02", "select=Router%2002&left=details&sourceroute=off"]]],
+    ["Source route off: Router 02", "select=Router%2002&left=details&sourceroute=off"],
+    ["Route record from zigpy: Router 02", "select=Router%2002&left=details&sourceroute=zigpy"],
+    ["Route record differs: Router 16", "select=Router%2016&left=details&sourceroute=zigpy"],
+    ["zigpy not available", "sourceroute=zigpy&zigpy=unsupported&right=view"]]],
   ["Communication paths", [["Stage 2 overview", "paths=all"], ["Heard-only checkbox, no selection", "heard=1"],
     ["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
     ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
@@ -230,7 +234,7 @@ if (q.has("labels")) { // labels=type,name,ha: the lines that are on
   initial.labels = { type: on.includes("type"), name: on.includes("name"), haName: on.includes("ha") };
 }
 if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as A4g stored it (migration)
-if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume
+if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume | zigpy
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
 
@@ -260,6 +264,11 @@ async function callWS(msg) {
     case "meshroute_topology_explorer/observations/get":
       if (q.get("settings") === "unknown") throw unknown;
       return { observations: store.observations.get(msg.network) || null };
+    case "meshroute_topology_explorer/zigpy_routes":
+      // Synthetic route records (tests/zigpy-fake.mjs): every complete way up, two of them broken on purpose.
+      if (q.get("settings") === "unknown") throw unknown;
+      if (q.get("zigpy") === "unsupported") throw { code: "not_supported", message: "zha_not_loaded: ZHA is not loaded" };
+      return fakeZigpyRoutes(currentDevices());
     case "meshroute_topology_explorer/observations/set":
       if (q.get("settings") === "unknown") throw unknown;
       store.observations.set(msg.network, msg.observations);
