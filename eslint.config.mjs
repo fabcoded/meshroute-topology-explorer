@@ -17,6 +17,8 @@ export default [
     },
   },
   { files: ["custom_components/**/*.js", "dev/**/*.js"], languageOptions: { globals: globals.browser } },
+  // Shipped panel code: leftover debug output reaches every user's browser console.
+  { files: ["custom_components/**/*.js"], rules: { "no-console": "error" } },
   { files: ["tests/**/*.mjs", "*.mjs"], languageOptions: { globals: globals.node } },
   {
     files: ["tests/**/*.test.mjs"],

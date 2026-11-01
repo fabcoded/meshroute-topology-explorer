@@ -1,8 +1,7 @@
 # Development lint only; the integration is not installed as a Python package.
-# Usage: pre-commit run ruff --all-files. See CONTRIBUTING.md.
+# Usage: pre-commit run ruff --all-files. The Ruff version is pinned once, in .pre-commit-config.yaml.
 [tool.ruff]
 target-version = "py313"
-required-version = "==0.17.0"
 
 [tool.ruff.lint]
 # Correctness first; avoid a repository-wide formatting rewrite.
