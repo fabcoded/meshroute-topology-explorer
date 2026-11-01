@@ -95,7 +95,7 @@ test("the none fill and the arrows' reception are named in both languages", () =
   assert.deepEqual(["dense", "medium", "spread"].map((d) => translator("de")(`density.${d}`)), ["dicht", "mittel", "weit"]);
   assert.equal(translator("en")("legend.fill_none"), "Fill: none");
   assert.equal(translator("de")("legend.fill_none"), "Füllung: keine");
-  assert.match(translator("en")("legend.rx"), /Reception at the hearer, a quarter of the lane before it/);
+  assert.match(translator("en")("legend.rx"), /reported by the receiver at the arrowhead, a quarter of the lane before it/);
   assert.equal(translator("de")("legend.rx"), "Empfang beim Empfänger, ein Viertel vor ihm");
   assert.equal(translator("en")("fill.reception"), "fill.reception", "the removed fill has no words left");
   assert.equal(translator("de")("lane.parent"), "Parent");

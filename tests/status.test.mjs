@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { blockingState, statusParts, isIncomplete, completenessPercent } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { blockingState, statusParts, isIncomplete } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
 import { deviceRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 
@@ -36,13 +36,11 @@ test("status line parts on the sample and a network below 90 %", () => {
   const network = buildNetwork(sample.responses["zha/devices"]);
   const parts = statusParts(network);
   assert.deepEqual(parts.map(([key]) => key),
-    ["status.source", "status.tables", "status.complete"], "as on board M1");
+    ["status.source", "status.tables"], "source and router tables; no completeness percentage (review 1.4c)");
   assert.deepEqual(parts[1][1], { x: 29, y: 29 });
   assert.equal(isIncomplete(network.status), false);
   const low = { ...network.status, completeness: 26 / 29 };
-  assert.equal(completenessPercent(low), 89, "rounded down: 89.7 % is not shown as 90 %");
   assert.equal(isIncomplete(low), true);
-  assert.equal(completenessPercent({ completeness: 0.9 }), 90);
   assert.equal(isIncomplete({ completeness: 0.9 }), false);
   const later = statusParts(network, { unchangedSince: "2026-01-01 11:30" }).map(([key]) => key);
   assert.equal(later.at(-1), "status.unchanged", "observed unchanged since closes the line (board M1)");

@@ -22,7 +22,7 @@ test("the panel is English only: any Home Assistant locale gets English texts (o
   for (const hass of [{ locale: { language: "de" }, language: "en" }, { language: "de-CH" }, { locale: { language: "fr" } }, null]) {
     assert.equal(languageOf(hass), "en");
   }
-  assert.equal(translator(languageOf({ language: "de" }))("status.tables", { x: 3, y: 4 }), "tables 3 of 4");
+  assert.equal(translator(languageOf({ language: "de" }))("status.tables", { x: 3, y: 4 }), "Router tables: 3/4");
 });
 
 test("dates and numbers keep following the user's locale, not the text language", () => {

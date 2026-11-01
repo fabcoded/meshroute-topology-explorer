@@ -12,11 +12,6 @@ export function blockingState({ isAdmin, configEntries }) {
   return loaded ? null : "zha_not_loaded";
 }
 
-/** Completeness as a whole percentage, rounded down so 89.7 % never reads as the 90 % at which the banner goes. */
-export function completenessPercent(status) {
-  return Math.floor(status.completeness * 100 + 1e-9);
-}
-
 export function isIncomplete(status) {
   return status.completeness < INCOMPLETE_BELOW;
 }
@@ -39,8 +34,8 @@ export function sourceRoutePart(summary, compact = false) {
   return compact ? [short, { count: summary.count }, long] : [long, { count: summary.count }];
 }
 
-/** Parts of the status line as [key, params] for the translator, in order (board M1): source, tables x of y
- *  (available routers, coordinator not counted), completeness, "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
+/** Parts of the status line as [key, params] for the translator, in order (board M1): source, "Router tables: x/y"
+ *  (available routers with a table; the coordinator is not counted; no percentage, review 1.4c), "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
  *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
  *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again" (decision by Fabian
  *  Schwamborn, 2026-11-01). compact (narrow screens): short forms in at most two lines, without the source; each part
@@ -51,7 +46,6 @@ export function statusParts(network, { unchangedSince = null, scan = null, compa
   if (compact) {
     const parts = [
       ["status.short_tables", { x: s.routersWithTable, y: s.routersAvailable }, "status.tables"],
-      ["status.short_complete", { pct: completenessPercent(s) }, "status.complete"],
     ];
     if (unchangedSince) parts.push(["status.short_unchanged", { time: unchangedSince }, "status.unchanged"]);
     const short = scan && SCAN_SHORT[scan.status];
@@ -63,7 +57,6 @@ export function statusParts(network, { unchangedSince = null, scan = null, compa
   const parts = [
     ["status.source", { source: network.source === "zha" ? "ZHA" : network.source }],
     ["status.tables", { x: s.routersWithTable, y: s.routersAvailable }],
-    ["status.complete", { pct: completenessPercent(s) }],
   ];
   if (unchangedSince) parts.push(["status.unchanged", { time: unchangedSince }]);
   const scanKey = scan && SCAN_KEYS[scan.status];

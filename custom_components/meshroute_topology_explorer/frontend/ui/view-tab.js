@@ -18,7 +18,7 @@ import { SOURCE_ROUTE_MODES } from "../model/source-routes.js";
 /** Fill `container`. ctx: { t, settings (sanitized), openOnSelect (effective "Details on click"), dark (the map's
  *  theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running } or null), client
  *  (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only), idPrefix (stable, so focus
- *  is found again after a re-render), info ({ density, reload }: which info notes are shown), onChange(patch),
+ *  is found again after a re-render), info ({ density, reload, heard, colors, assumed }: which info notes are shown), onChange(patch),
  *  onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(), onInfo(key, open) }. */
 export function renderView(container, ctx) {
   const { t, settings } = ctx;
@@ -73,9 +73,12 @@ export function renderView(container, ctx) {
   // Path display: grey or coloured by reception; with coloured, the user's own colours (null: the theme's own).
   const pc = settings.pathColors;
   const coloured = pc.mode === "coloured";
-  const display = group(t("view.path_display"), h("div", { class: "radio-line" },
-    radio("pathMode", "grey", t("view.grey"), !coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "grey" } })),
-    radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } }))));
+  const colorsInfo = infoNote("colors", t("view.colors_info_label"), t("view.colors_info"));
+  const display = h("fieldset", { class: "view-group" },
+    h("legend", { class: "with-info" }, h("span", { text: t("view.path_display") }), colorsInfo.button), colorsInfo.note,
+    h("div", { class: "radio-line" },
+      radio("pathMode", "grey", t("view.grey"), !coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "grey" } })),
+      radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } }))));
   // The pickers stay in view under "coloured by reception" (board M2), dimmed and inert while paths are grey.
   const defaults = receptionStops(Boolean(ctx.dark));
   const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
@@ -103,7 +106,9 @@ export function renderView(container, ctx) {
     h("input", { type: "radio", name: `${id}-sourceRoute`, value: "zigpy", disabled: true, "aria-describedby": `${id}-sr-later` }),
     h("span", { text: t("view.sr_zigpy") }), h("span", { class: "tag", text: t("view.sr_experimental") }),
     h("span", { class: "muted small", id: `${id}-sr-later`, text: t("view.sr_later") }));
-  container.append(group(t("view.source_route"),
+  const assumedInfo = infoNote("assumed", t("view.assumed_info_label"), t("view.assumed_info"));
+  container.append(h("fieldset", { class: "view-group" },
+    h("legend", { class: "with-info" }, h("span", { text: t("view.source_route") }), assumedInfo.button), assumedInfo.note,
     SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
       () => ctx.onChange({ sourceRoute: v }))), zigpy));
 
