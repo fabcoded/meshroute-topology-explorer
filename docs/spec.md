@@ -5,7 +5,7 @@ It fixes behaviour, data rules and measurable acceptance, not code structure: ho
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
 version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01;
 details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01; communication
-paths per direction in three stages, compact legend, status line as on the boards 2026-11-01; theoretical paths to every
+paths per direction in two stages and a heard-only option, compact legend, status line as on the boards 2026-11-01; theoretical paths to every
 device and the backbone overview 2026-11-01.
 
 ## 1. Purpose and principles [v1]
@@ -202,11 +202,11 @@ A view, fill or finding that needs a missing capability shows "not available for
 - A path that meets a missing table or entry, a loop, or an unavailable hop stops and is **incomplete**; it is
   never guessed, not even for the coordinator's direct neighbours.
 - **Paths of one device** (node view, 7.1; decisions by Fabian Schwamborn, 2026-11-01): "path to coordinator" (the
-  stage "coordinator" of 7.1) is its up and down path; "all paths" (the stages "all" and "heard") adds an **out path**
+  stage "coordinator" of 7.1) is its up and down path; "all paths" (the stage "all") adds an **out path**
   to and an **in path** from every other available device except the coordinator, both **theoretical** (5.7). The way
   with the coordinator is the up and down path, so it does not appear twice; an unavailable device has no theoretical
   paths. The coordinator stands for Home Assistant: in the stage "coordinator" it shows the routes it holds (walked
-  like the down path) and the routes of other devices towards it; in "all" and "heard" its theoretical out and in path
+  like the down path) and the routes of other devices towards it; in "all" its theoretical out and in path
   for every available device, from its own table on, like any device. On the sample every one of these paths is
   complete (12).
 - The **reception at a hop** (sender to hearer) is the hearer's evidence for that direction (4.3): its LQI of the
@@ -369,9 +369,10 @@ the centre).
   three (for colour blindness, design 2026-11-01); lanes without a reading or rating, computed hops and assumed return paths keep
   their class colour. Dash and width stay, so the class and the rating still read without colour. Every colour is
   nudged to 3:1 against the background (8).
-- **Communication paths** (decision by Fabian Schwamborn, 2026-11-01, boards M2, M11; View tab 9.1, stored 11): one
-  choice of three cumulative stages decides what is drawn; the stages only filter the drawing, springs, positions and
-  fitting stay.
+- **Communication paths** (decision by Fabian Schwamborn, 2026-11-01, boards M2, M11; View tab 9.1, stored 11): two
+  cumulative stages and one option decide what is drawn; they only filter the drawing, springs, positions and
+  fitting stay. The option "heard only (best 3)" was a third stage until A4l (decision by Fabian Schwamborn,
+  2026-11-01: checkbox instead of a third stage).
   - **With the coordinator, there and back** (default): the overview draws the up and down lanes of all devices, each
     only in its own direction, nothing else. A click turns everything else off: only the device's up and down path
     (its **node view**, 5.1; the coordinator stands for Home Assistant and shows the routes it holds and the routes
@@ -381,24 +382,27 @@ the centre).
     included, as a route where it is not up or down and lighter where only a computed route discovery takes it; it is
     computed once per network, not per frame. A click shows the device's trees, its theoretical way to every other
     device and back (5.1), and turns the rest off as in the first stage. "Theoretical": computed, not observed.
-  - **+ Heard only (best 3)**: without a selection as stage 2 (decision by Fabian Schwamborn, 2026-11-01); a click
-    adds the device's 3 best heard-only partners, both directions, with values and the glyph of a direction without a
-    reading. A **heard-only pair** has a reading in some direction and no route walk (classes above) in either; the
-    best by the best rating at the hearer of the pair's heard lanes, then LQI. A partner is a whole pair, not a single
-    lane without traffic: counted per lane, the best would mostly be the ways back of up hops (main session,
-    2026-11-01).
+  - **Option "heard only (best 3)"** (checkbox, works in both stages, default off): without a selection it changes
+    nothing; a click adds the device's 3 best heard-only partners, both directions, with values and the glyph of a
+    direction without a reading. A **heard-only partner** is a device that has a reading with the selected device and
+    no lane drawn between the two in either direction in the active stage (decision of the main session, 2026-11-01):
+    in the first stage no up, down or route lane (route walks, classes above); in the second stage additionally no lane
+    of the selection's theoretical paths (5.7). Ranked by the best rating at the hearer of the pair's heard lanes,
+    then LQI. A partner is a whole pair, not a single lane without traffic: counted per lane, the best would mostly be
+    the ways back of up hops. On the sample the second stage leaves almost no partner (12), because the theoretical
+    paths take every measured neighbour lane (rule 4).
   - A lane keeps its **strongest class** in every state (main session, 2026-11-01): up and measured down, then
     assumed down, then a route (a route walk, or the backbone by a table, neighbour or parent link), then computed
     only, then heard. A hop of a selected or hovered device's tree on someone's up or down lane stays solid; only its
     value and the highlight come from the tree.
   - **Hover** previews the device under the pointer: its lanes of the stage that the overview draws anyway lie on
     top with their values, everything else is dimmed; it never adds lanes the stage hides. From stage 2 on the
-    backbone carries the device's trees, so they show; heard-only partners wait for the click. **Debug mode** draws
+    backbone carries the device's trees, so they show; heard-only partners (the option) wait for the click. **Debug mode** draws
     every lane of every class, the glyphs and lanes without traffic, with values on both lanes; a selection's lanes
     lie on top.
   - Order within the drawing: lanes without class (debug), heard only, computed, routes, down, up on top. On the
     sample the overview draws 95 lanes in the first stage (41 up, 54 down, 2 of them assumed; 93 with source routes
-    off) and the backbone of 570 lanes in the second and third (95 up or down, 456 routes, 19 computed only; with
+    off) and the backbone of 570 lanes in the second, with or without the option (95 up or down, 456 routes, 19 computed only; with
     source routes off the 2 assumed lanes count as routes).
 - **The node view on the map**: each hop on the lane of its direction of travel with an arrowhead at the hearer, in
   the style of its class (a hop of the device's own up or down path solid, an assumed return path sparsely dotted
@@ -408,7 +412,7 @@ the centre).
   where unknown). An incomplete path ends at the device where its walk stopped with a short dashed stem towards its
   goal (on the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown":
   unknown beats wrong. The up path also lies as a wide translucent band under its hops (on a click, not on hover): in
-  the stages "all" and "heard" it tells the way to the coordinator apart from the other paths (main session,
+  the stage "all" it tells the way to the coordinator apart from the other paths (main session,
   2026-11-01). Devices on the paths, their goals and the heard partners keep full strength and their labels.
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
   right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
@@ -539,8 +543,9 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   area (Home Assistant's name, `hass.areas` before the registry's) · "unavailable" when it is down; the reception rank
   lives in Details. With Details on click on, a click on a device in the list or on the map opens its Details; while
   the left panel shows Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
-- **View** tab (board M2), in this order: **Communication paths** (one radio group of the three stages of 7.1, each
-  with a one-line hint, then "Every stage includes the previous one. Debug shows everything."); **Path
+- **View** tab (board M2), in this order: **Communication paths** (one radio group of the two stages of 7.1, each
+  with a one-line hint, below it the checkbox "heard only (best 3)" with its hint "needs a selection: adds the device's 3
+  best heard-only partners, in either stage", then "The second stage includes the first. Debug shows everything."); **Path
   display** (grey or coloured by reception; under it three colour pickers bad, medium, good, prefilled with the
   theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
@@ -557,8 +562,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   coarse one.
 - **Legend** tab (board M7), compact, in sections: **Communication paths**: every path class whatever the stage
   (decision by Fabian Schwamborn, 2026-11-01): there and back with the coordinator, the assumed return path, paths to
-  other devices "(stage 2)", the path a route discovery would find "(computed, stage 2)", heard only "(stage 3)"; the
-  band, the glyphs "–" and "?" where the stage draws them (stage 3 and debug)
+  other devices "(stage 2)", the path a route discovery would find "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
+  band, the glyphs "–" and "?" where the option draws them (option on, and debug)
   (an addition to M7: the legend explains every glyph the map can show), in debug mode also the lane without traffic,
   the width steps and the unknown end, "RX:" (the reception at the hearer, a quarter of the lane before it) and the
   colour bar while paths are coloured; the fill while one is chosen; **Symbols**: one row per sign, each drawn at
@@ -590,7 +595,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
     at its hearer, the value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …", an
     assumed return path "back, assumed (source route): …" with a note, 5.1), "path unknown" where a walk stops, a goal
     that is unavailable named so; for the coordinator in the first stage its routes ("to X", "from X"), collapsed
-    above 12 lines. In the stages "all" and "heard" the card **"Paths to other devices (theoretical)"** (5.7; brief
+    above 12 lines. In the stage "all" the card **"Paths to other devices (theoretical)"** (5.7; brief
     a4k), collapsed above 12 rows: a row per other device, the shortest way there first, with the hops there (→) and
     back (←) and each way's weakest RX ("?" first, else the lowest LQI, else what implies it); a row opens to both ways,
     every hop with its RX and how it is taken ("table", "neighbour", "route discovery (computed)", "parent", "child";
@@ -685,8 +690,9 @@ picture under a banner and reads again when the connection is back.
 
 ## 11. Settings per network [v1]
 
-View, direction (v1.1), density, communication paths (`paths`: `coordinator`, `all` or `heard`; anything else counts
-as `coordinator`; 7.1), path display
+View, direction (v1.1), density, communication paths (`paths`: `coordinator` or `all`; anything else counts
+as `coordinator`; `heard`: boolean, the checkbox "heard only (best 3)", default false; a stored `paths: "heard"` of A4j/A4k reads as
+`paths: "all"` with `heard: true`; 7.1), path display
 (`pathColors`: `{ mode, bad, medium, good }`; `mode` `grey` or `coloured`, anything else `grey`; each colour only as
 `#rrggbb`, anything else, `null` included, means the theme's own), labels (`labels`: `{ type, name, haName }`,
 booleans, a bad or missing value counts as its default: on, on, off), fill (`none`, `role` or `power`; anything else,
@@ -711,7 +717,7 @@ reads them again on reconnect.
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
-| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" and "heard": 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. |
+| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (A4l): partners per stage over the 32 routers: first stage 29 with 3 partners and 3 with none, second stage 31 with none and 1 with one; the 12 end devices none in both; Router 13 draws 2 lanes (first stage), 7 with the option, 82 in the second stage with or without it. |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
