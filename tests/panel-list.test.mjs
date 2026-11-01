@@ -52,7 +52,8 @@ test("the filter matches label, model, area and addresses; the active row follow
 });
 
 test("rows as on board M3: the coordinator first, the parent of end devices, 'direct to the coordinator' where true", async () => {
-  const { rowMeta, connectionOf } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
+  const { rowMeta } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
+  const { connectionOf } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/connection.js");
   const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
   const { upPath } = await import("../custom_components/meshroute_topology_explorer/frontend/model/index.js");
   const network = sampleNetwork();

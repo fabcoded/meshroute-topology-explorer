@@ -3,7 +3,7 @@
 // English and German with the raw text kept in debug mode. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { statusParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { statusParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { rawKey, rawText, RAW_COLUMNS } from "../custom_components/meshroute_topology_explorer/frontend/ui/raw-values.js";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";

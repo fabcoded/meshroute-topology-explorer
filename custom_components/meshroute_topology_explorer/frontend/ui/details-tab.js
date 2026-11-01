@@ -80,7 +80,7 @@ export function renderDetails(container, ctx) {
   container.append(list, panel);
   const raw = ctx.raw ? ctx.raw.get(d.id) : null;
   if (sub === "communication") communication(panel, info, ctx, name);
-  else if (sub === "entity") entity(panel, d, raw, ctx, network.source);
+  else if (sub === "entity") entity(panel, d, raw, ctx, network.capabilities);
   else clusters(panel, d, raw, ctx);
 }
 
@@ -344,7 +344,7 @@ function joinNodes(nodes) {
 
 // ---- Entity -------------------------------------------------------------------------------------------------------
 
-function entity(panel, d, raw, ctx, source) {
+function entity(panel, d, raw, ctx, capabilities) {
   const t = ctx.t;
   const node = nodeCard(raw, d);
   const chips = [];
@@ -377,7 +377,7 @@ function entity(panel, d, raw, ctx, source) {
   panel.append(card(t("node.title"), h("div", { class: "chips" }, chips), h("div", { class: "kv-list" }, facts)));
 
   // The ways into Home Assistant (board M8), as links that stay in the app.
-  const links = deviceLinks(d, source).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
+  const links = deviceLinks(d, capabilities).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
     key === "area" ? t("ha.area", { name: d.area || d.areaId }) : t(`ha.${key}`)));
   panel.append(card(t("ha.title"), links.length ? h("div", { class: "pills" }, links) : h("div", { class: "muted", text: t("ha.none") }),
     h("p", { class: "muted small", text: t("ha.note") })));

@@ -9,6 +9,8 @@ import { readAttributes, READ_TIMEOUT_MS } from "../custom_components/meshroute_
 import { deviceLinks, devicePagePath, zhaDevicePath, logbookPath, historyPath, entitiesPath, areaPath }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/ha-links.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
 
 const st = (state, attributes = {}) => ({ state, attributes });
 
@@ -99,7 +101,7 @@ test("the read stops at the first timeout or error; the rest is not sent", async
 test("ways into Home Assistant: device page, ZHA's Zigbee info, area, logbook, history, entity list", () => {
   const device = { id: "aa:bb:cc:dd:00:00:00:08", registryId: "device0123", areaId: "area_03",
     entities: ["light.router_03_2", "sensor.router_03_1"] };
-  assert.deepEqual(deviceLinks(device).map((l) => l.key), ["device", "zha", "area", "logbook", "history", "entities"]);
+  assert.deepEqual(deviceLinks(device, ZHA_CAPABILITIES).map((l) => l.key), ["device", "zha", "area", "logbook", "history", "entities"]);
   assert.equal(devicePagePath("device0123"), "/config/devices/device/device0123");
   assert.equal(zhaDevicePath(device.id), "/config/zha/device/aa:bb:cc:dd:00:00:00:08/signature", "colons as the frontend writes them");
   assert.equal(zhaDevicePath(device.id, "clusters"), "/config/zha/device/aa:bb:cc:dd:00:00:00:08/clusters");
@@ -107,7 +109,8 @@ test("ways into Home Assistant: device page, ZHA's Zigbee info, area, logbook, h
   assert.equal(logbookPath(device.entities), "/logbook?entity_id=light.router_03_2%2Csensor.router_03_1");
   assert.deepEqual(new URLSearchParams(historyPath(device.entities).split("?")[1]).get("entity_id").split(","), device.entities);
   assert.equal(entitiesPath("device0123"), "/config/entities?device=device0123");
-  // Unknown targets are left out; other sources get no ZHA link.
-  assert.deepEqual(deviceLinks({ id: device.id, registryId: null, areaId: null, entities: [] }).map((l) => l.key), ["zha"]);
-  assert.deepEqual(deviceLinks(device, "thread").map((l) => l.key), ["device", "area", "logbook", "history", "entities"]);
+  // Unknown targets are left out; a source without its own device page (capability devicePage) gets no ZHA link.
+  assert.deepEqual(deviceLinks({ id: device.id, registryId: null, areaId: null, entities: [] }, ZHA_CAPABILITIES).map((l) => l.key), ["zha"]);
+  assert.deepEqual(deviceLinks(device, THREAD_CAPABILITIES).map((l) => l.key), ["device", "area", "logbook", "history", "entities"]);
+  assert.deepEqual(deviceLinks(device).map((l) => l.key), ["device", "area", "logbook", "history", "entities"], "no default source");
 });

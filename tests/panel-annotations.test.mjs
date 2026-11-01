@@ -33,7 +33,7 @@ test("1.4b: no 'weakest RX' summary: the heading names hop counts and the marker
 });
 
 test("1.4c: the status line gives exact router-table counts, not a completeness percentage", async () => {
-  const { statusParts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/status.js");
+  const { statusParts } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js");
   const { sampleNetwork } = await import("./panel-fixture.mjs");
   const network = sampleNetwork();
   for (const compact of [false, true]) {

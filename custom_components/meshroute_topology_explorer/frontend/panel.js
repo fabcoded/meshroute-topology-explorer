@@ -18,6 +18,8 @@ import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee, KINDS } from "./model/index.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
+import { sendScan } from "./adapters/zha.js";
+import { engineFor } from "./engines/index.js";
 import { ObservationsClient } from "./ui/observations-client.js";
 import { ScanFollower, tablesDiffer } from "./ui/scan.js";
 import { confirmDialog } from "./ui/dialog.js";
@@ -28,18 +30,15 @@ import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geo
 import { MapButtons } from "./ui/map-buttons.js";
 import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
 import { DevicesTab } from "./ui/devices-tab.js";
-import { renderDetails } from "./ui/details-tab.js";
 import { renderFindings, markFindings } from "./ui/findings-tab.js";
 import { renderLegend } from "./ui/legend-tab.js";
 import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
-import { statusParts, sourceRoutePart, isIncomplete, ageParts } from "./ui/status.js";
+import { ageParts } from "./ui/status.js";
 import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
   from "./ui/network-switch.js";
-import { renderThreadDetails } from "./ui/thread-details.js";
 import { hasRoutes } from "./graph/links.js";
 import { openClusterDialog } from "./ui/cluster-dialog.js";
-import { sourceRouteSummary } from "./model/source-routes.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
 import { h, iconButton } from "./ui/dom.js";
@@ -299,8 +298,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       await this._settings.load();
       if (token !== this._token) return;
     }
-    // Observations ("unchanged since", spec 6) are about ZHA's tables; a Thread snapshot carries its own time.
-    if (network.source === "zha") await this._observe(network);
+    // Observations ("unchanged since", spec 6) are for a source without a measurement time (ZHA's tables); a Thread
+    // snapshot carries its own time.
+    if (network.capabilities.observations) await this._observe(network);
     if (token !== this._token) return;
     this._network = localize(network, this._t, this._areas());
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
@@ -389,40 +389,41 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderButtons();
 
     // Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" and a followed scan.
-    this._renderStatus();
-    const incomplete = isIncomplete(net.status);
+    const { incomplete } = this._renderStatus();
     ui.incomplete.hidden = !incomplete;
     if (incomplete) {
       ui.incomplete.firstChild.textContent = t("map.incomplete");
-      ui.incomplete.lastChild.textContent = t("map.incomplete_detail", { x: net.status.routersWithTable, y: net.status.routersAvailable });
+      ui.incomplete.lastChild.textContent = t("map.incomplete_detail", incomplete);
     }
     ui.lost.hidden = st.connection !== "lost";
     ui.loading.hidden = !st.loading || st.connection === "lost";
     this._renderTabs();
   }
 
-  /** Status line (spec 6, board M1): source, tables, completeness, "unchanged since" (with its caveat as the
-   *  part's description), a followed scan with its stop button, and the source-route stage on the right. Below the
-   *  wide breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions. */
+  /** Status line (spec 6, board M1): the network engine's parts (source, tables or links, "unchanged since" with its
+   *  caveat as the part's description, a followed scan with its stop button) and its part on the right (the
+   *  source-route stage). Below the wide breakpoint it is compact: short forms in at most two lines; the long forms
+   *  are the parts' descriptions. Returns the engine's status ({ parts, right, incomplete }). */
   _renderStatus() {
     const t = this._t;
     const net = this._network;
-    const zha = net.source === "zha";
-    const newest = this._observations && zha ? this._observations.newest(net) : null;
-    const scan = this._scan && zha && this._scan.state.status !== "idle" ? this._scan.state : null;
+    const caps = net.capabilities;
+    const newest = this._observations && caps.observations ? this._observations.newest(net) : null;
+    const scan = this._scan && caps.scan && this._scan.state.status !== "idle" ? this._scan.state : null;
     const compact = !this._wide;
     const collected = net.collectedAt ? (() => {
       const [ageKey, ageParams] = ageParts(net.collectedAt);
       return { time: t.when(net.collectedAt), age: t(ageKey, ageParams) };
     })() : null;
-    const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected });
+    const status = engineFor(net).status(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected,
+      settings: this._settings ? this._settings.settings : null });
+    const parts = status.parts;
     this._ui.status.classList.toggle("compact", compact);
-    // The source-route stage sits apart on the right (board M1); not in the view "routing table" (sourceRoutePart).
-    const s = this._settings && this._settings.settings;
-    const sr = s && zha ? sourceRoutePart(sourceRouteSummary(net, s.sourceRoute), compact, s.paths) : null;
+    // The engine's part on the right (board M1: the source-route stage) sits apart.
+    const sr = status.right;
     // The source part is the network switch when there is more than one network (ui/network-switch.js).
     const choices = networkChoices(this._controller.state);
-    const source = sourcePart({ t, choices, active: zha ? "zha" : "thread", open: this._networkMenu, compact,
+    const source = sourcePart({ t, choices, active: net.source, open: this._networkMenu, compact,
       onToggle: (open) => {
         this._networkMenu = open;
         this._renderStatus();
@@ -451,6 +452,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     const showSource = !compact || choices.length > 1;
     this._ui.status.replaceChildren(...(showSource ? [source] : []), ...spans);
+    return status;
   }
 
   /** The controls on the map (spec 9.1). On wide screens a side panel covers its corner, so that corner's group is
@@ -508,15 +510,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (!d.isOpen || !this._dirty.has(d.tab)) continue;
       const panel = d.panel(d.tab);
       this._dirty.delete(d.tab);
-      if (d.tab === "details" && this._network.source === "thread") {
-        keepFocus(this._root, panel, () => renderThreadDetails(panel, { network: this._network, t, id: this._selected,
-          onSelect: (id) => this._select(id, "details") }));
-      } else if (d.tab === "details") {
-        const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
-        keepFocus(this._root, panel, () => renderDetails(panel, { network: this._network, t, id: this._selected,
-          debug: this._debug, raw: this._raw,
-          nodeView: this._settings.settings.paths, returnRoutes: this._settings.settings.returnRoutes,
-          sourceRoute: this._settings.settings.sourceRoute, sub: this._detailsSub, idPrefix: "mte-details",
+      if (d.tab === "details") {
+        // The content is the network engine's (Zigbee: three sub-tabs; Thread: one stack of cards).
+        const engine = engineFor(this._network);
+        const seen = this._selected && this._observations && this._network.capabilities.observations
+          ? this._observations.firstSeen(this._selected) : null;
+        keepFocus(this._root, panel, () => engine.details(panel, { network: this._network, t, id: this._selected,
+          debug: this._debug, raw: this._raw, settings: this._settings.settings, sub: this._detailsSub,
+          idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
@@ -789,18 +790,6 @@ function keepFocus(root, container, render) {
   const again = (key.id && container.querySelector(`[id="${key.id}"]`))
     || (key.name && [...container.querySelectorAll("input")].find((el) => el.name === key.name && el.value === key.value));
   if (again) again.focus();
-}
-
-/** Send zha/topology/update without waiting: ZHA never answers it (spec 3.1). The connection's sendMessage
- *  (home-assistant-js-websocket) sends without registering an answer, so nothing waits forever; it throws without a
- *  connection, which the scan reports. Without it, callWS is called and its promise left alone. */
-function sendScan(hass) {
-  const conn = hass && hass.connection;
-  if (conn && typeof conn.sendMessage === "function") {
-    conn.sendMessage({ type: "zha/topology/update" });
-  } else {
-    hass.callWS({ type: "zha/topology/update" }).catch(() => {});
-  }
 }
 
 // Defined only if free: a second load of the module (or another add-on) must not throw.

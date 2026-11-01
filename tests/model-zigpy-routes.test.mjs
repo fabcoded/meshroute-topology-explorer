@@ -14,7 +14,7 @@ import { parseZigpyRoutes, readZigpyRoutes } from "../custom_components/meshrout
 import { readNetwork } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
 import { classifyLanes, laneClass } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { detailsOf, pathParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
-import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 
 const en = translator("en");

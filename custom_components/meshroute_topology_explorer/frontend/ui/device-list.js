@@ -2,39 +2,19 @@
 // The device list as data: rows, a text filter and the keyboard model of a single-select listbox (WAI-ARIA Authoring
 // Practices, listbox pattern). It is the keyboard path to every device (spec 9.3): arrows move, Enter selects.
 // No DOM; the Devices tab renders it. Tested in Node: node --test tests/
-import { upPath } from "../model/paths.js";
+import { engineFor } from "../engines/index.js";
 
 /** Keys that move the active row, as steps; Home/End go to the ends. PageUp/PageDown step by this many. */
 const PAGE = 10;
-
-/** How a device hangs in the network, for its row (design by Fabian Schwamborn, 2026-11-01, board M3): the
- *  coordinator is the network; an end device is "via" its parent, or "direct" when the parent is the coordinator; a
- *  router is "direct" when its up path is the one hop to the coordinator. Otherwise null: a router's next hop is a
- *  route, not a bond, and an end device without a known parent says nothing here (Details explains). */
-export function connectionOf(network, d, coordinatorId) {
-  if (d.role === "coordinator") return { kind: "network" };
-  if (d.role === "end device") {
-    if (!d.parent) return null;
-    if (d.parent === coordinatorId) return { kind: "direct" };
-    const parent = network.devices.find((x) => x.id === d.parent);
-    return parent ? { kind: "via", label: parent.label } : null;
-  }
-  if (d.role === "router" && coordinatorId) {
-    const up = upPath(network, d.id);
-    if (up.complete && up.ids.length === 2) return { kind: "direct" };
-  }
-  return null;
-}
 
 /** Rows for the list from a Network: one per device, the coordinator first (board M3), then by label and address.
  *  The search text holds what a user may type: label, ZHA name, vendor, model, area, IEEE and network address (as
  *  0x1234 and decimal). */
 export function deviceRows(network) {
-  const coordinator = network.devices.find((d) => d.role === "coordinator");
-  const coordinatorId = coordinator ? coordinator.id : null;
+  const engine = engineFor(network);
   return network.devices.map((d) => ({
     id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating, kind: d.kind || null,
-    sleepy: d.sleepy === true, connection: connectionOf(network, d, coordinatorId),
+    sleepy: d.sleepy === true, connection: engine.connection(network, d),
     search: [d.label, d.name, d.vendor, d.model, d.area, d.id,
       typeof d.nwk === "number" ? `0x${d.nwk.toString(16).padStart(4, "0")} ${d.nwk}` : ""]
       .filter(Boolean).join(" ").toLowerCase(),

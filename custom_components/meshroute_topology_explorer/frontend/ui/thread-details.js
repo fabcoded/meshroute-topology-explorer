@@ -5,7 +5,7 @@
 // parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows) and tested in Node.
 import { h } from "./dom.js";
-import { findingText } from "./finding-text.js";
+import { findingText } from "../engines/thread/findings.js";
 import { roleText } from "./format.js";
 import { unknownGlyph } from "../graph/links.js";
 

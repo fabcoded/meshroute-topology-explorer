@@ -10,6 +10,7 @@ import { readThread } from "../adapters/matter.js";
 import { readZha, readZhaEntries } from "../adapters/zha.js";
 import { errorText, isConnectionLost } from "../adapters/ws.js";
 import { blockingState } from "./status.js";
+import { engineFor } from "../engines/index.js";
 
 /** One read of the networks through hass.callWS, one adapter per data source (adapters/). Returns { phase, network?,
  *  raw?, networks?: { zha, thread }, thread?: readThread's status, message? }; never throws. `network` is the ZHA
@@ -45,6 +46,16 @@ export async function readNetwork(hass, { matter = true } = {}) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
     return { phase: "error", message: errorText(err) };
   }
+}
+
+/** Why a ready read cannot be shown, or null: every network it carries must name a known engine and declare its
+ *  capabilities (engines/index.js engineFor). There is no default engine; such a read becomes the error state. */
+function engineProblem(networks) {
+  for (const network of networks) {
+    if (!network) continue;
+    try { engineFor(network); } catch (err) { return errorText(err); }
+  }
+  return null;
 }
 
 export class PanelController extends EventTarget {
@@ -106,6 +117,13 @@ export class PanelController extends EventTarget {
       this._set(keep ? { connection: "lost", loading: false } : { phase: "disconnected", connection: "lost", loading: false });
       return;
     }
+    const problem = result.phase === "ready"
+      ? engineProblem([result.network, ...Object.values(result.networks || {})]) : null;
+    if (problem) {
+      this._set({ phase: "error", network: null, raw: null, networks: null, thread: result.thread || null,
+        message: problem, loading: false });
+      return;
+    }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
       networks: result.networks || null, thread: result.thread || null, message: result.message || null, loading: false });
   }
@@ -113,6 +131,11 @@ export class PanelController extends EventTarget {
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
   adopt(network, raw) {
     this._token += 1;
+    const problem = engineProblem([network]);
+    if (problem) {
+      this._set({ phase: "error", network: null, raw: null, networks: null, message: problem, loading: false });
+      return;
+    }
     // A followed scan reads ZHA only: the Thread network stays as it was.
     const networks = { ...(this.state.networks || {}), zha: network };
     this._set({ phase: "ready", network, raw: raw || null, networks, message: null, loading: false });

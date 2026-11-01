@@ -147,7 +147,7 @@ test("4a: there is no default engine: a network without a known engine or withou
   }
 });
 
-test("4b: the panel shows its error state for a network without an engine", { todo: "step 3" }, async () => {
+test("4b: the panel shows its error state for a network without an engine", async () => {
   const { PanelController } = await mod("ui/controller.js");
   const stray = { id: "x", source: "zha", devices: [], capabilities: { routes: true } };
   const controller = new PanelController({ read: async () => ({ phase: "ready", network: stray, raw: [],
@@ -265,7 +265,7 @@ test("10b: the layout reads Thread link quality as a quality from 0 to 1, RSSI a
     assert.equal(thread.springQuality({ scale: "thread-lqi", lqi: null, rssi: -60 }), null);
   });
 
-test("11: the Thread status line has no Zigbee parts and no completeness banner", { todo: "step 3" }, async () => {
+test("11: the Thread status line has no Zigbee parts and no completeness banner", async () => {
   const { thread, threadNet } = await engines();
   for (const compact of [false, true]) {
     const status = thread.status(threadNet, { compact, collected: { time: "12:00", age: "now" } });

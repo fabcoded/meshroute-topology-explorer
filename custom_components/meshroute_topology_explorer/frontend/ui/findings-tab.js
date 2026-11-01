@@ -5,13 +5,14 @@
 // selects its device and zooms to it (spec 9.3). Runs in the browser; grouping lives in findings.js.
 import { h } from "./dom.js";
 import { groupFindings } from "./findings.js";
-import { findingText } from "./finding-text.js";
+import { engineFor } from "../engines/index.js";
 
 /** Fill `container`. ctx: { network, t, selected (id or null), onSelect(id) }. */
 export function renderFindings(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
   const name = (id) => (network.devices.find((x) => x.id === id) || { label: id }).label;
+  const findingText = engineFor(network).findings.text; // each network type has its own words
   const grouped = groupFindings(network.findings, name);
   /** One entry; the finding's own kind is named when it differs from its group's (a hedged "parent unknown" in the
    *  missing-table group). */

@@ -10,7 +10,7 @@ import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/
 import { assumedDownPaths, downPathWith, sourceRouteMode, sourceRouteSummary, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
   from "../custom_components/meshroute_topology_explorer/frontend/model/source-routes.js";
 import { sanitizeSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
-import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
+import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 
 const sample = sampleNetwork();

@@ -12,6 +12,8 @@ import { buildThreadNetwork, THREAD_CAPABILITIES } from "../custom_components/me
 import { legendEntries, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
+import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { sampleNetwork } from "./panel-fixture.mjs";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
 const zha = load("zha-sample.json");
@@ -24,7 +26,8 @@ const threadNet = thread.build(topology, {});
 const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
 
 /** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
-const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function" };
+const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
+  status: "function", findings: "object", connection: "function", details: "function" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);
@@ -33,6 +36,7 @@ test("interface: both engines offer exactly the same hooks, frozen, under their 
     assert.equal(engine.key, key);
     assert.deepEqual(Object.keys(engine).sort(), Object.keys(HOOKS).sort(), `${key}: no missing and no extra hook`);
     for (const [hook, type] of Object.entries(HOOKS)) assert.equal(typeof engine[hook], type, `${key}.${hook}`);
+    assert.deepEqual(Object.keys(engine.findings), ["text"], `${key}.findings`);
   }
 });
 
@@ -84,4 +88,35 @@ test("facades: legend rows equal legendEntries with and without routes, in every
     assert.deepEqual(zigbee.legend(theme, view), legendEntries(theme, { ...view, routes: true }));
     assert.deepEqual(thread.legend(theme, view), legendEntries(theme, { ...view, routes: false }));
   }
+});
+
+test("status: Zigbee gives tables, the source-route stage on the right and the banner below 90 %; Thread neither", () => {
+  const settings = { sourceRoute: "assume", paths: "coordinator" };
+  const full = zigbee.status(zigbeeNet, { settings });
+  assert.deepEqual(full.parts.map(([k]) => k), ["status.source", "status.tables"]);
+  assert.deepEqual(full.right, ["status.sr_assumed", { count: 8 }], "8 assumed return paths on the sample (spec 12)");
+  assert.equal(full.incomplete, null);
+  assert.equal(zigbee.status(zigbeeNet, {}).right, null, "no settings, no stage");
+  assert.equal(zigbee.status(zigbeeNet, { settings: { ...settings, paths: "table" } }).right, null, "not in the routing table");
+  const thin = sampleNetwork("coordinator-only");
+  assert.deepEqual(zigbee.status(thin, {}).incomplete, { x: thin.status.routersWithTable, y: thin.status.routersAvailable });
+  const t = thread.status(threadNet, { settings, compact: false });
+  assert.deepEqual([t.right, t.incomplete], [null, null]);
+  assert.deepEqual(t.parts.map(([k]) => k), ["status.source", "status.thread_links"]);
+});
+
+test("findings and connections speak each network's words", () => {
+  const t = translator("en");
+  const name = (id) => id;
+  const parentUnknown = { kind: "parent unknown", device: "x", evidence: { verdict: "no parent link" }, missing: [] };
+  assert.deepEqual(thread.findings.text(parentUnknown, t, name),
+    { title: t("kind.parent unknown"), lines: [t("evidence.thread_no_parent")] });
+  assert.notDeepEqual(zigbee.findings.text(parentUnknown, t, name).lines, [t("evidence.thread_no_parent")],
+    "the Thread verdict is no longer a Zigbee branch");
+  const child = threadNet.devices.find((d) => d.role === "end device" && d.parent);
+  const parent = threadNet.devices.find((d) => d.id === child.parent);
+  assert.deepEqual(thread.connection(threadNet, child), { kind: "via", label: parent.label });
+  assert.equal(thread.connection(threadNet, parent), null);
+  const coordinator = zigbeeNet.devices.find((d) => d.role === "coordinator");
+  assert.deepEqual(zigbee.connection(zigbeeNet, coordinator), { kind: "network" });
 });
