@@ -428,7 +428,7 @@ const en = {
   "read.button": "Read values from the device",
   "read.reading": "Reading …",
   "read.manage": "Manage in ZHA",
-  "read.note": "Values without radio traffic come from the entity's state in Home Assistant; “—” means: known only after “Read values from the device”. That sends a read request by radio, only on this button press.",
+  "read.note": "“—”: not known yet. Shown values come from Home Assistant's entity state; the button sends one read request by radio, only on press.",
   "read.read_only": "The map is read-only: writing, reporting and binding are done in ZHA's device management.",
   "read.sleepy": "This device sleeps: it answers only while awake. Wake it (press a button on it) just before reading.",
   "read.progress": "Reading {n} of {total} …",
