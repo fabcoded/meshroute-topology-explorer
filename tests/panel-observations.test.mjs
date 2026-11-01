@@ -6,8 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ObservationsClient, sanitizeObservations, fitObservations,
-} from "../custom_components/meshroute_topology_explorer/frontend/ui/observations-client.js";
-import { fingerprints } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+} from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha-observations.js";
+import { fingerprints } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha-fingerprints.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
 const LOST = { type: "result", success: false, error: { code: 3, message: "Connection lost" } };

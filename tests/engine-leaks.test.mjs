@@ -83,11 +83,9 @@ function importsOf(rel) {
   return specs.map((s) => new URL(s, new URL(rel, FRONTEND)).href.slice(FRONTEND.href.length));
 }
 
-/** Network-specific UI modules under ui/ that the cut moves into an engine (section 3); everything else under ui/ is
- *  a shared frame. */
-const ENGINE_UI = new Set(["ui/scan.js", "ui/observations-client.js"]);
-const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"),
-  ...jsFiles("ui/").filter((f) => !ENGINE_UI.has(f))];
+/** The shared code (engines cut, section 3): the panel, the shared parsers, the graph, the adapters and the ui/ frames.
+ *  The network-specific modules have all moved into their engine (step 8). */
+const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"), ...jsFiles("ui/")];
 
 // Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
 const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "no-table", "path-end"];

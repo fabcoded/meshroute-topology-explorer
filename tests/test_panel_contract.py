@@ -50,7 +50,7 @@ class PanelContractTest(unittest.TestCase):
                          {"meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set"})
 
     def test_observations_client_uses_get_and_set(self):
-        self.assertEqual(panel_commands().get("ui/observations-client.js"),
+        self.assertEqual(panel_commands().get("adapters/zha-observations.js"),
                          {"meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set"})
 
 

@@ -22,7 +22,6 @@ export { upPath, downPath, routePath } from "./paths.js";
 export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "./node-paths.js";
 export { assumedDownPaths, sourceRouteSummary, sourceRouteMode, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
   from "./source-routes.js";
-export { fingerprints, updateObservations, newestChange } from "../../model/observations.js";
 export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";
 export { KINDS } from "./kinds.js";

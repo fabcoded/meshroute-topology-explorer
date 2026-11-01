@@ -4,7 +4,7 @@
 // fingerprints, stop works, and the scan is never called finished. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ScanFollower, readTimes, changedTables, tablesDiffer } from "../custom_components/meshroute_topology_explorer/frontend/ui/scan.js";
+import { ScanFollower, readTimes, changedTables, tablesDiffer } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha-scan.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
 /** A clock with timers: advance(ms) runs due timers in order and lets their promises settle. */
