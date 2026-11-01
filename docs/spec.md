@@ -427,9 +427,11 @@ the centre).
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
   right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
   below it the value. On a short lane it moves back just enough to stay beside its own lane. **Values of the focus's
-  lanes (click and hover) are never dropped** and never move: each sits at that place even where it covers another
-  value, a label or a symbol (board M11 rule 8, "every value at its place, overlap accepted"; owner decision
-  2026-11-01); a lane too short for the two lines still shows its value, at its middle beside the lane. In the debug
+  lanes (click and hover) are never dropped** and stay at that place even where it covers another value, a label or a
+  symbol (board M11 rule 8, "every value at its place, overlap accepted"; owner decision 2026-11-01), with one
+  exception: the label of the selected or hovered device (type line and name, on a light plate) is never covered; a
+  value that would sit on it takes the next place along its own lane, else the same places on the lane's other side,
+  else the one covering least (Codex review 1.6, main session decision 2026-11-01); a lane too short for the two lines still shows its value, at its middle beside the lane. In the debug
   overview, values on every lane look for a free place (60 % and 88 % of the lane next), and a lane too short or
   without room shows none; the details list every value. The values of the way up and down take their places first, then routes, then computed hops, then heard
   only. This holds for path hops and for debug mode's values on every lane; the overview shows the rating by width
