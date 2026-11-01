@@ -521,6 +521,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (extra.path) {
       const flipped = { ...lane, nx: -lane.nx, ny: -lane.ny };
       for (const p of [...spots]) spots.push({ at: p.at, xy: textBeside(flipped, w + 4, h, 1, p.at) });
+      // Still no free place (a short lane running along the label of a hub): past either end of the lane, still beside its
+      // line (A4t: with wider density factors the test sample hit this on Coordinator 0 > 7).
+      for (const at of [1.25, 1.6, -0.25, -0.6]) for (const l of [lane, flipped]) spots.push({ at, xy: textBeside(l, w + 4, h, 1, at) });
     }
     const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy),
       ...extra };
