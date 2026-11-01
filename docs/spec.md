@@ -226,11 +226,14 @@ entry with the higher LQI wins and the others are shown as "possibly stale". `Pr
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
 | Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
 
-A view, fill or finding that needs a missing capability shows "not available for this network". Thread (brief a7):
-the View tab greys "Communication paths" and "Return paths without a table entry" with "Not available for this
-network: Thread data has no routes."; findings are offline, parent offline and parent unknown ("The topology lists no
-link between this end device and a router."); the network carries `capabilities` and `hasRoutes()` (graph/links.js)
-is the one test for it.
+A view, option or finding that needs a missing capability is not offered (decision by Fabian Schwamborn, 2026-11-01:
+hidden, not greyed). Thread (brief a7, engines cut): the View tab shows none of "Communication paths", "Path display"
+(colour by reception waits for the Thread reception model) and "Return paths without a table entry", but one line in
+their place: "Thread data names neighbours and parents, not routes; there are no path views."; debug mode offers the
+scan only where the source has one (`capabilities.scan`); findings are offline, parent offline and parent unknown
+("The topology lists no link between this end device and a router."). Each network carries `engine` and
+`capabilities`, stamped by the build of its source; `engineFor()` (engines/index.js) finds its viewer engine and never
+falls back to one; the map's lanes still test `hasRoutes()` (graph/links.js) until the cut moves them.
 
 ## 5. Derived facts
 

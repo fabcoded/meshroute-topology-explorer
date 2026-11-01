@@ -9,6 +9,7 @@ import { laneValue } from "../../graph/renderer.js";
 import { renderDetails } from "../../ui/details-tab.js";
 import { findingText } from "../../ui/finding-text.js";
 import { connection } from "./connection.js";
+import { zigbeeOptions } from "./options.js";
 import { statusLine } from "./status.js";
 
 export const zigbee = Object.freeze({
@@ -31,4 +32,7 @@ export const zigbee = Object.freeze({
    *  this engine's own settings (paths, returnRoutes, sourceRoute). */
   details: (container, ctx) => renderDetails(container, { ...ctx, nodeView: ctx.settings.paths,
     returnRoutes: ctx.settings.returnRoutes, sourceRoute: ctx.settings.sourceRoute }),
+  /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
+   *  paths without a table entry. */
+  options: (network, settings) => zigbeeOptions(network, settings),
 });

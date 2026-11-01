@@ -27,7 +27,7 @@ const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx
 
 /** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
-  status: "function", findings: "object", connection: "function", details: "function" };
+  status: "function", findings: "object", connection: "function", details: "function", options: "function" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);
@@ -119,4 +119,19 @@ test("findings and connections speak each network's words", () => {
   assert.equal(thread.connection(threadNet, parent), null);
   const coordinator = zigbeeNet.devices.find((d) => d.role === "coordinator");
   assert.deepEqual(zigbee.connection(zigbeeNet, coordinator), { kind: "network" });
+});
+
+test("options: Zigbee offers its three groups as data, Thread one line and no control", () => {
+  const settings = { paths: "table", heard: false, returnRoutes: true, sourceRoute: "assume" };
+  const groups = zigbee.options(zigbeeNet, settings);
+  assert.deepEqual(groups.map((g) => [g.id, g.after || null]), [["paths", null], ["display", null], ["sourceRoute", "click"]]);
+  const returns = groups[0].controls[0].options.find((o) => o.value === "table").children[0];
+  assert.deepEqual([returns.key, returns.disabled], ["returnRoutes", false], "enabled under the routing table");
+  assert.equal(zigbee.options(zigbeeNet, { ...settings, paths: "all" })[0].controls[0].options[1].children[0].disabled, true);
+  assert.equal(groups[0].controls[1].info, null, "the heard note only in the third view");
+  assert.equal(zigbee.options(zigbeeNet, { ...settings, paths: "all" })[0].controls[1].info.key, "heard");
+  const t = translator("en");
+  const threadGroups = thread.options(threadNet, settings);
+  assert.deepEqual(threadGroups.map((g) => [g.legend, g.controls.length]), [[null, 0]]);
+  assert.equal(t(threadGroups[0].note), "Thread data names neighbours and parents, not routes; there are no path views.");
 });

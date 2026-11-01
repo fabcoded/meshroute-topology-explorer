@@ -52,10 +52,15 @@ async function renderViewTab(groups, extra = {}) {
   return container.walk();
 }
 
-/** Every settings key the controls of an engine's option groups write. */
+/** Every settings key the controls of an engine's option groups write, sub-options included. */
 function optionKeys(groups) {
-  return groups.flatMap((g) => (g.controls || []).flatMap((c) => [c.key, ...(c.children || []).map((k) => k.key)]))
-    .filter(Boolean);
+  const keys = [];
+  const walk = (c) => {
+    if (c.key) keys.push(c.key);
+    for (const o of c.options || []) for (const child of o.children || []) walk(child);
+  };
+  for (const g of groups) for (const c of g.controls || []) walk(c);
+  return keys;
 }
 
 /** Every .js file under a frontend folder, as paths relative to the frontend. */
@@ -89,8 +94,7 @@ const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), .
 // Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
 const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "no-table", "path-end"];
 
-test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: hidden, not greyed)",
-  { todo: "step 4" }, async () => {
+test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: hidden, not greyed)", async () => {
     const { zigbee, thread, zigbeeNet, threadNet } = await engines();
     const { sanitizeSettings } = await mod("ui/settings.js");
     const s = sanitizeSettings({});
@@ -276,8 +280,7 @@ test("11: the Thread status line has no Zigbee parts and no completeness banner"
   }
 });
 
-test("12: Thread never offers the scan: no scan button in debug mode without capabilities.scan", { todo: "step 4" },
-  async () => {
+test("12: Thread never offers the scan: no scan button in debug mode without capabilities.scan", async () => {
     const { thread, zigbee, zigbeeNet, threadNet } = await engines();
     const { sanitizeSettings } = await mod("ui/settings.js");
     const s = sanitizeSettings({});

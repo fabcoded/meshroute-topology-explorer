@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: MIT
 // The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01, board M2): everything that
-// changes how the map looks, in this order: communication paths (one radio group of three views, each its own basis,
-// with "Include return routes" under the routing table, and the checkbox "additional heard neighbours", each with a
-// one-line hint; board M11, owner proposal 2026-11-01), path display (grey, or coloured by reception with the user's own colours for bad,
-// medium and good), what a click on a device does (open details), return paths without a table entry (source route:
-// off, assume, and "read from zigpy" shown disabled until it exists), node distance (density) with an info button,
-// symbol fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (ZHA reads the
-// tables by itself), "Release all pins", the scan in debug mode, and a note only when the settings are not kept in
-// Home Assistant. Real checkboxes, radios and colour inputs inside labels, so state is announced; rows of 32 px with
-// a fine pointer and 44 px with a coarse one.
+// changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
+// communication paths and the path display), then what a click on a device does (open details), the engine's groups
+// placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
+// fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (ZHA reads the tables
+// by itself), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
+// are not kept in Home Assistant. A group the network type does not have is not shown (owner decision 2026-11-01:
+// hidden, not greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
+// so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";
 import { DENSITY_NAMES, PATH_STOPS } from "./settings.js";
-import { PATH_STAGES } from "../graph/links.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
-import { SOURCE_ROUTE_MODES } from "../model/source-routes.js";
 
-/** Fill `container`. ctx: { t, settings (sanitized), openOnSelect (effective "Details on click"), dark (the map's
- *  theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running } or null), client
- *  (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only), idPrefix (stable, so focus
- *  is found again after a re-render), info ({ density, reload, heard, colors, assumed }: which info notes are shown),
- *  routes (false for a network without routes, Thread: stages and source route greyed with the reason), onChange(patch),
- *  onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(), onInfo(key, open) }. */
+/** Fill `container`. ctx: { t, settings (sanitized), groups (the engine's OptionGroups: engine.options(network,
+ *  settings)), canScan (the source has a user-started scan: capabilities.scan), openOnSelect (effective "Details on
+ *  click"), dark (the map's theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running }
+ *  or null), client (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only),
+ *  idPrefix (stable, so focus is found again after a re-render), info ({ [key]: open }: which info notes are shown),
+ *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
+ *  onInfo(key, open) }.
+ *  OptionGroup = { id, legend (text key; without one the group is a single line, its note), className, info ({ key,
+ *  label, text }: an info button in the legend), note (a line at the end), after ("click": placed after "On click"),
+ *  controls }. Control = { kind: "radio", key, layout ("rows": one per line with a hint; "plain"), options: [{ value,
+ *  label, hint, tag, children (controls under that option) }] } | { kind: "checkbox", key, id, label, hint, sub (an
+ *  option under a radio: indented, greyed while disabled), disabled, info } | { kind: "pathColors" } (grey or
+ *  coloured by reception with the user's colours: the shared key pathColors). Text values are i18n keys. */
 export function renderView(container, ctx) {
   const { t, settings } = ctx;
   const id = ctx.idPrefix || "mte-view";
@@ -47,91 +51,93 @@ export function renderView(container, ctx) {
       note: h("p", { class: "muted small info-note", id: noteId, hidden: !open, text }),
     };
   };
+  const infoOf = (spec) => (spec ? infoNote(spec.key, t(spec.label), t(spec.text)) : null);
 
-  // Communication paths (spec 7.1; board M11; owner proposal 2026-11-01): three views, each its own basis, and the
-  // heard checkbox, each with a hint. "Include return routes" belongs to the routing table only: it sits under that
-  // radio and is greyed while another view is chosen (the first and third already hold both directions).
-  const heardHint = `${id}-paths-heard-hint`;
-  // In the third view every measured neighbour is a possible direct way and so a drawn lane: the option rarely adds a
-  // partner there (decision by Fabian Schwamborn, 2026-11-01). The note shows in that view only, where it applies.
-  const heardInfo = settings.paths === "all" ? infoNote("heard", t("view.heard_info_label"), t("view.heard_info")) : null;
-  const returnsHint = `${id}-paths-returns-hint`;
-  const tableOn = settings.paths === "table";
-  const returns = () => [h("label", { class: `check-row sub-option${tableOn ? "" : " off"}` },
-    h("input", { type: "checkbox", id: `${id}-paths-returns`, checked: settings.returnRoutes === true, disabled: !tableOn,
-      "aria-describedby": returnsHint, on: { change: (e) => ctx.onChange({ returnRoutes: e.target.checked }) } }),
-    h("span", { text: t("view.paths_returns") })),
-  h("span", { class: `radio-hint sub-option${tableOn ? "" : " off"}`, id: returnsHint, text: t("view.paths_returns_hint") })];
-  const paths = group(t("view.paths"), PATH_STAGES.map((v) => {
-    const hint = `${id}-paths-${v}-hint`;
-    return [h("label", { class: "check-row" },
-      h("input", { type: "radio", name: `${id}-paths`, value: v, checked: settings.paths === v,
-        "aria-describedby": hint, on: { change: () => ctx.onChange({ paths: v }) } }),
-      h("span", { text: t(`view.paths_${v}`) })),
-    h("span", { class: "radio-hint", id: hint, text: t(`view.paths_${v}_hint`) }),
-    ...(v === "table" ? returns() : [])];
-  }),
-  // The option on top of any view (decision by Fabian Schwamborn, 2026-11-01): a checkbox, same row size.
-  h("span", { class: "with-info" }, h("label", { class: "check-row" },
-    h("input", { type: "checkbox", id: `${id}-paths-heard`, checked: settings.heard === true, "aria-describedby": heardHint,
-      on: { change: (e) => ctx.onChange({ heard: e.target.checked }) } }),
-    h("span", { text: t("view.paths_heard") })), heardInfo && heardInfo.button),
-  h("span", { class: "radio-hint", id: heardHint, text: t("view.paths_heard_hint") }),
-  heardInfo && heardInfo.note,
-  h("span", { class: "muted small group-note", text: t("view.paths_note") }));
-  paths.classList.add("paths-group");
-  // A network without routes (Thread, spec 4.6) has no stages: the controls stay in view, greyed, with the reason.
-  const routes = ctx.routes !== false;
-  const unavailable = (fieldset) => {
-    if (routes) return fieldset;
-    fieldset.disabled = true;
-    fieldset.classList.add("off");
-    fieldset.append(h("span", { class: "muted small group-note", text: t("view.not_for_network") }));
-    return fieldset;
+  /** A checkbox of a group, with its hint below. A sub-option sits under its radio, indented and greyed while
+   *  disabled; any other checkbox sits in a row that can carry an info button, its note below the hint. */
+  const checkbox = (c) => {
+    const hint = `${id}-${c.id}-hint`;
+    const input = h("input", { type: "checkbox", id: `${id}-${c.id}`, checked: settings[c.key] === true,
+      disabled: c.disabled, "aria-describedby": hint,
+      on: { change: (e) => ctx.onChange({ [c.key]: e.target.checked }) } });
+    if (c.sub) {
+      const off = c.disabled ? " off" : "";
+      return [h("label", { class: `check-row sub-option${off}` }, input, h("span", { text: t(c.label) })),
+        h("span", { class: `radio-hint sub-option${off}`, id: hint, text: t(c.hint) })];
+    }
+    const note = infoOf(c.info);
+    return [h("span", { class: "with-info" },
+      h("label", { class: "check-row" }, input, h("span", { text: t(c.label) })), note && note.button),
+    h("span", { class: "radio-hint", id: hint, text: t(c.hint) }),
+    note && note.note];
   };
-  container.append(unavailable(paths));
+
+  /** A radio group of a group: one row per option with its hint and the controls under it ("rows"), or the bare
+   *  rows ("plain"), an option's tag inside its row. */
+  const radios = (c) => c.options.map((o) => {
+    if (c.layout !== "rows") {
+      const row = radio(c.key, o.value, t(o.label), settings[c.key] === o.value,
+        () => ctx.onChange({ [c.key]: o.value }));
+      if (o.tag) row.append(h("span", { class: "tag", text: t(o.tag) }));
+      return row;
+    }
+    const hint = `${id}-${c.key}-${o.value}-hint`;
+    return [h("label", { class: "check-row" },
+      h("input", { type: "radio", name: `${id}-${c.key}`, value: o.value, checked: settings[c.key] === o.value,
+        "aria-describedby": hint, on: { change: () => ctx.onChange({ [c.key]: o.value }) } }),
+      h("span", { text: t(o.label) })),
+    h("span", { class: "radio-hint", id: hint, text: t(o.hint) }),
+    ...(o.children || []).map(control)];
+  });
 
   // Path display: grey or coloured by reception; with coloured, the user's own colours (null: the theme's own).
-  const pc = settings.pathColors;
-  const coloured = pc.mode === "coloured";
-  const colorsInfo = infoNote("colors", t("view.colors_info_label"), t("view.colors_info"));
-  const display = h("fieldset", { class: "view-group" },
-    h("legend", { class: "with-info" }, h("span", { text: t("view.path_display") }), colorsInfo.button), colorsInfo.note,
-    h("div", { class: "radio-line" },
+  const pathColors = () => {
+    const pc = settings.pathColors;
+    const coloured = pc.mode === "coloured";
+    const out = [h("div", { class: "radio-line" },
       radio("pathMode", "grey", t("view.grey"), !coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "grey" } })),
-      radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } }))));
-  // The pickers stay in view under "coloured by reception" (board M2), dimmed and inert while paths are grey.
-  const defaults = receptionStops(Boolean(ctx.dark));
-  const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
-    // "change" only: the native picker would close if the tab were rebuilt while it is open.
-    h("input", { type: "color", id: `${id}-color-${key}`, value: pc[key] || defaults[i], "aria-label": t(`view.color_${key}_label`),
-      disabled: !coloured, on: { change: (e) => ctx.onChange({ pathColors: { ...pc, [key]: e.target.value } }) } }),
-    h("span", { text: t(`view.${key}`) })));
-  const custom = PATH_STOPS.some((key) => pc[key]);
-  display.append(h("div", { class: `color-row${coloured ? "" : " off"}` }, pickers,
-    h("span", { class: "muted small color-note", text: t("view.colors_note") })));
-  if (coloured && custom) {
-    display.append(h("button", { type: "button", class: "link small", id: `${id}-colors-reset`, text: t("view.colors_reset"),
-      on: { click: () => ctx.onChange({ pathColors: { mode: "coloured", bad: null, medium: null, good: null } }) } }));
+      radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } })))];
+    // The pickers stay in view under "coloured by reception" (board M2), dimmed and inert while paths are grey.
+    const defaults = receptionStops(Boolean(ctx.dark));
+    const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
+      // "change" only: the native picker would close if the tab were rebuilt while it is open.
+      h("input", { type: "color", id: `${id}-color-${key}`, value: pc[key] || defaults[i], "aria-label": t(`view.color_${key}_label`),
+        disabled: !coloured, on: { change: (e) => ctx.onChange({ pathColors: { ...pc, [key]: e.target.value } }) } }),
+      h("span", { text: t(`view.${key}`) })));
+    const custom = PATH_STOPS.some((key) => pc[key]);
+    out.push(h("div", { class: `color-row${coloured ? "" : " off"}` }, pickers,
+      h("span", { class: "muted small color-note", text: t("view.colors_note") })));
+    if (coloured && custom) {
+      out.push(h("button", { type: "button", class: "link small", id: `${id}-colors-reset`, text: t("view.colors_reset"),
+        on: { click: () => ctx.onChange({ pathColors: { mode: "coloured", bad: null, medium: null, good: null } }) } }));
+    }
+    return out;
+  };
+
+  function control(c) {
+    if (c.kind === "radio") return radios(c);
+    if (c.kind === "checkbox") return checkbox(c);
+    if (c.kind === "pathColors") return pathColors();
+    throw new Error(`unknown control kind ${c.kind}`);
   }
-  container.append(display);
+
+  /** One of the engine's groups as a fieldset; a group without a legend is a single line, its note. */
+  const engineGroup = (g) => {
+    if (!g.legend) return h("p", { class: "muted small view-note", text: t(g.note) });
+    const note = infoOf(g.info);
+    const legend = note ? h("legend", { class: "with-info" }, h("span", { text: t(g.legend) }), note.button)
+      : h("legend", { text: t(g.legend) });
+    return h("fieldset", { class: g.className ? `view-group ${g.className}` : "view-group" }, legend, note && note.note,
+      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null);
+  };
+  const groups = ctx.groups || [];
+  for (const g of groups.filter((x) => !x.after)) container.append(engineGroup(g));
 
   // On click on a device: "Details on click" (the map's slide switch is the same setting); what the map shows on click
   // follows the communication paths above.
   container.append(group(t("view.on_click"),
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
-
-  // Return paths without a table entry (source route; decisions by Fabian Schwamborn, 2026-11-01): off, assume, or read
-  // zigpy's route records (brief a4w), which keeps its "experimental" tag.
-  const assumedInfo = infoNote("assumed", t("view.assumed_info_label"), t("view.assumed_info"));
-  const choices = SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
-    () => ctx.onChange({ sourceRoute: v })));
-  const zigpy = choices[SOURCE_ROUTE_MODES.indexOf("zigpy")];
-  if (zigpy) zigpy.append(h("span", { class: "tag", text: t("view.sr_experimental") }));
-  // Thread has no routes: the group stays in view, greyed with the reason (unavailable above).
-  container.append(unavailable(h("fieldset", { class: "view-group" },
-    h("legend", { class: "with-info" }, h("span", { text: t("view.source_route") }), assumedInfo.button), assumedInfo.note,
-    choices)));
+  for (const g of groups.filter((x) => x.after === "click")) container.append(engineGroup(g));
 
   // Node distance (density), with a note behind an info button.
   const densityInfo = infoNote("density", t("view.density_info_label"), t("view.density_info"));
@@ -164,7 +170,7 @@ export function renderView(container, ctx) {
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
         on: { click: () => ctx.onReleaseAll() } })),
     reloadInfo.note);
-  if (ctx.debug && routes) {
+  if (ctx.debug && ctx.canScan) {
     const running = Boolean(ctx.scan && ctx.scan.running);
     const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
       text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });

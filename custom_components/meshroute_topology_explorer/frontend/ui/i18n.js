@@ -514,7 +514,7 @@ const en = {
   "status.thread_not_supported": "Home Assistant 2026.9 or newer is required",
   "status.thread_error": "the topology could not be read ({message})",
   "status.thread_empty": "the topology lists no Thread device",
-  "view.not_for_network": "Not available for this network: Thread data has no routes.",
+  "view.thread_paths_note": "Thread data names neighbours and parents, not routes; there are no path views.",
   "legend.link.parent": "Parent link: end device and its parent",
   "legend.link.neighbour": "Neighbour (measured, from the neighbour table); no route data for Thread",
   "legend.link.no-table-thread": "No reception value in this direction: no table to ask (border router or a node not read). This alone does not indicate a weak link.",

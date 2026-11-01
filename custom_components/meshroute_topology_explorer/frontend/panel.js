@@ -37,7 +37,6 @@ import { badgeCount } from "./ui/findings.js";
 import { ageParts } from "./ui/status.js";
 import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
   from "./ui/network-switch.js";
-import { hasRoutes } from "./graph/links.js";
 import { openClusterDialog } from "./ui/cluster-dialog.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
@@ -530,8 +529,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         renderLegend(panel, { t, theme: this._mapTheme(), fill: this._settings.settings.fill, roles: this._roles(),
           devices: this._network.devices, links: this._view ? this._view.legend() : [], debug: this._debug });
       } else if (d.tab === "view") {
+        // The network engine's groups (hidden, not greyed, where the network type has none) and the scan where the
+        // source has one.
         keepFocus(this._root, panel, () => renderView(panel, { t, settings: this._settings.settings,
-          routes: hasRoutes(this._network),
+          groups: engineFor(this._network).options(this._network, this._settings.settings),
+          canScan: Boolean(this._network.capabilities.scan),
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",
