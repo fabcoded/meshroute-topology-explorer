@@ -313,7 +313,7 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
   first saw that fingerprint, and stores them through the integration (10). "Unchanged since" thus means "observed
   unchanged since"; it is accurate only for times a panel was open. The status line shows the board's wording
-  ("unchanged since {time}", de "unverändert seit {time}", decision by Fabian Schwamborn, 2026-11-01); the caveat
+  ("unchanged since {time}", decision by Fabian Schwamborn, 2026-11-01); the caveat
   "observed, not reported" is its tooltip (and the Details row "Table observed unchanged since").
   The stored object holds `routers: { <ieee>: { fingerprint, firstSeen } }`; saves merge per router (the same
   fingerprint keeps the earlier time, another one the newest view) and keep unknown keys; above 256 KiB the oldest
@@ -566,7 +566,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   "unknown"; assume: the way up reversed, dotted; read from zigpy, "experimental", disabled with "coming later"; 5.1);
   **Node distance (density)** with an
   info button that says the distance comes from field strength and reception quality and the density multiplies it
-  (dense, medium, spread; German option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
+  (dense, medium, spread; option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
   source); **Labels on the map** (device type above the symbol, readable name below, original Home Assistant name;
   8). Below a line: debug mode, "Read data again" with an info button ("ZHA reads the tables by itself, every 4 hours
   by default", 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
@@ -700,7 +700,9 @@ picture under a banner and reads again when the connection is back.
 - The panel defines its custom element only if it is free, compares its version with the integration's and asks
   for a reload when they differ; it does not reload data when Home Assistant pushes a new state object; it
   unsubscribes and stops drawing when hidden.
-- Texts in English and German; language from the Home Assistant user's locale, fallback English.
+- Texts in English only (owner decision 2026-11-01). The German table stays in `ui/i18n.js`, dormant and no longer
+  maintained; German is switched on again by adding it to `ACTIVE_LANGUAGES` and translating the keys added since.
+  Dates and numbers follow the Home Assistant user's locale, independent of the text language.
 
 ## 11. Settings per network [v1]
 

@@ -1,31 +1,43 @@
 // SPDX-License-Identifier: MIT
-// Texts of the panel (spec 10): English and German have the same keys and placeholders, the language follows the
-// Home Assistant locale with English as fallback, and the coordinator label is translated.
+// Texts of the panel (spec 10): English only (owner decision 2026-11-01), English is the complete reference, the dormant
+// German table may lack keys, and the coordinator label is translated.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STRINGS, languageOf, translator, localize } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { STRINGS, ACTIVE_LANGUAGES, languageOf, formatLocaleOf, translator, localize } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
 const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
 
-test("English and German have the same keys and the same placeholders", () => {
-  const en = Object.keys(STRINGS.en).sort();
-  const de = Object.keys(STRINGS.de).sort();
-  assert.deepEqual(de, en);
-  for (const key of en) {
-    assert.equal(placeholders(STRINGS.de[key]), placeholders(STRINGS.en[key]), key);
-    assert.ok(STRINGS.de[key].trim() && STRINGS.en[key].trim(), `${key} is not empty`);
+test("English is the complete reference: every key of the dormant German table exists in English with the same placeholders", () => {
+  for (const [key, text] of Object.entries(STRINGS.de)) {
+    assert.ok(key in STRINGS.en, `${key} exists in English`);
+    assert.equal(placeholders(text), placeholders(STRINGS.en[key]), key);
   }
+  for (const [key, text] of Object.entries(STRINGS.en)) assert.ok(text.trim(), `${key} is not empty`);
 });
 
-test("the language comes from hass.locale, then hass.language, else English", () => {
-  assert.equal(languageOf({ locale: { language: "de" }, language: "en" }), "de");
-  assert.equal(languageOf({ language: "de-CH" }), "de");
-  assert.equal(languageOf({ locale: { language: "fr" } }), "en");
-  assert.equal(languageOf(null), "en");
+test("the panel is English only: any Home Assistant locale gets English texts (owner decision 2026-11-01)", () => {
+  assert.deepEqual([...ACTIVE_LANGUAGES], ["en"]);
+  for (const hass of [{ locale: { language: "de" }, language: "en" }, { language: "de-CH" }, { locale: { language: "fr" } }, null]) {
+    assert.equal(languageOf(hass), "en");
+  }
+  assert.equal(translator(languageOf({ language: "de" }))("status.tables", { x: 3, y: 4 }), "tables 3 of 4");
+});
+
+test("dates and numbers keep following the user's locale, not the text language", () => {
+  assert.equal(formatLocaleOf({ locale: { language: "de" } }), "de");
+  assert.equal(formatLocaleOf({ language: "de-CH" }), "de");
+  assert.equal(formatLocaleOf(null), "en");
+  const t = translator("en", "de");
+  assert.equal(t("zoom.fit"), "Fit");
+  assert.equal(t.number(1234), "1.234");
+  assert.equal(translator("en").number(1234), "1,234");
+});
+
+test("translation helpers: placeholders, missing keys, unknown language, time text", () => {
   const t = translator("de");
-  assert.equal(t("status.tables", { x: 3, y: 4 }), "Tabellen 3 von 4");
+  assert.equal(t("status.tables", { x: 3, y: 4 }), "Tabellen 3 von 4", "the dormant table still renders");
   assert.equal(t("no.such.key"), "no.such.key");
   assert.equal(translator("xx").lang, "en");
   assert.equal(t.time("2026-01-01T11:30:28"), "2026-01-01 11:30", "ZHA's local time is shown as text, minutes only");
