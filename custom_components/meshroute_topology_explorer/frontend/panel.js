@@ -177,7 +177,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._devicesTab = new DevicesTab({ onSelect: (id) => this._select(id, "devices") });
     this._left.panel("devices").append(this._devicesTab.el);
 
-    ui.map = h("div", { class: "map" }, ui.canvas, ui.top, ui.zoom, this._buttons.left, this._buttons.right,
+    // Reading and tab order: the controls top left and top right, the map, the zoom group, then the panels.
+    ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.zoom,
       this._left.el, this._right.el, ui.message);
     ui.status = h("section", { class: "status", id: "mte-status" });
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
@@ -382,9 +383,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
    *  hidden while its panel is open; the switch shows only while the left panel is closed. */
   _renderButtons() {
     if (!this._ui || !this._network) return;
+    const ready = !this._ui.canvas.hidden; // no controls over a message (loading, errors, stale version)
     const side = this._left.mode === "side";
     this._buttons.update({ t: this._t, count: badgeCount(this._network.findings), openOnSelect: this._openOnSelect(),
-      narrow: this._narrow, hideLeft: side && this._left.isOpen, hideRight: side && this._right.isOpen,
+      narrow: this._narrow, hideLeft: !ready || (side && this._left.isOpen), hideRight: !ready || (side && this._right.isOpen),
       leftOpen: this._left.isOpen });
   }
 
