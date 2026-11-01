@@ -210,7 +210,9 @@ A view, fill or finding that needs a missing capability shows "not available for
   for every available device, from its own table on, like any device. On the sample every one of these paths is
   complete (12).
 - The **reception at a hop** (sender to hearer) is the hearer's evidence for that direction (4.3): its LQI of the
-  sender, or "Parent" or "Route" where only a parent link or a route implies the hop, or unknown ("?").
+  sender, or "Parent" or "Route" where only a parent link or a route implies the hop, or unknown: "–" where the
+  hearer's table was read and does not list the sender, "?" where there is no table to ask (the glyph rule of 7.1,
+  same on the map and in Details; decision of the main session, 2026-11-01).
 - **Source route** (decision by Fabian Schwamborn, 2026-11-01; View tab 9.1, stored 11): a ZHA coordinator reaches
   many devices without a routing entry, along the relay list of the device's own route record, which is its up path
   reversed; Home Assistant does not expose those records. Three stages: **off** (the down path stays unknown);
@@ -417,8 +419,7 @@ the centre).
   the style of its class (a hop of the device's own up or down path solid, an assumed return path sparsely dotted
   whatever the hearer measured, a path to or from another device dash-dot, a hop only a computed route discovery
   takes dash-dot in grey; each lane in its strongest class), its width by the hearer's rating where
-  it measured the hop. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; "?"
-  where unknown). An incomplete path ends at the device where its walk stopped with a short dashed stem towards its
+  it measured the hop. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; where unknown "–" or "?" by the glyph rule above). An incomplete path ends at the device where its walk stopped with a short dashed stem towards its
   goal (on the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown":
   unknown beats wrong. The up path also lies as a wide translucent band under its hops (on a click, not on hover): in
   the stage "all" it tells the way to the coordinator apart from the other paths (main session,
@@ -609,7 +610,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
     above 12 lines. In the stage "all" the card **"Paths to other devices (theoretical)"** (5.7; brief
     a4k), collapsed above 12 rows: a row per other device, the shortest way there first, with the hops there (→) and
     back (←) and each way's weakest RX ("?" first, else the lowest LQI, else what implies it); a row opens to both ways,
-    every hop with its RX and how it is taken ("table", "neighbour", "route discovery (computed)", "parent", "child";
+    every hop with its RX (a "–" hop names its basis: "Basis: Router 05 hears Router 13 with 48; Router 13's table is full (16/16)", and where the table has room "Link probably one-sided or aged") and how it is taken ("table", "neighbour", "route discovery (computed)", "parent", "child";
     "table not read" or "entry inactive" where the holder had no entry), a discovery with its path cost, a stopped way
     with its reason; the note (computed, not observed, and how) stands at the top of the card, rows of equal hop
     count sort by name in natural order (Router 2 before Router 10), and the cost of the whole path stands at the
@@ -731,6 +732,7 @@ reads them again on reconnect.
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
 | Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (A4l): partners per stage over the 32 routers: first stage 29 with 3 partners and 3 with none, second stage 31 with none and 1 with one; the 12 end devices none in both; Router 13 draws 2 lanes (first stage), 7 with the option, 82 in the second stage with or without it. |
+| Unknown hops | On the sample the complete paths to other devices (5.7) have 174 hops without a reading (87 on the ways out, 87 on the ways back), all neighbour hops on 72 lanes; on the ways out the hearer's table is full for 54, nearly full for 23, with room for 10; all show "–", none "?" (test "a hop whose hearer's table was read ..."). |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
