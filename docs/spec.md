@@ -4,7 +4,8 @@ What Meshroute Topology Explorer does, described from the user's side and from H
 It fixes behaviour, data rules and measurable acceptance, not code structure: how files and modules are cut is up to
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
 version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01;
-details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01.
+details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01; communication
+paths per direction in three stages, compact legend, status line as on the boards 2026-11-01.
 
 ## 1. Purpose and principles [v1]
 
@@ -197,8 +198,9 @@ A view, fill or finding that needs a missing capability shows "not available for
   is and nothing is appended.
 - A path that meets a missing table or entry, a loop, or an unavailable hop stops and is **incomplete**; it is
   never guessed, not even for the coordinator's direct neighbours.
-- **Paths of one device** (node view, 7.1; request by Fabian Schwamborn, 2026-11-01): "path to coordinator" is its
-  up and down path; "all paths" adds an **out path** for each of its own active routes (to that route's destination,
+- **Paths of one device** (node view, 7.1; request by Fabian Schwamborn, 2026-11-01): "path to coordinator" (the stage
+  "coordinator" of 7.1) is its up and down path; "all paths" (the stages "all" and "heard") adds an **out path** for
+  each of its own active routes (to that route's destination,
   walked like the down path from the device) and an **in path** for each other available device with an active route
   towards it (walked the same way from that device). The device's route to the coordinator is its up path and the
   coordinator's route to it its down path, so neither appears twice. The coordinator stands for Home Assistant and
@@ -260,9 +262,11 @@ Path walks never follow routes or parents from the table of an unavailable devic
 
 ## 6. Data status and the scan [v1]
 
-- A **status line** is always visible: source; "tables x of y" (available routers with a table, coordinator not
-  counted); devices in at least one table; the newest change the panel has observed ("unchanged since …"); a hint
-  that ZHA scans by itself every 4 hours by default.
+- A **status line** is always visible (board M1): source; "tables x of y" (available routers with a table,
+  coordinator not counted); completeness; the newest change the panel has observed ("unchanged since …"); on the
+  right the source-route stage (5.1). Devices missing from every table are named by the findings, and that ZHA reads
+  the tables by itself, every 4 hours by default, is an info button beside "Read data again" (9.1; decision by Fabian
+  Schwamborn, 2026-11-01).
 - **Completeness** (share of available routers with a table) is shown, not used as a gate: each finding decides by
   its own evidence rule (5.6). Below 90 % the map also carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp and the integration has no public way to read ZHA's tables. The panel
@@ -302,44 +306,69 @@ the centre).
 - Links (decision by Fabian Schwamborn, 2026-10-31): each pair (4.3) is two lanes, one per direction from sender to
   hearer, each on the right of its own direction of travel (3 px from the centre line at zoom 1, growing with the
   symbols), ending 1 px outside the symbols' contour (the rounded square, 8) with an arrowhead at the hearer.
-- Pairs fall into three classes, drawn without colour by default: up path (a hop of any device's up path, 5.1: solid,
-  foreground, strongest), other route (an active, current route's next hop on no up path: round dots, foreground)
-  and heard only (readings, no route: dashed, grey); a lane's width follows its own reading's rating in three steps.
-- A direction without a reading has no lane but a glyph where its lane's middle would be: "–" when the hearer's
-  table does not list the sender (table full, nearly full or with space), "?" when there is no table to ask (end
-  device, missing or stale table) or it says LQI 0. A direction only a route or a parent link proves is a thin dotted
-  grey lane without a head.
+- **Classes per direction** (decision by Fabian Schwamborn, 2026-11-01, board M11): a class belongs to a lane, from
+  sender S to hearer R, never to a pair, so the way back of an up hop is not up. **Up**: R is the next hop of S on
+  S's up path (5.1). **Down**: the lane lies on the coordinator's path to a device, **measured** (the coordinator's
+  table and the walk of 5.1, also up to where an incomplete walk stops) or **assumed** (a source route, 5.1, only in
+  the stage "assume"). **Route**: on the walk of an active, current route between two devices of which neither is the
+  coordinator. **Heard**: a reading, no traffic. A lane can carry several and is drawn as its strongest: up and
+  measured down, then assumed down, then route, then heard. On the sample: 656 lanes, 41 up (12 of them to a
+  parent), 41 down measured, 4 more down assumed, 27 routes, 464 heard only; 79 lanes carry nothing and have no
+  reading (73 unknown, 6 only implied by a route or a parent link).
+- Lines carry no colour by default: up and down solid in the foreground, assumed down sparse round dots in the
+  foreground, routes between devices dash-dot (6 3 1.5 3) in the foreground, heard only dashed (6 3) in grey, each
+  with an arrowhead at the hearer; a lane's width follows its own reading's rating in three steps.
+- A direction without a reading has no lane but a glyph where its lane's middle would be, wherever the stage draws its
+  pair as heard only (and in debug mode): "–" when the hearer's table does not list the sender (table full, nearly
+  full or with space), "?" when there is no table to ask (end device, missing or stale table) or it says LQI 0. A lane
+  that carries nothing and only a route or a parent link proves shows in debug mode only, thin dotted grey without a
+  head.
 - **Path display** (request by Fabian Schwamborn, 2026-11-01; View tab 9.1, stored 11): grey (default: links carry no
   colour) or **coloured by reception**: every drawn lane with a rated reading takes its rating (5.4, relative to the
   hearer) on a scale from bad over medium to good, red, yellow and green unless the user chose own colours for the
-  three (for colour blindness, design 2026-11-01); lanes without a reading or rating keep their class colour. Dash and
-  width stay, so the class and the rating still read without colour. Every colour is nudged to 3:1 against the
-  background (8).
-- By default all up-path and route pairs are drawn, heard-only pairs as each device's 3 best (by the pair's better
-  rating), and all pairs of the selection and of the device under the pointer; debug mode draws all. Order: heard
-  only, other route, up path on top.
-- Switches choose the classes of the overview (decision by Fabian Schwamborn, 2026-11-01; "Communication paths" in the
-  View tab, 9.1): Up path, Other routes, Heard only, all on by default. A switched-off class is not drawn, except around the selection and the device under
-  the pointer and in debug mode; heard only keeps its 3-best rule when on. The switches only filter the drawing:
-  springs, positions and fitting stay as they are, and a class that is off leaves the legend (debug mode keeps it).
-- Selecting a device shows its paths in the **node view** (5.1; request by Fabian Schwamborn, 2026-11-01), chosen in
-  the View tab under "On click on a device" (9.1): only the communication path with the coordinator (default: its up
-  and down path; the coordinator stands for Home Assistant) or all routes to and from other devices. Each hop is drawn on the lane of its direction of travel with an arrowhead at the hearer:
-  solid in the foreground (up-path widths by rating) where the hearer measured it, dotted where only a route or a
-  parent link proves it. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; "?"
-  where unknown). Where up and down differ, both are drawn; the up path also as a wide translucent band under its
-  hops. An incomplete path ends at the device where its walk stopped with a short dashed stem towards its goal (on
-  the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown": unknown
-  beats wrong. A hop of an assumed return path (5.1) is sparsely dotted with its arrowhead (sparser than a hop a route
-  proves), whatever the hearer measured; its value still shows the hearer's reading. Everything else is dimmed to about 20 %, the selection's own pairs included (they are still drawn
-  whatever the switches say); devices on the paths and their goals keep full strength and their labels. Without a
-  selection, hover previews the paths of the device under the pointer without the band.
+  three (for colour blindness, design 2026-11-01); lanes without a reading or rating and assumed return paths keep
+  their class colour. Dash and width stay, so the class and the rating still read without colour. Every colour is
+  nudged to 3:1 against the background (8).
+- **Communication paths** (decision by Fabian Schwamborn, 2026-11-01, boards M2, M11; View tab 9.1, stored 11): one
+  choice of three cumulative stages decides what is drawn; the stages only filter the drawing, springs, positions and
+  fitting stay.
+  - **With the coordinator, there and back** (default): the overview draws the up and down lanes of all devices, each
+    only in its own direction, nothing else. A click turns everything else off: only the device's up and down path
+    (its **node view**, 5.1; the coordinator stands for Home Assistant and shows the routes it holds and the routes
+    towards it), every hop with its value; the other lanes are not drawn, the other devices dimmed to about 20 %.
+  - **+ Paths to all devices (theoretical)**: the overview as above; a click adds the device's out and in paths (5.1),
+    drawn as routes unless a hop is also on its way up or down. "Theoretical": computed from the tables; ZHA does
+    not show whether two devices really talk directly.
+  - **+ Heard only (best 3)**: as before, plus heard-only lanes. A **heard-only pair** has a reading in some direction
+    and no traffic in either. The overview draws, for every device, its 3 best heard-only partners (by the best
+    rating at the hearer of the pair's heard lanes, then LQI; a pair shown if it is among the best of either end); a
+    click adds the device's own 3 best, both directions, with values and the glyph of a direction without a reading.
+    A partner is a whole pair over which no path runs, not a single lane without traffic: counted per lane, the best
+    would mostly be the ways back of up hops (main session, 2026-11-01).
+  - **Hover** previews the device under the pointer: its lanes of the stage that the overview draws anyway lie on
+    top with their values, everything else is dimmed; it never adds lanes the stage hides (routes between devices
+    wait for the click). **Debug mode** draws every lane of every class, the glyphs and lanes without traffic, with
+    values on both lanes; a selection's lanes lie on top.
+  - Order within the drawing: lanes without class (debug), heard only, routes, down, up on top. On the sample the
+    overview draws 86 lanes in the first two stages (41 up, 45 down, 4 of them assumed) and 198 lanes and 6 glyphs in
+    the third (112 heard only); with source routes off 82 and 194.
+- **The node view on the map**: each hop on the lane of its direction of travel with an arrowhead at the hearer, in
+  the style of its class (a hop of the device's own up or down path solid, an assumed return path sparsely dotted
+  whatever the hearer measured, a path to or from another device dash-dot), its width by the hearer's rating where
+  it measured the hop. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; "?"
+  where unknown). An incomplete path ends at the device where its walk stopped with a short dashed stem towards its
+  goal (on the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown":
+  unknown beats wrong. The up path also lies as a wide translucent band under its hops (on a click, not on hover): in
+  the stages "all" and "heard" it tells the way to the coordinator apart from the other paths (main session,
+  2026-11-01). Devices on the paths, their goals and the heard partners keep full strength and their labels.
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
   right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
   below it the value. On a short lane it moves back just enough to stay beside its own lane; if the place is taken it
   tries 60 % and 88 % of the lane; a value on a path may cover a dimmed device, never a label or another value. No
-  room: the details list it. This holds for path hops and for debug mode's values on every lane; the overview shows
-  the rating by width only.
+  room: the details list it. A lane too short at the current zoom for its value, as between a router and the
+  coordinator right beside it in the fitted view, shows none; zooming in or the details show it (main session,
+  2026-11-01). The values of the way up and down take their places first, then routes, then heard only. This holds for
+  path hops and for debug mode's values on every lane; the overview shows the rating by width only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
   keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
@@ -403,8 +432,10 @@ user-supplied image, or map tiles from an address the user configured.
 - One selectable **fill**: none (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
-  dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour by default: their class shows by dash (solid, dots, dashes)
-  and the foreground or grey, their rating by width (7.1). The one exception is the opt-in path display coloured by
+  dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour by default: their class shows by
+  dash (solid, dots,
+  dash-dot, dashes) and the foreground or grey, their rating by width (7.1). The one exception is the opt-in path
+  display coloured by
   reception (7.1): by default red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d,
   #f2c230, #3fbd5c), CIELAB lightness at least 8 apart, so the three stay apart without hue; the user may replace
   each of the three for both themes. The scale is interpolated between the three and nudged to 3:1 against the
@@ -425,8 +456,8 @@ user-supplied image, or map tiles from an address the user configured.
   the device; (5) the same on the left, aligned right. Places that come out the same (the name alone: 1 and 2) are
   tried once. A dimmed device is no obstacle for a path value but is one for a label. Where no place is free the block
   is left out, except for the coordinator and the focus, which take the first place.
-- The legend (one place: the Legend tab, 9.1) explains the current view, the fill and the symbols: their signs, the
-  pictures present and the states.
+- The legend (one place: the Legend tab, 9.1) explains the current stage's lines, the fill while one is chosen, the
+  symbols (each sign on a device of the network, with its own picture) and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
   per theme: role (coordinator vermillion, router bluish green, end device blue, border router reddish purple) and
   power source (mains blue, battery reddish purple, DC bluish green); devices without a category are grey with a
@@ -458,27 +489,35 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   area (Home Assistant's name, `hass.areas` before the registry's) · "unavailable" when it is down; the reception rank
   lives in Details. With Details on click on, a click on a device in the list or on the map opens its Details; while
   the left panel shows Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
-- **View** tab, in this order: **Communication paths** (checkboxes up path, other routes, heard only; 7.1); **Path
+- **View** tab (board M2), in this order: **Communication paths** (one radio group of the three stages of 7.1, each
+  with a one-line hint, then "Every stage includes the previous one. Debug shows everything."); **Path
   display** (grey or coloured by reception; under it three colour pickers bad, medium, good, prefilled with the
   theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
-  switch on the map; the node view: only the communication path with the coordinator, there and back, or all routes
-  to and from other devices; 7.1); **Return paths without a table entry (source route)** (off: the return path stays
+  switch on the map; what the map shows on a click follows the communication paths); **Return paths without a table
+  entry (source route)** (off: the return path stays
   "unknown"; assume: the way up reversed, dotted; read from zigpy, "experimental", disabled with "coming later"; 5.1);
   **Node distance (density)** with an
   info button that says the distance comes from field strength and reception quality and the density multiplies it
-  (dense, medium, spread; 7.1); **Symbol fill** (none, role, power source); **Labels on the map** (device type above
-  the symbol, readable name below, original Home Assistant name; 8). Below a line: debug mode, "Read data again",
-  "Release all pins (n)", in debug mode the scan (6), and where the settings are kept (11).
-- **Legend** tab: the communication path classes and every other mark the map draws for links, "RX:" (the reception
-  at the hearer, a quarter of the lane before it), the colour scale while paths are coloured, the fill while one is
-  chosen, the symbols (router frame with gaps and strokes, closed frame for end devices, bed for sleeping, crown "C"
-  for the coordinator, plug for wired, arcs for radio) drawn by the map's own code, the pictures present and the
-  states (offline, selected, pinned). The links part comes from the graph's own legend entries (7.1).
+  (dense, medium, spread; German option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
+  source); **Labels on the map** (device type above the symbol, readable name below, original Home Assistant name;
+  8). Below a line: debug mode, "Read data again" with an info button ("ZHA reads the tables by itself, every 4 hours
+  by default", 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
+  when they are not kept in Home Assistant (11). Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a
+  coarse one.
+- **Legend** tab (board M7), compact, in sections: **Communication paths**: the classes the current stage draws (all
+  in debug mode; routes and heard only with their stage), the band, the glyphs "–" and "?" where the stage draws them
+  (an addition to M7: the legend explains every glyph the map can show), in debug mode also the lane without traffic,
+  the width steps and the unknown end, "RX:" (the reception at the hearer, a quarter of the lane before it) and the
+  colour bar while paths are coloured; the fill while one is chosen; **Symbols**: one row per sign, each drawn at
+  40 px by the map's own code on a device of the network with its picture (router frame with gaps and strokes;
+  closed frame with a bed for a sleeping end device; crown "C" and plug for the coordinator; plug without arcs for a
+  wired-only device, where there is one); **States** (offline, selected, pinned). The longer explanations stay in
+  this specification. The links part comes from the graph's own legend entries (7.1).
 - **Debug mode** (View tab, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and
   the like) are shown in the user's language everywhere, with the raw text beside them in debug mode.
-- Wide means a panel at least 720 px wide; a side panel takes 36 % of it within 320–400 px. The expanded sheet
+- Wide means a panel at least 720 px wide; a side panel takes 36 % of it within 320–384 px. The expanded sheet
   takes 55 % of the map (at least 240 px, always leaving 120 px of map). Opened by Details on click from the map the
   sheet starts collapsed to one line; opened on request (a button, right-click, long press, the menu key) it starts
   expanded, since a list in one line shows nothing.
@@ -493,14 +532,16 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   plays its path (route view). Clicking the background or Esc clears it.
 - **Details** (tab of the left panel; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the name in bold
   and one line "type · role · vendor model" ("unavailable since …" below when it is down), then a segmented control
-  (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a small bold heading. The sub-tab stays
-  when the selection changes.
+  (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a small bold heading; at the narrowest
+  side panel it takes less padding and type, never an ellipsis. The sub-tab stays when the selection changes.
   - **Communication:** "Communication path with the coordinator": one line per path with every hop and the reception
     at its hearer, the value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …", an
     assumed return path "back, assumed (source route): …" with a note, 5.1), "path unknown" where a walk stops, a goal
-    that is unavailable named so; in the node view "all" every path ("to X", "from X"), collapsed above 12 lines. Then
-    the parent (end devices: its availability, LQI at the parent, receiver when idle, possibly stale parents) or the
-    children ("Children (sleeping devices)", each with its model); findings with evidence; "Heard by n · hears m": the
+    that is unavailable named so; in the stages "all" and "heard" every path ("to X", "from X"), collapsed above 12
+    lines. Then the parent (end devices: its availability, LQI at the parent, receiver when idle, possibly stale
+    parents) or the children ("Children (end devices)", each with its model: not every end-device child sleeps); the
+    findings with evidence only when the device has some, with "Show in Findings", nothing when it has none; "Heard by n
+    · hears m": the
     reception, the 5 best readings of the device as rows of name, RX and rank relative to the reporter, the rest and
     what the device hears behind "… all with RX and rank relative to the reporter"; "Tables and load": neighbour table
     against the model's capacity, routing table, relay load, the routing entries. Debug mode adds the raw tables.
@@ -587,8 +628,8 @@ picture under a banner and reads again when the connection is back.
 
 ## 11. Settings per network [v1]
 
-View, direction (v1.1), density, link class switches (`links`: `{ up, route, heard }`, booleans, a bad or missing
-value counts as on), node view (`nodeView`: `coordinator` or `all`; anything else counts as `coordinator`), path display
+View, direction (v1.1), density, communication paths (`paths`: `coordinator`, `all` or `heard`; anything else counts
+as `coordinator`; 7.1), path display
 (`pathColors`: `{ mode, bad, medium, good }`; `mode` `grey` or `coloured`, anything else `grey`; each colour only as
 `#rrggbb`, anything else, `null` included, means the theme's own), labels (`labels`: `{ type, name, haName }`,
 booleans, a bad or missing value counts as its default: on, on, off), fill (`none`, `role` or `power`; anything else,
@@ -596,7 +637,9 @@ including the former `reception`, counts as `none`), Details on click (`openDeta
 width), source route (`sourceRoute`: `off` or `assume`; anything else, a later `zigpy` included, counts as `assume`,
 5.1), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
 panel stored `receptionColors` (colour by reception) and `legendOpen` (the legend pill): `receptionColors: true` without
-a valid `pathColors` reads as coloured with the theme's colours; the next save leaves both keys out.
+a valid `pathColors` reads as coloured with the theme's colours; the next save leaves both keys out. Before A4j
+(2026-11-01) it stored class switches (`links`) and the node view (`nodeView`): without a valid `paths`,
+`nodeView: "all"` reads as `all` and anything else as `coordinator`; the next save leaves both keys out.
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
 reads the stored object and writes back only what it changed, so last write wins per key and pins merge per device;
@@ -611,6 +654,7 @@ reads them again on reconnect.
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 37 of 44 with a measured or assumed down path; none without the coordinator's table. |
+| Lanes | On the sample: 656 lanes, 41 up, 41 down measured and 4 more assumed, 27 routes between devices, 464 heard only (467 with source routes off); the overview draws 86 lanes in the stages "coordinator" and "all" and 198 lanes with 6 glyphs in "heard" (82 and 194 with source routes off); debug mode 583 lanes and 73 glyphs. |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
