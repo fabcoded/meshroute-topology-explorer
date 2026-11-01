@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01, board M2): everything that
-// changes how the map looks, in this order: communication paths (one radio group of two cumulative stages plus a checkbox "heard only", each with
-// a one-line hint, board M11), path display (grey, or coloured by reception with the user's own colours for bad,
+// changes how the map looks, in this order: communication paths (one radio group of three views, each its own basis,
+// with "Include return routes" under the routing table, and the checkbox "additional heard neighbours", each with a
+// one-line hint; board M11, owner proposal 2026-11-01), path display (grey, or coloured by reception with the user's own colours for bad,
 // medium and good), what a click on a device does (open details), return paths without a table entry (source route:
 // off, assume, and "read from zigpy" shown disabled until it exists), node distance (density) with an info button,
 // symbol fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (ZHA reads the
@@ -47,20 +48,30 @@ export function renderView(container, ctx) {
     };
   };
 
-  // Communication paths (spec 7.1; board M11): one stage of two, the second containing the first, and the heard-only checkbox, each with a hint.
+  // Communication paths (spec 7.1; board M11; owner proposal 2026-11-01): three views, each its own basis, and the
+  // heard checkbox, each with a hint. "Include return routes" belongs to the routing table only: it sits under that
+  // radio and is greyed while another view is chosen (the first and third already hold both directions).
   const heardHint = `${id}-paths-heard-hint`;
-  // In the second stage every measured neighbour is a possible direct way and so a drawn lane: the option rarely adds a
-  // partner there (decision by Fabian Schwamborn, 2026-11-01). The note shows in that stage only, where it applies.
+  // In the third view every measured neighbour is a possible direct way and so a drawn lane: the option rarely adds a
+  // partner there (decision by Fabian Schwamborn, 2026-11-01). The note shows in that view only, where it applies.
   const heardInfo = settings.paths === "all" ? infoNote("heard", t("view.heard_info_label"), t("view.heard_info")) : null;
+  const returnsHint = `${id}-paths-returns-hint`;
+  const tableOn = settings.paths === "table";
+  const returns = () => [h("label", { class: `check-row sub-option${tableOn ? "" : " off"}` },
+    h("input", { type: "checkbox", id: `${id}-paths-returns`, checked: settings.returnRoutes === true, disabled: !tableOn,
+      "aria-describedby": returnsHint, on: { change: (e) => ctx.onChange({ returnRoutes: e.target.checked }) } }),
+    h("span", { text: t("view.paths_returns") })),
+  h("span", { class: `radio-hint sub-option${tableOn ? "" : " off"}`, id: returnsHint, text: t("view.paths_returns_hint") })];
   const paths = group(t("view.paths"), PATH_STAGES.map((v) => {
     const hint = `${id}-paths-${v}-hint`;
     return [h("label", { class: "check-row" },
       h("input", { type: "radio", name: `${id}-paths`, value: v, checked: settings.paths === v,
         "aria-describedby": hint, on: { change: () => ctx.onChange({ paths: v }) } }),
       h("span", { text: t(`view.paths_${v}`) })),
-    h("span", { class: "radio-hint", id: hint, text: t(`view.paths_${v}_hint`) })];
+    h("span", { class: "radio-hint", id: hint, text: t(`view.paths_${v}_hint`) }),
+    ...(v === "table" ? returns() : [])];
   }),
-  // The option on top of either stage (decision by Fabian Schwamborn, 2026-11-01): a checkbox, same row size.
+  // The option on top of any view (decision by Fabian Schwamborn, 2026-11-01): a checkbox, same row size.
   h("span", { class: "with-info" }, h("label", { class: "check-row" },
     h("input", { type: "checkbox", id: `${id}-paths-heard`, checked: settings.heard === true, "aria-describedby": heardHint,
       on: { change: (e) => ctx.onChange({ heard: e.target.checked }) } }),

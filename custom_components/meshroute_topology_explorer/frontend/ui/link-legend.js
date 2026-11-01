@@ -19,7 +19,8 @@ export function linkLegendRows(entries, t) {
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
     // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
     if (e.option) row.note = t(`legend.option_${e.option}`);
-    if (e.stage) row.note = t(e.computed ? "legend.stage_computed" : "legend.stage", { n: e.stage });
+    if (Array.isArray(e.stage)) row.note = t("legend.stages", { a: e.stage[0], b: e.stage[1] });
+    else if (e.stage) row.note = t(e.computed ? "legend.stage_computed" : "legend.stage", { n: e.stage });
     return row;
   });
 }

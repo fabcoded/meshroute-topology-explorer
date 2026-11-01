@@ -5,6 +5,8 @@
 // counts per device, the table routes kept, and the CPU time of a click. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { sampleNetwork } from "./panel-fixture.mjs";
 import { buildNetwork, nodePaths, routePath }
   from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
@@ -258,25 +260,15 @@ test("sample, stage 2 of a click: an out and an in path to every other available
 });
 
 test("a click stays well under 100 ms of model time on the sample (CPU time, fresh caches)", (t) => {
-  // Process CPU time also counts the engine's compiler and garbage collector threads, so one warm-up compiles the
-  // code and each click counts its best of three fresh networks (no cached lookups or discovery trees).
-  const warm = sampleNetwork();
-  nodePaths(warm, byLabel("Router 11"), "all");
-  let worst = 0;
-  for (const label of ["Router 11", "Router 13", "Router 03", "End device 06"]) {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const network = sampleNetwork();
-      const cpu = process.cpuUsage();
-      nodePaths(network, network.devices.find((d) => d.label === label).id, "all");
-      const used = process.cpuUsage(cpu);
-      best = Math.min(best, (used.user + used.system) / 1000);
-    }
-    worst = Math.max(worst, best);
-  }
-  // About 10 to 35 ms here alone, up to 65 ms beside the other suites (2026-11-01, Node 18 under WSL); the limit is
-  // the brief's.
-  t.diagnostic && t.diagnostic(`slowest click ${worst.toFixed(1)} ms CPU`);
+  // Measured in a child process with V8's --single-threaded flag (tests/click-time.mjs; decision of the main session,
+  // 2026-11-01, brief a4z): in this process the CPU time also counted the compiler's and garbage collector's helper
+  // threads, 3 to 6 times the click's wall time, and beside the other suites a click read up to 110 ms.
+  const out = execFileSync(process.execPath, ["--single-threaded", fileURLToPath(new URL("./click-time.mjs", import.meta.url))],
+    { encoding: "utf8" });
+  const { worst, clicks } = JSON.parse(out);
+  // About 8 to 30 ms here, median 14 of 7 runs (2026-11-01, Node 18 under WSL, brief a4z); the limit is the brief's.
+  t.diagnostic && t.diagnostic(`slowest click ${worst} ms CPU ${JSON.stringify(clicks)}`);
+  assert.equal(Object.keys(clicks).length, 4);
   assert.ok(worst < 100, `${worst} ms CPU`);
 });
 

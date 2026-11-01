@@ -78,15 +78,16 @@ function idsOf(label) {
 }
 
 /** Whether search label p = { cost, hops, id, prev } beats q: lower path cost, then fewer hops, then the lower device
- *  ids from the start on (an own tie-break, so the result never depends on the order of the data). The ids are
- *  spelled out only on a tie of cost and hops. */
+ *  ids from the start on (an own tie-break, so the result never depends on the order of the data). On a tie of cost
+ *  and hops both chains have the same length: they are walked back together and the difference nearest the start
+ *  decides, without building the id lists (ties are frequent with integer costs; the lists were most of a click's
+ *  model time on the sample, brief a4z). A shared label means the same ids from there to the start. */
 function better(p, q) {
   if (p.cost !== q.cost) return p.cost < q.cost;
   if (p.hops !== q.hops) return p.hops < q.hops;
-  const a = idsOf(p);
-  const b = idsOf(q);
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i];
-  return false;
+  let verdict = false;
+  for (let a = p, b = q; a && b && a !== b; a = a.prev, b = b.prev) if (a.id !== b.id) verdict = a.id < b.id;
+  return verdict;
 }
 
 /** The best route discovery from `from` to every device it can reach: Map id -> { cost, ids } (ids from `from`).

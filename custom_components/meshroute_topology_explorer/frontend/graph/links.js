@@ -22,9 +22,11 @@ import { isActive } from "../model/normalize.js";
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";
 
-/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11): two stages, the
- *  second containing the first; "heard only" is a separate option (checkbox) on top of either. */
-export const PATH_STAGES = Object.freeze(["coordinator", "all"]);
+/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view
+ *  by owner proposal 2026-11-01, Codex 5): three views, each its own basis, none containing another: with the
+ *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
+ *  a separate option (checkbox) on top of any of them. */
+export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);
 export const DEFAULT_PATHS = "coordinator";
 
 /** A stored or passed stage as one of PATH_STAGES; anything else is the default. */
@@ -52,13 +54,16 @@ export function laneClass(lane, sourceRoute = "off") {
 }
 
 /** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1; decisions by Fabian Schwamborn,
- *  2026-11-01): up and down always; from the stage "all" on the backbone, every lane a theoretical path between two
- *  devices uses (backbone: the lane is one), drawn as a route; heard only never without a selection (the option adds its
- *  partners on click); everything in debug mode. */
-export function overviewShows(cls, stage, { backbone = false, debug = false } = {}) {
+ *  2026-11-01): in "coordinator" and "all" up and down always; in "all" the backbone, every lane a theoretical path
+ *  between two devices uses (backbone: the lane is one), drawn as a route; in "table" only the lane of a usable routing
+ *  entry (table: owner -> next hop), drawn as a route, and no up or down lane; heard only never without a selection
+ *  (the option adds its partners on click); everything in debug mode. */
+export function overviewShows(cls, stage, { backbone = false, table = false, debug = false } = {}) {
   if (debug) return true;
+  const view = pathStage(stage);
+  if (view === "table") return cls === "route" && table;
   if (cls === "up" || cls === "down") return true;
-  return cls === "route" && backbone && pathStage(stage) !== "coordinator";
+  return cls === "route" && backbone && view === "all";
 }
 
 /** Whether a network has routes with a next hop (spec 4.6): ZHA yes; Thread through Matter no (model/thread.js), so
@@ -275,8 +280,9 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
  *  M7): every path class whatever the stage (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
- *  there and back with the coordinator (up and down share one row), the assumed return path, paths to other devices
- *  and the computed route discovery (stage 2, the latter marked computed), heard only (the option, needs a selection);
+ *  there and back with the coordinator (up and down share one row) and the assumed return path (views 1 and 3), paths
+ *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option,
+ *  needs a selection);
  *  the band under a selected device's way up; the glyphs for directions without a reading where the option draws
  *  them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
  *  the hearer, and with colored the reception scale. */
@@ -294,10 +300,11 @@ export function legendEntries(theme, { debug = false, colored = false, heard = f
     ];
   }
   return [
-    { id: "coordinator", kind: "lane", style: sample("up") },
-    { id: "assumed", kind: "lane", style: sample("down", { assumed: true }) },
-    { id: "route", kind: "lane", style: sample("route"), stage: 2 },
-    { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 2, computed: true },
+    // The views that draw each class (owner proposal 2026-11-01): up and down in 1 and 3, routes in 2 and 3.
+    { id: "coordinator", kind: "lane", style: sample("up"), stage: [1, 3] },
+    { id: "assumed", kind: "lane", style: sample("down", { assumed: true }), stage: [1, 3] },
+    { id: "route", kind: "lane", style: sample("route"), stage: [2, 3] },
+    { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 3, computed: true },
     { id: "heard", kind: "lane", style: sample("heard"), option: "heard" },
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },

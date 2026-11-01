@@ -2,8 +2,8 @@
 // What the Details tab shows for one device (spec 9.2), gathered from the Network as plain data: parent and its
 // availability, children, relay load, readings in both directions with reporter and rating, its own routing entries,
 // its findings, and its paths in the node view as text lines, so every value the map draws at a hop also exists as
-// text (spec 9.3); in the stages "all" and "heard" its theoretical paths per other device (spec 5.7) with how each hop
-// is taken. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
+// text (spec 9.3); in the view "all" its theoretical paths per other device (spec 5.7) with how each hop is taken; in
+// the view "table" its routing-table walks per destination (spec 7.1), optionally with the walks back. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { zigpyRecords } from "../model/source-routes.js";
 import { lqiText } from "./format.js";
@@ -94,13 +94,34 @@ export function pathLine(path, t, name) {
   return `${prefix}: ${items.join(" \u2192 ")}`;
 }
 
+/** The walks of the view "routing table" per destination (spec 7.1, 9.2; owner proposal 2026-11-01): { rows: [{ id,
+ *  out, in }] by destination name (natural order), with `in` null unless return routes are included, and `none`:
+ *  null, or why there are no rows ("end device": it keeps no routing table; "unavailable": its table is stale; "no
+ *  entries": no usable entry). */
+export function tableRows(network, id, returns, name) {
+  const device = network.devices.find((d) => d.id === id);
+  const paths = nodePaths(network, id, "table", { returns });
+  const rows = new Map();
+  for (const p of paths) {
+    const key = p.kind === "out" ? p.to : p.from;
+    if (!rows.has(key)) rows.set(key, { id: key, out: null, in: null });
+    rows.get(key)[p.kind] = p;
+  }
+  const list = [...rows.values()].sort((a, b) => name(a.id).localeCompare(name(b.id), undefined, { numeric: true }));
+  const none = list.length ? null : device.role === "end device" ? "end device" : !device.available ? "unavailable"
+    : "no entries";
+  return { rows: list, none };
+}
+
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", model/node-paths.js), with the source-route stage `sourceRoute` ("off",
- *  "assume" or "zigpy", model/source-routes.js). record (stage "zigpy" only, else null): { radio, differs } with
+ *  `nodeView` ("coordinator" or "all", model/node-paths.js; the view "table" lists the way with the coordinator here
+ *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
+ *  then empty, main session 2026-11-01), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
+ *  model/source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */
-export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
+export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRoutes = false } = {}) {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const device = byId.get(id);
   if (!device) return null;
@@ -115,7 +136,9 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
       direct: r.direct, stale: r.stale }))
     .sort((a, b) => a.destination.label.localeCompare(b.destination.label));
   const parent = device.parent ? byId.get(device.parent) || null : null;
-  const paths = nodePaths(network, id, nodeView, { sourceRoute });
+  const paths = nodeView === "table" && device.role === "coordinator" ? []
+    : nodePaths(network, id, nodeView === "table" ? "coordinator" : nodeView, { sourceRoute });
+  const label = (x) => (byId.get(x) || { label: x }).label;
   const differs = sourceRoute === "zigpy" ? zigpyRecords(network).differs.get(id) : null;
   const record = sourceRoute === "zigpy" ? { radio: (network.zigpy && network.zigpy.radio) || null,
     differs: differs ? differs.slice(1, -1) : null } : null;
@@ -136,6 +159,7 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
     routingEntries: network.routes.filter((r) => r.owner === id).length,
     paths,
     record,
-    theory: theoryRows(paths, (x) => (byId.get(x) || { label: x }).label),
+    theory: theoryRows(paths, label),
+    table: nodeView === "table" ? tableRows(network, id, returnRoutes === true, label) : null,
   };
 }

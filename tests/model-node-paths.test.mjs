@@ -18,7 +18,7 @@ const labelOf = new Map(sample.devices.map((d) => [d.id, d.label]));
 const hopText = (h) => (h.state === "measured" ? String(h.lqi) : h.state === "implied" ? h.source : "?");
 
 test("path to coordinator: up and down path per device, the numbers of spec 12", () => {
-  assert.deepEqual(NODE_VIEWS, ["coordinator", "all"]);
+  assert.deepEqual(NODE_VIEWS, ["coordinator", "table", "all"]);
   let up = 0;
   let down = 0;
   let differ = 0;

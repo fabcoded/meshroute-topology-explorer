@@ -2,7 +2,8 @@
 // The Details tab (spec 9.2; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the device's name and one
 // line "type · role · vendor model", then a segmented control with three sub-tabs, each a stack of cards:
 // - Communication: the path with the coordinator there and back with the reception at every hop (the coordinator: all
-//   its routes), in the stages "all" and "heard" its theoretical paths to every other device (spec 5.7), parent or
+//   its routes), in the view "table" its routing-table walks per destination, in the view "all" its theoretical paths
+//   to every other device (spec 5.7), parent or
 //   children, findings, who hears it and whom it hears with RX and the rank relative to the reporter, its tables and
 //   load; raw tables in debug mode;
 // - Entity: the node card (badges for logical type, power, receiver when idle, frequency band, stack revision; then
@@ -12,7 +13,8 @@
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
 import { h } from "./dom.js";
-import { detailsOf, hopValue, howText, pathParts } from "./details.js";
+import { detailsOf, hopValue, howText, pathParts, stopText } from "./details.js";
+import { unknownEnd } from "../model/node-paths.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, percent, rankTooltip, roleText } from "./format.js";
 import { formatNwk } from "../model/parse.js";
@@ -31,14 +33,15 @@ const PATHS_OPEN = 12;
 const WEAKEST = 0.1;
 
 /** Fill `container` with the details of `id`. ctx: { network, t, id, debug, raw (Map id -> zha/devices entry),
- *  nodeView ("coordinator" | "all"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
+ *  nodeView ("coordinator" | "table" | "all"), returnRoutes (view "table"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
  *  (formatted time the table was first seen as it is now, or null), pinned, idPrefix, onSub(sub, { focus }),
  *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener), onFindings(opener) (show
  *  the Findings tab) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
-  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView, { sourceRoute: ctx.sourceRoute }) : null;
+  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView, { sourceRoute: ctx.sourceRoute,
+    returnRoutes: ctx.returnRoutes }) : null;
   if (!info) {
     container.append(h("p", { class: "empty", text: t("details.empty") }));
     return;
@@ -97,7 +100,9 @@ function deviceButton(ctx, dev, note) {
 function communication(panel, info, ctx, name) {
   const { t } = ctx;
   const d = info.device;
-  panel.append(pathsCard(info.paths, ctx, name, info.record));
+  // The coordinator in the view "routing table" has only that card (main session, 2026-11-01).
+  if (!(info.table && info.device.role === "coordinator")) panel.append(pathsCard(info.paths, ctx, name, info.record));
+  if (info.table) panel.append(tableCard(info.table, ctx, name));
   if (info.theory.length) panel.append(theoryCard(info.theory, ctx, name));
 
   if (d.role === "end device") {
@@ -221,6 +226,46 @@ function theoryCard(rows, ctx, name) {
     h("summary", { class: "card-title", text: t("details.theory_title", { count: rows.length }) }),
     h("p", { class: "muted small", text: t("details.theory_note") }),
     h("p", { class: "muted small", text: t("details.theory_head") }), ...items));
+}
+
+/** "Routing table" (spec 7.1, 9.2; owner proposal 2026-11-01, Codex 4.4): a row per destination of the device's own
+ *  usable entries with the hops there (→) and, with "Include return routes", back (←), "?" for a walk that stops; a
+ *  row opens to the walks, every hop with the reception at its hearer and how it is taken, a gap named with the device
+ *  it stopped at and why. The notes say what the view rests on and what it leaves out (zigpy's route records and
+ *  assumed return paths are another basis), and that a return route missing from the tables is no verdict. */
+function tableCard(table, ctx, name) {
+  const t = ctx.t;
+  const returns = ctx.returnRoutes === true;
+  if (!table.rows.length) {
+    return card(t("details.table_title", { count: 0 }), h("div", { class: "muted", text: t(`details.table_none_${table.none.replace(/ /g, "_")}`) }));
+  }
+  const way = (p, arrow) => h("span", { class: "theory-way", text: p ? `${arrow} ${p.complete ? p.hops.length : "?"}` : "" });
+  const line = (p, label) => {
+    const { steps } = pathParts(p, t, name);
+    const nodes = [h("span", { class: "muted", text: `${label}: ` })];
+    steps.forEach((s, i) => {
+      if (i) nodes.push(" → ");
+      nodes.push(s.name);
+      if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
+      const notes = [s.how && howText(s.how, t), s.basis].filter(Boolean);
+      if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));
+    });
+    // A gap names the device the walk stopped at: the tables hold nothing further from there (Codex 4.4).
+    const gap = unknownEnd(p);
+    if (gap) {
+      nodes.push(steps.length ? " → " : "", h("span", { class: "unknown",
+        text: t("details.table_gap", { name: name(gap.at), reason: stopText(p.reason, t) }) }));
+    }
+    return h("div", { class: "path-line theory-line" }, nodes);
+  };
+  const items = table.rows.map((r) => h("details", { class: "theory-row" },
+    h("summary", {}, h("span", { class: "theory-name", text: name(r.id) }), way(r.out, "\u2192"), returns ? way(r.in, "\u2190") : null),
+    r.out ? line(r.out, t("details.path_up")) : null, r.in ? line(r.in, t("details.path_down")) : null));
+  const notes = [t("details.table_note"), returns ? t("details.table_returns_note") : t("details.table_returns_off"),
+    t("details.table_basis")];
+  return card(null, h("details", { class: "card-details theory", open: table.rows.length <= PATHS_OPEN },
+    h("summary", { class: "card-title", text: t("details.table_title", { count: table.rows.length }) }),
+    ...notes.map((text) => h("p", { class: "muted small", text })), ...items));
 }
 
 /** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (board M4). */

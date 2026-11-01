@@ -20,8 +20,9 @@
        matter=1        the Matter integration loaded, Thread from tests/fixtures/matter-sample.json (the status line's source
                        becomes the network switch);  matter=notsupported  its topology answers not_supported
        network=thread  start on the Thread network (as a stored choice; implies matter=1)
-       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), paths=coordinator|all|heard (heard = the
-       stage as stored before A4l, migrates to all + heard=1), heard=1 (the checkbox "heard only"), nodeview=all (as stored before A4j), colors=1 (paths coloured by reception), bad=,
+       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), paths=coordinator|table|all|heard (heard = the
+       stage as stored before A4l, migrates to all + heard=1), heard=1 (the checkbox "additional heard neighbours"),
+       returns=1 ("include return routes" of the view "table"), nodeview=all (as stored before A4j), colors=1 (paths coloured by reception), bad=,
        medium=, good= (own colours as hex without #, e.g. bad=0072b2), labels=type,name,ha (the label lines on),
        receptioncolors=1 (a setting as stored before A4h)   stored settings to start from
        select=<label>  select a device (as from a finding: no panel opens)

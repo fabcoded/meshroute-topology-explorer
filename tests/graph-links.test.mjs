@@ -356,10 +356,11 @@ test("legend entries follow the stage: the classes it draws, RX, the scale while
   assert.equal(entries.at(-1).id, "reception");
   assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
   assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);
-  assert.equal(entries.find((e) => e.id === "route").stage, 2);
+  assert.deepEqual(entries.find((e) => e.id === "route").stage, [2, 3], "routes: the views routing table and all");
+  assert.deepEqual(entries.find((e) => e.id === "coordinator").stage, [1, 3], "up and down: not in the routing table");
   // A hop only a computed route discovery takes: the same dash-dot in the lighter grey, never in a reception colour.
   const discovery = entries.find((e) => e.id === "discovery");
-  assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 2]);
+  assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 3]);
   assert.notEqual(entries.find((e) => e.id === "route").style.color, theme.muted);
   assert.equal(laneStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
   assert.equal(entries.find((e) => e.id === "heard").option, "heard");

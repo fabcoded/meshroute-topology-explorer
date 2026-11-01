@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
-// The paths of one device for the node view (spec 5.1, 5.7, 7.1; decisions by Fabian Schwamborn, 2026-11-01): "Path
-// to coordinator" is its up and down path; "All paths" adds its theoretical way to every other available device and
-// back (theoretical.js: routing table first, then the next hop's table and so on, else a neighbour, else what a route
+// The paths of one device for the node view (spec 5.1, 5.7, 7.1; decisions by Fabian Schwamborn, 2026-11-01): three
+// views, each its own basis. "coordinator" is its up and down path; "table" follows its own usable routing entries hop
+// by hop through every holder's entry for the same destination, optionally each destination's way back
+// (paths.js tableWalk); "all" adds to the first its theoretical way to every other available device and back
+// (theoretical.js: routing table first, then the next hop's table and so on, else a neighbour, else what a route
 // discovery would find). Each hop carries the reception at its hearer from the pair evidence (4.3). Walks stop at a
 // loop, an unavailable device or where nothing leads on, and say so: unknown beats wrong. Pure functions over a
 // Network. node --test tests/
-import { downPath, routeEnds, routePath, upPath } from "./paths.js";
+import { downPath, routeEnds, routePath, tableWalk, upPath } from "./paths.js";
 import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
 import { drawMode, returnPaths } from "./source-routes.js";
 
-/** The node views (spec 9.1, 11): the default shows the way to and from the coordinator, which stands for Home
- *  Assistant; "all" adds the device's theoretical way to every other device and back (spec 5.7). */
-export const NODE_VIEWS = Object.freeze(["coordinator", "all"]);
+/** The node views (spec 7.1, 9.1, 11; owner proposal 2026-11-01, Codex 5): the default shows the way to and from the
+ *  coordinator, which stands for Home Assistant; "table" the device's own routing-table entries followed hop by hop;
+ *  "all" adds to the first the device's theoretical way to every other device and back (spec 5.7). */
+export const NODE_VIEWS = Object.freeze(["coordinator", "table", "all"]);
 export const DEFAULT_NODE_VIEW = "coordinator";
 
 const evidenceCache = new WeakMap(); // network -> Map "hearer|sender" -> direction
@@ -49,7 +52,10 @@ export function pathHops(network, ids) {
 }
 
 /** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
- *  assumed, reason, cost }].
+ *  assumed, reason, cost }]. "table" gives only the walks of the routing-table view (tableWalk): an out path to every
+ *  destination of the device's own usable entries and, with `returns`, an in path from each of them, every hop with
+ *  `how` ("table", "child", "parent"); never up or down paths, never more destinations (owner proposal and Codex 4.4,
+ *  2026-11-01); an unavailable device has none (its table is stale).
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds, for every other available device except the coordinator (in the network's order), the
@@ -63,7 +69,7 @@ export function pathHops(network, ids) {
  *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
  *  true, and so do its hops. "zigpy" replaces it by zigpy's route record where one passes the gate (recorded: true,
  *  drawn as measured), else assumes as "assume" does. The default "off" gives the measured paths of spec 5.1 only. */
-export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off" } = {}) {
+export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off", returns = false } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
   if (!device) return [];
@@ -80,6 +86,13 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute =
     out.push({ kind, from, to, ids: walk.ids, complete: walk.complete, hops, assumed,
       ...(walk.recorded === true ? { recorded: true } : {}), reason: walk.reason ?? null, cost: walk.cost ?? null });
   };
+  if (mode === "table") {
+    if (!device.available) return out;
+    const { destinations } = routeEnds(network, id);
+    for (const d of destinations) add("out", id, d, tableWalk(network, id, d));
+    if (returns) for (const d of destinations) add("in", d, id, tableWalk(network, d, id));
+    return out;
+  }
   if (id !== coordinator) {
     add("up", id, coordinator, upPath(network, id));
     const stage = drawMode(sourceRoute);

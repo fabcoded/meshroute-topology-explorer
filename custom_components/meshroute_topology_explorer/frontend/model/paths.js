@@ -22,7 +22,9 @@ function lookups(network) {
     if (!m.has(r.destination)) m.set(r.destination, r);
   }
   const coordinator = network.devices.find((d) => d.role === "coordinator") || null;
-  c = { byId, routes, coordinator: coordinator && coordinator.id };
+  // "owner|destination" with any entry, usable or not: tells a gap "entry inactive" apart from "no entry".
+  const entries = new Set(network.routes.map((r) => `${r.owner}|${r.destination}`));
+  c = { byId, routes, entries, coordinator: coordinator && coordinator.id };
   cache.set(network, c);
   return c;
 }
@@ -120,6 +122,59 @@ export function routeEnds(network, id) {
   const owners = [];
   for (const [owner, m] of c.routes) if (owner !== id && m.has(id)) owners.push(owner);
   return { destinations, owners };
+}
+
+/** The usable routing entries of every device (spec 5.1, 7.1 view "routing table"): the active, current entry each
+ *  owner's walks follow per destination, in the network's order. Their lanes (owner -> next hop) are the overview of
+ *  the routing-table view. */
+export function usableRoutes(network) {
+  const out = [];
+  for (const m of lookups(network).routes.values()) for (const r of m.values()) out.push(r);
+  return out;
+}
+
+/** The walk of the routing-table view (spec 5.1, 7.1; owner proposal 2026-11-01, Codex 4.4 and 5): from `from` towards
+ *  `to`, every holder H forwards by its own usable entry for the same destination `to` ("table"); a parent delivers to
+ *  its end-device child ("child", A4k rule, Zigbee r22 3.6.3.3), and an end device sends to its parent ("parent": it
+ *  keeps no routing table, the protocol leaves it no other way). Nothing else fills a gap: no neighbour, no route
+ *  discovery, no reversed path, no source route; the walk stops and says why: "no entry", "entry inactive" (an entry
+ *  that is not active or comes from a stale table), "table not read", "loop", "unavailable" (a hop or the goal),
+ *  "no parent". { ids, complete, hops: [{ sender, hearer, how }], reason }; ids end where the walk stopped. */
+export function tableWalk(network, from, to) {
+  const c = lookups(network);
+  const start = c.byId.get(from);
+  const target = c.byId.get(to);
+  if (!start || !target) return { ids: [], complete: false, hops: [], reason: "unknown device" };
+  const ids = [from];
+  const hops = [];
+  const seen = new Set(ids);
+  const result = (complete, reason) => ({ ids, complete, hops, reason: complete ? null : reason });
+  if (!start.available) return result(false, "unavailable"); // its table is stale (5.1)
+  const childOf = target.role === "end device" ? target.parent : null;
+  let cur = from;
+  while (cur !== to) {
+    const holder = c.byId.get(cur);
+    let next = null;
+    let how = "table";
+    if (holder.role === "end device") {
+      if (!holder.parent || !c.byId.has(holder.parent)) return result(false, "no parent");
+      [next, how] = [holder.parent, "parent"];
+    } else if (cur === childOf) [next, how] = [to, "child"];
+    else {
+      next = nextHop(c, cur, to);
+      if (!next) {
+        return result(false, c.entries.has(`${cur}|${to}`) ? "entry inactive" : holder.hasTable === false
+          ? "table not read" : "no entry");
+      }
+    }
+    if (seen.has(next)) return result(false, "loop");
+    hops.push({ sender: cur, hearer: next, how });
+    ids.push(next);
+    seen.add(next);
+    cur = next;
+    if (cur !== to && !c.byId.get(cur).available) return result(false, "unavailable");
+  }
+  return result(target.available, "unavailable");
 }
 
 /** Relay load per router id (spec 5.2): active routes in available tables that use it as next hop towards another
