@@ -310,7 +310,9 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
 - **Observations**: ZHA has no scan timestamp and the integration has no public way to read ZHA's tables. The panel
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
   first saw that fingerprint, and stores them through the integration (10). "Unchanged since" thus means "observed
-  unchanged since"; it is accurate only for times a panel was open, and the status line says so.
+  unchanged since"; it is accurate only for times a panel was open. The status line shows the board's wording
+  ("unchanged since {time}", de "unverändert seit {time}", decision by Fabian Schwamborn, 2026-11-01); the caveat
+  "observed, not reported" is its tooltip (and the Details row "Table observed unchanged since").
   The stored object holds `routers: { <ieee>: { fingerprint, firstSeen } }`; saves merge per router (the same
   fingerprint keeps the earlier time, another one the newest view) and keep unknown keys; above 256 KiB the oldest
   entries go first, which debug mode reports. Times are shown in the browser's local time.
