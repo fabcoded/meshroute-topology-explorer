@@ -6,6 +6,7 @@
 import { buildNetwork, FINDING_KINDS } from "../../model/index.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderDetails } from "../../ui/details-tab.js";
+import { openClusterDialog } from "../../ui/cluster-dialog.js";
 import { findingText } from "../../ui/finding-text.js";
 import { connection } from "./connection.js";
 import { zigbeeOptions } from "./options.js";
@@ -36,9 +37,14 @@ export const zigbee = Object.freeze({
   /** The grey line's connection of a device in the Devices list (board M3), or null. */
   connection: (network, device) => connection(network, device),
   /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow
-   *  this engine's own settings (paths, returnRoutes, sourceRoute). */
+   *  this engine's own settings (paths, returnRoutes, sourceRoute); a cluster's details open as a dialog through the
+   *  panel's ctx.openDialog(open(host)). */
   details: (container, ctx) => renderDetails(container, { ...ctx, nodeView: ctx.settings.paths,
-    returnRoutes: ctx.settings.returnRoutes, sourceRoute: ctx.settings.sourceRoute }),
+    returnRoutes: ctx.settings.returnRoutes, sourceRoute: ctx.settings.sourceRoute,
+    onCluster: (spec, opener) => {
+      const device = ctx.network.devices.find((d) => d.id === ctx.id);
+      if (device) ctx.openDialog((host) => openClusterDialog({ ...host, t: ctx.t, device, ...spec, opener }));
+    } }),
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
    *  paths without a table entry. */
   options: (network, settings) => zigbeeOptions(network, settings),

@@ -38,7 +38,6 @@ import { badgeCount } from "./ui/findings.js";
 import { ageParts } from "./ui/status.js";
 import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
   from "./ui/network-switch.js";
-import { openClusterDialog } from "./ui/cluster-dialog.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
 import { h, iconButton } from "./ui/dom.js";
@@ -74,7 +73,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
     this._info = { density: false, reload: false, heard: false, colors: false, assumed: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
-    this._cluster = null; // the open cluster dialog, if any
+    this._dialog = null; // the dialog an engine's Details opened (Zigbee: a cluster's details), if any
     this._dirty = new Set();
     this._connection = "ok";
     this._controller = new PanelController();
@@ -111,8 +110,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (this._ui) requestAnimationFrame(() => this._applyTheme());
     }
     this._controller.setHass(value);
-    // An open cluster dialog shows entity states as current values: they follow the house.
-    if (this._cluster) this._cluster.refresh();
+    // An open dialog (a cluster's details) shows entity states as current values: they follow the house.
+    if (this._dialog) this._dialog.refresh();
   }
   get hass() { return this._hass; }
 
@@ -527,7 +526,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
-          onCluster: (spec, opener) => this._openCluster(spec, opener),
+          openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
       } else if (d.tab === "findings") {
@@ -679,14 +678,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
   }
 
-  /** The details of one cluster of the selected device (spec 9.2, board M10), a modal dialog. */
-  _openCluster(spec, opener) {
-    const device = this._device(this._selected);
-    if (!device || !this._hass) return;
-    if (this._cluster) this._cluster.close();
-    this._cluster = openClusterDialog({ root: this._ui.app, t: this._t, device, ...spec, opener,
-      states: () => this._hass && this._hass.states, callWS: (msg) => this._hass.callWS(msg),
-      onClose: () => { this._cluster = null; } });
+  /** A modal dialog an engine's Details open (Zigbee: one cluster's details, spec 9.2, board M10): open(host) builds it
+   *  in the panel's root with Home Assistant's states and websocket and returns { close, refresh }. One at a time. */
+  _openDialog(open) {
+    if (!this._hass) return;
+    if (this._dialog) this._dialog.close();
+    this._dialog = open({ root: this._ui.app, states: () => this._hass && this._hass.states,
+      callWS: (msg) => this._hass.callWS(msg), onClose: () => { this._dialog = null; } });
   }
 
   /** Area names from the hass object (hass.areas: id -> { name }), where Home Assistant provides it. */
