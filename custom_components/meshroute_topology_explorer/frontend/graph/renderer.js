@@ -42,6 +42,26 @@ const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
  *  main session decision 2026-11-01); tried after VALUE_SPOTS, still beside the lane and before the hearer. */
 const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 
+/** Screen length (CSS px) of the shortest focus lane of device `index` at camera `cam`, as drawn by drawScene: the
+ *  lanes of the selection's paths in the view's stage (heard-only partners included when `view.heard`), through
+ *  laneGeometry; a hop the symbols leave no room for (laneGeometry null) counts as 0. Infinity without hops. Used
+ *  by the graph view to zoom on a tap when the paths are too short to read (spec 9.3). */
+export function shortestFocusLane(view, index, cam) {
+  const { scene, pos, width, height } = view;
+  const route = scenePaths(scene, index, pathStage(view.paths), view.sourceRoute === "assume" ? "assume" : "off",
+    Boolean(view.heard));
+  const size = symbolSize(cam.k);
+  const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
+  let shortest = Infinity;
+  for (const hop of route.hops.values()) {
+    const [x1, y1] = toScreen(cam, pos.x[hop.s], pos.y[hop.s], width, height);
+    const [x2, y2] = toScreen(cam, pos.x[hop.h], pos.y[hop.h], width, height);
+    const lane = laneGeometry(x1, y1, x2, y2, size, size, offset);
+    shortest = Math.min(shortest, lane ? lane.len : 0);
+  }
+  return shortest;
+}
+
 /** Hit radius at zoom k: the symbol and 4 px around it (this covers its rounded corners), at least MIN_HIT across. */
 export function hitRadius(k) {
   return Math.max(symbolSize(k) / 2 + 4, MIN_HIT / 2);
