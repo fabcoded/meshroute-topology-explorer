@@ -59,6 +59,12 @@ export function overviewShows(cls, stage, { backbone = false, debug = false } = 
   return cls === "route" && backbone && pathStage(stage) !== "coordinator";
 }
 
+/** Whether a network has routes with a next hop (spec 4.6): ZHA yes; Thread through Matter no (model/thread.js), so
+ *  there are no paths, no stages and no theoretical paths, and the overview draws every measured neighbour lane. */
+export function hasRoutes(network) {
+  return !(network && network.capabilities && network.capabilities.routes === false);
+}
+
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
  *  2 px apart. */
 export const LANE_OFFSET = 3;
@@ -129,7 +135,8 @@ export function laneStyle(cls, rating, theme,
  *  sender (full, nearly full, with space, capacity unknown); "?" when there is no table to ask (end device, missing or
  *  stale table) or the table says LQI 0 (unmeasured or very weak). */
 export function unknownGlyph(reason) {
-  const listedNot = /^(table (full|nearly full|has space)|capacity unknown)/;
+  // Thread (model/thread.js): "not in the neighbour table" means the hearer's table was read and does not list it.
+  const listedNot = /^(table (full|nearly full|has space)|capacity unknown|not in the neighbour table)/;
   return typeof reason === "string" && listedNot.test(reason) ? "–" : "?";
 }
 
@@ -169,7 +176,17 @@ export function classifyLanes(network) {
   const upPaths = new Map();
   const up = new Set();
   const down = new Set();
-  for (const d of devices) {
+  if (!hasRoutes(network)) {
+    // Thread (spec 3.2, 4.6): no routes, no coordinator. The only traffic the data names is a parent link: the end
+    // device sends to its parent (drawn like "up") and the parent delivers to it ("down"); no up path, no band.
+    const available = new Set(devices.filter((d) => d.available).map((d) => d.id));
+    for (const d of devices) {
+      upPaths.set(d.id, []);
+      if (d.role !== "end device" || !d.parent || !available.has(d.id) || !available.has(d.parent)) continue;
+      up.add(laneKey(d.id, d.parent));
+      down.add(laneKey(d.parent, d.id));
+    }
+  } else for (const d of devices) {
     const { ids } = upPath(net, d.id);
     upPaths.set(d.id, ids);
     addHops(up, ids);
