@@ -90,3 +90,18 @@ test("1.3: 'Read data again' only re-reads zha/devices: the reload path never se
   const panel = await readFile(new URL("panel.js", dir), "utf8");
   assert.match(panel, /onReload: \(\) => this\._controller\.reload\(\)/);
 });
+
+test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbour hop is not an observed route", () => {
+  assert.match(en["legend.link.discovery"], /^A possible path computed from/);
+  assert.equal(en["legend.stage_computed"], "(computed, stage {n})");
+  assert.equal(t("details.how_discovery"), "route discovery (computed)");
+  assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
+  assert.match(en["details.theory_note"], /^Computed, not observed/);
+  assert.match(en["details.paths_assumed_note"], /^Assumed:/);
+  assert.match(en["legend.link.assumed"], /assumed/);
+  // No evidence levels 0-4 and no "predicted" / "calculated" synonyms in the active texts.
+  for (const [key, text] of Object.entries(en)) {
+    if (!/^(legend|details|view)\./.test(key)) continue;
+    assert.ok(!/\b(calculated|predicted|evidence level)\b/i.test(text.replace("not a prediction", "")), `${key}: ${text}`);
+  }
+});

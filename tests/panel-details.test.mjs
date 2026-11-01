@@ -122,7 +122,7 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, de)),
     ["Tabelle", "Nachbar", "Routensuche (berechnet)", "Parent", "Kind"]);
   assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, en)),
-    ["table", "neighbour", "route discovery (computed)", "parent", "child"]);
+    ["routing table entry", "direct neighbour (from the neighbour table)", "route discovery (computed)", "parent", "child"]);
   assert.equal(de("details.theory_title", { count: 40 }), "Wege zu anderen Ger\u00E4ten (theoretisch) \u00B7 40");
   assert.equal(stopText("no link", de), "keine Verbindung");
   assert.equal(stopText("loop", en), "loop");
