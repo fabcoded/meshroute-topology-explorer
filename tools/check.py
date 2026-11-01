@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 """Run development checks without devices. Usage: python3 tools/check.py; see CONTRIBUTING.md.
 
-Fail before running tests on an unsupported toolchain or missing lint dependencies, so a partial run is not
-mistaken for CI parity. Commands are deliberately the same as CI; hooks are not a replacement for unit tests.
+CI runs this script, so a local pass means the same checks as CI; hassfest and HACS validation run only in CI.
+It stops on an unsupported toolchain first, so a run on other versions is not mistaken for CI parity. A checkout
+without node_modules fails in the ESLint hook with "run npm ci" (package.json lint script).
 """
 
 import shutil
@@ -26,9 +27,6 @@ def main() -> int:
     version = tuple(int(part) for part in node.removeprefix("v").split(".")[:2])
     if version[0] != 22 or version[1] < 13:
         print(f"Use Node.js 22.13 or newer in the 22.x series; found {node}.", file=sys.stderr)
-        return 1
-    if not (ROOT / "node_modules/eslint/bin/eslint.js").is_file():
-        print("Missing ESLint; run npm ci.", file=sys.stderr)
         return 1
     for command in (
         ["pre-commit", "run", "--all-files"],

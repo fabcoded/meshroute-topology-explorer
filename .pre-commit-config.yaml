@@ -65,7 +65,8 @@ repos:
         types: [python]
       - id: eslint
         name: JavaScript correctness (ESLint)
-        entry: npm run lint
+        # The script runs only the ESLint in node_modules; a global one ignores eslint.config.mjs.
+        entry: npm run --silent lint
         language: system
         pass_filenames: false
         files: '(\.(js|mjs|cjs)$|^package(-lock)?\.json$)'

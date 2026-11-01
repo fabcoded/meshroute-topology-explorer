@@ -2,7 +2,7 @@
   "name": "meshroute-topology-explorer-dev",
   "private": true,
   "scripts": {
-    "lint": "eslint . --max-warnings 0",
+    "lint": "test -f node_modules/eslint/bin/eslint.js || { echo 'ESLint is not installed in this checkout: run npm ci' >&2; exit 1; }; node node_modules/eslint/bin/eslint.js . --max-warnings 0",
     "test": "node --test \"tests/**/*.test.mjs\"",
     "check": "python3 tools/check.py"
   },
