@@ -154,7 +154,7 @@ export function tableWalk(network, from, to) {
   let cur = from;
   while (cur !== to) {
     const holder = c.byId.get(cur);
-    let next = null;
+    let next;
     let how = "table";
     if (holder.role === "end device") {
       if (!holder.parent || !c.byId.has(holder.parent)) return result(false, "no parent");

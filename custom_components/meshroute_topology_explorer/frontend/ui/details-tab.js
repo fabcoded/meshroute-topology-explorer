@@ -13,7 +13,7 @@
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
 import { h } from "./dom.js";
-import { detailsOf, hopValue, howText, pathParts, stopText } from "./details.js";
+import { detailsOf, howText, pathParts, stopText } from "./details.js";
 import { unknownEnd } from "../model/node-paths.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, percent, rankTooltip, roleText } from "./format.js";

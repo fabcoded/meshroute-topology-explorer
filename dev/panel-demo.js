@@ -484,4 +484,3 @@ async function replay() {
   document.body.dataset.log = log.join(" | ");
 }
 drive().then(replay);
-

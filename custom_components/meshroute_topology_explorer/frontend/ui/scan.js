@@ -97,7 +97,7 @@ export class ScanFollower extends EventTarget {
 
   async _tick(token, index) {
     this._timer = null;
-    let network = null;
+    let network;
     try { network = await this._read(); } catch { network = null; }
     if (token !== this._token) return; // stopped meanwhile
     if (network) {

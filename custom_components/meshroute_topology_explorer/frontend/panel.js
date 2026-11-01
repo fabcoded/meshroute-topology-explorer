@@ -384,7 +384,6 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     ui.message.hidden = true;
     if (this._view) this._view.resize();
-    const net = this._network;
     this._renderButtons();
 
     // Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" and a followed scan.

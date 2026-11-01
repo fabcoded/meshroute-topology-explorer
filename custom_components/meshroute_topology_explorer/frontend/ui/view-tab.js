@@ -201,4 +201,3 @@ export function storageText(client, t) {
   if (client.error) return t("storage.error", { message: client.error.message });
   return t("storage.stored");
 }
-

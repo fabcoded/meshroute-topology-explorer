@@ -22,7 +22,7 @@ test("path to coordinator: up and down path per device, the numbers of spec 12",
   let up = 0;
   let down = 0;
   let differ = 0;
-  let ends = { up: 0, down: 0 };
+  const ends = { up: 0, down: 0 };
   for (const d of others) {
     const paths = nodePaths(sample, d.id);
     assert.deepEqual(paths.map((p) => p.kind), ["up", "down"]);

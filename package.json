@@ -1,0 +1,18 @@
+{
+  "name": "meshroute-topology-explorer-dev",
+  "private": true,
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "test:performance": "node --test --test-concurrency=1 tests/performance.bench.mjs",
+    "check": "python3 tools/check.py"
+  },
+  "engines": {
+    "node": ">=22.13 <23"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "globals": "17.14.0"
+  }
+}
