@@ -21,6 +21,7 @@ import {
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { theoreticalLanes } from "../model/theoretical.js";
+import { usableRoutes } from "../model/paths.js";
 import { drawMode } from "../model/source-routes.js";
 
 /** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
@@ -50,7 +51,7 @@ const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 export function shortestFocusLane(view, index, cam) {
   const { scene, pos, width, height } = view;
   const route = scenePaths(scene, index, pathStage(view.paths), drawMode(view.sourceRoute),
-    Boolean(view.heard));
+    Boolean(view.heard), Boolean(view.returnRoutes));
   const size = symbolSize(cam.k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   let shortest = Infinity;
@@ -166,7 +167,8 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   // routes false (Thread, spec 4.6): no paths and no stages; the overview draws every lane with a class and a click
   // shows the device's own lanes (scenePaths).
   return { nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
-    routes: hasRoutes(network), pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null };
+    routes: hasRoutes(network), pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null,
+    tableLanes: null };
 }
 
 /** The backbone the overview draws from the stage "all" on (spec 5.7, 7.1; decision by Fabian Schwamborn,
@@ -185,6 +187,23 @@ export function sceneBackbone(scene) {
   }
   scene.backbone = { kind, counts };
   return scene.backbone;
+}
+
+/** The overview of the view "routing table" (spec 7.1; owner proposal 2026-11-01): per lane whether it is the hop of
+ *  a usable routing entry, owner -> next hop, of any device (model/paths.js usableRoutes), computed once per scene.
+ *  { table (per lane: boolean), count }. */
+export function sceneTableLanes(scene) {
+  if (scene.tableLanes) return scene.tableLanes;
+  const table = scene.lanes.map(() => false);
+  let count = 0;
+  for (const r of scene.pathNet ? usableRoutes(scene.pathNet) : []) {
+    const lane = scene.laneByKey.get(`${scene.index.get(r.owner)}>${scene.index.get(r.nextHop)}`);
+    if (!lane || table[lane.index]) continue;
+    table[lane.index] = true;
+    count++;
+  }
+  scene.tableLanes = { table, count };
+  return scene.tableLanes;
 }
 
 /** Classes of the scene's lanes under a source-route stage ("off", "assume" or "zigpy"), cached per scene: { cls (per
@@ -215,11 +234,22 @@ export function sceneClasses(scene, sourceRoute = "off") {
 const strength = (cls, assumed, predicted = false) => (cls === "route" ? (predicted ? 1.5 : 2) : cls === "heard" ? 1
   : assumed ? 3 : 4);
 
-/** The heard-only partners of device i for the option "heard only (best 3)" (the one place to change the rule): pairs
- *  with a heard lane and no up, down or route lane (sc.heardOnly), and in the stage "all" none of whose lanes the
- *  device's own theoretical paths (`hops`, keys "s>h") take; the best BEST_HEARD by rating at the hearer. */
+/** Whether a lane carries a reading (a measured direction): what "additional heard neighbours" draws. */
+const measured = (lane) => Boolean(lane.dir && lane.dir.state === "measured");
+
+/** The partners of device i for the option "additional heard neighbours (best 3)" (the one place to change the rule):
+ *  pairs with a reading and no lane drawn between the two in the active view. "coordinator" and "all": pairs with a
+ *  heard lane and no up, down or route lane (sc.heardOnly), in "all" also none of whose lanes the device's own
+ *  theoretical paths (`hops`, keys "s>h") take. "table" (owner proposal 2026-11-01): pairs with a reading in either
+ *  direction none of whose lanes the view's walks take; up and down lanes are not drawn there, so they do not count.
+ *  The best BEST_HEARD by the reading's rating at its hearer. */
 function heardPartners(scene, i, sc, hops, stage) {
   const taken = (pair) => stage !== "coordinator" && pair.lanes.some((li) => hops.has(scene.lanes[li].key));
+  if (stage === "table") {
+    const best = (p) => p.lanes.map((li) => scene.lanes[li]).filter(measured).map((l) => l.dir).sort(better)[0];
+    return scene.pairs.filter((p) => (p.a === i || p.b === i) && p.lanes.some((li) => measured(scene.lanes[li]))
+      && !taken(p)).sort((x, y) => better(best(x), best(y)) || x.index - y.index).slice(0, BEST_HEARD);
+  }
   return scene.pairs.filter((p) => (p.a === i || p.b === i) && sc.heardOnly[p.index] && !taken(p))
     .sort((x, y) => better(sc.rank[x.index], sc.rank[y.index]) || x.index - y.index).slice(0, BEST_HEARD);
 }
@@ -234,10 +264,11 @@ function heardPartners(scene, i, sc, hops, stage) {
  *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
  *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "zigpy" recorded ones as
  *  measured and assumed ones for the rest, "off" leaves them unknown. */
-export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false) {
+export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false, returns = false) {
   const mode = pathStage(stage);
   const sr = drawMode(sourceRoute);
-  const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}`;
+  const back = mode === "table" && returns; // "Include return routes" belongs to the view "table" only
+  const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}|${back ? 1 : 0}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
   const ends = [];
@@ -263,7 +294,7 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
   }
   const coordinator = scene.coordinator >= 0 ? scene.nodes[scene.coordinator].id : null;
   const paths = scene.pathNet
-    ? nodePaths(scene.pathNet, scene.nodes[i].id, mode === "coordinator" ? "coordinator" : "all", { sourceRoute: sr })
+    ? nodePaths(scene.pathNet, scene.nodes[i].id, mode, { sourceRoute: sr, returns: back })
     : [];
   const at = (id) => scene.index.get(id);
   const seenEnds = new Set();
@@ -305,7 +336,8 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
       nodes.add(pair.b);
       for (const li of pair.lanes) {
         const lane = scene.lanes[li];
-        if (sc.cls[li] === "heard") {
+        // In "table" a measured lane of the pair is drawn as the reading it is, whatever else it carries elsewhere.
+        if (mode === "table" ? measured(lane) : sc.cls[li] === "heard") {
           hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false, predicted: false });
         } else if (!lane.dir || lane.dir.state === "unknown") {
           glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir }); // a path hop on this lane shows its "?" itself
@@ -470,9 +502,13 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // on the backbone of theoretical paths as routes, lanes only a computed discovery takes lighter; never heard-only
   // lanes (stage 3 adds partners on click only); every lane in its own class in debug mode, with the glyphs of
   // directions without a reading. overview(lane): { cls, predicted } or null when the overview leaves it out.
-  const bb = stage !== "coordinator" && !debug ? sceneBackbone(scene) : null;
+  const bb = stage === "all" && !debug ? sceneBackbone(scene) : null;
+  // The view "routing table" (owner proposal 2026-11-01): the lane of every usable routing entry, as a route, and
+  // nothing else; its basis is the tables, not the ways to the coordinator.
+  const tl = stage === "table" && !debug ? sceneTableLanes(scene) : null;
   const overview = (lane) => {
     const cls = sc.cls[lane.index];
+    if (tl) return tl.table[lane.index] ? { cls: "route", predicted: false } : null;
     if (debug || cls === "up" || cls === "down" || (!routes && cls)) return { cls, predicted: false };
     const kind = bb ? bb.kind[lane.index] : null;
     if (!kind || !overviewShows("route", stage, { backbone: true })) return null;
@@ -483,7 +519,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // but only lanes the overview of the stage draws anyway (hover never adds what the stage hides).
   const selecting = view.selected >= 0;
   const pathNode = selecting ? view.selected : view.hovered;
-  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute, selecting && Boolean(view.heard)) : null;
+  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute, selecting && Boolean(view.heard),
+    Boolean(view.returnRoutes)) : null;
   let pathHops = [];
   let pathEnds = [];
   const near = new Set(focus);
@@ -495,8 +532,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // network-wide backbone does not reach into the focus, or nearly every computed hop would look proven.
     // Only the selection's stage-1 lanes (its up and down paths; the coordinator's routes down and up) override: they
     // are the same lanes in both stages for a device, but the coordinator's trees come as routes in stage 2.
-    const own = stage !== "coordinator" ? scenePaths(scene, pathNode, "coordinator", sourceRoute).hops : null;
+    // The view "routing table" draws its walks as they are (a route each, heard lanes of the option): no other class
+    // overrides them, as up and down are another basis (main session, 2026-11-01).
+    const own = stage === "all" ? scenePaths(scene, pathNode, "coordinator", sourceRoute).hops : null;
     const strongest = (hop) => {
+      if (stage === "table") return hop;
       if (own) {
         const s1 = own.get(`${hop.s}>${hop.h}`);
         return s1 && strength(s1.cls, s1.assumed) > strength(hop.cls, hop.assumed, hop.predicted)
@@ -519,7 +559,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!selecting && !debug) {
       // A preview keeps only what the overview draws, in a class it draws: routes from the stage "all" on, where the
       // backbone carries them; heard-only partners wait for the click.
-      const previewed = (cls) => (!routes ? Boolean(cls) : overviewShows(cls, stage, { backbone: true }));
+      const previewed = (cls) => (!routes ? Boolean(cls)
+        : overviewShows(cls, stage, { backbone: true, table: true }));
       pathHops = pathHops.filter((hop) => {
         const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
         return previewed(hop.cls) && Boolean(lane) && laneShown(lane);
@@ -639,7 +680,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   if (route) {
     ctx.globalAlpha = 1;
     // The selection's way up as a band under its lanes; hover previews without it.
-    if (selecting) drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
+    // No band in the view "routing table": the way up is another basis (main session, 2026-11-01).
+    if (selecting && stage !== "table") drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
     const items = [];
     const hops = [...pathHops].sort((p, q) => hopRank(p) - hopRank(q));
     for (const hop of hops) {

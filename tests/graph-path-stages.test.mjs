@@ -184,7 +184,7 @@ test("debug mode draws every lane of every class with values on both lanes, with
 });
 
 test("the stage only filters the drawing: the layout never moves; junk counts as the default", () => {
-  assert.deepEqual(PATH_STAGES, ["coordinator", "all"]);
+  assert.deepEqual(PATH_STAGES, ["coordinator", "table", "all"]);
   assert.equal(DEFAULT_PATHS, "coordinator");
   for (const bad of [null, undefined, "", "ALL", 3, {}]) assert.equal(pathStage(bad), "coordinator");
   const canvas = new FakeCanvas(800, 600);
@@ -242,17 +242,17 @@ test("the three stages, their hints and the legend's words in English and German
   const de = {
     "view.paths": "Kommunikationspfade", "view.paths_coordinator": "mit dem Koordinator, hin und zurück",
     "view.paths_coordinator_hint": "ohne Auswahl alle Geräte; bei Klick nur die Wege des Geräts, mit RX",
-    "view.paths_all": "+ Wege zu allen Geräten (theoretisch)",
+    "view.paths_all": "Wege zu allen Geräten (theoretisch)",
     "view.paths_all_hint":
       "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
-    "view.paths_heard": "nur gehört (beste 3)",
-    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten nur gehörten Partner des Geräts hinzu, in beiden Stufen",
-    "view.paths_note": "Die zweite Stufe enthält die erste. Debug zeigt alles.",
-    "legend.option_heard": "(Option \"nur gehört\", braucht eine Auswahl)",
+    "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
+    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu, in jeder Ansicht",
+    "view.paths_note": "Jede Ansicht hat ihre eigene Grundlage. Debug zeigt alles.",
+    "legend.option_heard": "(Option \"zusätzlich gehörte Nachbarn\", braucht eine Auswahl)",
     "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
     "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
     "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
-    "legend.link.heard": "nur gehört", "legend.stage": "(Stufe {n})", "legend.stage_computed": "(berechnet, Stufe {n})",
+    "legend.link.heard": "nur gehört", "legend.stage": "(Ansicht {n})", "legend.stage_computed": "(berechnet, Ansicht {n})",
     "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
   };
   for (const [key, text] of Object.entries(de)) {
@@ -260,14 +260,21 @@ test("the three stages, their hints and the legend's words in English and German
     assert.ok(STRINGS.en[key] && STRINGS.en[key] !== text, `en ${key}`);
   }
   assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
-  assert.equal(STRINGS.en["view.paths_note"], "The second stage includes the first. Debug shows everything.");
+  assert.equal(STRINGS.en["view.paths_note"], "Each view has its own basis. Debug shows everything.");
+  // The routing-table view (owner proposal 2026-11-01, Codex 5 and 6.2): its hint and the return-route checkbox.
+  assert.equal(STRINGS.en["view.paths_table"], "routing table");
+  assert.equal(STRINGS.en["view.paths_table_hint"],
+    "Each router's table names the next hop to a destination. This view follows those entries until the destination or a gap.");
+  assert.equal(STRINGS.en["view.paths_returns_hint"],
+    "Follow each destination's route back, using the routing table at every hop.");
+  assert.equal(STRINGS.en["view.paths_heard"], "additional heard neighbours (best 3)");
   // Texts of the main session (2026-11-01, owner's decisions on the stage-2 overview and the stage-3 click).
   assert.equal(STRINGS.en["view.paths_all_hint"],
     "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
   assert.equal(STRINGS.en["view.paths_heard_hint"],
-    "needs a selection: adds the device's 3 best heard-only partners, in either stage");
+    "needs a selection: adds the device's 3 best partners with a reading and no drawn lane, in any view");
   assert.equal(STRINGS.en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
-  assert.equal(STRINGS.en["legend.stage_computed"], "(computed, stage {n})");
+  assert.equal(STRINGS.en["legend.stage_computed"], "(computed, view {n})");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
     "legend.link.up", "legend.link.path"]) {
     assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);

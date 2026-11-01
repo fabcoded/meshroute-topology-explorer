@@ -66,8 +66,8 @@ test("communication paths, path display and the path texts have words in English
   for (const key of keys) {
     assert.ok(key in STRINGS.en && key in STRINGS.de, key);
   }
-  assert.equal(en("view.paths_all"), "+ paths to all devices (theoretical)");
-  assert.equal(de("view.paths_all"), "+ Wege zu allen Geräten (theoretisch)");
+  assert.equal(en("view.paths_all"), "paths to all devices (theoretical)");
+  assert.equal(de("view.paths_all"), "Wege zu allen Geräten (theoretisch)");
   assert.equal(en("lane.rx"), "RX:");
   assert.equal(de("lane.rx"), "RX:", "the owner's own abbreviation, in both languages");
 });
@@ -79,7 +79,7 @@ test("the new menu: every control on the map and in both panels has words in Eng
   const words = {
     "map.devices": "Geräte", "map.details_on_click": "Details bei Klick", "map.view": "Ansicht", "map.legend": "Legende",
     "tab.devices": "Geräte", "tab.findings": "Befunde", "tab.details": "Details", "tab.view": "Ansicht", "tab.legend": "Legende",
-    "view.paths": "Kommunikationspfade", "view.paths_heard": "nur gehört (beste 3)",
+    "view.paths": "Kommunikationspfade", "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
     "view.path_display": "Pfaddarstellung", "view.grey": "grau",
     "view.coloured": "farbig nach Empfang", "view.bad": "schlecht", "view.medium": "mittel", "view.good": "gut",
     "view.colors_note": "frei wählbar, z. B. für Farbenblinde", "view.on_click": "Bei Klick auf ein Gerät",

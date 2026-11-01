@@ -303,6 +303,12 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 /* A stage's hint under its radio, aligned with the label's text (input plus gap). */
 .radio-hint { padding-left: 26px; margin: -4px 0 4px; font-size: 12px; color: var(--mte-muted); }
 @media (pointer: coarse) { .radio-hint { padding-left: 30px; } }
+/* "Include return routes": a checkbox of one view, indented under that view's radio and hint. */
+.check-row.sub-option { margin-left: 18px; }
+.radio-hint.sub-option { padding-left: 44px; }
+@media (pointer: coarse) { .check-row.sub-option { margin-left: 22px; } .radio-hint.sub-option { padding-left: 52px; } }
+.sub-option.off { opacity: 0.45; }
+.check-row.sub-option.off { cursor: default; }
 .group-note { margin-top: 2px; }
 .info-note { margin: 2px 0 6px; }
 .findings-jump { align-self: flex-start; min-height: 32px; }

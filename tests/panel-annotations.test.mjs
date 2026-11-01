@@ -92,7 +92,7 @@ test("1.3: 'Read data again' only re-reads zha/devices: the reload path never se
 
 test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbour hop is not an observed route", () => {
   assert.match(en["legend.link.discovery"], /^Computed path: a candidate/);
-  assert.equal(en["legend.stage_computed"], "(computed, stage {n})");
+  assert.equal(en["legend.stage_computed"], "(computed, view {n})");
   assert.equal(t("details.how_discovery"), "route discovery (computed)");
   assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
   assert.equal(en["details.theory_note"], "Possible paths from the available tables; actual traffic may differ.");

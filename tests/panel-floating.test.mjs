@@ -68,8 +68,9 @@ test("the links legend is built from the graph's entries, with words for every e
       assert.deepEqual(lanes.map((r) => r.id), ["coordinator", "assumed", "route", "discovery", "heard", "implied"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
       assert.deepEqual(rows.filter((r) => r.note).map((r) => [r.id, r.note]),
-        [["route", t("legend.stage", { n: 2 })], ["discovery", t("legend.stage_computed", { n: 2 })],
-          ["heard", t("legend.option_heard")]], "a class names its stage or option");
+        [["coordinator", t("legend.stages", { a: 1, b: 3 })], ["assumed", t("legend.stages", { a: 1, b: 3 })],
+          ["route", t("legend.stages", { a: 2, b: 3 })], ["discovery", t("legend.stage_computed", { n: 3 })],
+          ["heard", t("legend.option_heard")]], "a class names its views or option");
       const scale = rows.find((r) => r.id === "reception");
       assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), `${lang} scale`);
       assert.equal(rows.find((r) => r.id === "rx").label, t("legend.rx"));
@@ -80,8 +81,9 @@ test("the links legend is built from the graph's entries, with words for every e
   assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Rückweg angenommen (Source Route)",
     "Weg zu einem anderen Gerät", "einer der günstigsten Wege nach den LQI der Tabellen", "nur gehört", "Band: der Weg des ausgewählten Geräts zum Koordinator", t("legend.link.not-listed"),
     t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
-  assert.deepEqual(rows.slice(2, 5).map((r) => `${r.label} ${r.note}`), ["Weg zu einem anderen Gerät (Stufe 2)",
-    "einer der günstigsten Wege nach den LQI der Tabellen (berechnet, Stufe 2)", "nur gehört (Option \"nur gehört\", braucht eine Auswahl)"]);
+  assert.deepEqual(rows.slice(2, 5).map((r) => `${r.label} ${r.note}`), ["Weg zu einem anderen Gerät (Ansichten 2 und 3)",
+    "einer der günstigsten Wege nach den LQI der Tabellen (berechnet, Ansicht 3)",
+    "nur gehört (Option \"zusätzlich gehörte Nachbarn\", braucht eine Auswahl)"]);
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");

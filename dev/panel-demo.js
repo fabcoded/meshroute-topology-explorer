@@ -54,6 +54,10 @@ const VARIANTS = [
     ["Stage 2 click: Router 11", "select=Router%2011&open=off&paths=all"],
     ["Stage 1 + heard: Router 11", "select=Router%2011&open=off&heard=1"],
     ["Stage 2 + heard: Router 11", "select=Router%2011&open=off&paths=all&heard=1"],
+    ["Routing table overview", "paths=table"], ["Routing table click: Router 13", "select=Router%2013&paths=table&left=details"],
+    ["Routing table with return routes: Router 13", "select=Router%2013&paths=table&returns=1&left=details"],
+    ["Routing table + heard: Router 13", "select=Router%2013&paths=table&returns=1&heard=1"],
+    ["Routing table, end device: End device 06", "select=End%20device%2006&paths=table&left=details"],
     ["Stored stage \"heard\" (migration)", "select=Router%2011&open=off&paths=heard"], ["Hover: Router 11", "hover=Router%2011"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
     ["Stage 2 from a stored node view", "select=Router%2011&nodeview=all"],
@@ -234,8 +238,9 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
-if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|all|heard (heard: legacy)
+if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all|heard (heard: legacy)
 if (q.get("heard")) initial.heard = q.get("heard") === "1";
+if (q.get("returns")) initial.returnRoutes = q.get("returns") === "1"; // "include return routes" of the view "table"
 if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored before A4j (migration)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {

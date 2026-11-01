@@ -334,7 +334,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, paths: s.paths, heard: s.heard, sourceRoute: s.sourceRoute,
+      debug: this._debug, paths: s.paths, heard: s.heard, returnRoutes: s.returnRoutes, sourceRoute: s.sourceRoute,
       receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
@@ -356,6 +356,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setFill(s.fill);
       this._view.setPaths(s.paths);
       this._view.setHeard(s.heard);
+      this._view.setReturnRoutes(s.returnRoutes);
       this._view.setSourceRoute(s.sourceRoute);
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
@@ -513,7 +514,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
         keepFocus(this._root, panel, () => renderDetails(panel, { network: this._network, t, id: this._selected,
           debug: this._debug, raw: this._raw,
-          nodeView: this._settings.settings.paths === "coordinator" ? "coordinator" : "all",
+          nodeView: this._settings.settings.paths, returnRoutes: this._settings.settings.returnRoutes,
           sourceRoute: this._settings.settings.sourceRoute, sub: this._detailsSub, idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The View tab's "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11): two radios (the stages)
-// and one checkbox ("heard only (best 3)") whose state follows the settings and whose change is reported at once.
+// The View tab's "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view by
+// owner proposal 2026-11-01): three radios (the views), "include return routes" under the routing table only, and one
+// checkbox ("additional heard neighbours (best 3)"), whose states follow the settings and whose changes are reported at
+// once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.
 // node --test tests/
 import test from "node:test";
@@ -33,14 +35,30 @@ function render(stored) {
   const all = container.walk();
   const radios = all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-paths");
   const box = all.find((n) => n.tag === "input" && n.type === "checkbox" && n.attrs.id === "v-paths-heard");
-  return { radios, box, patches, all };
+  const returns = all.find((n) => n.tag === "input" && n.type === "checkbox" && n.attrs.id === "v-paths-returns");
+  return { radios, box, returns, patches, all };
 }
 
-test("View tab: two stage radios and one heard-only checkbox, calm by default", () => {
-  const { radios, box } = render({});
-  assert.deepEqual(radios.map((r) => [r.value, r.checked]), [["coordinator", true], ["all", false]]);
+test("View tab: three view radios, the return-route checkbox and the heard checkbox, calm by default", () => {
+  const { radios, box, returns } = render({});
+  assert.deepEqual(radios.map((r) => [r.value, r.checked]), [["coordinator", true], ["table", false], ["all", false]]);
   assert.ok(box, "the checkbox exists");
   assert.equal(box.checked, false);
+  assert.ok(returns, "include return routes exists");
+  assert.deepEqual([returns.checked, Boolean(returns.disabled)], [false, true], "off and greyed outside the routing table");
+});
+
+test("View tab: 'include return routes' sits under the routing table and works only there (Codex 5)", () => {
+  const { all, returns, patches } = render({ paths: "table", returnRoutes: true });
+  assert.deepEqual([returns.checked, Boolean(returns.disabled)], [true, false]);
+  const ids = all.filter((n) => n.attrs && n.attrs.id).map((n) => n.attrs.id);
+  const at = (x) => ids.indexOf(x);
+  assert.ok(at("v-paths-table-hint") < at("v-paths-returns") && at("v-paths-returns") < at("v-paths-returns-hint")
+    && at("v-paths-returns-hint") < at("v-paths-all-hint"), "between the routing table's hint and the third view");
+  returns.checked = false;
+  returns.fire("change");
+  assert.deepEqual(patches, [{ returnRoutes: false }]);
+  assert.equal(render({ paths: "all", returnRoutes: true }).returns.disabled, true, "kept, but greyed in another view");
 });
 
 test("View tab: the checkbox follows the settings, in both stages, and migrates from the old third stage", () => {
@@ -63,7 +81,8 @@ test("View tab: a change of the checkbox or a radio is reported at once, as one 
   box.checked = true;
   box.fire("change");
   radios[1].fire("change");
-  assert.deepEqual(patches, [{ heard: true }, { paths: "all" }]);
+  radios[2].fire("change");
+  assert.deepEqual(patches, [{ heard: true }, { paths: "table" }, { paths: "all" }]);
 });
 
 test("View tab: three source-route stages, 'Read from zigpy' enabled with its tag (brief a4w)", () => {
