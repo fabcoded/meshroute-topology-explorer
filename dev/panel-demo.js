@@ -357,8 +357,12 @@ async function drive() {
   for (let i = 0; i < 100 && !el._network; i++) await sleep(50);
   if (!el._network) return;
   if (flag("debug")) el._setDebug(true);
-  // info=1|reload: the density note or the note beside "Read data again" shown.
-  if (q.get("info")) el._info = { density: q.get("info") !== "reload", reload: q.get("info") === "reload" };
+  // info=1|reload|all: the density note, the note beside "Read data again", or every View info note shown.
+  if (q.get("info")) {
+    const all = q.get("info") === "all";
+    el._info = { density: all || !["reload"].includes(q.get("info")), reload: all || q.get("info") === "reload", heard: all,
+      colors: all, assumed: all };
+  }
   // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
   const id = q.get("select") && (byLabel(q.get("select"))
     || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
