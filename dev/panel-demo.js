@@ -2,9 +2,11 @@
 // Loader of dev/panel.html (not shipped): a fake `hass` for the real panel element. callWS answers from the anonymized
 // sample, keeps the integration's settings and observations in memory (or answers "unknown_command"), and can lose
 // the connection on a timer. A scan (zha/topology/update) is acted out: afterwards the routers' tables change one after
-// another, two seconds apart, and every fifth stays as it was. A small "dev" tab at the top centre (not part of the
-// panel) opens a menu of variants (links that reload the page with their query) and three toggles that keep the other
-// keys. See dev/panel.html for the query keys.
+// another, two seconds apart, and every fifth stays as it was. Reading a cluster's attributes answers with synthetic
+// values after a short delay (a sleepy device fails, as one that does not wake up would), and `hass.states` and
+// `hass.areas` carry synthetic entity states and area names, never real captures. A small "dev" tab at the top centre
+// (not part of the panel) opens a menu of variants (links that reload the page with their query) and three toggles
+// that keep the other keys. See dev/panel.html for the query keys.
 import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
@@ -26,6 +28,17 @@ const VARIANTS = [
     ["Right: View, coloured", "right=view&colors=1"], ["Right: View, own colours", "right=view&colors=1&bad=0072b2&good=e69f00"],
     ["Right: Legend", "right=legend"], ["Right: Legend, coloured", "right=legend&colors=1"], ["Both panels", "left=devices&right=view"],
     ["Narrow: Devices", "phone=1&left=devices"], ["Narrow: View", "phone=1&right=view"], ["Narrow: Legend", "phone=1&right=legend"]]],
+  ["Details", [["Communication: Router 03", "select=Router%2003&left=details"],
+    ["Entity: Router 03", "select=Router%2003&left=details&dtab=entity"],
+    ["Entity: End device 06 (sleeps)", "select=End%20device%2006&left=details&dtab=entity"],
+    ["Cluster: Router 03", "select=Router%2003&left=details&dtab=cluster"],
+    ["Cluster popup: On/Off", "select=Router%2003&left=details&dtab=cluster&cluster=0x0006&ep=1&dir=in"],
+    ["Cluster popup: read values", "select=Router%2003&left=details&dtab=cluster&cluster=0x0006&ep=1&dir=in&readvalues=1"],
+    ["Cluster popup: Level, read", "select=Router%2003&left=details&dtab=cluster&cluster=0x0008&ep=1&dir=in&readvalues=1"],
+    ["Cluster popup: sleepy device fails", "select=End%20device%2006&left=details&dtab=cluster&cluster=0x0001&ep=1&dir=in&readvalues=1"],
+    ["Cluster popup: manufacturer-specific", "select=Router%2003&left=details&dtab=cluster&cluster=0xfc7c&ep=1&dir=in"],
+    ["Assumed return path: Router 02", "select=Router%2002&left=details"],
+    ["Source route off: Router 02", "select=Router%2002&left=details&sourceroute=off"]]],
   ["Node view", [["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
     ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
@@ -203,6 +216,7 @@ if (q.has("labels")) { // labels=type,name,ha: the lines that are on
   initial.labels = { type: on.includes("type"), name: on.includes("name"), haName: on.includes("ha") };
 }
 if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as A4g stored it (migration)
+if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
 
@@ -220,6 +234,7 @@ async function callWS(msg) {
       return flag("empty") ? [] : currentDevices();
     case "config/device_registry/list": return responses["config/device_registry/list"];
     case "config/area_registry/list": return responses["config/area_registry/list"];
+    case "zha/devices/clusters/attributes/value": return readAttribute(msg);
     case "meshroute_topology_explorer/settings/get":
       if (q.get("settings") === "unknown") throw unknown;
       return { settings: store.settings.has(msg.network) ? store.settings.get(msg.network) : (Object.keys(initial).length ? initial : null) };
@@ -240,11 +255,62 @@ async function callWS(msg) {
   }
 }
 
+// ---- synthetic entity states, area names and attribute values (never real captures) --------------------------------
+
+const AREA_NAMES = ["Living room", "Kitchen", "Hall", "Garden", "Office", "Bedroom", "Bathroom", "Garage", "Attic",
+  "Cellar", "Workshop", "Terrace"];
+const areas = Object.fromEntries(responses["config/area_registry/list"].map((a, i) =>
+  [a.area_id, { area_id: a.area_id, name: AREA_NAMES[i % AREA_NAMES.length] }]));
+
+/** A plausible state per entity: lights on with brightness and colour temperature, switches off, sensors get the
+ *  device classes their device's clusters suggest, in order. */
+function syntheticStates() {
+  const states = {};
+  for (const d of devices) {
+    const inputs = new Set(Object.values((d.signature && d.signature.endpoints) || {}).flatMap((ep) => ep.input_clusters || [])
+      .map((c) => parseInt(c, 16)));
+    const sensorClasses = [[0x0001, "battery", "%", "87"], [0x0402, "temperature", "°C", "21.4"], [0x0405, "humidity", "%", "48"],
+      [0x0400, "illuminance", "lx", "312"], [0x0b04, "power", "W", "4.2"], [0x0702, "energy", "kWh", "12.8"]]
+      .filter(([c]) => inputs.has(c));
+    let n = 0;
+    for (const { entity_id: id } of d.entities || []) {
+      const domain = id.split(".")[0];
+      const attributes = { friendly_name: id };
+      let state = "unknown";
+      if (domain === "light") { state = "on"; Object.assign(attributes, { brightness: 180, color_temp_kelvin: 2700 }); }
+      else if (domain === "switch") state = "off";
+      else if (domain === "binary_sensor") { state = "off"; if (inputs.has(0x0406)) attributes.device_class = "occupancy"; }
+      else if (domain === "sensor" && n < sensorClasses.length) {
+        const [, cls, unit, value] = sensorClasses[n++];
+        Object.assign(attributes, { device_class: cls, unit_of_measurement: unit });
+        state = value;
+      }
+      states[id] = { entity_id: id, state, attributes };
+    }
+  }
+  return states;
+}
+
+/** Synthetic answers of ZHA's attribute read: text like ZHA sends it (str() of the value), "None" for attributes a
+ *  device does not have; a sleepy device fails like one that does not wake up. readfail=error|timeout forces it. */
+const SAMPLE_VALUES = { "0:0": "8", "0:1": "33", "0:4": "Vendor", "0:5": "Model", "0:7": "1", "0:16384": "2.4.5",
+  "6:0": "Bool.true", "6:16384": "Bool.true", "6:16385": "0", "6:16386": "0", "6:16387": "255",
+  "8:0": "180", "8:1": "0", "8:15": "<bitmap8.0: 0>", "8:16": "None", "8:17": "255", "8:16384": "255",
+  "768:7": "370", "768:8": "<ColorMode.Color_temperature: 2>", "768:16394": "<ColorCapabilities.Color_temperature: 16>",
+  "768:16395": "250", "768:16396": "454", "1:32": "30", "1:33": "174" };
+async function readAttribute(msg) {
+  const device = devices.find((d) => d.ieee === msg.ieee);
+  await sleep(q.get("readfail") === "timeout" ? 60000 : 350);
+  const sleepy = device && device.device_type === "EndDevice";
+  if (q.get("readfail") === "error" || sleepy) throw { code: "home_assistant_error", message: "Failed to deliver message (synthetic)" };
+  return SAMPLE_VALUES[`${msg.cluster_id}:${msg.attribute}`] || "None";
+}
+
 let hass = {
   user: { id: "dev", name: "Dev", is_admin: !flag("nonadmin") },
   language: lang, locale: { language: lang, number_format: "language", time_format: "language" },
   themes: { darkMode: flag("dark"), theme: "default" }, selectedTheme: null,
-  connected, connection, callWS,
+  connected, connection, callWS, states: syntheticStates(), areas,
 };
 const push = (patch) => { hass = { ...hass, ...patch }; el.hass = hass; };
 
@@ -253,7 +319,8 @@ el.panel = { url_path: "meshroute-topology", config: { version: q.get("version")
 el.hass = hass;
 addEventListener("resize", () => { if (!q.has("narrow") && !flag("phone")) el.narrow = innerWidth < 870; });
 el.addEventListener("hass-toggle-menu", () => console.log("hass-toggle-menu"));
-addEventListener("location-changed", () => console.log("navigate", location.pathname));
+addEventListener("location-changed", () => console.log("navigate", location.pathname + location.search));
+el.addEventListener("hass-more-info", (e) => console.log("more-info", e.detail.entityId));
 
 // Every few seconds a new hass object, as Home Assistant does on state changes: must not reload anything.
 setInterval(() => push({}), 2000);
@@ -287,10 +354,18 @@ async function drive() {
   const id = q.get("select") && (byLabel(q.get("select"))
     || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
   // collapsed=1: as a tap on the map ("Details on click" decides); else as from a finding (selects, no panel).
+  if (q.get("dtab")) el._detailsSub = q.get("dtab"); // communication | entity | cluster
   if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); }
   else if (id) el._select(id, "findings");
   if (q.get("left")) el._request("left", q.get("left"), null);
   if (q.get("right")) el._request("right", q.get("right"), null);
+  // cluster=0x0006&ep=1&dir=in opens that cluster's details; readvalues=1 then presses "Read values from the device".
+  if (q.get("cluster") && id) {
+    await sleep(100);
+    el._openCluster({ endpoint: Number(q.get("ep") || 1), profile: 0x0104, cluster: parseInt(q.get("cluster"), 16),
+      direction: q.get("dir") === "out" ? "out" : "in" }, null);
+    if (flag("readvalues") && el._cluster) el._cluster.read();
+  }
   const panel = q.get("right") ? el._right : el._left;
   if (q.get("scroll") === "end") { await sleep(100); panel.body.scrollTop = panel.body.scrollHeight; }
   // scan=dialog opens the scan's confirmation; scan=run also confirms it (debug mode is switched on for both).
