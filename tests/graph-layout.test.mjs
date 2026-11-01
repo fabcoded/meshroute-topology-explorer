@@ -5,6 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   Layout, DENSITY, SETTLE_MOVE, springFactor, baseLength, seededRandom,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
@@ -91,31 +93,21 @@ test("density factors are pinned: dense 0.96, medium 1.44, spread 2.28 (spec 7.1
 });
 
 test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
-  const net = syntheticNetwork({ devices: 300, readings: 3000, seed: 7 });
-  assert.equal(net.devices.length, 300);
-  assert.equal(net.readings.length, 3000);
-  // The target is computing time (spec 12): node runs all test files at once, so wall time on a busy machine measured
-  // the scheduler (6.3 s once in nine runs, 1.5 s alone). Process CPU time is not free of load either: with more
-  // runnable processes than cores it grows to 2-3 times (shared caches and hyperthreads, 4.6 s measured with 12
-  // busy loops on 8 cores, 1.6 s alone). So the limit applies to the best of up to three runs of the same layout
-  // (the layout is deterministic, the first run under the limit ends the loop; a quiet machine runs it once).
-  let ms = Infinity;
-  let layout;
-  let wallMs = 0;
-  for (let attempt = 0; attempt < 3 && ms >= 5000; attempt++) {
-    layout = new Layout(net, { baseLength: l0Of(net), seed: 1 });
-    const wall = performance.now();
-    const cpu = process.cpuUsage();
-    layout.run();
-    const used = process.cpuUsage(cpu);
-    ms = Math.min(ms, (used.user + used.system) / 1000);
-    wallMs = performance.now() - wall;
-  }
-  report(t, `synthetic 300/3000: settled in ${ms.toFixed(0)} ms CPU (${wallMs.toFixed(0)} ms wall), ${layout.steps} steps, ` +
-    `largest last move ${layout.lastMove.toFixed(3)}, fidelity ${fidelity(layout).toFixed(3)}`);
-  assert.ok(layout.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
-  assert.ok(layout.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
-  assert.ok(ms < 5000, `${ms} ms CPU`);
+  // The target is computing time (spec 12). Measured in a child process with V8's --single-threaded flag
+  // (tests/layout-time.mjs; decision of the main session, 2026-11-01, brief eng1), as for a click: in this process the
+  // CPU time also counted the compiler's and garbage collector's helper threads, and beside the other suites on a
+  // loaded machine it once exceeded 5 s (2026-11-01). Best of three runs of the same deterministic layout.
+  const out = execFileSync(process.execPath, ["--single-threaded", fileURLToPath(new URL("./layout-time.mjs", import.meta.url))],
+    { encoding: "utf8" });
+  const r = JSON.parse(out);
+  assert.equal(r.devices, 300);
+  assert.equal(r.readings, 3000);
+  // About 0.9 to 1.2 s here alone (2026-11-01, Node 18 under WSL, brief eng1); the limit is spec 12's.
+  report(t, `synthetic 300/3000: settled in ${r.ms} ms CPU (${r.wallMs} ms wall), ${r.steps} steps, ` +
+    `largest last move ${r.lastMove.toFixed(3)}, fidelity ${r.fidelity.toFixed(3)}`);
+  assert.ok(r.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
+  assert.ok(r.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
+  assert.ok(r.ms < 5000, `${r.ms} ms CPU`);
 });
 
 test("devices without readings sit evenly on an ellipse just outside the mesh, in id order from the top", () => {
