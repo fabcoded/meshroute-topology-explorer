@@ -1,11 +1,13 @@
 # Contributing
 
-Project rules live in [AGENTS.md](AGENTS.md); they apply to people and AI agents alike.
+Project rules live in [AGENTS.md](AGENTS.md); they apply to people and AI agents alike. This file covers setup,
+checks and bug reports.
 
-1. Agree substantial new features in an issue or an existing maintainer brief. Keep each change focused.
+1. Agree substantial new features in an issue first. Keep each change to one concern.
 2. Write the change yourself or with an agent, from the specification and the Home Assistant docs, not from other
    projects' code.
-3. Run the checks below. Explain the behavior before and after the change, its evidence and any limitations.
+3. Run `python3 tools/check.py`. Describe the change, its evidence and what remains untested as AGENTS.md
+   ("Tests and handover") asks.
 4. Add a provenance trailer to every commit: `Provenance: human`, or `Provenance: agent <tool>/<model>` with an
    optional `; brief <id>`. As the person submitting, sign off (`git commit -s`, the
    [Developer Certificate of Origin](https://developercertificate.org/)); agents never sign off.
@@ -15,8 +17,8 @@ By contributing you agree that your work is published under the MIT License.
 
 ## Development setup
 
-Use Python 3.13 and Node.js 22.13 or newer in the 22.x series, matching CI. The integration has no new runtime dependencies or build step;
-the packages below only support development. Run from the repository root:
+Python 3.13 and Node.js 22 (22.13 or newer), as in CI; `tools/check.py` refuses other versions. The packages below
+are for development only; the integration has no runtime dependencies and no build step. From the repository root:
 
 ```sh
 python3 -m venv .venv
@@ -26,51 +28,30 @@ npm ci
 pre-commit install
 ```
 
-Pre-commit installs its pinned Python hook environments on first use; that step needs network access. Ordinary
-tests use fixtures, not a Home Assistant instance. Do not configure real credentials for development checks.
+The first hook run downloads the pinned hook environments and needs network access. Checks use fixtures, never a
+Home Assistant instance or real credentials.
 
 ## Checks
 
-One command runs hooks, Python tests and JavaScript tests, stopping on the first failure:
+`python3 tools/check.py` runs the hooks, the Python tests and the JavaScript tests and stops at the first failure.
+CI runs the same script. Single steps while iterating:
 
-```sh
-python3 tools/check.py
-```
-
-| Command | Purpose |
+| Command | Checks |
 |---|---|
-| `pre-commit run --all-files` | File hygiene, structured files, private keys, Python/JS lint and safety guard |
-| `python3 -m unittest discover -s tests -v` | Python behavior, anonymization, persistence and HA API boundaries |
-| `npm test` | Node unit tests for models, engines, rendering contracts and UI behavior |
-| `npm run lint` | ESLint recommended correctness rules, unused bindings, equality and focused-test checks |
-| `pre-commit run ruff --all-files` | Python import/runtime mistakes and Bugbear checks (E4/E7/E9/F/B) |
-| `python3 tools/guard.py` | Project-specific API, privacy, HTML-sink and source-header checks |
+| `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, JSON/YAML/TOML, merge markers, keys, large files |
+| `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
+| `npm test` | JavaScript: models, engines, rendering, UI behavior, CPU budgets |
+| `node --test tests/<name>.test.mjs` | One JavaScript test file |
 
-Hooks also validate JSON/YAML/TOML, reject merge markers, case-conflicting names, added files above 1 MiB and
-private keys, and repair trailing whitespace and final newlines. Review any automatic edits and rerun before
-committing. These checks do not guarantee that captures contain no personal data; inspect them yourself.
+- `tools/guard.py` enforces the ground rules: allowed Home Assistant commands, no outside URLs or HTML sinks in
+  shipped files, SPDX lines.
+- The whitespace and end-of-file hooks fix files in place and fail; review the change, stage it and commit again.
+- `npm run lint` runs only the ESLint in `node_modules`; without it, it stops and asks for `npm ci`.
+- Versions are locked in `package-lock.json` and `.pre-commit-config.yaml`; Dependabot proposes updates monthly.
+- Hassfest and, once the repository is public, HACS validation run only in CI: check the CI result of every push.
 
-Linters do not reformat the existing codebase. CI runs the same hooks and tests plus hassfest and, for a public
-repository, HACS validation. JavaScript packages are locked in `package-lock.json`; Python hook versions are pinned
-in `.pre-commit-config.yaml`. Update development dependencies deliberately and rerun the full command.
+## Bug reports
 
-For a focused iteration, run a relevant test file, then the full check before handover:
-
-```sh
-python3 -m unittest discover -s tests -p test_guard.py -v
-node --test tests/model-table-view.test.mjs
-```
-
-New logic needs behavioral tests for relevant failures and boundaries. Pure explanatory text changes do not need
-new tests that assert their exact wording. For UI changes, additionally check the affected desktop/mobile view,
-keyboard focus and interaction. Record what was actually exercised. See AGENTS.md for evidence and writing rules.
-
-## Reports and reviews
-
-Bug reports should include the revision, HA version, network type, data source, reproduction, expected result and
-actual result. Check for an existing report and attach only inspected, anonymized data. Report security issues
-through [SECURITY.md](SECURITY.md).
-
-A PR should explain one concrete change, cite relevant evidence and give the commands and results used to validate
-it. Disclose agent assistance through the existing provenance trailers. The human submitter reviews the result and
-handles follow-up; generated prose is not evidence that a test ran or a protocol claim is correct.
+Give the revision, Home Assistant version, network type, data source, steps, expected and actual result, and attach
+an anonymized capture you have looked through. Search existing issues first. Security issues:
+[SECURITY.md](SECURITY.md).

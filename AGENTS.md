@@ -6,8 +6,9 @@ and checks. Tool-specific instruction files only point here; do not maintain com
 ## What we build
 
 Meshroute Topology Explorer shows the Zigbee and Thread networks Home Assistant manages as a map: who hears whom,
-which paths the available data supports, and how much the data can be trusted. It is a tool for debugging real networks, so depth
-matters, but the default view stays calm: raw values, tables and scans live one click away, not on top.
+which paths the available data supports, and how much the data can be trusted. It is a tool for debugging real
+networks, so depth matters, but the default view stays calm: raw values, tables and scans live one click away, not on
+top.
 
 ## Ground rules
 
@@ -46,62 +47,70 @@ matters, but the default view stays calm: raw values, tables and scans live one 
 ## Code
 
 - English in code, comments and docs. Plain ES modules (no TypeScript, no decorators). The integration uses only
-  what Home Assistant ships; Python tools and unit tests use the standard library only. Pinned development linters
-  and hooks are separate from runtime dependencies.
+  what Home Assistant ships; Python tools and unit tests use the standard library only. Development linters and
+  hooks are pinned in `package-lock.json` and `.pre-commit-config.yaml` and never shipped.
 - Each file opens with what it does and how to run it, and an SPDX line (`SPDX-License-Identifier: MIT`).
   Comments explain why, not what.
-- Run `python3 tools/check.py` before handing over a code change. Setup and individual checks are in CONTRIBUTING.md.
-  Tests run without devices; keep the ordinary unit suites under a minute on a development machine.
+- Run `python3 tools/check.py` before handing over a change; [CONTRIBUTING.md](CONTRIBUTING.md) has setup and single
+  steps. Unit tests run without devices and in under a minute.
 
-## Scope, evidence and architecture
+## Scope and evidence
 
-- Work on one agreed problem at a time. Agree substantial new features in an issue or an existing maintainer brief;
-  an agreed brief does not need another approval step. Prefer a small, testable increment.
-- Keep unrelated refactoring out of the change; remove code made obsolete by it. Do not overwrite another person's
-  uncommitted work. Use an isolated checkout for parallel edits and report the revision you reviewed.
-- Keep protocol rules in their network's viewer engine. Share presentation where behavior is the same; data-source
-  adapters are separate from network semantics. Do not make Thread inherit Zigbee assumptions to fill missing data.
-- Cite sources and versions for protocol rules, thresholds and API assumptions. Distinguish reported values,
-  table-derived paths, assumptions and computed candidates. Missing data does not prove a failed link.
-- Keep reusable behavior independent of one building or capture. Document operational quirks near the affected
-  subsystem, not in agent memory. Update affected documentation instead of adding a second account of the same rule.
+- One agreed problem per change. Agree substantial features in an issue or a maintainer brief first; an agreed brief
+  needs no further approval step.
+- No unrelated refactoring in the change; remove what it makes obsolete. Never overwrite someone else's uncommitted
+  work; use your own checkout or worktree for parallel edits.
+- Protocol rules live in their network's viewer engine; data-source adapters carry no network semantics; presentation
+  is shared where behavior is the same. Thread never inherits a Zigbee assumption to fill missing data.
+- Cite source and version for protocol rules, thresholds and API assumptions. Keep reported values, table-derived
+  paths, assumptions and computed candidates apart. Missing data never proves a failed link.
+- No building, device list or capture in reusable code. Operational quirks go into the docs of the affected
+  subsystem, not into agent memory. Update the existing account of a rule instead of adding a second one.
 
-## Avoid generated-code and writing habits
+## Review criteria for generated-code habits
 
-- Do not introduce factories, inheritance layers, generic helpers, dependencies or configuration switches for
-  hypothetical future uses. Follow existing conventions; explain a necessary abstraction in terms of current callers.
-- Do not hide unexpected failures with broad catches, silent defaults or guessed values. Catch errors at the boundary
-  that can handle them; preserve useful context and expose missing data. Document intentional recovery behavior.
-- Comments explain constraints and reasons, not a translation of each statement. Remove unused imports, dead code,
-  commented-out alternatives and placeholder TODOs without a concrete follow-up.
-- Use direct, specific English in code, UI and public docs. Avoid promotional claims, canned introductions,
-  repeated summaries, invented jargon and claims of robustness or completeness without evidence.
-- UI help explains the displayed value or option in one or two sentences. Put research and protocol background in
-  technical documentation. Do not add help navigation to compensate for an unclear label.
-- These are review criteria, not an AI detector or a vocabulary blacklist. Enforce objective defects with linters;
-  judge clarity and scope in review, including human-written changes.
+Defects a reviewer can point to, whoever wrote the change. This is not an AI detector and not a word list; ESLint,
+Ruff and `tools/guard.py` catch what they can (unused code, `==`, focused tests, console output in shipped code,
+commands outside the allow-list).
+
+- **Invented interfaces:** a Home Assistant command, ZHA or Matter field or option that is not in the spec, the HA
+  docs or a capture-derived fixture. A fixture written for the same change is no evidence that the field exists.
+- **Unknown turned into a value:** `?? 0`, `|| []`, a guessed default or a broad `catch` that makes a missing reading
+  look weak, a missing table look empty or a failure look like success. Keep it unknown; catch only where the code
+  can act on the error, and keep its context.
+- **Speculative structure:** factories, base classes, generic helpers, options or dependencies without a current
+  caller. A new abstraction names its callers.
+- **Noise in code:** comments that restate the next line, commented-out code, unused imports, TODOs without a
+  follow-up, debug output.
+- **Noise in text:** promotional or hedging phrases, canned introductions and closing summaries, invented terms,
+  "robust" or "complete" without a test or measurement. UI annotations explain the shown value in one or two
+  sentences in a formal technical register; protocol background goes into `docs/`, not into a help system.
+- **Claims without evidence:** "tests pass" without command and numbers, a threshold without source, a screenshot
+  presented as an interaction test.
 
 ## Tests and handover
 
-- Test changed parsing, routing, rating, persistence and security boundaries. Cover missing, malformed and
-  contradictory data, directionality, loops and boundaries where relevant. Bug fixes should include a reproducer.
-- Assert public behavior and independently justified expected results. Do not mirror the implementation in the test
-  or freeze an explanatory sentence merely to prevent rewording. Security allow-lists and public contracts may need
-  exact assertions. Do not weaken or delete meaningful tests just to get a passing run.
-- Use synthetic or anonymized fixtures, controlled clocks and deterministic seeds. No live services, credentials,
-  or arbitrary sleeps in unit tests. Measure CPU budgets as CPU time in a single-threaded child process
-  (`tests/layout-time.mjs`), never as wall time in the test process.
-- Keep fixtures minimal, clean up temporary state and test both success and failure for data-writing code. No focused
-  tests in commits; explain any skipped test. Anonymization does not replace inspecting a fixture before sharing it.
-- Inspect UI changes in a browser. State which views, keyboard and touch interactions were exercised; screenshots
-  alone are not interaction tests. Report untested cases explicitly.
-- Report the revision, commands, results and remaining limitations. Distinguish test cases from test files; never
-  claim a check or a device test that was not run.
+- Test changed parsing, routing, rating, persistence and security boundaries, with missing, malformed and
+  contradictory data, both directions, loops and limits where relevant. A fixed bug gets a test that fails without
+  the fix, where practical.
+- Expected values come from the spec, a protocol source or a hand-checked fixture, not from running the code under
+  test. Assert behavior and meaning; pin exact text only for contracts (command allow-list, stored keys, terms the
+  owner fixed), not to freeze an explanatory sentence.
+- Fixtures are synthetic or anonymized and minimal; look through one before committing it, anonymization does not
+  replace that. Inject clocks and timers, fix random seeds; no live services, credentials or sleeps in unit tests.
+  CPU budgets measure CPU time in a single-threaded child process (`tests/layout-time.mjs`), never wall time.
+- Never weaken, skip or delete a meaningful test to get a green run. No focused tests in commits; a `todo` or `skip`
+  names what resolves it.
+- Report the revision, the commands and their results with numbers (test cases, not files) and what remains
+  untested. Never claim a check, browser test or device test that did not run.
+- UI changes: inspect the affected views in a browser and state which views, keyboard and touch interactions were
+  exercised.
+- After a push, check the CI run of that revision; hassfest and HACS validation run only there.
 
 ## Responsibility
 
-- AI-assisted contributions are welcome. The submitting person must understand the change, review its diff and
-  evidence, and remain responsible for follow-up. The provenance and human sign-off rules above still apply.
-- Do not send messages or publish changes to external services on someone's behalf without authorization.
-- Installation of a hook is a local convenience, not enforcement: CI runs the same checks. Never bypass failing
-  checks or add broad lint exclusions to finish a task; fix the issue or explain a narrow, justified exception.
+- AI-assisted contributions are welcome. The person who submits one understands the change, has reviewed its diff
+  and evidence, and handles follow-up. Provenance and sign-off: see "Own work, clear origin".
+- No messages or changes sent to outside services on someone's behalf without authorization.
+- Hooks are a local convenience; CI runs the same checks. Never bypass a failing check (`--no-verify`) or add a broad
+  lint exclusion; fix the cause or add a narrow exception with its reason.
