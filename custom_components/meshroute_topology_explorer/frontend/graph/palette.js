@@ -198,6 +198,38 @@ export function fillColor(node, fill, theme) {
   return theme.neutral;
 }
 
+/** Opt-in colours of lanes by reception (request by Fabian Schwamborn, 2026-11-01: red over yellow to green), per
+ *  theme brightness: weakest, middle and strongest rating. Own choice of shades: each keeps 3:1 against the default
+ *  light (#ffffff, #fafafa) or dark (#111111, #1c1c1c) background, and the three differ by at least 8 in CIELAB
+ *  lightness (light: 49, 58, 41; dark: 60, 81, 68), so they stay apart without hue too. Dash, width and the value
+ *  beside the lane still say everything: colour never carries meaning alone (spec 8). */
+export const RECEPTION_STOPS = Object.freeze({
+  light: Object.freeze(["#d93a26", "#b58300", "#1d6f31"]),
+  dark: Object.freeze(["#f2604d", "#f2c230", "#3fbd5c"]),
+});
+/** Steps of the precomputed reception scale: far finer than the eye tells apart on a 3 px line. */
+const RECEPTION_STEPS = 64;
+
+/** The reception scale for a background: RECEPTION_STEPS + 1 colours from weakest to strongest, interpolated in sRGB
+ *  between the stops and each nudged to 3:1 against the background (a user's theme may differ from the defaults). */
+function receptionScale(bg) {
+  const stops = (luminance(bg) < 0.18 ? RECEPTION_STOPS.dark : RECEPTION_STOPS.light).map(parseColor);
+  const out = [];
+  for (let i = 0; i <= RECEPTION_STEPS; i++) {
+    const x = (i / RECEPTION_STEPS) * (stops.length - 1);
+    const j = Math.min(stops.length - 2, Math.floor(x));
+    out.push(toHex(ensureContrast(mix(stops[j], stops[j + 1], x - j).map(Math.round), bg)));
+  }
+  return Object.freeze(out);
+}
+
+/** Colour of a lane under "colour by reception": its reading's rating (0..1, relative to the hearer, spec 5.4) on the
+ *  theme's red-yellow-green scale; null for no rating (the lane keeps its class colour). */
+export function receptionColor(rating, theme) {
+  if (typeof rating !== "number" || !Number.isFinite(rating) || !theme || !theme.reception) return null;
+  return theme.reception[Math.round(Math.max(0, Math.min(1, rating)) * RECEPTION_STEPS)];
+}
+
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
  *  default, picked by the background's luminance. The grey of devices without a value (node) is always derived
  *  (noValueGrey), so it cannot be mistaken for a rating. */
@@ -225,6 +257,7 @@ export function resolveTheme(input = {}) {
     font: typeof input.font === "string" && input.font ? input.font : base.font,
     lineRange: range,
     categories,
+    reception: receptionScale(bg),
     dark: luminance(bg) < 0.18,
   };
 }

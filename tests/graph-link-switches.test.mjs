@@ -105,3 +105,25 @@ test("flipping switches never moves a device; the legend of the view follows", (
   assert.deepEqual(view.links, DEFAULT_LINKS, "bad values fall back to on");
   assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before);
 });
+
+test("node view and colour by reception: drawing only, junk ignored, the legend shows the scale while colour is on", () => {
+  const canvas = new FakeCanvas(800, 600);
+  const env = fakeEnv();
+  const view = new GraphView(canvas, { env, nodeView: "junk", receptionColors: "yes" });
+  assert.equal(view.nodeView, "coordinator");
+  assert.equal(view.receptionColors, false);
+  view.setNetwork(NET);
+  env.flush();
+  const before = JSON.stringify([...view.pos.x, ...view.pos.y]);
+  view.setNodeView("all");
+  view.setReceptionColors(true);
+  env.flush();
+  assert.equal(view.nodeView, "all");
+  assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before, "nothing moves");
+  assert.ok(view.legend().some((e) => e.id === "reception"));
+  view.setNodeView("everything");
+  view.setReceptionColors(1);
+  assert.equal(view.nodeView, "all", "an unknown mode is ignored");
+  assert.equal(view.receptionColors, false, "anything but true is off");
+  assert.ok(!view.legend().some((e) => e.id === "reception"));
+});

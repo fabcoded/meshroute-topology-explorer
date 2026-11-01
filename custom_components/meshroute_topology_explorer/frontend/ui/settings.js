@@ -9,13 +9,16 @@
 import { DENSITY } from "../graph/layout.js";
 import { DEFAULT_LINKS } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
+import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
 
 /** Defaults of spec 11. openDetailsOnSelect and legendOpen null mean "by screen width": details open on select and
- *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). */
+ *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). nodeView: what a selected device
+ *  shows (its path to the coordinator, or all its paths); receptionColors: the opt-in colouring of lanes by their
+ *  reading (off by default: links carry no colour otherwise, spec 8). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
-  legendOpen: null, links: DEFAULT_LINKS, pins: Object.freeze({}) });
+  legendOpen: null, links: DEFAULT_LINKS, nodeView: DEFAULT_NODE_VIEW, receptionColors: false, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -63,6 +66,8 @@ export function sanitizeSettings(input) {
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   out.legendOpen = typeof src.legendOpen === "boolean" ? src.legendOpen : null;
   out.links = sanitizeLinks(src.links);
+  out.nodeView = NODE_VIEWS.includes(src.nodeView) ? src.nodeView : DEFAULTS.nodeView;
+  out.receptionColors = src.receptionColors === true; // opt-in: anything but true is off
   out.pins = sanitizePins(src.pins);
   return out;
 }

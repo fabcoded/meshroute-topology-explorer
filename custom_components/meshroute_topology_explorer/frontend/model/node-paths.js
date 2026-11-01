@@ -49,7 +49,9 @@ export function pathHops(network, ids) {
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds out paths to the destinations of the device's own active routes and in paths from the owners
  *  of active routes towards it. The coordinator's own route to the device is the down path and the device's route
- *  to the coordinator its up path, so neither appears twice. Unknown modes count as "coordinator". */
+ *  to the coordinator its up path, so neither appears twice. Unknown modes count as "coordinator". The coordinator
+ *  stands for Home Assistant: its paths to and from Home Assistant are all its paths, so it shows them in both modes
+ *  (an empty map on its click would say nothing). */
 export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
@@ -62,7 +64,7 @@ export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW) {
     add("up", id, coordinator, upPath(network, id));
     add("down", coordinator, id, downPath(network, id));
   }
-  if (mode !== "all") return out;
+  if (mode !== "all" && id !== coordinator) return out;
   const { destinations, owners } = routeEnds(network, id);
   for (const d of destinations) if (d !== coordinator) add("out", id, d, routePath(network, id, d));
   for (const o of owners) if (o !== coordinator) add("in", o, id, routePath(network, o, id));

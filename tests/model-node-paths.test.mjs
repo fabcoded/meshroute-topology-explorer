@@ -48,7 +48,9 @@ test("path to coordinator: up and down path per device, the numbers of spec 12",
   assert.deepEqual([others.length, up, down, differ], [44, 41, 29, 20]);
   // Every incomplete path on the sample stops short of its goal, so it has a visible unknown end.
   assert.deepEqual(ends, { up: 3, down: 15 });
-  assert.deepEqual(nodePaths(sample, coordinator.id), [], "the coordinator has no path to itself");
+  // The coordinator stands for Home Assistant: its paths with Home Assistant are all its paths, in both modes.
+  assert.deepEqual(nodePaths(sample, coordinator.id), nodePaths(sample, coordinator.id, "all"));
+  assert.ok(nodePaths(sample, coordinator.id).every((p) => p.kind === "out" || p.kind === "in"));
   assert.deepEqual(nodePaths(sample, "no:such:device"), []);
 });
 
