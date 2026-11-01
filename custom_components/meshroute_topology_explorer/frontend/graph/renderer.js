@@ -664,7 +664,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const always = [];
   for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
   for (const i of [...focus, ...always]) label(i, true);
-  for (const pv of pathValues) if (pv.ref) pv.drawn = value(pv.ref);
+  // Values of the way up and down claim their places first, then routes, then heard only: the drawing order puts the
+  // weakest first, the room for text goes to the strongest.
+  for (const pv of [...pathValues].sort((p, q) => rank(q.cls) - rank(p.cls))) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, false);
   if (labelsForAll(k, view.labelZoom)) {
