@@ -235,7 +235,7 @@ Per router or coordinator: end devices whose parent it is.
   with fewer than 10 such values use the pool of all reporters of the same vendor; if that pool has fewer than 10
   values too, the reading keeps its raw value and gets no rating.
 - A device's **reception** is the best rating among readings in which it is the subject, LQI 0 excluded.
-- A rating is a rank, not a health claim: by construction a tenth of every reporter's readings fall in its lowest
+- A rating is a rank, not a health claim; the interface says "lower / middle / higher reception rank", and Details name the basis of each rank: "rank among the readings of Router 12", or "rank within the IKEA group" (marked "group" in the row) where the reporter has fewer than ten readings of its own.  by construction a tenth of every reporter's readings fall in its lowest
   tenth. The interface says "weakest tenth of what R hears". Differences below 60 LQI between readings are noise and
   never a finding.
 
@@ -302,12 +302,12 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
 
 ## 6. Data status and the scan [v1]
 
-- A **status line** is always visible (board M1): source; "tables x of y" (available routers with a table,
-  coordinator not counted); completeness; the newest change the panel has observed ("unchanged since …"); on the
+- A **status line** is always visible (board M1): source; "Router tables: x/y" (x available routers with a table of y available
+  routers; the coordinator is not counted; no completeness percentage, review 1.4c, 2026-11-01); the newest change the panel has observed ("unchanged since …"); on the
   right the source-route stage (5.1). Devices missing from every table are named by the findings, and that ZHA reads
   the tables by itself, every 4 hours by default, is an info button beside "Read data again" (9.1; decision by Fabian
   Schwamborn, 2026-11-01).
-- **Completeness** (share of available routers with a table) is shown, not used as a gate: each finding decides by
+- **Completeness** (share of available routers with a table) is not shown as a percentage and not used as a gate: each finding decides by
   its own evidence rule (5.6). Below 90 % the map also carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp and the integration has no public way to read ZHA's tables. The panel
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
@@ -371,7 +371,7 @@ the centre).
   head.
 - **Path display** (request by Fabian Schwamborn, 2026-11-01; View tab 9.1, stored 11): grey (default: links carry no
   colour) or **coloured by reception**: every drawn lane with a rated reading takes its rating (5.4, relative to the
-  hearer) on a scale from bad over medium to good, red, yellow and green unless the user chose own colours for the
+  hearer) on a scale of reception rank from lower over middle to higher (never worded as bad or good: a rank is relative, 5.4), red, yellow and green unless the user chose own colours for the
   three (for colour blindness, design 2026-11-01); lanes without a reading or rating, computed hops and assumed return paths keep
   their class colour. Dash and width stay, so the class and the rating still read without colour. Every colour is
   nudged to 3:1 against the background (8).
@@ -558,26 +558,26 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
 - **View** tab (board M2), in this order: **Communication paths** (one radio group of the two stages of 7.1, each
   with a one-line hint, below it the checkbox "heard only (best 3)" with its hint "needs a selection: adds the device's 3
   best heard-only partners, in either stage" (in the second stage with an info button for the note above), then "The second stage includes the first. Debug shows everything."); **Path
-  display** (grey or coloured by reception; under it three colour pickers bad, medium, good, prefilled with the
+  display** (grey or coloured by reception, with an info button: "Colour shows the relative reception rank, not connection reliability."; under it three colour pickers lower, middle, higher reception rank, prefilled with the
   theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
   switch on the map; what the map shows on a click follows the communication paths); **Return paths without a table
-  entry (source route)** (off: the return path stays
+  entry (source route)** (an info button: "The return path is assumed to follow the outbound path in reverse. It has not been verified."; off: the return path stays
   "unknown"; assume: the way up reversed, dotted; read from zigpy, "experimental", disabled with "coming later"; 5.1);
   **Node distance (density)** with an
-  info button that says the distance comes from field strength and reception quality and the density multiplies it
+  info button ("Spacing helps arrange the network. It does not show physical distance.")
   (dense, medium, spread; option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
   source); **Labels on the map** (device type above the symbol, readable name below, original Home Assistant name;
   8). Below a line: debug mode, "Read data again" with an info button ("ZHA reads the tables by itself, every 4 hours
-  by default", 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
+  by default", and that it reloads the tables ZHA holds and starts no radio scan, 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
   when they are not kept in Home Assistant (11). Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a
   coarse one.
 - **Legend** tab (board M7), compact, in sections: **Communication paths**: every path class whatever the stage
   (decision by Fabian Schwamborn, 2026-11-01): there and back with the coordinator, the assumed return path, paths to
-  other devices "(stage 2)", one of the cheapest ways by the tables' LQI "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
+  other devices "(stage 2)", the computed path, "a possible path computed from the available tables (one of the cheapest by LQI)", that actual traffic may take another path, "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
   band, the glyphs "–" and "?" where the option draws them (option on, and debug)
   (an addition to M7: the legend explains every glyph the map can show), in debug mode also the lane without traffic,
-  the width steps and the unknown end, "RX:" (the reception at the hearer, a quarter of the lane before it) and the
+  the width steps and the unknown end, "RX:" (the reception as reported by the receiver at the arrowhead, a quarter of the lane before it; values of different receivers may use different scales) and the
   colour bar while paths are coloured; the fill while one is chosen; **Symbols**: one row per sign, each drawn at
   40 px by the map's own code on a device of the network with its picture (router frame with gaps and strokes;
   closed frame with a bed for a sleeping end device; crown "C" and plug for the coordinator; plug without arcs for a
@@ -608,9 +608,9 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
     assumed return path "back, assumed (source route): …" with a note, 5.1), "path unknown" where a walk stops, a goal
     that is unavailable named so; for the coordinator in the first stage its routes ("to X", "from X"), collapsed
     above 12 lines. In the stage "all" the card **"Paths to other devices (theoretical)"** (5.7; brief
-    a4k), collapsed above 12 rows: a row per other device, the shortest way there first, with the hops there (→) and
-    back (←) and each way's weakest RX ("?" first, else the lowest LQI, else what implies it); a row opens to both ways,
-    every hop with its RX (a "–" hop names its basis: "Basis: Router 05 hears Router 13 with 48; Router 13's table is full (16/16)", and where the table has room "Link probably one-sided or aged") and how it is taken ("table", "neighbour", "route discovery (computed)", "parent", "child";
+    a4k), collapsed above 12 rows: a row per other device, the shortest way there first, with the number of hops there (→) and
+    back (←) (no "weakest RX" summary: it would mix a missing value with a low one and compare receivers on different scales, review 1.4b); a row opens to both ways,
+    every hop with its RX (a "–" hop names its basis: "Basis: Router 05 hears Router 13 with 48; Router 13's table is full (16/16)", and where the table has room "Link probably one-sided or aged") and how it is taken ("routing table entry", "direct neighbour (from the neighbour table)", "route discovery (computed)", "parent", "child";
     "table not read" or "entry inactive" where the holder had no entry), a discovery with its path cost, a stopped way
     with its reason; the note (computed, not observed, and how) stands at the top of the card, rows of equal hop
     count sort by name in natural order (Router 2 before Router 10), and the cost of the whole path stands at the
