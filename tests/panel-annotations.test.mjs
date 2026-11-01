@@ -43,3 +43,50 @@ test("1.4c: the status line gives exact router-table counts, not a completeness 
   }
   assert.ok(!("status.complete" in en) && !("status.short_complete" in en));
 });
+
+test("1.3: the View tab carries one info note per group at most, with the agreed texts", async () => {
+  class Node { constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.className = "";
+    this.classList = { add() {} }; }
+    append(...k) { this.children.push(...k); } replaceChildren(...k) { this.children = k; }
+    setAttribute(k, v) { this.attrs[k] = v; } addEventListener() {}
+    walk(out = []) { out.push(this); for (const c of this.children) if (c instanceof Node) c.walk(out); return out; } }
+  globalThis.Node = Node;
+  globalThis.document = { createElement: (tag) => new Node(tag), createElementNS: (ns, tag) => new Node(tag), createTextNode: (text) => ({ text }) };
+  const { renderView } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/view-tab.js");
+  const { sanitizeSettings } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
+  const container = new Node("div");
+  renderView(container, { t, settings: sanitizeSettings({ paths: "all" }), openOnSelect: false, dark: false, debug: false, pinCount: 0,
+    scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
+    onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
+  const all = container.walk();
+  const notes = Object.fromEntries(all.filter((n) => /^v-.*-note$/.test(n.attrs.id || "")).map((n) => [n.attrs.id, n.attrs.text ?? n.text]));
+  for (const key of ["colors", "assumed", "density", "reload", "heard"]) {
+    assert.ok(all.some((n) => n.attrs.id === `v-${key}-info` && n.attrs["aria-controls"] === `v-${key}-note`), `${key} button`);
+  }
+  assert.equal(en["view.colors_info"], "Colour shows the relative reception rank, not connection reliability.");
+  assert.equal(en["view.assumed_info"], "The return path is assumed to follow the outbound path in reverse. It has not been verified.");
+  assert.equal(en["view.density_info"], "Spacing helps arrange the network. It does not show physical distance.");
+  assert.match(en["view.reload_info"], /^Reloads the tables currently held by ZHA\. It does not start a radio scan\./);
+  assert.ok(Object.keys(notes).length >= 5, JSON.stringify(Object.keys(notes)));
+  const buttons = all.filter((n) => n.tag === "button" && /-info$/.test(n.attrs.id || ""));
+  assert.equal(new Set(buttons.map((b) => b.attrs.id)).size, buttons.length, "no duplicate buttons");
+});
+
+test("1.3: the legend explains RX, computed and assumed paths and missing values in place", () => {
+  assert.match(en["legend.rx"], /^Reception \(RX, LQI\) as reported by the receiver at the arrowhead/);
+  assert.match(en["legend.rx"], /different receivers may use different scales/);
+  assert.match(en["legend.link.assumed"], /follow the outbound path in reverse; not verified/);
+  assert.match(en["legend.link.discovery"], /Actual traffic may take another path/);
+  for (const key of ["legend.link.not-listed", "legend.link.no-table"]) {
+    assert.match(en[key], /No reception value in this direction.*does not indicate a weak link/, key);
+  }
+});
+
+test("1.3: 'Read data again' only re-reads zha/devices: the reload path never sends zha/topology/update", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const dir = new URL("../custom_components/meshroute_topology_explorer/frontend/", import.meta.url);
+  const controller = await readFile(new URL("ui/controller.js", dir), "utf8");
+  assert.ok(!controller.includes("zha/topology/update"));
+  const panel = await readFile(new URL("panel.js", dir), "utf8");
+  assert.match(panel, /onReload: \(\) => this\._controller\.reload\(\)/);
+});
