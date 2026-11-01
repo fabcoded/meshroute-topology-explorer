@@ -14,7 +14,7 @@
 import { h } from "./dom.js";
 import { detailsOf, hopValue, howText, pathParts } from "./details.js";
 import { findingText } from "./finding-text.js";
-import { lqiText, percent, rankText, roleText } from "./format.js";
+import { lqiText, percent, rankTooltip, roleText } from "./format.js";
 import { formatNwk } from "../model/parse.js";
 import { clusterTable, nodeCard } from "../model/signature.js";
 import { clusterName, deviceTypeName, profileName } from "../model/zcl.js";
@@ -230,11 +230,7 @@ function readingRows(list, ctx) {
     const rated = typeof r.rating === "number";
     const vendorPool = rated && r.pool === "vendor";
     const rank = rated ? t("rank.short", { pct: percent(r.rating) }) + (vendorPool ? ` \u00B7 ${t("rank.group")}` : "") : t("rank.none");
-    // The tooltip names the comparison basis the model used (model/ratings.js applyRatings): the reporter's own readings
-    // or, below ten of them, its vendor group.
-    const basis = !rated ? "" : vendorPool ? t("rank.basis_vendor", { vendor: r.reporter.vendor || "?", reporter: r.reporter.label })
-      : t("rank.basis_reporter", { reporter: r.reporter.label });
-    const long = `${rankText(r.rating, r.reporter.label, t)}${basis ? `, ${basis}` : ""}`;
+    const long = rankTooltip(r, t);
     return h("div", { class: `reading-row${rated && r.rating < WEAKEST ? " weak" : ""}`, role: "row", title: long },
       h("span", { role: "cell", class: "reading-name" }, h("button", { type: "button", class: "link", text: r.device.label,
         on: { click: () => ctx.onSelect(r.device.id) } })),

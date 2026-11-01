@@ -474,6 +474,14 @@ the centre).
     sample the overview draws 95 lanes in the first stage (41 up, 54 down, 2 of them assumed; 93 with source routes
     off) and the backbone of 570 lanes in the second, with or without the option (95 up or down, 456 routes, 19 computed only; with
     source routes off the 2 assumed lanes count as routes).
+- **Known limit** (Codex review round 2, 3.6): at dense hubs values and neighbour labels overlap; the selected device's
+  label stays readable (A4s); the written paths in Details are the reference.
+- **UI texts stay short** (Codex review round 2, 2026-11-01, 3.3/3.4): the Details notes and legend rows for computed and
+  assumed paths and for RX state only what a reader needs ("Possible paths from the available tables; actual traffic may
+  differ.", "Return path assumed: the outbound path reversed. The actual return path is not available in these data.");
+  the rules behind them (table priority, direct neighbour, cheapest ways by the tables' LQI, path cost 1 to 7 per link,
+  source-route background) are specified in 5.1 and 5.7, not repeated in the UI. The short warning on missing values
+  ("–", "?") stays in the legend.
 - **The node view on the map**: each hop on the lane of its direction of travel with an arrowhead at the hearer, in
   the style of its class (a hop of the device's own up or down path solid, an assumed return path sparsely dotted
   whatever the hearer measured, a path to or from another device dash-dot, a hop only a computed route discovery
