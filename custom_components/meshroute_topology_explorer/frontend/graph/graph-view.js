@@ -17,7 +17,7 @@ import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
 import { sourceRouteMode } from "../model/source-routes.js";
-import { legendEntries, pathStage } from "./links.js";
+import { pathStage } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -276,10 +276,11 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
+  /** Legend entries for the links in the current theme, from the network's engine (engines/<type>/lanes.js
+   *  legendEntries): the panel draws them in its words. None before a network with an engine is shown. */
   legend() {
-    return legendEntries(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors,
-      routes: !this.scene || this.scene.routes !== false });
+    if (!this.scene || !this.scene.engine) return [];
+    return this.scene.engine.legend(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors });
   }
 
   setTheme(theme) {

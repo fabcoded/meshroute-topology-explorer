@@ -9,8 +9,8 @@ import { readFileSync } from "node:fs";
 import { ENGINES, engineFor } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 import { buildNetwork, ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { buildThreadNetwork, THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
-import { legendEntries, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import * as zigbeeLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
+import * as threadLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
@@ -89,23 +89,23 @@ test("facades: build gives what the models build", () => {
   assert.equal(thread.build({ nodes: [] }, {}), null);
 });
 
-test("facades: lane values and glyphs equal the renderer's and the links' for every direction of both samples", () => {
-  for (const [engine, net] of [[zigbee, zigbeeNet], [thread, threadNet]]) {
+test("facades: lane values and glyphs are the engine's own lanes module's for every direction of both samples", () => {
+  for (const [engine, net, lanes] of [[zigbee, zigbeeNet, zigbeeLanes], [thread, threadNet, threadLanes]]) {
     const dirs = net.pairs.flatMap((p) => [p.ab, p.ba]);
     assert.ok(dirs.length >= 10, `${engine.key}: ${dirs.length} directions`);
     for (const dir of dirs) {
-      assert.equal(engine.laneValue(dir, TEXTS), laneValue(dir, TEXTS));
-      assert.equal(engine.unknownGlyph(dir.reason), unknownGlyph(dir.reason));
+      assert.equal(engine.laneValue(dir, TEXTS), lanes.laneValue(dir, TEXTS));
+      assert.equal(engine.unknownGlyph(dir.reason), lanes.unknownGlyph(dir.reason));
     }
   }
 });
 
-test("facades: legend rows equal legendEntries with and without routes, in every view", () => {
+test("facades: legend rows are the engine's own legendEntries, in every view; Thread's ignore the view", () => {
   const theme = resolveTheme({});
   for (const debug of [false, true]) for (const heard of [false, true]) for (const colored of [false, true]) {
     const view = { debug, heard, colored };
-    assert.deepEqual(zigbee.legend(theme, view), legendEntries(theme, { ...view, routes: true }));
-    assert.deepEqual(thread.legend(theme, view), legendEntries(theme, { ...view, routes: false }));
+    assert.deepEqual(zigbee.legend(theme, view), zigbeeLanes.legendEntries(theme, view));
+    assert.deepEqual(thread.legend(theme, view), threadLanes.legendEntries(theme));
   }
 });
 

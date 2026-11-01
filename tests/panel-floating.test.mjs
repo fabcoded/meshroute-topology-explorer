@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { floatingLayout, drawerGeometry, combinedInsets, FLOAT_GAP, BAND_MIN, SHEET_COLLAPSED } from "../custom_components/meshroute_topology_explorer/frontend/ui/geometry.js";
 import { linkLegendRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/link-legend.js";
-import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 

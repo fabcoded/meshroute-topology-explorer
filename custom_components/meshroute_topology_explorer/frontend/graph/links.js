@@ -12,7 +12,8 @@
 // down solid, assumed down dotted, routes between devices dash-dot, heard only dashed grey; width follows the lane's
 // own rating. A direction without a reading has no lane but a glyph: "–" when the hearer's table does not list the
 // sender, "?" when there is no table to ask. Opt-in: lanes coloured by reception, red to green.
-// Pure functions: classification from the data model's pairs, routes and paths; geometry; styles; legend data.
+// Pure functions: classification from the data model's pairs, routes and paths; geometry; stroke styles by look. The
+// legend rows, the glyph texts and the lane values are the engines' (engines/*/lanes.js).
 // node --test tests/
 
 import { computePairs } from "../model/pairs.js";
@@ -91,18 +92,22 @@ export const VALUE_AT = 0.75;
 export const STEM = Object.freeze({ length: 30, share: 0.45, width: 1.5, dash: Object.freeze([3, 3]) });
 /** Rating limits of the three lane widths. */
 export const WIDTH_STEPS = Object.freeze([1 / 3, 2 / 3]);
-/** Lane widths per class and width step (CSS pixels): up and down strongest, heard only thinnest. Own choice. */
+/** Stroke looks of a lane (engines cut, section 2): a look, not a meaning; each engine maps its own lane classes to
+ *  them (board M11 for Zigbee): solid, dotted (sparse round dots), dash-dot, dash-dot in the lighter grey, dashed, and
+ *  the faint dotted grey of a lane without traffic or reading. */
+export const STROKES = Object.freeze(["solid", "dotted", "dashdot", "dashdot-muted", "dashed", "faint"]);
+/** Lane widths per look and width step (CSS pixels): solid strongest, dashed thinnest; dash-dot in the lighter grey
+ *  takes dash-dot's, dotted one fixed width (dashdot[1]). Own choice. */
 export const WIDTHS = Object.freeze({
-  up: Object.freeze([1.5, 2.25, 3]),
-  down: Object.freeze([1.5, 2.25, 3]),
-  route: Object.freeze([1.25, 1.75, 2.25]),
-  heard: Object.freeze([0.75, 1, 1.4]),
-  implied: Object.freeze([1, 1, 1]),
+  solid: Object.freeze([1.5, 2.25, 3]),
+  dashdot: Object.freeze([1.25, 1.75, 2.25]),
+  dashed: Object.freeze([0.75, 1, 1.4]),
+  faint: Object.freeze([1, 1, 1]),
 });
-/** Dash patterns (CSS pixels) of board M11: routes between devices dash-dot, heard only dashed. Assumed down lanes
- *  are sparse round dots, a dash of almost nothing with round caps, so they stay dots at every width. */
-export const DASH = Object.freeze({ route: Object.freeze([6, 3, 1.5, 3]), heard: Object.freeze([6, 3]),
-  assumedGap: 6 });
+/** Dash patterns (CSS pixels) of board M11: dash-dot and dashed. Dotted lanes are sparse round dots, a dash of almost
+ *  nothing with round caps and this gap, so they stay dots at every width. */
+export const DASH = Object.freeze({ dashdot: Object.freeze([6, 3, 1.5, 3]), dashed: Object.freeze([6, 3]),
+  dottedGap: 6 });
 
 /** Width step 0..2 of a rating (0..1); an unrated reading gets the thinnest. */
 export function widthStep(rating) {
@@ -110,41 +115,38 @@ export function widthStep(rating) {
   return rating < WIDTH_STEPS[0] ? 0 : rating < WIDTH_STEPS[1] ? 1 : 2;
 }
 
-/** Stroke style of a lane: { color, width, dash, cap, head }. cls: one of CLASSES, or null for a lane without traffic
- *  and without a reading (debug mode only: thin dotted grey, no head). The class sets the dash: up and down solid,
- *  assumed down sparse dots (never drawn as measured, whatever the hearer reports; decision by Fabian Schwamborn,
- *  2026-11-01), routes between devices dash-dot, heard only dashed grey; the lane's own rating sets the width.
- *  state "unknown" (a path hop nothing proves) keeps the class's dash in grey at the thinnest width. colored: "colour
- *  by reception" is on, so a rated lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
- *  the class still reads without colour. predicted: a route hop that only a computed route discovery takes (spec 5.7;
- *  decision by the main session, 2026-11-01): the same dash-dot in the lighter grey, never coloured, so a computed
- *  hop never looks like one a table proves. */
-export function laneStyle(cls, rating, theme,
-  { colored = false, assumed = false, state = "measured", predicted = false } = {}) {
-  if (!cls) return { color: theme.muted, width: WIDTHS.implied[0], dash: [0.01, 3], cap: "round", head: false };
+/** Stroke style of a lane: { color, width, dash, cap, head }, from its look (STROKES; null counts as "faint": thin
+ *  dotted grey, no head). The look sets the dash; the lane's own rating (0..1) sets the width. state "unknown" (a
+ *  hop nothing proves) keeps the look's dash in grey at the thinnest width. colored: "colour by reception" is on, so a
+ *  rated solid, dash-dot or dashed lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
+ *  the look still reads without colour. Dotted and dash-dot in the lighter grey are never coloured (decisions by
+ *  Fabian Schwamborn and the main session, 2026-11-01: an assumed or computed hop never looks like a measured one). */
+export function laneStyle(stroke, rating, theme, { colored = false, state = "measured" } = {}) {
+  if (!stroke || stroke === "faint") {
+    return { color: theme.muted, width: WIDTHS.faint[0], dash: [0.01, 3], cap: "round", head: false };
+  }
   const unknown = state === "unknown";
-  const width = WIDTHS[cls][unknown ? 0 : widthStep(rating)];
-  const tint = (fallback) => (unknown ? theme.muted : (colored && receptionColor(rating, theme)) || fallback);
-  if (cls === "route" && predicted) return { color: theme.muted, width, dash: [...DASH.route], cap: "butt", head: true };
-  if (cls === "down" && assumed) {
-    const w = WIDTHS.route[1];
-    return { color: unknown ? theme.muted : theme.foreground, width: w, dash: [0.01, w + DASH.assumedGap], cap: "round",
+  if (stroke === "dotted") {
+    const w = WIDTHS.dashdot[1];
+    return { color: unknown ? theme.muted : theme.foreground, width: w, dash: [0.01, w + DASH.dottedGap], cap: "round",
       head: true };
   }
-  if (cls === "up" || cls === "down") {
-    return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
-  }
-  if (cls === "route") return { color: tint(theme.foreground), width, dash: [...DASH.route], cap: "butt", head: true };
-  return { color: tint(theme.muted), width, dash: [...DASH.heard], cap: "butt", head: true };
+  const width = WIDTHS[stroke === "dashdot-muted" ? "dashdot" : stroke][unknown ? 0 : widthStep(rating)];
+  const tint = (fallback) => (unknown ? theme.muted : (colored && receptionColor(rating, theme)) || fallback);
+  if (stroke === "dashdot-muted") return { color: theme.muted, width, dash: [...DASH.dashdot], cap: "butt", head: true };
+  if (stroke === "solid") return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
+  if (stroke === "dashdot") return { color: tint(theme.foreground), width, dash: [...DASH.dashdot], cap: "butt", head: true };
+  return { color: tint(theme.muted), width, dash: [...DASH.dashed], cap: "butt", head: true };
 }
 
-/** Glyph for a direction without a reading (spec 4.3 reasons): "–" when the hearer has a table that does not list the
- *  sender (full, nearly full, with space, capacity unknown); "?" when there is no table to ask (end device, missing or
- *  stale table) or the table says LQI 0 (unmeasured or very weak). */
-export function unknownGlyph(reason) {
-  // Thread (model/thread.js): "not in the neighbour table" means the hearer's table was read and does not list it.
-  const listedNot = /^(table (full|nearly full|has space)|capacity unknown|not in the neighbour table)/;
-  return typeof reason === "string" && listedNot.test(reason) ? "–" : "?";
+/** The look of a Zigbee lane class (CLASSES or null) on the map (board M11): up and down solid, an assumed down lane
+ *  dotted, a route between devices dash-dot, one only a computed route discovery takes dash-dot in the lighter grey,
+ *  heard only dashed, no class faint. */
+export function strokeOf(cls, { assumed = false, predicted = false } = {}) {
+  if (!cls) return "faint";
+  if (cls === "route") return predicted ? "dashdot-muted" : "dashdot";
+  if (cls === "down" && assumed) return "dotted";
+  return cls === "heard" ? "dashed" : "solid";
 }
 
 const laneKey = (sender, hearer) => `${sender}>${hearer}`;
@@ -276,45 +278,4 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
   const ey = lane.y0 + lane.uy * len;
   return { x0: lane.x0, y0: lane.y0, x1: ex, y1: ey, gx: ex + lane.ux * 6, gy: ey + lane.uy * 6, ux: lane.ux,
     uy: lane.uy };
-}
-
-/** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
- *  M7): every path class whatever the stage (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
- *  there and back with the coordinator (up and down share one row) and the assumed return path (views 1 and 3), paths
- *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option,
- *  needs a selection);
- *  the band under a selected device's way up; the glyphs for directions without a reading where the option draws
- *  them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and the unknown end; "RX:" at
- *  the hearer, and with colored the reception scale. */
-export function legendEntries(theme, { debug = false, colored = false, heard = false, routes = true } = {}) {
-  const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
-  const glyphs = debug || heard;
-  if (!routes) {
-    // Thread (spec 3.2): what its map draws: parent links, measured neighbours, the glyphs a click shows, RX in dBm.
-    return [
-      { id: "parent", kind: "lane", style: sample("up") },
-      { id: "neighbour", kind: "lane", style: sample("heard") },
-      { id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
-      { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
-      { id: "rx-thread", kind: "rx" },
-    ];
-  }
-  return [
-    // The views that draw each class (owner proposal 2026-11-01): up and down in 1 and 3, routes in 2 and 3.
-    { id: "coordinator", kind: "lane", style: sample("up"), stage: [1, 3] },
-    { id: "assumed", kind: "lane", style: sample("down", { assumed: true }), stage: [1, 3] },
-    { id: "route", kind: "lane", style: sample("route"), stage: [2, 3] },
-    { id: "discovery", kind: "lane", style: sample("route", { predicted: true }), stage: 3, computed: true },
-    { id: "heard", kind: "lane", style: sample("heard"), option: "heard" },
-    { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
-    ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },
-      { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.up], color: theme.foreground }] : []),
-    ...(glyphs ? [{ id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
-      { id: "no-table", kind: "glyph", text: "?", color: theme.muted }] : []),
-    ...(debug ? [{ id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash],
-      text: "?" }] : []),
-    { id: "rx", kind: "rx" },
-    ...(colored ? [{ id: "reception", kind: "scale",
-      colors: [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)) }] : []),
-  ];
 }

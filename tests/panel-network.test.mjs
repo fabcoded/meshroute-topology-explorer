@@ -12,8 +12,8 @@ import { activeNetwork, loadNetworkChoice, networkChoices, PANEL_STORE, saveNetw
 import { ageParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
 import { threadParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/status.js";
 import { SettingsClient } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
-import { buildScene, laneValue, scenePaths, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { buildScene, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { laneValue, legendEntries, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/ui/thread-details.js";
 import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -160,7 +160,7 @@ test("arrow values for Thread: RSSI in dBm, link quality only without RSSI; unkn
 });
 
 test("legend for Thread lists what its map draws, nothing about stages", () => {
-  const ids = legendEntries({ foreground: "#000", muted: "#888" }, { routes: false }).map((e) => e.id);
+  const ids = legendEntries({ foreground: "#000", muted: "#888" }).map((e) => e.id);
   assert.deepEqual(ids, ["parent", "neighbour", "not-listed", "no-table-thread", "rx-thread"]);
   const t = translator("en");
   for (const id of ["parent", "neighbour", "not-listed", "no-table-thread"]) assert.notEqual(t(`legend.link.${id}`), `legend.link.${id}`);

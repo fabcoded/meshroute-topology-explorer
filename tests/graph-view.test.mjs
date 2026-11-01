@@ -7,10 +7,10 @@ import assert from "node:assert/strict";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { hitRadius, MIN_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { symbolSize } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
-import { FakeCanvas, fakeEnv, domEvent, drawnSymbols, labelWidth } from "./graph-fakes.mjs";
+import { FakeCanvas, asZigbee, fakeEnv, domEvent, drawnSymbols, labelWidth } from "./graph-fakes.mjs";
 import { DENSITY } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 
-const NETWORK = {
+const NETWORK = asZigbee({
   source: "zha",
   id: "test",
   devices: [
@@ -25,7 +25,7 @@ const NETWORK = {
     { reporter: "r1", subject: "r2", lqi: 120 }, { reporter: "r2", subject: "r1", lqi: 100 },
     { reporter: "c", subject: "r2", lqi: 60 }, { reporter: "r2", subject: "e1", lqi: 90 },
   ],
-};
+});
 
 function setup(options = {}) {
   const canvas = new FakeCanvas(800, 600);
@@ -390,8 +390,8 @@ test("an empty network and one without any readings draw without errors", () => 
   view.setNetwork({ source: "zha", id: "empty", devices: [], readings: [] });
   env.flush();
   assert.equal(view.layout.settled, true);
-  view.setNetwork({ source: "zha", id: "lonely", devices: [{ id: "a", role: "router" }, { id: "b", role: "bogus" }],
-    readings: [] });
+  view.setNetwork(asZigbee({ source: "zha", id: "lonely", devices: [{ id: "a", role: "router" }, { id: "b", role: "bogus" }],
+    readings: [] }));
   env.flush();
   assert.deepEqual(view.layout.ringIds(), ["a", "b"]);
   const pa = view.layout.position("a");

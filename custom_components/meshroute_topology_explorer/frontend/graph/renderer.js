@@ -16,8 +16,9 @@ import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
   BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, hasRoutes, laneClass,
-  laneGeometry, laneStyle, overviewShows, pathStage, stemGeometry, textBeside, unknownGlyph,
+  laneGeometry, laneStyle, overviewShows, pathStage, stemGeometry, strokeOf, textBeside,
 } from "./links.js";
+import { engineFor } from "../engines/index.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { theoreticalLanes } from "../model/theoretical.js";
@@ -69,37 +70,6 @@ export function hitRadius(k) {
   return Math.max(symbolSize(k) / 2 + 4, MIN_HIT / 2);
 }
 
-/** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1; the panel passes its translation),
- *  "?" for no value or no entry. */
-export function valueText(lqi, uncertain = "0 (uncertain)") {
-  if (lqi === 0) return uncertain;
-  return typeof lqi === "number" && lqi > 0 ? String(lqi) : "?";
-}
-
-/** The value of a lane (a direction's evidence, data model 4.3): the raw LQI at the hearer, "Parent" or "Route" where
- *  only a parent link or a route implies it; without a reading the legend's glyph (unknownGlyph: "–" where the
- *  hearer's table was read and does not list the sender, "?" where there is no table to ask; decision by the main
- *  session, 2026-11-01). Texts: the panel's words. */
-export function laneValue(dir, texts) {
-  if (dir && dir.state === "implied") return dir.source === "parent" ? texts.parent : texts.route;
-  if (dir && dir.scale === "thread-lqi") return threadValue(dir);
-  const text = valueText(dir ? dir.lqi : null, texts.uncertain);
-  return text === "?" ? unknownGlyph(dir && dir.reason) : text;
-}
-
-/** What a Thread lane shows at its arrow (spec 7.1; board recommendation, main session 2026-11-01, M15 asks the owner):
- *  "rssi" = the RSSI in dBm, the link quality 0-3 only where no RSSI was reported (the details list both); "lqi" = the
- *  link quality first. The one switch for the owner's choice. */
-export const THREAD_VALUE = "rssi";
-
-/** A Thread direction's value at the arrow: "-75 dBm", or "LQI 3" (THREAD_VALUE); the unknown glyph without either. */
-export function threadValue(dir, mode = THREAD_VALUE) {
-  const rssi = dir && typeof dir.rssi === "number" ? `${String(dir.rssi).replace("-", "\u2212")} dBm` : null;
-  const lqi = dir && typeof dir.lqi === "number" ? `LQI ${dir.lqi}` : null;
-  const text = mode === "lqi" ? lqi || rssi : rssi || lqi;
-  return dir && dir.state === "measured" && text ? text : unknownGlyph(dir && dir.reason);
-}
-
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** Order of two pairs for the default view: higher rating first, then higher LQI; unknown last. */
 const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
@@ -108,8 +78,12 @@ const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((nu
  *  for the type line); pairs with their evidence per direction (ab: a hears b, ba: b hears a; { state, lqi, rating,
  *  source, reason } from the data model) and their two lanes; lanes { s, h (node indices of sender and hearer), pair,
  *  dir (the hearer's evidence), up, downMeasured, downAssumed, route (what the lane carries, links.js classifyLanes),
- *  key "s>h" }; every device's up path as node indices; neighbours. Classes per source-route stage: sceneClasses. */
+ *  key "s>h" }; every device's up path as node indices; neighbours; engine: the network's viewer engine
+ *  (engines/index.js; null for a network without devices, which has nothing to mean), whose values and glyphs the
+ *  lanes show. Classes per source-route stage: sceneClasses. */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
+  // No default engine (spec 4.6): a network with devices names its engine or this throws.
+  const engine = !(network.devices || []).length && network.engine === undefined ? null : engineFor(network);
   const seen = new Set();
   const devices = [];
   for (const d of network.devices || []) {
@@ -166,7 +140,7 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   const coordinator = nodes.findIndex((n) => n.role === "coordinator");
   // routes false (Thread, spec 4.6): no paths and no stages; the overview draws every lane with a class and a click
   // shows the device's own lanes (scenePaths).
-  return { nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
+  return { engine, nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
     routes: hasRoutes(network), pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null,
     tableLanes: null };
 }
@@ -641,7 +615,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const skip = new Set(pathHops.map((hop) => `${hop.s}>${hop.h}`)); // directions the focus layer draws itself
   const glyphAt = (s, h, dir, a) => {
     const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
-    if (lane) glyphs.push({ text: unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha: a });
+    if (lane) glyphs.push({ text: scene.engine.unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha: a });
   };
   if (!selecting || debug) {
     const items = [];
@@ -660,12 +634,12 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const geo = laneGeometry(sx[lane.s], sy[lane.s], sx[lane.h], sy[lane.h], size, size, offset);
       if (!geo) continue;
       const assumed = cls === "down" && sc.assumed[lane.index];
-      const style = laneStyle(cls, dir.rating, theme, { colored, assumed, state, predicted });
+      const style = laneStyle(strokeOf(cls, { assumed, predicted }), dir.rating, theme, { colored, state });
       items.push({ lane: geo, style, key: styleKey(style), rank: hopRank(o) });
       count(cls, assumed, predicted);
       pairsDrawn.add(lane.pair);
       if (!debug) continue; // values beside every lane in debug mode; otherwise only on the focus's lanes
-      let text = laneValue(dir, texts);
+      let text = scene.engine.laneValue(dir, texts);
       if (state === "measured") text += ` \u2190 ${scene.nodes[lane.h].label}`;
       addValue(geo, text, { path: false, alpha });
     }
@@ -690,10 +664,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(cls, dir.rating, theme, { colored, assumed, state, predicted });
+      const style = laneStyle(strokeOf(cls, { assumed, predicted }), dir.rating, theme, { colored, state });
       items.push({ lane, style, key: styleKey(style), rank: hopRank(hop) });
       count(cls, assumed, predicted);
-      let text = laneValue(dir, texts);
+      let text = scene.engine.laneValue(dir, texts);
       if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
       const t = addValue(lane, text, { path: true, alpha: 1 });
       pathValues.push({ s, h, text, cls, predicted: Boolean(predicted), rank: hopRank(hop), drawn: false, ref: t });

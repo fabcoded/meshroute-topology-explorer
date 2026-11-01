@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildThreadNetwork, extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET,
   THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
-import { classifyLanes, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 
 const sampleTopology = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8"))
   .responses["matter/network_topology"];

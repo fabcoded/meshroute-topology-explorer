@@ -14,7 +14,7 @@ import { DEFAULTS as SHELL_DEFAULTS, sanitizeSettings as shellSettings } from ".
 import { DEFAULTS as ZIGBEE_DEFAULTS, sanitizePaths, settings as zigbeeSettings }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { FakeCanvas, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
+import { FakeCanvas, asZigbee, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 /** The shell's sanitizer and defaults with the Zigbee engine's keys (engines cut step 5). */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
@@ -28,7 +28,7 @@ const route = (owner, destination, nextHop) => ({ owner, destination, nextHop, s
 // c -> r4, c -> r1 -> e1 (parent link). r3 has no entry at the coordinator: its way back is assumed (c -> r3).
 // A route between devices: r2 -> r4 via r1 (r2 -> r1 is also r2's way up, so it stays up; r1 -> r4 is a route).
 // Heard only: r3 hears r2 (r2 does not list r3: table full), r3 and r4 hear each other.
-const NET = {
+const NET = asZigbee({
   devices: [
     { id: "c", role: "coordinator", label: "Coordinator", available: true, hasTable: true },
     { id: "e1", role: "end device", label: "Sensor", available: true, parent: "r1" },
@@ -53,7 +53,7 @@ const NET = {
     { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: "table full (16/16)" } },
     { a: "r3", b: "r4", ab: m(40, 0.2), ba: m(30, 0.1) },
   ],
-};
+});
 const ID = ["c", "e1", "r1", "r2", "r3", "r4"];
 const at = (id) => ID.indexOf(id);
 // Far apart on a grid, so every lane and value has room.

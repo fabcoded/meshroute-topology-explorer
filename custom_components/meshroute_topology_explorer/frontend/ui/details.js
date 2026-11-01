@@ -7,7 +7,7 @@
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { zigpyRecords } from "../model/source-routes.js";
 import { lqiText } from "./format.js";
-import { unknownGlyph } from "../graph/links.js";
+import { unknownGlyph } from "../engines/zigbee/lanes.js";
 
 const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -1) - (a.lqi ?? -1))
   || a.device.label.localeCompare(b.device.label);

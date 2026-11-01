@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, theoryRows }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
 import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
-import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { lqiText, rankText, rankTooltip, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";

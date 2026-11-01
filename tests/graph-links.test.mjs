@@ -7,15 +7,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, CLASSES, DASH, DIM, LANE_GAP, STEM, VALUE_AT, laneGeometry, laneStyle, legendEntries, stemGeometry,
-  unknownGlyph, widthStep, textBeside, WIDTHS,
+  BAND, CLASSES, DASH, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, strokeOf,
+  widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { legendEntries, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { buildScene, drawScene, sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColor } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { recordingContext, labelWidth } from "./graph-fakes.mjs";
+import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
+/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle (engines cut step 6a). */
+const classStyle = (cls, rating, t, opts = {}) => laneStyle(strokeOf(cls, opts), rating, t, opts);
 const theme = resolveTheme({});
 
 /** Signed distance of a point (relative to a symbol's centre) to the symbol's rounded-square contour. */
@@ -51,19 +54,19 @@ test("a lane lies on the right of its direction of travel in all four quadrants,
 
 test("classes are told apart by dash and weight, not colour; widths follow the lane's rating in three steps", () => {
   assert.deepEqual([0, 0.2, 0.34, 0.5, 0.67, 1, null].map(widthStep), [0, 0, 1, 1, 2, 2, 0]);
-  const up = laneStyle("up", 0.9, theme);
-  const down = laneStyle("down", 0.9, theme);
-  const assumed = laneStyle("down", 0.9, theme, { assumed: true });
-  const route = laneStyle("route", 0.9, theme);
-  const heard = laneStyle("heard", 0.9, theme);
-  const none = laneStyle(null, null, theme);
+  const up = classStyle("up", 0.9, theme);
+  const down = classStyle("down", 0.9, theme);
+  const assumed = classStyle("down", 0.9, theme, { assumed: true });
+  const route = classStyle("route", 0.9, theme);
+  const heard = classStyle("heard", 0.9, theme);
+  const none = classStyle(null, null, theme);
   assert.deepEqual(up.dash, [], "up and down solid (board M11)");
   assert.deepEqual(down, up);
   assert.equal(assumed.cap, "round");
   assert.ok(assumed.dash[0] < 0.1 && assumed.dash[1] > assumed.width + 3, "sparse round dots");
   assert.deepEqual(route.dash, [6, 3, 1.5, 3], "dash-dot");
   assert.deepEqual(heard.dash, [6, 3], "dashed");
-  assert.deepEqual(DASH.route, [6, 3, 1.5, 3]);
+  assert.deepEqual(DASH.dashdot, [6, 3, 1.5, 3]);
   for (const s of [up, assumed, route]) assert.equal(s.color, theme.foreground);
   assert.equal(heard.color, theme.muted);
   assert.ok(up.width > route.width && route.width > heard.width, "up and down strongest, heard only thinnest");
@@ -71,11 +74,12 @@ test("classes are told apart by dash and weight, not colour; widths follow the l
   assert.equal(none.head, false);
   assert.equal(none.color, theme.muted);
   // A path hop nothing proves keeps its class's dash, in grey at the thinnest width.
-  const unknown = laneStyle("route", null, theme, { state: "unknown" });
+  const unknown = classStyle("route", null, theme, { state: "unknown" });
   assert.deepEqual(unknown.dash, route.dash);
   assert.equal(unknown.color, theme.muted);
-  assert.equal(unknown.width, WIDTHS.route[0]);
-  for (const cls of CLASSES) assert.ok(WIDTHS[cls][0] < WIDTHS[cls][2]);
+  assert.equal(unknown.width, WIDTHS.dashdot[0]);
+  for (const look of STROKES.filter((k) => k in WIDTHS && k !== "faint")) assert.ok(WIDTHS[look][0] < WIDTHS[look][2]);
+  assert.deepEqual(CLASSES.map((c) => strokeOf(c)), ["dashed", "dashdot", "solid", "solid"]);
 });
 
 test("glyphs: '–' where the hearer's table does not list the sender, '?' where there is no table or LQI 0", () => {
@@ -116,7 +120,7 @@ const NET = {
 const POS = { x: [-300, 0, 300, 300, 0], y: [0, 0, 0, 250, -250], pinned: [0, 0, 0, 0, 0], mesh: [1, 1, 1, 1, 1] };
 
 function draw({ selected = -1, hovered = -1, debug = false, net = NET, ...extra } = {}) {
-  const scene = buildScene(net, labelWidth);
+  const scene = buildScene(asZigbee(net), labelWidth);
   const ctx = recordingContext({ props: true });
   const stats = drawScene(ctx, scene, POS, { cam: { k: 1, cx: 0, cy: 0 }, width: 1000, height: 800, dpr: 1,
     labelZoom: 1, debug, selected, hovered, fps: null, fill: "none", ...extra }, theme, labelWidth);
@@ -275,16 +279,16 @@ test("the unknown end: a short dashed stem on the right of the way towards the g
 test("colour by reception: rated lanes red to green by their hearer's rating, dash kept; off by default", () => {
   for (const background of ["#ffffff", "#111111"]) {
     const t = resolveTheme({ background });
-    const weak = laneStyle("heard", 0, t, { colored: true });
-    const strong = laneStyle("up", 1, t, { colored: true });
+    const weak = classStyle("heard", 0, t, { colored: true });
+    const strong = classStyle("up", 1, t, { colored: true });
     assert.equal(weak.color, receptionColor(0, t));
     assert.equal(strong.color, receptionColor(1, t));
-    assert.deepEqual(weak.dash, laneStyle("heard", 0, t).dash, "the class still shows by its dash");
-    assert.equal(laneStyle("route", 1, t, { colored: true }).color, receptionColor(1, t));
-    assert.equal(laneStyle("up", 1, t).color, t.foreground, "colour-free unless switched on");
-    assert.equal(laneStyle(null, null, t, { colored: true }).color, t.muted, "no reading, no colour");
-    assert.equal(laneStyle("up", null, t, { colored: true }).color, t.foreground, "no rating, no colour");
-    assert.equal(laneStyle("down", 1, t, { colored: true, assumed: true }).color, t.foreground, "assumed stays uncoloured");
+    assert.deepEqual(weak.dash, classStyle("heard", 0, t).dash, "the class still shows by its dash");
+    assert.equal(classStyle("route", 1, t, { colored: true }).color, receptionColor(1, t));
+    assert.equal(classStyle("up", 1, t).color, t.foreground, "colour-free unless switched on");
+    assert.equal(classStyle(null, null, t, { colored: true }).color, t.muted, "no reading, no colour");
+    assert.equal(classStyle("up", null, t, { colored: true }).color, t.foreground, "no rating, no colour");
+    assert.equal(classStyle("down", 1, t, { colored: true, assumed: true }).color, t.foreground, "assumed stays uncoloured");
   }
   // On the map: the selection's measured hops take the colour, the numbers stay.
   const { ctx } = draw({ selected: 4, receptionColors: true });
@@ -362,7 +366,7 @@ test("legend entries follow the stage: the classes it draws, RX, the scale while
   const discovery = entries.find((e) => e.id === "discovery");
   assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 3]);
   assert.notEqual(entries.find((e) => e.id === "route").style.color, theme.muted);
-  assert.equal(laneStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
+  assert.equal(classStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
   assert.equal(entries.find((e) => e.id === "heard").option, "heard");
   const assumed = entries.find((e) => e.id === "assumed").style;
   assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");

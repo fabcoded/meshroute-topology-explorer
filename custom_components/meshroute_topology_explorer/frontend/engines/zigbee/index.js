@@ -4,8 +4,7 @@
 // changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildNetwork } from "../../model/index.js";
-import { legendEntries, unknownGlyph } from "../../graph/links.js";
-import { laneValue } from "../../graph/renderer.js";
+import { laneValue, legendEntries, unknownGlyph } from "./lanes.js";
 import { renderDetails } from "../../ui/details-tab.js";
 import { findingText } from "../../ui/finding-text.js";
 import { connection } from "./connection.js";
@@ -22,7 +21,7 @@ export const zigbee = Object.freeze({
   /** "–" where the hearer's table was read and does not list the sender, "?" where there is no table to ask. */
   unknownGlyph: (reason) => unknownGlyph(reason),
   /** The link rows of the legend (board M7): every path class with the stage or option that draws it. */
-  legend: (theme, view = {}) => legendEntries(theme, { ...view, routes: true }),
+  legend: (theme, view = {}) => legendEntries(theme, view),
   /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Words of a finding: { title, lines }. */

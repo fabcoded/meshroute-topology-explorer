@@ -4,8 +4,7 @@
 // cut moves it here step by step without changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildThreadNetwork } from "../../model/thread.js";
-import { legendEntries, unknownGlyph } from "../../graph/links.js";
-import { laneValue } from "../../graph/renderer.js";
+import { laneValue, legendEntries, unknownGlyph } from "./lanes.js";
 import { renderThreadDetails } from "../../ui/thread-details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
@@ -29,7 +28,7 @@ export const thread = Object.freeze({
   /** "–" where the hearer's neighbour table was read and does not list the sender, "?" where there is none. */
   unknownGlyph: (reason) => unknownGlyph(reason),
   /** The link rows of the legend: parent links, measured neighbours, the glyphs, RX in dBm; no stages. */
-  legend: (theme, view = {}) => legendEntries(theme, { ...view, routes: false }),
+  legend: (theme) => legendEntries(theme),
   /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Words of a finding (offline, parent offline, parent unknown): { title, lines }. */
