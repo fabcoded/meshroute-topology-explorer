@@ -268,7 +268,9 @@ async function drive() {
   if (flag("debug")) el._onMenu("debug");
   if (flag("linksopen")) el._options.linksPanel.open();
   if (flag("nodeviewopen")) el._options.nodeViewMenu.open();
-  const id = q.get("select") && byLabel(q.get("select"));
+  // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
+  const id = q.get("select") && (byLabel(q.get("select"))
+    || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
   if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); } // as a tap on the map would
   else if (id) el._select(id, "list");
   const tab = q.get("tab");

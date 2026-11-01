@@ -74,7 +74,9 @@ export function laneStyle(cls, state, rating, theme, { colored = false } = {}) {
   const width = WIDTHS[cls][widthStep(rating)];
   const tint = (fallback) => (colored && receptionColor(rating, theme)) || fallback;
   if (cls === "up") return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
-  if (cls === "route") return { color: tint(theme.foreground), width, dash: [0.01, width + 3], cap: "round", head: true };
+  if (cls === "route") {
+    return { color: tint(theme.foreground), width, dash: [0.01, width + 3], cap: "round", head: true };
+  }
   return { color: tint(theme.muted), width, dash: [5, 3.5], cap: "butt", head: true };
 }
 
@@ -84,7 +86,8 @@ export function laneStyle(cls, state, rating, theme, { colored = false } = {}) {
 export function pathLaneStyle(state, rating, theme, { colored = false } = {}) {
   if (state === "measured") {
     const width = WIDTHS.up[widthStep(rating)];
-    return { color: (colored && receptionColor(rating, theme)) || theme.foreground, width, dash: [], cap: "butt", head: true };
+    const color = (colored && receptionColor(rating, theme)) || theme.foreground;
+    return { color, width, dash: [], cap: "butt", head: true };
   }
   const width = WIDTHS.route[1];
   return { color: state === "implied" ? theme.foreground : theme.muted, width, dash: [0.01, width + 3], cap: "round",
@@ -183,7 +186,8 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
   const len = Math.max(4, Math.min((STEM.length * size) / SYMBOL_SIZE, lane.len * STEM.share));
   const ex = lane.x0 + lane.ux * len;
   const ey = lane.y0 + lane.uy * len;
-  return { x0: lane.x0, y0: lane.y0, x1: ex, y1: ey, gx: ex + lane.ux * 6, gy: ey + lane.uy * 6, ux: lane.ux, uy: lane.uy };
+  return { x0: lane.x0, y0: lane.y0, x1: ex, y1: ey, gx: ex + lane.ux * 6, gy: ey + lane.uy * 6, ux: lane.ux,
+    uy: lane.uy };
 }
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations):
@@ -203,7 +207,8 @@ export function legendEntries(theme, { links = DEFAULT_LINKS, debug = false, col
     { id: "path", kind: "lane", style: pathLaneStyle("measured", 1, theme) },
     { id: "path-implied", kind: "lane", style: pathLaneStyle("implied", null, theme) },
     { id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash], text: "?" },
-    ...(colored ? [{ id: "reception", kind: "scale", colors: [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)) }] : []),
+    ...(colored ? [{ id: "reception", kind: "scale",
+      colors: [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)) }] : []),
   ];
   // A switched-off class leaves the legend (debug mode draws all, so it keeps all).
   return all.filter((e) => debug || !CLASSES.includes(e.id) || links[e.id]);

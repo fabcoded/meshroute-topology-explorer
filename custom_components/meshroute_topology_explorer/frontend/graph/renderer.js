@@ -286,7 +286,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   const colored = Boolean(view.receptionColors);
   const touches = (p) => focusSet.has(p.a) || focusSet.has(p.b);
-  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b) && pairDrawn(p, view.links, { debug: view.debug, touched: touches(p) }));
+  const drawn = scene.pairs.filter((p) => segmentVisible(p.a, p.b)
+    && pairDrawn(p, view.links, { debug: view.debug, touched: touches(p) }));
   const dimming = focus.length > 0;
   const alpha = dimming ? DIM : 1;
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
@@ -311,7 +312,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const at = Math.max(half, Math.min(1 - half, share));
       if (!spots.some((p) => Math.abs(p.at - at) < 0.02)) spots.push({ at, xy: textBeside(lane, w + 4, h, 1, at) });
     }
-    const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy), ...extra };
+    const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy),
+      ...extra };
     laneTexts.push(t);
     return t;
   };
@@ -409,7 +411,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const y = sy[i];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
     // A dimmed device is a soft obstacle: the reception at a path hop may cover it, a label may not.
-    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i, soft: dimming && !near.has(i) });
+    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i,
+      soft: dimming && !near.has(i) });
     const value = node.available ? fillColor(node, view.fill, theme) : null;
     const fill = node.available ? value || theme.node : theme.background;
     // The neutral fill is designed for the theme's own line colour; no flip (spec 8).
@@ -483,7 +486,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const h = LINE_HEIGHT;
     // Ahead along the stem first (away from its device), then the sides.
     const ahead = [e.x + e.ux * (q / 2 + w / 2 + 2), e.y + e.uy * (h + 2)];
-    const spots = [ahead, [e.x + q / 2 + 2 + w / 2, e.y], [e.x - q / 2 - 2 - w / 2, e.y], [e.x, e.y + h + 1], [e.x, e.y - h - 1]];
+    const spots = [ahead, [e.x + q / 2 + 2 + w / 2, e.y], [e.x - q / 2 - 2 - w / 2, e.y], [e.x, e.y + h + 1],
+      [e.x, e.y - h - 1]];
     for (const [cx, cy] of spots) {
       const rect = { x: cx - w / 2, y: cy - h / 2, w, h };
       if (placed.hits(rect)) continue;
