@@ -27,7 +27,11 @@
        devmenu=1       open the variant menu at load (for screenshots)
        scan=dialog|run open the scan's confirmation (debug mode), or confirm it too; the fake ZHA then changes the
                        routers' tables one by one, 2 s apart (every fifth stays the same)
-       pin=<label>     a stored pin for that device -->
+       pin=<label>     a stored pin for that device
+       dtab=communication|entity|cluster   the Details sub-tab (with select=)
+       cluster=0x0006&ep=1&dir=in|out      open that cluster's details; readvalues=1 then reads its attributes
+       readfail=error|timeout              the synthetic attribute read fails (sleepy end devices always fail)
+       sourceroute=off|assume              return paths without a table entry (stored setting) -->
 <html lang="en">
 <head>
   <meta charset="utf-8">

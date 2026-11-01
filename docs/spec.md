@@ -3,7 +3,8 @@
 What Meshroute Topology Explorer does, described from the user's side and from Home Assistant's public interfaces.
 It fixes behaviour, data rules and measurable acceptance, not code structure: how files and modules are cut is up to
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
-version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01.
+version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01;
+details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01.
 
 ## 1. Purpose and principles [v1]
 
@@ -13,7 +14,9 @@ a lamp that drops out, a sensor that reports late, a corner of the garden that h
 - **Debugging comes first, calmly.** The default view answers "is my network healthy and where is it weak" at a
   glance. Raw values, the reporting side of each value, tables and the scan live one click away (section 9.1).
 - **Read only.** The explorer never changes a network or a device. The only radio traffic it may cause is a
-  topology request the user starts and confirms (ZHA scan, Thread refresh, Zigbee2MQTT map request).
+  topology request the user starts and confirms (ZHA scan, Thread refresh, Zigbee2MQTT map request) and, on a button
+  the user presses in a cluster's details, one read of that cluster's attribute values (9.2; decision by Fabian
+  Schwamborn, 2026-11-01). Never automatic, never a write, no reporting, no binding.
 - **Unknown beats wrong.** The explorer judges only through **findings** (5.6), and every finding names its
   evidence. Missing data never turns into a verdict.
 - **Nothing leaves the house.** No telemetry, no third-party requests. Optional map tiles come only from an address
@@ -81,7 +84,8 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
     per-direction evidence from this (4.3). A neighbour listed twice in one table counts once, with the higher LQI.
   - `Child` and `Parent` entries also occur between routers; they record joining, not routing, and are ignored.
   - For some destinations the coordinator keeps no routing entry (its direct neighbours; source routing whose route
-    records Home Assistant does not expose): such paths are unknown.
+    records Home Assistant does not expose): such paths are unknown, unless the user lets the explorer assume them
+    (source route, 5.1).
   - A routing entry can point at an unavailable device.
 
 ### 3.2 Thread through Matter [later]
@@ -114,13 +118,17 @@ The panel and the integration call only these Home Assistant commands; `tools/gu
 | `config/area_registry/list`, `config/device_registry/list`, `config_entries/get` | names, areas, ZHA present | v1 |
 | `zha/devices` | devices and tables | v1 |
 | `zha/topology/update` | user-started scan | v1 |
+| `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
 | `meshroute_topology_explorer/*` | own settings and observations (10) | v1 |
 | `matter/network_topology`, `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
 
+Entity states and area names need no command: the panel reads `hass.states` and `hass.areas` of the `hass` object
+Home Assistant hands every panel (developers.home-assistant.io, frontend data), and only for the selected device.
 Anything else, in particular commands that return network keys or change a network (`zha/network/*`, `otbr/*`,
 `thread/get_dataset*`, `thread/set_*`, `matter/set_*`, `matter/commission*`, `matter/open_commissioning_window`,
-`zha/devices/permit`, `zha/devices/clusters/*`, `zha/devices/bind`, `zha/groups/*`, `zha/configuration/*`), is
+`zha/devices/permit`, every other `zha/devices/clusters/*` command, `zha/devices/bind`, `zha/devices/unbind`,
+`zha/groups/*`, `zha/configuration/*`, and ZHA's services that write attributes, issue cluster commands or bind), is
 forbidden.
 
 ## 4. Data model [v1]
@@ -136,7 +144,8 @@ Key: the IEEE / extended address, never a name. Network address, **role** (`coor
 `border router`, `unknown`), power source, **kind** (light, outlet, relay, button, sensor, motion, temperature,
 thermostat, blind, lock, hub or unknown; the picture of its symbol, 8), **sleepy** (receiver off when idle: yes, no or
 unknown), vendor, model, display name, the name the integration gave it in Home Assistant's device registry, area,
-available, last seen. "Battery device" in the interface means an end
+available, last seen; for the Details (9.2) also the device registry's firmware text (`sw_version`), the area id and
+the device's Home Assistant entities. "Battery device" in the interface means an end
 device whose power source is a battery.
 
 ### 4.3 Radio link
@@ -197,6 +206,15 @@ A view, fill or finding that needs a missing capability shows "not available for
   an unavailable destination), in paths 97 (85, 10, 2).
 - The **reception at a hop** (sender to hearer) is the hearer's evidence for that direction (4.3): its LQI of the
   sender, or "Parent" or "Route" where only a parent link or a route implies the hop, or unknown ("?").
+- **Source route** (decision by Fabian Schwamborn, 2026-11-01; View tab 9.1, stored 11): a ZHA coordinator reaches
+  many devices without a routing entry, along the relay list of the device's own route record, which is its up path
+  reversed; Home Assistant does not expose those records. Three stages: **off** (the down path stays unknown);
+  **assume** (default): the down path is the up path reversed, marked as **assumed** wherever it shows and never drawn
+  or counted as measured; **read from zigpy** [later], shown disabled with "coming later". The assumption applies only
+  to an available device whose measured down path is incomplete, for which the coordinator's table (present) holds no
+  active route, and whose up path is complete; a direct neighbour of the coordinator so gets a one-hop return path. An
+  end device for which the coordinator does hold an entry stays unknown: its gap lies elsewhere. On the sample it applies
+  to 8 devices (12). The coordinator's own node view lists only its routes.
 
 ### 5.2 Relay load [v1]
 Per router: routes in all available routers' tables that use it as next hop towards another destination; direct
@@ -312,7 +330,8 @@ the centre).
   where unknown). Where up and down differ, both are drawn; the up path also as a wide translucent band under its
   hops. An incomplete path ends at the device where its walk stopped with a short dashed stem towards its goal (on
   the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown": unknown
-  beats wrong. Everything else is dimmed to about 20 %, the selection's own pairs included (they are still drawn
+  beats wrong. A hop of an assumed return path (5.1) is sparsely dotted with its arrowhead (sparser than a hop a route
+  proves), whatever the hearer measured; its value still shows the hearer's reading. Everything else is dimmed to about 20 %, the selection's own pairs included (they are still drawn
   whatever the switches say); devices on the paths and their goals keep full strength and their labels. Without a
   selection, hover previews the paths of the device under the pointer without the band.
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
@@ -394,13 +413,18 @@ user-supplied image, or map tiles from an address the user configured.
   switchable (View tab, stored 11): its **type** above the symbol in grey (its kind, 4.2, in the user's language,
   "Light", "Lampe"; none for an unknown kind, whose symbol already shows "?"; on by default), its readable name below
   the symbol (the user's name, else the model; on) and the original Home Assistant name (the device registry's name
-  the integration gave it) in a smaller grey line below that, only where it differs from the readable name (off).
+  the integration gave it) in a smaller grey line below that, only where it differs from the readable name (off). The
+  type line shows only from the working scale (9.3) up, so the overview stays calm (A4h review, 2026-11-01).
   Labels are text, never HTML. A name never loses the part that distinguishes it from similar names (cut shared
   beginnings at word starts, keep the end); identical readable names get the network address appended. Below a scale
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
-  smaller zoom) only the coordinator, the selection and its neighbours carry labels. A block tries its places around
-  its device as a whole, every line free of other devices and texts: type above and names below, then the whole
-  block below, above, right and left (with the name alone: below, above, right, left); otherwise it is left out.
+  smaller zoom) only the coordinator, the selection and its neighbours carry labels. A block tries five places around
+  its device, as a whole and in this order, every line free of other devices and texts: (1) split, type 3 px above the
+  symbol and names 3 px below it, each line centred; (2) the whole block 3 px below, centred; (3) the whole block 3 px
+  above, centred; (4) right of the symbol, 4 px from its edge, lines aligned left and the block centred vertically on
+  the device; (5) the same on the left, aligned right. Places that come out the same (the name alone: 1 and 2) are
+  tried once. A dimmed device is no obstacle for a path value but is one for a label. Where no place is free the block
+  is left out, except for the coordinator and the focus, which take the first place.
 - The legend (one place: the Legend tab, 9.1) explains the current view, the fill and the symbols: their signs, the
   pictures present and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
@@ -416,7 +440,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
 - **On the map, only:** top left a button **Devices** with the findings count as a badge, and directly below it a
   slide switch **Details on click** (a real switch, `role="switch"`), shown only while the left panel is closed; top
   right a button **View** and directly below it a button **Legend**; bottom right the zoom group (+, −, fit); the
-  status line below the map; banners (incomplete data, connection lost, reading) between the top groups, or below
+  status line below the map, with the source-route stage apart on its right ("Return paths assumed for 8 devices
+  (source route)", "Source route off · 8 return paths unknown"; nothing when no device is concerned, 5.1); banners (incomplete data, connection lost, reading) between the top groups, or below
   them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). No header bar: the map fills
   the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are rounded, on the
   theme's surface with a light shadow, targets of at least 44 px.
@@ -426,14 +451,21 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   be open) and hide the buttons of their corner; on narrow ones the same panels are bottom sheets, one at a time
   (opening one closes the other). A panel never covers the selected device (the map pans). Closing a panel (its ×,
   Esc) returns focus to where it was opened.
-- **Devices:** a search field ("Name, model, area, address") and the list (9.3); a line says what a click does. With
-  Details on click on, a click on a device in the list or on the map opens its Details; while the left panel shows
-  Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
+- **Devices:** a search field ("Name, model, area, address") and the list (9.3); a line says what a click does; a count
+  only while a search filters the list. Rows (board M3): the coordinator first, then by name; the name in bold, below
+  it one grey line: type · role ("sleeps" instead for a sleepy end device) · "direct to the coordinator" (an end device
+  whose parent is the coordinator, a router whose up path is the one hop) or "via <parent>" for other end devices ·
+  area (Home Assistant's name, `hass.areas` before the registry's) · "unavailable" when it is down; the reception rank
+  lives in Details. With Details on click on, a click on a device in the list or on the map opens its Details; while
+  the left panel shows Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
 - **View** tab, in this order: **Communication paths** (checkboxes up path, other routes, heard only; 7.1); **Path
-  display** (grey or coloured by reception; when coloured, three colour pickers bad, medium, good, prefilled with the
-  theme's red, yellow and green, freely choosable, and a way back to the defaults; 7.1, 8); **On click on a device**
-  (checkbox "Open details", the same setting as the switch on the map; the node view: only the communication path with
-  the coordinator, there and back, or all routes to and from other devices; 7.1); **Node distance (density)** with an
+  display** (grey or coloured by reception; under it three colour pickers bad, medium, good, prefilled with the
+  theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
+  a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
+  switch on the map; the node view: only the communication path with the coordinator, there and back, or all routes
+  to and from other devices; 7.1); **Return paths without a table entry (source route)** (off: the return path stays
+  "unknown"; assume: the way up reversed, dotted; read from zigpy, "experimental", disabled with "coming later"; 5.1);
+  **Node distance (density)** with an
   info button that says the distance comes from field strength and reception quality and the density multiplies it
   (dense, medium, spread; 7.1); **Symbol fill** (none, role, power source); **Labels on the map** (device type above
   the symbol, readable name below, original Home Assistant name; 8). Below a line: debug mode, "Read data again",
@@ -459,12 +491,44 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection shows its paths in the node view (quality view, 7.1) or
   plays its path (route view). Clicking the background or Esc clears it.
-- **Details** (tab of the left panel): name, vendor, model, device type (kind), addresses, area, role, for end devices
-  whether the receiver is off when idle, parent and its availability, LQI at the parent, end-device children, relay
-  load, reception; its paths in the node view as text, one line per path with every hop and the reception at its
-  hearer ("To the coordinator: Sensor → Router 17 (RX 103) → Coordinator (RX 51)"), "path unknown" where a walk
-  stops, a goal that is unavailable named so ("All paths" collapses above 12 lines); findings with evidence, readings
-  in both directions with their reporters and ratings, routes, last seen, link to the Home Assistant device page.
+- **Details** (tab of the left panel; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the name in bold
+  and one line "type · role · vendor model" ("unavailable since …" below when it is down), then a segmented control
+  (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a small bold heading. The sub-tab stays
+  when the selection changes.
+  - **Communication:** "Communication path with the coordinator": one line per path with every hop and the reception
+    at its hearer, the value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …", an
+    assumed return path "back, assumed (source route): …" with a note, 5.1), "path unknown" where a walk stops, a goal
+    that is unavailable named so; in the node view "all" every path ("to X", "from X"), collapsed above 12 lines. Then
+    the parent (end devices: its availability, LQI at the parent, receiver when idle, possibly stale parents) or the
+    children ("Children (sleeping devices)", each with its model); findings with evidence; "Heard by n · hears m": the
+    reception, the 5 best readings of the device as rows of name, RX and rank relative to the reporter, the rest and
+    what the device hears behind "… all with RX and rank relative to the reporter"; "Tables and load": neighbour table
+    against the model's capacity, routing table, relay load, the routing entries. Debug mode adds the raw tables.
+  - **Entity:** the node card: badges for logical type, power source, receiver ("always listening" / "sleeps when
+    idle", MAC capability flags bit 3), frequency band (node descriptor) and stack revision ("Zigbee PRO r22", server
+    mask bits 9-15; 0 is "before r21"), then IEEE, network address in hex and decimal, manufacturer with its code,
+    model, firmware (device registry `sw_version`, else "unknown"), quirk (only an applied one), buffer and transfer
+    sizes, last heard. Then "Open in Home Assistant": device page, ZHA's Zigbee info (`/config/zha/device/<ieee>/
+    signature`, ZHA devices only), the area page, logbook and history filtered to the device's entities (`entity_id`
+    list), the entity list filtered to the device (`/config/entities?device=<id>`); links stay in the app. Then the
+    device's entities; a click opens Home Assistant's more-info dialog (event `hass-more-info`).
+  - **Cluster:** a table of every cluster of the signature (name, id as `0x0006`, direction In or Out), grouped by
+    endpoint with profile and device type names and ids; manufacturer-specific clusters (0xFC00-0xFFFF) carry the
+    vendor's name and a "manufacturer-specific" tag. A note says In is the server side (the device offers the
+    function), Out the client side (it uses it at others). A row (or its button) opens the cluster's details.
+- **Cluster details** (board M10): a modal dialog (focus kept inside, Esc, close button, focus back to the row): name and
+  id; device · endpoint · direction · profile; one sentence on what the cluster does and what In or Out means; the
+  attributes the public ZCL specification lists for it (id, name, type, side; [v1] catalogue: Basic, Power
+  Configuration, Identify, Groups, Scenes, On/Off, Level Control, Color Control, OTA, Poll Control, Temperature,
+  Humidity, Occupancy and Illuminance measurement, IAS Zone, Metering, Electrical Measurement, Diagnostics, Touchlink),
+  else "no attribute list known"; a **current value** where Home Assistant already knows it as the state of the
+  device's one obvious entity (On/Off → the light or switch state, current level → brightness, colour temperature →
+  `color_temp_kelvin`, the measurement clusters and battery percentage → the sensor of that device class), else "—";
+  the button **"Read values from the device"**, which reads the attributes of the device's side once, one after
+  another (`zha/devices/clusters/attributes/value`, 3.4), shows each result ("from the device", "no value", "no
+  answer", an error), stops at the first timeout (15 s) or error and sends nothing after the dialog closes; a hint for
+  sleepy devices; "Manage in ZHA" (`/config/zha/device/<ieee>/clusters`) and the note "The map is read-only: writing,
+  reporting and binding are done in ZHA's device management."
 - **Details on click** defaults to on for wide screens and off for narrow ones. It applies to a click on the map and
   in the Devices list: it opens the left panel on Details (a closed one, or one on Devices, or following on Details),
   never takes Findings away and on narrow screens never pushes the right sheet away; selecting from Findings or a
@@ -529,7 +593,8 @@ value counts as on), node view (`nodeView`: `coordinator` or `all`; anything els
 `#rrggbb`, anything else, `null` included, means the theme's own), labels (`labels`: `{ type, name, haName }`,
 booleans, a bad or missing value counts as its default: on, on, off), fill (`none`, `role` or `power`; anything else,
 including the former `reception`, counts as `none`), Details on click (`openDetailsOnSelect`: a boolean, else by
-width), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
+width), source route (`sourceRoute`: `off` or `assume`; anything else, a later `zigpy` included, counts as `assume`,
+5.1), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
 panel stored `receptionColors` (colour by reception) and `legendOpen` (the legend pill): `receptionColors: true` without
 a valid `pathColors` reads as coloured with the theme's colours; the next save leaves both keys out.
 
@@ -545,7 +610,7 @@ reads them again on reconnect.
 | Target | Measure |
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
-| Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. |
+| Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 37 of 44 with a measured or assumed down path; none without the coordinator's table. |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
@@ -556,6 +621,7 @@ reads them again on reconnect.
 
 ## 13. Out of scope
 
-Controlling devices; writing to a network other than a user-started topology request; installing anything into
-other add-ons; a history database; anything sent outside Home Assistant; claims of compatibility or certification.
+Controlling devices; writing attributes, reporting configuration, binding (ZHA's device page does those); any radio
+traffic other than a user-started topology request or a user-started read of a cluster's attribute values; installing
+anything into other add-ons; a history database; anything sent outside Home Assistant; claims of compatibility or certification.
 Later and small: one previous snapshot to show "since the last scan: links lost, parent changed".

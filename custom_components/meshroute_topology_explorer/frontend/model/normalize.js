@@ -8,6 +8,7 @@
 // (a later "last known" view may use them).
 import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "./parse.js";
 import { deviceKind, receiverOffWhenIdle } from "./kinds.js";
+import { entityIds } from "./signature.js";
 
 const ROLES = { Coordinator: "coordinator", Router: "router", EndDevice: "end device" };
 const isActive = (status) => typeof status === "string" && status.trim().toLowerCase() === "active";
@@ -108,7 +109,9 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
       id, registryId: (entry && entry.id) || null, nwk: parseAddress(r.nwk), role, label: name, labelKind: "model", name,
       // The name the integration gave the device in Home Assistant's registry (shown on the map on request, spec 8).
       haName: text(entry && entry.name) || text(r.name),
-      area: (areaId && reg.areas.get(areaId)) || null,
+      area: (areaId && reg.areas.get(areaId)) || null, areaId,
+      // For the Entity tab (spec 9.2): the registry's firmware text and the device's Home Assistant entities.
+      firmware: text(entry && entry.sw_version), entities: entityIds(r),
       vendor: text(r.manufacturer), model: text(r.model), powerSource,
       // Picture and sleep from the device's own signature (kinds.js); sleep may also come from a parent's entry below.
       kind: deviceKind(r.signature, role), sleepy: receiverOffWhenIdle(r.signature),

@@ -117,6 +117,36 @@ class GuardTest(unittest.TestCase):
                         "// text/plain and a/b in prose\n"})
         self.assertEqual(guard.check(ok), [])
 
+    def test_attribute_read_is_the_one_cluster_command(self):
+        # The user-started read of one attribute value (decision by Fabian Schwamborn, 2026-11-01) is allowed exactly.
+        ok = self.tree({"custom_components/x/p.js": SPDX
+                        + "callWS({ type: \"zha/devices/clusters/attributes/value\", ieee })\n"
+                        + "const k = 'zha/devices/clusters/attributes/value';\n"})
+        self.assertEqual(guard.check(ok), [])
+        denied = {
+            "list.js": "a('zha/devices/clusters')",
+            "attrs.js": "a('zha/devices/clusters/attributes')",
+            "commands.js": "a('zha/devices/clusters/commands')",
+            "longer.js": "a('zha/devices/clusters/attributes/value/write')",
+            "joined.js": "a('zha/devices/clusters/attributes/' + 'value')",
+            "template.js": "a(`zha/devices/clusters/attributes/${x}`)",
+            "bind.js": "a('zha/devices/bind')",
+            "unbind.js": "a('zha/devices/unbind')",
+            "group_bind.js": "a('zha/groups/bind')",
+            "write.py": "SERVICE = 'set_zigbee_cluster_attribute'",
+            "command.py": "SERVICE = 'issue_zigbee_cluster_command'",
+            "direct_bind.py": "SERVICE = 'issue_direct_zigbee_bind'",
+            "network.js": "a('zha/network/settings')",
+            "reconfigure.js": "a('zha/devices/reconfigure')",
+        }
+        for name, code in denied.items():
+            with self.subTest(name):
+                header = "# SPDX-License-Identifier: MIT\n" if name.endswith(".py") else SPDX
+                root = self.tree({f"custom_components/x/{name}": header + code + "\n"})
+                self.assertTrue(guard.check(root), code)
+        self.assertIn("zha/devices/clusters/attributes/value", guard.ALLOWED_COMMANDS)
+        self.assertEqual(guard.DENY_EXCEPT, ("zha/devices/clusters/attributes/value",))
+
     def test_virtualenv_is_skipped(self):
         root = self.tree({".venv/lib/x.py": "print(1)\n"})
         self.assertEqual(guard.check(root), [])

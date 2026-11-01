@@ -49,7 +49,7 @@ test("node view, path display and the path texts have words in English and Germa
   const keys = ["view.on_click", "view.nodeview_coordinator", "view.nodeview_all", "view.path_display", "view.grey",
     "view.coloured", "lane.rx", "lane.path_unknown", "details.paths_coordinator",
     "details.paths_all", "details.paths_note", "details.path_up", "details.path_down", "details.path_out",
-    "details.path_in", "details.path_hop", "details.path_unknown", "details.path_unavailable", "details.paths_none",
+    "details.path_in", "details.path_down_assumed", "details.rx", "details.path_unknown", "details.path_unavailable", "details.paths_none",
     "legend.link.path", "legend.link.path-implied", "legend.link.path-end", "legend.link.reception"];
   for (const key of keys) {
     assert.ok(key in STRINGS.en && key in STRINGS.de, key);
@@ -95,4 +95,49 @@ test("the new menu: every control on the map and in both panels has words in Eng
   for (const gone of ["options.menu", "menu.settings", "tab.settings", "legend.pill", "selection.details", "links.colors"]) {
     assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
   }
+});
+
+test("Details, cluster popup, device rows and the source-route stage use the owner's words (boards M1-M4, M8-M10)", () => {
+  const words = {
+    "details.tab_communication": "Kommunikation", "details.tab_entity": "Entität", "details.tab_cluster": "Cluster",
+    "details.paths_coordinator": "Kommunikationsweg mit dem Koordinator", "details.path_up": "hin", "details.path_down": "zurück",
+    "details.children_title": "Kinder (schlafende Geräte)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
+    "details.readings_all": "\u2026 alle {count} mit RX und Rang relativ zum Messenden", "details.tables_title": "Tabellen und Last",
+    "rank.short": "Rang {pct} %", "node.title": "Knoten", "node.rx_on": "immer empfangsbereit", "node.band_2400": "2,4 GHz",
+    "node.firmware": "Firmware", "node.quirk_none": "keiner", "node.buffer_value": "{n} Byte, Transfer {transfer} Byte",
+    "node.last_heard": "Zuletzt gehört", "node.unknown": "unbekannt",
+    "ha.title": "In Home Assistant öffnen", "ha.device": "Geräteseite", "ha.zha": "Zigbee-Infos (ZHA)", "ha.area": "Bereich {name}",
+    "ha.logbook": "Logbuch", "ha.history": "Verlauf", "ha.entities": "Entitätenliste",
+    "ha.entities_title": "Entitäten in Home Assistant ({count}) \u00b7 Klick öffnet den Detaildialog",
+    "cluster.in": "Eingang", "cluster.out": "Ausgang", "cluster.col_direction": "Richtung", "cluster.manufacturer": "herstellereigen",
+    "cluster.endpoint": "Endpunkt {n}", "attr.title": "Bekannte Attribute laut Zigbee-Spezifikation", "attr.col_value": "Aktueller Wert",
+    "read.button": "Werte am Gerät lesen", "read.manage": "In ZHA verwalten",
+    "read.read_only": "Die Karte ist nur lesend: Schreiben, Reporting und Binden gehen in der Geräteverwaltung von ZHA.",
+    "devices.direct": "direkt am Koordinator", "devices.via": "über {name}", "devices.sleeps": "schläft", "devices.network": "Netzwerk",
+    "view.source_route": "Rückwege ohne Tabelleneintrag (Source Route)", "view.sr_off": "aus: Rückweg bleibt \u201eunbekannt\u201c",
+    "view.sr_assume": "annehmen: Umkehr des Hinwegs (gepunktet)", "view.sr_zigpy": "aus zigpy lesen",
+    "view.sr_experimental": "experimentell",
+  };
+  for (const [key, text] of Object.entries(words)) {
+    assert.equal(STRINGS.de[key], text, key);
+    assert.ok(STRINGS.en[key] && STRINGS.en[key] !== key, `en ${key}`);
+  }
+  const en = translator("en");
+  assert.equal(en("read.button"), "Read values from the device");
+  assert.equal(en("read.read_only"), "The map is read-only: writing, reporting and binding are done in ZHA's device management.");
+  assert.equal(en("view.source_route"), "Return paths without a table entry (source route)");
+  // The Details rebuilt in cards left these without callers.
+  for (const gone of ["details.path_hop", "details.open_ha", "details.heard_by", "details.col_lqi"]) {
+    assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
+  }
+});
+
+test("area names from Home Assistant's hass.areas win over the registry's; the coordinator is translated", () => {
+  const network = sampleNetwork();
+  const device = network.devices.find((d) => d.areaId);
+  const out = localize(network, translator("de"), { [device.areaId]: { name: "Wohnzimmer" } });
+  assert.equal(out.devices.find((d) => d.id === device.id).area, "Wohnzimmer");
+  assert.equal(localize(network, translator("de")).devices.find((d) => d.id === device.id).area, device.area, "without: the registry");
+  assert.equal(localize(network, translator("de"), { [device.areaId]: { name: " " } }).devices.find((d) => d.id === device.id).area,
+    device.area, "an empty name does not win");
 });

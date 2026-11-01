@@ -2,7 +2,8 @@
 // The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01): everything that changes
 // how the map looks, in this order: communication paths (the three link classes), path display (grey, or coloured by
 // reception with the user's own colours for bad, medium and good), what a click on a device does (open details, which
-// paths it shows), node distance (density) with an info button, symbol fill, labels on the map; then debug mode (not
+// paths it shows), return paths without a table entry (source route: off, assume, and "read from zigpy" shown disabled
+// until it exists), node distance (density) with an info button, symbol fill, labels on the map; then debug mode (not
 // stored), "Read data again", "Release all pins", the scan in debug mode, and where the settings are kept. Real
 // checkboxes, radios and colour inputs inside labels, so state is announced and every row is a 44 px target.
 // Runs in the browser.
@@ -11,6 +12,7 @@ import { DENSITY_NAMES, PATH_STOPS } from "./settings.js";
 import { LINK_CLASSES } from "./links-rows.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
 import { NODE_VIEWS } from "../model/node-paths.js";
+import { SOURCE_ROUTE_MODES } from "../model/source-routes.js";
 
 /** Fill `container`. ctx: { t, settings (sanitized), openOnSelect (effective "Details on click"), dark (the map's
  *  theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running } or null), client
@@ -40,20 +42,19 @@ export function renderView(container, ctx) {
   const display = group(t("view.path_display"), h("div", { class: "radio-line" },
     radio("pathMode", "grey", t("view.grey"), !coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "grey" } })),
     radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } }))));
-  if (coloured) {
-    const defaults = receptionStops(Boolean(ctx.dark));
-    const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
-      // "change" only: the native picker would close if the tab were rebuilt while it is open.
-      h("input", { type: "color", id: `${id}-color-${key}`, value: pc[key] || defaults[i], "aria-label": t(`view.color_${key}_label`),
-        on: { change: (e) => ctx.onChange({ pathColors: { ...pc, [key]: e.target.value } }) } }),
-      h("span", { text: t(`view.${key}`) })));
-    const custom = PATH_STOPS.some((key) => pc[key]);
-    display.append(h("div", { class: "color-row" }, pickers,
-      h("span", { class: "muted small color-note", text: t("view.colors_note") })));
-    if (custom) {
-      display.append(h("button", { type: "button", class: "link small", id: `${id}-colors-reset`, text: t("view.colors_reset"),
-        on: { click: () => ctx.onChange({ pathColors: { mode: "coloured", bad: null, medium: null, good: null } }) } }));
-    }
+  // The pickers stay in view under "coloured by reception" (board M2), dimmed and inert while paths are grey.
+  const defaults = receptionStops(Boolean(ctx.dark));
+  const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
+    // "change" only: the native picker would close if the tab were rebuilt while it is open.
+    h("input", { type: "color", id: `${id}-color-${key}`, value: pc[key] || defaults[i], "aria-label": t(`view.color_${key}_label`),
+      disabled: !coloured, on: { change: (e) => ctx.onChange({ pathColors: { ...pc, [key]: e.target.value } }) } }),
+    h("span", { text: t(`view.${key}`) })));
+  const custom = PATH_STOPS.some((key) => pc[key]);
+  display.append(h("div", { class: `color-row${coloured ? "" : " off"}` }, pickers,
+    h("span", { class: "muted small color-note", text: t("view.colors_note") })));
+  if (coloured && custom) {
+    display.append(h("button", { type: "button", class: "link small", id: `${id}-colors-reset`, text: t("view.colors_reset"),
+      on: { click: () => ctx.onChange({ pathColors: { mode: "coloured", bad: null, medium: null, good: null } }) } }));
   }
   container.append(display);
 
@@ -62,6 +63,16 @@ export function renderView(container, ctx) {
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on)),
     NODE_VIEWS.map((v) => radio("nodeView", v, t(`view.nodeview_${v}`), settings.nodeView === v,
       () => ctx.onChange({ nodeView: v })))));
+
+  // Return paths without a table entry (source route; decision by Fabian Schwamborn, 2026-11-01): off or assume; reading
+  // the route records from zigpy is announced but not built, so its radio is disabled and says "coming later".
+  const zigpy = h("label", { class: "check-row disabled" },
+    h("input", { type: "radio", name: `${id}-sourceRoute`, value: "zigpy", disabled: true, "aria-describedby": `${id}-sr-later` }),
+    h("span", { text: t("view.sr_zigpy") }), h("span", { class: "tag", text: t("view.sr_experimental") }),
+    h("span", { class: "muted small", id: `${id}-sr-later`, text: t("view.sr_later") }));
+  container.append(group(t("view.source_route"),
+    SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
+      () => ctx.onChange({ sourceRoute: v }))), zigpy));
 
   // Node distance (density), with a note behind an info button (a toggletip: works with touch and keyboard alike).
   const noteId = `${id}-density-note`;

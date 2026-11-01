@@ -29,11 +29,22 @@ const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", 
 const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_scan_over", stopped: "status.short_scan_over",
   "not-sent": "status.short_scan_not_sent" };
 
+/** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
+ *  (model/source-routes.js sourceRouteSummary: { mode, count }); null when no device is concerned. Long and short form,
+ *  [key, params, longKey] like the other parts. */
+export function sourceRoutePart(summary, compact = false) {
+  if (!summary || !summary.count) return null;
+  const long = summary.mode === "off" ? "status.sr_off" : "status.sr_assumed";
+  const short = summary.mode === "off" ? "status.short_sr_off" : "status.short_sr_assumed";
+  return compact ? [short, { count: summary.count }, long] : [long, { count: summary.count }];
+}
+
 /** Parts of the status line as [key, params] for the translator, in order: source, tables x of y (available routers,
  *  coordinator not counted), devices in at least one table, completeness, "observed unchanged since" when known
  *  (formatted time, from the observations), the state of a followed scan (spec 6, 9.4), then the hint that ZHA scans
  *  by itself. compact (narrow screens): short forms in at most two lines, without the source and the hint; each part
- *  then carries a third element, the key of its long form, which the panel offers as the part's description. */
+ *  then carries a third element, the key of its long form, which the panel offers as the part's description. The
+ *  source-route part (sourceRoutePart) is not among them: the panel sets it apart on the right. */
 export function statusParts(network, { unchangedSince = null, scan = null, compact = false } = {}) {
   const s = network.status;
   if (compact) {

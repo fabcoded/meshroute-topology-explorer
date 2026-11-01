@@ -16,6 +16,7 @@ import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
+import { sourceRouteMode } from "../model/source-routes.js";
 import { DEFAULT_LINKS, legendEntries } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
@@ -86,7 +87,8 @@ export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
    *  "role" or "power"), links (class switches), nodeView ("coordinator" or "all": what a selected device shows),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
-   *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label), texts
+   *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
+   *  sourceRoute ("assume" or "off": return paths without a table entry, model/source-routes.js), texts
    *  ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light", ... } }), seed, debug, env (timers and
    *  media queries, injectable for tests). */
   constructor(canvas, options = {}) {
@@ -105,6 +107,8 @@ export class GraphView extends EventTarget {
     this.nodeView = NODE_VIEWS.includes(options.nodeView) ? options.nodeView : DEFAULT_NODE_VIEW;
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
+    // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "off" not.
+    this.sourceRoute = sourceRouteMode(options.sourceRoute);
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
       kinds: {}, ...(options.texts || {}) };
     this.width = 0;
@@ -199,6 +203,15 @@ export class GraphView extends EventTarget {
   setNodeView(mode) {
     if (!NODE_VIEWS.includes(mode) || mode === this.nodeView) return;
     this.nodeView = mode;
+    this._invalidate();
+  }
+
+  /** Return paths without a table entry (spec 5.1, 9.1): "assume" draws the way up reversed as assumed, "off" leaves
+   *  them unknown; anything else counts as "assume". Drawing only. */
+  setSourceRoute(mode) {
+    const next = sourceRouteMode(mode);
+    if (next === this.sourceRoute) return;
+    this.sourceRoute = next;
     this._invalidate();
   }
 
@@ -545,7 +558,7 @@ export class GraphView extends EventTarget {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, links: this.links, selected: this.selected, hovered: this.hovered, fps: this._fps,
       fill: this.fill, nodeView: this.nodeView, receptionColors: this.receptionColors, labels: this.labels,
-      texts: this.texts,
+      typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);
   }

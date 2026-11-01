@@ -64,7 +64,7 @@ test("the links legend is built from the graph's entries, with words for every e
         assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), `${lang} ${row.id}`);
       }
       const lanes = rows.filter((r) => r.kind === "lane");
-      assert.deepEqual(lanes.map((r) => r.id), ["up", "route", "heard", "implied", "path", "path-implied"]);
+      assert.deepEqual(lanes.map((r) => r.id), ["up", "route", "heard", "implied", "path", "path-implied", "path-assumed"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
       // With coloured paths, the scale joins the legend, in words in both languages.
       const colored = legendEntries(resolveTheme({ background }), { colored: true });

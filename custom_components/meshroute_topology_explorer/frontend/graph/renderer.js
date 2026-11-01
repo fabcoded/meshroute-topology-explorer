@@ -116,14 +116,15 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
 
 /** The paths of node i in a node view ("coordinator" or "all", model/node-paths.js) as node indices, cached per scene:
  *  { hops: Map "s>h" -> { s, h, dir } (each directed hop once, dir the reception at h), ends: [{ at, toward }]
- *  (incomplete paths), nodes: Set of every device on a path or named as a goal, paths (the model's, for tests) }. */
-export function scenePaths(scene, i, mode = DEFAULT_NODE_VIEW) {
-  const key = `${i}|${mode}`;
+ *  (incomplete paths), nodes: Set of every device on a path or named as a goal, paths (the model's, for tests) }.
+ *  sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "off" leaves them unknown. */
+export function scenePaths(scene, i, mode = DEFAULT_NODE_VIEW, sourceRoute = "off") {
+  const key = `${i}|${mode}|${sourceRoute}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
   const ends = [];
   const nodes = new Set([i]);
-  const paths = scene.pathNet ? nodePaths(scene.pathNet, scene.nodes[i].id, mode) : [];
+  const paths = scene.pathNet ? nodePaths(scene.pathNet, scene.nodes[i].id, mode, { sourceRoute }) : [];
   const at = (id) => scene.index.get(id);
   const seenEnds = new Set();
   for (const p of paths) {
@@ -131,7 +132,10 @@ export function scenePaths(scene, i, mode = DEFAULT_NODE_VIEW) {
     for (const hop of p.hops) {
       const s = at(hop.sender);
       const h = at(hop.hearer);
-      if (s === undefined || h === undefined || hops.has(`${s}>${h}`)) continue;
+      if (s === undefined || h === undefined) continue;
+      // Each directed hop once; a hop that a measured walk also takes is drawn as that walk's, never as assumed.
+      const had = hops.get(`${s}>${h}`);
+      if (had && !(had.dir.assumed && !hop.assumed)) continue;
       hops.set(`${s}>${h}`, { s, h, dir: hop });
     }
     const end = unknownEnd(p);
@@ -255,13 +259,20 @@ function strokeLanes(ctx, items) {
   return items.length;
 }
 
+/** Whether the type line of labels is drawn at zoom k: from typeZoom (the working scale) up; always without one. */
+export function typeShown(k, typeZoom) {
+  return typeof typeZoom !== "number" || !Number.isFinite(typeZoom) || k >= typeZoom * (1 - 1e-9);
+}
+
 const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(",")}|${style.head}`;
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
  *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), links (class switches), nodeView
  *  ("coordinator" | "all": what the focused device's paths are), receptionColors (lanes coloured by their rating),
- *  labels ({ type, name, haName }: lines of a label block), texts ({ uncertain, parent, route, rx, pathUnknown,
- *  kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh } arrays
+ *  labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is drawn:
+ *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume": assumed return paths
+ *  on the focus's paths), texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) };
+ *  pos: { x, y, pinned, mesh } arrays
  *  by node index; measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs), lanes, glyphs, values, labels, dropped, classes (pairs per
  *  class), order (class of each pair in drawing order), symbols (devices drawn), size (symbol size on screen),
@@ -282,7 +293,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const focusSet = new Set(focus);
   // The paths shown are the selection's; without a selection the device under the pointer previews its own.
   const pathNode = view.selected >= 0 ? view.selected : view.hovered;
-  const route = pathNode >= 0 ? scenePaths(scene, pathNode, view.nodeView || DEFAULT_NODE_VIEW) : null;
+  const route = pathNode >= 0 ? scenePaths(scene, pathNode, view.nodeView || DEFAULT_NODE_VIEW, view.sourceRoute || "off") : null;
   const near = new Set(focus);
   if (route) for (const j of route.nodes) near.add(j);
   const margin = 40;
@@ -371,7 +382,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
-      const style = pathLaneStyle(dir.state, dir.rating, theme, { colored });
+      const style = pathLaneStyle(dir.state, dir.rating, theme, { colored, assumed: dir.assumed === true });
       items.push({ lane, style, key: styleKey(style) });
       let text = laneValue(dir, texts);
       if (view.debug && dir.state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
@@ -447,6 +458,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const placed = obstacles; // labels become obstacles for later labels
+  // The type line shows from the working scale up (A4h review, Fabian Schwamborn, 2026-11-01): the overview stays calm.
+  const shownLabels = view.labels || DEFAULT_LABELS;
+  const lineSwitches = typeShown(k, view.typeZoom) ? shownLabels : { ...shownLabels, type: false };
   let values = 0;
   let shown = 0;
   let dropped = 0;
@@ -492,7 +506,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const label = (i, forced) => {
     if (!onScreen(i)) return;
     const node = scene.nodes[i];
-    const { above, below } = labelLines(node, view.labels || DEFAULT_LABELS, texts.kinds || {});
+    const { above, below } = labelLines(node, lineSwitches, texts.kinds || {});
     if (!above.length && !below.length) return;
     const options = places(sx[i], sy[i], above.map(lineOf), below.map(lineOf));
     let spot = options.find((boxes) => boxes.every((b) => !placed.hits({ ...rectOf(b), owner: i }))) || null;
