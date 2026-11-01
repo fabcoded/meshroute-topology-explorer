@@ -390,6 +390,11 @@ async function drive() {
       [...card.querySelectorAll("details.theory-row")].slice(0, n).forEach((row) => { row.open = true; });
     }
   }
+  if (q.get("scroll") === "theory") { // the "Paths to other devices" card to the top of the open panel
+    await sleep(100);
+    const card = el.shadowRoot.querySelector("details.theory");
+    if (card) panel.body.scrollTop += card.getBoundingClientRect().top - panel.body.getBoundingClientRect().top;
+  }
   if (q.get("scroll") === "end") { await sleep(100); panel.body.scrollTop = panel.body.scrollHeight; }
   // scan=dialog opens the scan's confirmation; scan=run also confirms it (debug mode is switched on for both).
   if (q.get("scan")) {
