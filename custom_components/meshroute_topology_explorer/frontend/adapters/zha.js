@@ -10,6 +10,7 @@ import { normalizeIeee, parseAddress } from "../model/parse.js";
 import { isConnectionLost } from "./ws.js";
 import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
+import { TEXTS } from "./zha-texts.js";
 
 /** Decide which empty/error state applies before any data is shown (spec 9.4): not an administrator, or ZHA not
  *  loaded (its config entries name none in state "loaded"). Returns a phase key or null. */
@@ -114,4 +115,5 @@ export const adapter = Object.freeze({
   devicePage: (device, tab = "signature") => ({ key: "zha", path: zhaDevicePath(device.id, tab) }),
   scan: Object.freeze({ send: sendScan, Follower: ScanFollower, differ: tablesDiffer }),
   Observations: ObservationsClient,
+  texts: TEXTS,
 });

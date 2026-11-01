@@ -310,7 +310,7 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .sub-option.off { opacity: 0.45; }
 .check-row.sub-option.off { cursor: default; }
 .group-note { margin-top: 2px; }
-/* A network type's one-line note in place of a group it does not have (Thread: no path views). */
+/* A network type's one-line note in place of a group it does not have (one without path views). */
 .view-note { margin: 0 0 18px; }
 .info-note { margin: 2px 0 6px; }
 .findings-jump { align-self: flex-start; min-height: 32px; }

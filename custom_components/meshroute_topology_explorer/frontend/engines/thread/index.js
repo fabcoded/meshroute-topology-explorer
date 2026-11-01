@@ -9,6 +9,7 @@ import { renderThreadDetails } from "./details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 import * as threadScene from "./scene.js";
+import { TEXTS } from "./texts.js";
 
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
@@ -61,6 +62,8 @@ export const thread = Object.freeze({
   scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
     overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
     anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
+  /** Its own words, { en, de } (texts.js), merged into the panel's tables by ui/i18n.js. */
+  texts: TEXTS,
   /** Its own settings keys: none. */
   settings: SETTINGS,
 });

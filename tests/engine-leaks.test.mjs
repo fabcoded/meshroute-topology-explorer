@@ -188,15 +188,40 @@ test("5b: shared code reaches the engines only through engines/index.js", async 
   }
 });
 
-test("6: the shared code has no network words", { todo: "steps 6-10" }, () => {
+/** Source text without comments (line and block comments outside string literals; main session decision
+ *  2026-11-01: leak test 6 counts identifiers and string literals, not comments). */
+function withoutComments(src) {
+  let out = "";
+  let quote = null;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\") { out += next; i++; } else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; out += c; continue; }
+    if (c === "/" && next === "/") { while (i < src.length && src[i] !== "\n") i++; out += "\n"; continue; }
+    if (c === "/" && next === "*") { i += 2; while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++; i++; continue; }
+    out += c;
+  }
+  return out;
+}
+
+test("6: the shared code has no network words (identifiers and string literals, not comments)", () => {
   const tokens = [/\bzha\b/i, /\bzigpy\b/i, /\bthread\b/i, /\bmatter\b/i, /sourceRoute/, /PATH_STAGES/, /hasRoutes/,
     /nodePaths/, /theoretical/, /thread-lqi/, /\.source ===/, /routes === false/];
   const roles = /\b(coordinator|end device|border router)\b/;
-  for (const rel of sharedFiles().filter((f) => f === "panel.js" || f.startsWith("graph/") || f.startsWith("ui/"))) {
-    const src = readFileSync(new URL(rel, FRONTEND), "utf8");
+  const shared = sharedFiles().filter((f) => f === "panel.js" || f.startsWith("graph/") || f.startsWith("ui/"));
+  assert.ok(shared.length > 30, `${shared.length} shared files`);
+  for (const rel of shared) {
+    const src = withoutComments(readFileSync(new URL(rel, FRONTEND), "utf8"));
     for (const token of tokens) assert.doesNotMatch(src, token, rel);
     if (rel !== "graph/symbols.js" && rel !== "graph/palette.js") assert.doesNotMatch(src, roles, rel);
   }
+  // The stripper keeps strings and drops comments.
+  assert.equal(withoutComments('a = "x // y"; // zha\nb /* matter */ = 1;'), 'a = "x // y"; \nb  = 1;');
 });
 
 test("7: the Thread focus is the device's own lanes: no band, no ends", async () => {
@@ -307,9 +332,54 @@ test("12: Thread never offers the scan: no scan button in debug mode without cap
       canScan: Boolean(zigbeeNet.capabilities.scan) })), true);
   });
 
-test("13: every text key of the Thread engine resolves without the Zigbee table", { todo: "step 9" }, async () => {
-  const texts = await mod("engines/thread/texts.js");
-  assert.ok(texts && Object.keys(texts).length);
+test("13: every text key of the Thread engine resolves without the Zigbee table", async () => {
+  const { thread, threadNet } = await engines();
+  const { SHARED, mergeTexts, translator } = await mod("ui/i18n.js");
+  const { ENGINES } = await mod("engines/index.js");
+  const { ADAPTERS } = await mod("adapters/index.js");
+  const { linkLegendRows } = await mod("ui/link-legend.js");
+  const { deviceRows, rowMeta } = await mod("ui/device-list.js");
+  const { roleText } = await mod("ui/format.js");
+  const { resolveTheme } = await mod("graph/palette.js");
+  // The shared tables, the Thread engine's and the Matter adapter's: no Zigbee and no ZHA table.
+  const matter = ADAPTERS.find((a) => a.key === "thread");
+  const base = translator("en", null, mergeTexts([SHARED, thread.texts, matter.texts]));
+  const used = new Set();
+  const t = Object.assign((key, params) => { used.add(key); return base(key, params); }, base,
+    { has: (key) => { used.add(key); return base.has(key); } });
+  // A Thread network with every finding kind, a leader, routers, sleepy and awake end devices and a border router.
+  const pan = "00112233aabbcc01";
+  const node = (id, role, extra = {}) => ({ id: String(id), kind: "matter", network_type: "thread", node_id: id, role,
+    available: true, rloc16: 0x400 * id, ext_address: `AABBCCDD000000${String(id).padStart(2, "0")}`, ext_pan_id: pan,
+    ...extra });
+  const weak = { lqi: 1, rssi: -90 };
+  const net = thread.build({ nodes: [node(1, "leader"), node(2, "router", { available: false }), node(3, "end_device"),
+    node(4, "sleepy_end_device"), node(5, "end_device"), node(6, null, { kind: "border_router", available: null })],
+  connections: [[1, 2], [2, 3], [1, 4], [6, 1]].map(([a, b]) => ({ source: String(a), target: String(b), network: "thread",
+    source_to_target: weak, target_to_source: weak })) }, {});
+  const theme = resolveTheme({});
+  for (const network of [threadNet, net]) {
+    const name = (id) => (network.devices.find((d) => d.id === id) || { label: id }).label;
+    for (const g of thread.options(network, {})) for (const key of [g.legend, g.note]) if (key) t(key);
+    linkLegendRows(thread.legend(theme, { debug: true, heard: true, colored: true }), t);
+    for (const compact of [false, true]) {
+      for (const n of [network, { ...network, status: { ...network.status, borderRouters: 0 } }]) {
+        const { parts } = thread.status(n, { compact, collected: { time: "12:00", age: "now" } });
+        for (const [key, params, long] of parts) { t(key, params); if (long) t(long, params); }
+      }
+    }
+    for (const f of network.findings) thread.findings.text(f, t, name);
+    for (const row of deviceRows(network)) rowMeta(row, t);
+    for (const d of network.devices) {
+      roleText(d.role, t);
+      thread.details(new FakeNode("div"), { network, t, id: d.id, onSelect() {}, onFindings() {} });
+    }
+  }
+  assert.ok(used.size > 30, `${used.size} keys`);
+  assert.deepEqual([...used].filter((key) => !base.has(key)), [], "keys only the Zigbee or ZHA tables hold");
+  // And the Thread table holds nothing the Zigbee engine owns: the two engines' tables share only role words.
+  const shared = Object.keys(thread.texts.en).filter((key) => key in ENGINES.zigbee.texts.en);
+  assert.deepEqual(shared.sort(), ["legend.symbol_end", "legend.symbol_end_sleepy", "role.end device"]);
 });
 
 test("14: Zigbee parity: the engine builds exactly what the data model builds", async () => {

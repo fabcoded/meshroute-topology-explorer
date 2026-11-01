@@ -4,6 +4,7 @@
 // No DOM. node --test tests/
 import { ENGINES } from "../engines/index.js";
 import { errorText, isConnectionLost } from "./ws.js";
+import { TEXTS } from "./matter-texts.js";
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (the server's cached snapshot; refresh true reads every node's tables over the radio and is never sent from here).
@@ -60,4 +61,5 @@ export const adapter = Object.freeze({
   devicePage: null,
   scan: null,
   Observations: null,
+  texts: TEXTS,
 });

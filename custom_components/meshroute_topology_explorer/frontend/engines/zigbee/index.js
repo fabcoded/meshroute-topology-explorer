@@ -13,6 +13,7 @@ import { zigbeeOptions } from "./options.js";
 import { statusLine } from "./status.js";
 import { settings } from "./settings.js";
 import * as zigbeeScene from "./scene.js";
+import { TEXTS } from "./texts.js";
 
 export const zigbee = Object.freeze({
   key: "zigbee",
@@ -58,6 +59,8 @@ export const zigbee = Object.freeze({
   scene: Object.freeze({ lanes: zigbeeScene.lanes, classify: zigbeeScene.classify, viewKey: zigbeeScene.viewKey,
     overview: zigbeeScene.overview, focus: zigbeeScene.focus, classes: zigbeeScene.CLASSES,
     anchors: zigbeeScene.anchors, labelRank: zigbeeScene.labelRank, fit: zigbeeScene.FIT }),
+  /** Its own words, { en, de } (texts.js), merged into the panel's tables by ui/i18n.js. */
+  texts: TEXTS,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
    *  (ui/settings.js) keeps every other key. */
   settings,

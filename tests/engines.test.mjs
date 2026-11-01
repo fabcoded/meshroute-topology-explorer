@@ -28,7 +28,7 @@ const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx
 /** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
   status: "function", findings: "object", connection: "function", details: "function", options: "function",
-  settings: "object", scene: "object", springQuality: "function", addresses: "function" };
+  settings: "object", scene: "object", springQuality: "function", addresses: "function", texts: "object" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);
@@ -166,3 +166,15 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
   assert.deepEqual(threadGroups.map((g) => [g.legend, g.controls.length]), [[null, 0]]);
   assert.equal(t(threadGroups[0].note), "Thread data names neighbours and parents, not routes; there are no path views.");
 });
+
+test("texts (step 9): engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
+  const { STRINGS, SHARED, mergeTexts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
+  for (const engine of Object.values(ENGINES)) {
+    assert.ok(Object.isFrozen(engine.texts.en) && Object.keys(engine.texts.en).length > 0, engine.key);
+    for (const key of Object.keys(engine.texts.en)) assert.equal(STRINGS.en[key], engine.texts.en[key], key);
+    for (const key of Object.keys(engine.texts.en)) assert.equal(key in SHARED.en, false, `${engine.key}: ${key} also shared`);
+  }
+  assert.throws(() => mergeTexts([{ en: { a: "x" } }, { en: { a: "y" } }]), /differs/);
+  assert.deepEqual(mergeTexts([{ en: { a: "x" } }, { en: { a: "x" } }]).en, { a: "x" });
+});
+
