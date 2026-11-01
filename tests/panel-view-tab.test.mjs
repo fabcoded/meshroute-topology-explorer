@@ -33,7 +33,7 @@ function render(stored) {
   const all = container.walk();
   const radios = all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-paths");
   const box = all.find((n) => n.tag === "input" && n.type === "checkbox" && n.attrs.id === "v-paths-heard");
-  return { radios, box, patches };
+  return { radios, box, patches, all };
 }
 
 test("View tab: two stage radios and one heard-only checkbox, calm by default", () => {
@@ -50,6 +50,12 @@ test("View tab: the checkbox follows the settings, in both stages, and migrates 
     assert.equal(radios.find((r) => r.checked).value, stage, JSON.stringify(stored));
     assert.equal(box.checked, heard, JSON.stringify(stored));
   }
+});
+
+test("View tab: the info note about heard only appears in stage 2 only", () => {
+  const info = (stored) => render(stored).all.filter((n) => n.attrs.id === "v-heard-info" || n.attrs.id === "v-heard-note");
+  assert.equal(info({ paths: "coordinator" }).length, 0);
+  assert.equal(info({ paths: "all" }).length, 2, "button and note");
 });
 
 test("View tab: a change of the checkbox or a radio is reported at once, as one setting", () => {

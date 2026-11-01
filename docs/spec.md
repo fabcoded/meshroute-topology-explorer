@@ -390,7 +390,9 @@ the centre).
     of the selection's theoretical paths (5.7). Ranked by the best rating at the hearer of the pair's heard lanes,
     then LQI. A partner is a whole pair, not a single lane without traffic: counted per lane, the best would mostly be
     the ways back of up hops. On the sample the second stage leaves almost no partner (12), because the theoretical
-    paths take every measured neighbour lane (rule 4).
+    paths take every measured neighbour lane (rule 4). Decision by Fabian Schwamborn, 2026-11-01: the
+    checkbox stays active in both stages; in the second stage an info button beside it explains this ("Stage 2
+    already draws every measured neighbour as a possible direct way, so the checkbox rarely adds a partner there").
   - A lane keeps its **strongest class** in every state (main session, 2026-11-01): up and measured down, then
     assumed down, then a route (a route walk, or the backbone by a table, neighbour or parent link), then computed
     only, then heard. A hop of a selected or hovered device's tree on someone's up or down lane stays solid; only its
@@ -545,7 +547,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   the left panel shows Findings, a click does not switch it. **Findings:** as below. **Details:** 9.2.
 - **View** tab (board M2), in this order: **Communication paths** (one radio group of the two stages of 7.1, each
   with a one-line hint, below it the checkbox "heard only (best 3)" with its hint "needs a selection: adds the device's 3
-  best heard-only partners, in either stage", then "The second stage includes the first. Debug shows everything."); **Path
+  best heard-only partners, in either stage" (in the second stage with an info button for the note above), then "The second stage includes the first. Debug shows everything."); **Path
   display** (grey or coloured by reception; under it three colour pickers bad, medium, good, prefilled with the
   theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
