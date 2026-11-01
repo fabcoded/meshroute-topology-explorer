@@ -290,7 +290,8 @@ the centre).
   springs, positions and fitting stay as they are, and a class that is off leaves the legend (debug mode keeps it).
 - Selecting a device draws its up path as a wide translucent band under its lanes, puts each of its lanes' values
   (raw LQI; "Parent" or "Route" on a lane a parent link or route implies) beside the lane, and dims everything that
-  does not touch it to about 20 %; hover previews the same without the band.
+  does not touch it to about 20 %; hover previews the same without the band. These values are how reception appears
+  at the arrows (at the hearer end of each lane); the overview shows the rating by width only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
   keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
@@ -343,15 +344,16 @@ user-supplied image, or map tiles from an address the user configured.
   place on the ring (7.1).
 - **Size:** one size for every device, 32 px at zoom 1, growing with the zoom up to 1.5 times (48 px), never below a
   minimum on screen of 20 px (provisional: the minimum is not decided yet). Symbols never change with the density.
-- The symbol's background carries the fill; its lines take the theme's foreground or background, whichever contrasts
-  more with that fill (at least 3:1 on every fill the map uses). A device without a value under the current fill
+- The symbol's background carries the fill. Default **none**: every symbol is neutral grey (`#c5c8cb` on light themes,
+  `#5c6166` on dark ones) with lines in the theme's foreground; reception is not a fill but is shown at the arrows
+  (decision by Fabian Schwamborn, 2026-11-01). Under role and power the lines take the theme's foreground or
+  background, whichever contrasts more with that fill (at least 3:1 on every fill the map uses). A device without a value under the current fill
   (not rated, no category) is grey with a slash across its background; per theme the grey lies beyond the rating
   scale's lightness, on the background's side, at least 15 ΔE from the scale and from the background.
-- One selectable **fill**: reception (default), role, power source; relay load in v1.1; time since last heard later.
+- One selectable **fill**: none (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
-  dark Home Assistant themes. Colour never carries meaning alone. The reception fill uses the part of cividis that
-  keeps 3:1 against the theme's background. Links carry no colour: their class shows by dash (solid, dots, dashes)
+  dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour: their class shows by dash (solid, dots, dashes)
   and the foreground or grey, their rating by width (7.1).
 - Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
   shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
@@ -393,8 +395,7 @@ user-supplied image, or map tiles from an address the user configured.
   count, links, fit). Links opens a popover that stays open while switching: a checkbox per link class (7.1) and
   below them the density (7.1) as a single choice, real checkboxes and radios with 44 px rows; the zoom group bottom right; the legend bottom left, a pill "Legend ›" that
   expands to the current fill and the three link classes. The links part of every legend comes from the graph's
-  own legend entries (7.1). The reception fill is named "Receive" (German "Empfang"): how well the neighbours receive
-  the device, its best rank at a neighbour.
+  own legend entries (7.1). The legend says that the number at an arrow is the LQI at the hearer.
 
 ### 9.2 Selection and details
 - Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
@@ -463,7 +464,7 @@ picture under a banner and reads again when the connection is back.
 ## 11. Settings per network [v1]
 
 View, direction (v1.1), density, link class switches (`links`: `{ up, route, heard }`, booleans, a bad or missing
-value counts as on), fill, "open details on select", whether the legend is expanded (`legendOpen`; by
+value counts as on), fill (`none`, `role` or `power`; anything else, including the former `reception`, counts as `none`), "open details on select", whether the legend is expanded (`legendOpen`; by
 default expanded on wide panels, collapsed on narrow ones), pinned positions; later geo positions and map background
 address (empty by default).
 

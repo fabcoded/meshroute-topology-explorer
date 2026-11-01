@@ -62,6 +62,8 @@ test("stored settings are applied on load and cleaned; unknown keys survive", as
   assert.deepEqual({ ...settings.pins }, { [A]: [1, 2] });
   assert.equal(settings.direction, "send", "a newer version's key is kept");
   assert.deepEqual(pinsForView(settings.pins), new Map([[A, { x: 1, y: 2 }]]));
+  assert.equal(DEFAULTS.fill, "none");
+  assert.equal(sanitizeSettings({ fill: "reception" }).fill, "none", "a stored reception fill falls back to none");
   const clean = sanitizeSettings({ density: "huge", fill: 3, openDetailsOnSelect: "yes", view: "geo" });
   assert.deepEqual({ ...clean, pins: { ...clean.pins } }, { ...DEFAULTS, pins: {} });
 });

@@ -413,5 +413,7 @@ test("setFill switches the device fill and redraws; unknown fills are ignored", 
   assert.ok(canvas.ctx.calls.length > drawn, "a new frame");
   view.setFill("bogus");
   assert.equal(view.fill, "role");
-  assert.equal(new GraphView(new FakeCanvas(), { env, fill: "nope" }).fill, "reception");
+  assert.equal(new GraphView(new FakeCanvas(), { env, fill: "nope" }).fill, "none")
+  assert.equal(new GraphView(new FakeCanvas(), { env, fill: "reception" }).fill, "none", "the removed reception fill")
+  assert.equal(new GraphView(new FakeCanvas(), { env }).fill, "none", "default");
 });

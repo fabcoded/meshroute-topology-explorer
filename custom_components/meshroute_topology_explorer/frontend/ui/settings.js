@@ -14,7 +14,7 @@ import { errorText, isConnectionLost } from "./controller.js";
 
 /** Defaults of spec 11. openDetailsOnSelect and legendOpen null mean "by screen width": details open on select and
  *  the legend is expanded on wide panels, both off on narrow ones (spec 9.1, 9.2). */
-export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "reception", openDetailsOnSelect: null,
+export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
   legendOpen: null, links: DEFAULT_LINKS, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
