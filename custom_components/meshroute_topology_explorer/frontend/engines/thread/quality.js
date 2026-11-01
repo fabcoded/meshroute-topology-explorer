@@ -6,18 +6,23 @@
 // node --test tests/
 //
 // The scale is absolute (dBm), anchored where the receiving Thread stack itself changes its link quality:
-// - Link quality 0-3 is the link margin (average RSSI above the receiver's noise floor) bucketed at > 20, > 10 and
-//   > 2 dB, with 2 dB hysteresis (OpenThread API documentation of LinkQualityInfo::GetLinkQuality, "per Thread spec",
-//   quoted on Nordic DevZone; Silicon Labs Thread Fundamentals: "RSSI is mapped to a link quality from 0 to 3").
-// - The snapshot carries no noise floor. A nominal -100 dBm turns the margins into RSSI limits: above -80 dBm is
-//   link quality 3, -89 to -80 dBm is 2, -90 dBm or below is 1 or less. The anonymized sample agrees: -85 dBm comes
-//   with link quality 2, -77 to -21 dBm with 3. Real receivers differ by several dB (IEEE 802.15.4 asks only for
-//   -85 dBm sensitivity and +-6 dB energy-detection accuracy), so a band edge is a convention, never a verdict.
-// - -90 dBm is also where a new router link stops being attempted: OpenThread's
-//   OPENTHREAD_CONFIG_MLE_LINK_REQUEST_MARGIN_MIN defaults to 10 dB margin (openthread.io, MLE config).
+// - OpenThread link quality 0-3 is the link margin: the average RSSI minus the radio's receive-sensitivity constant
+//   (otPlatRadioGetReceiveSensitivity, used as the noise floor), bucketed at > 20, > 10 and > 2 dB with 2 dB
+//   hysteresis (link_quality.hpp / link_quality.cpp ComputeLinkMargin; Silicon Labs Thread Fundamentals). The
+//   nRF528xx port returns -100 dBm and Zephyr defaults to -100 dBm, so -80 and -90 dBm are the stack's own link
+//   quality 3 / 2 limits on those radios, not a convention. Other platforms' constants are unverified.
+// - The snapshot carries no constant, so -100 dBm is assumed: above -80 dBm is link quality 3, -89 to -80 dBm is 2,
+//   -90 dBm or below is 1 or less. The anonymized sample agrees: -85 dBm comes with link quality 2, -77 to -21 dBm
+//   with 3. A receiver on another constant has its own limits; the receiver's link quality caps the band (below).
+// - -90 dBm is also where a new router link stops being attempted: the Link Request margin (10 dB,
+//   OPENTHREAD_CONFIG_MLE_LINK_REQUEST_MARGIN_MIN) is checked one-way on the advertisement's average RSS.
 // RSSI 127 is "invalid or unknown" (openthread.io, OT_RADIO_RSSI_INVALID), so it is no value, never a strong one.
 // The server's per-direction `strength` is not used: matter.js documents it as a renaming of link quality 0-3
-// (none / weak / medium / strong), so it adds nothing to the link quality the band already falls back to.
+// (none / weak / medium / strong), so it adds nothing to the link quality the band already uses. The server's `rssi`
+// is the neighbour's average RSSI, the last one only as fallback (matterjs-server topology-utils.ts).
+// Cap rule (tq2, owner decision 2026-11-01): where both RSSI and the receiver's own link quality exist, the band is
+// the lower of the RSSI band and the link-quality band, because the receiver's class accounts for its own constant.
+// Link quality 0 with a valid RSSI is a measured low reading (basis "rssi"); with no valid RSSI it gives no band.
 import { threadLqi, threadRssi } from "../../model/thread.js";
 
 /** Nominal receiver noise floor (dBm) that turns link-margin limits into RSSI limits; see the header. */
@@ -34,9 +39,9 @@ export const BANDS = Object.freeze(["low", "mid", "high"]);
 /** Stroke level per band, the 0..1 input of the shared laneStyle(): the middle of each of its three width steps
  *  (graph/links.js WIDTH_STEPS at 1/3 and 2/3), so width and colour have exactly three looks. Not a rank. */
 export const BAND_LEVEL = Object.freeze({ low: 1 / 6, mid: 1 / 2, high: 5 / 6 });
-/** RSSI band and link-quality band this many bands apart on one reading raise a hint: a gap that size needs the
- *  receiver's noise floor more than 10 dB off the nominal one (interference or another radio), which hysteresis
- *  (2 dB) and averaging alone do not explain. */
+/** RSSI band and link-quality band this many bands apart on one reading raise a hint. A gap that size means a
+ *  different sensitivity constant on that radio, a non-OpenThread stack, or RSSI and link quality taken from
+ *  different samples; the data cannot tell which, and does not suggest interference. */
 export const MISMATCH_BANDS = 2;
 /** Kinds this module raises: findings judge, hints point at something worth a look (as Zigbee's "very low reading"). */
 export const QUALITY_FINDINGS = Object.freeze(["weak parent link", "weak router links"]);
@@ -59,18 +64,21 @@ export function lqBand(lq) {
   return v === 3 ? "high" : v === 2 ? "mid" : v === 1 ? "low" : null;
 }
 
-/** Band of one direction (a pair's ab or ba, "hearer hears sender"): RSSI first, link quality where RSSI is missing.
- *  Only a measured direction has a band; implied (a parent link nobody measured) and unknown stay null, never low.
- *  -> { band, basis: "rssi" | "lq" | null, rssi, lq, rssiBand, lqBand, mismatch } */
+/** Band of one direction (a pair's ab or ba, "hearer hears sender"): the lower of the RSSI band and the receiver's
+ *  own link-quality band; either alone where the other is missing. Link quality 0 with a valid RSSI is low (basis
+ *  "rssi"). Only a measured direction has a band; implied (a parent link nobody measured) and unknown stay null.
+ *  basis: "rssi", "lq" (no RSSI), "lq cap" (the link-quality band is lower than the RSSI band), or null.
+ *  -> { band, basis, rssi, lq, rssiBand, lqBand, mismatch } */
 export function directionBand(dir) {
   const measured = Boolean(dir && dir.state === "measured");
   const rssi = measured ? threadRssi(dir.rssi) : null;
   const lq = measured ? threadLqi(dir.lqi) : null;
   const rb = rssiBand(rssi);
-  const lb = lqBand(lq);
-  const band = rb || lb;
+  const lb = lq === 0 && rb ? "low" : lqBand(lq);
+  const band = weaker(rb, lb);
+  const basis = !band ? null : !rb ? "lq" : lb && lq > 0 && rank(lb) < rank(rb) ? "lq cap" : "rssi";
   return {
-    band, basis: rb ? "rssi" : lb ? "lq" : null, rssi, lq, rssiBand: rb, lqBand: lb,
+    band, basis, rssi, lq, rssiBand: rb, lqBand: lb,
     mismatch: Boolean(rb && lb && Math.abs(rank(rb) - rank(lb)) >= MISMATCH_BANDS),
   };
 }
@@ -143,7 +151,7 @@ export function nodeQualityFindings(network, deviceId) {
 
   // Listed by one side: d's table was read in this snapshot and has no live entry for a neighbour that lists d.
   // A hint, not a finding: the Matter server reads the tables one node at a time, so an entry may have aged out
-  // (or appeared) in between. Border routers are not Matter nodes and have no table, so they never raise it.
+  // (or appeared) in between; the two tables are of unknown age, possibly hours apart. Border routers are not Matter nodes and have no table, so they never raise it.
   if (d.hasTable) {
     const own = new Map(readings.filter((r) => r.reporter === d.id).map((r) => [r.subject, r]));
     const listers = readings.filter((r) => r.subject === d.id && r.measured && byId.get(r.reporter)
@@ -156,8 +164,8 @@ export function nodeQualityFindings(network, deviceId) {
   }
 
   // Signal and link quality disagree: the device itself rates a reading two bands away from what its RSSI says on
-  // the nominal floor. Its own link quality already accounts for its own noise floor, so this marks a receiver for
-  // which the absolute colour may mislead (raised noise floor, a different radio, or RSSI of a single last frame).
+  // the nominal floor. A gap that size means another sensitivity constant, a non-OpenThread stack, or RSSI and link
+  // quality from different samples; the cause is not knowable here, so it is not blamed on interference.
   const odd = pairs.filter((q) => q.a === d.id || q.b === d.id).map((q) => {
     const other = q.a === d.id ? q.b : q.a;
     return { other, q: directionBand(q.a === d.id ? q.ab : q.ba) };

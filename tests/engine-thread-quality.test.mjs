@@ -53,17 +53,33 @@ test("directionBand: RSSI first, link quality only where RSSI is missing or 127,
   assert.equal(directionBand(m(null, -95)).basis, "rssi");
   assert.equal(directionBand(m(null, null)).band, null);
   assert.equal(directionBand(m(0, 127)).band, null, "link quality 0 and RSSI 127: no band, not low");
+  assert.equal(directionBand(m(0, null)).band, null, "link quality 0 and no RSSI: a fresh entry, no band");
   for (const d of [null, undefined, { state: "implied", source: "parent", lqi: null, rssi: null },
     { state: "unknown", lqi: 2, rssi: -70, reason: "lqi 0" }]) {
     assert.equal(directionBand(d).band, null, `state ${d && d.state}`);
   }
 });
 
+test("directionBand: the receiver's own link quality caps the RSSI band (owner decision 2026-11-01)", () => {
+  const m = (lqi, rssi) => directionBand({ state: "measured", lqi, rssi });
+  assert.deepEqual([m(2, -75).band, m(2, -75).basis], ["mid", "lq cap"], "-75 dBm with link quality 2: mid");
+  assert.deepEqual([m(1, -60).band, m(1, -60).basis], ["low", "lq cap"]);
+  assert.deepEqual([m(3, -85).band, m(3, -85).basis], ["mid", "rssi"], "RSSI lower than the class: RSSI decides");
+  assert.deepEqual([m(3, -70).band, m(3, -70).basis], ["high", "rssi"], "agreeing: basis rssi");
+  assert.equal(laneLook({ state: "measured", lqi: 2, rssi: -75 }).level, BAND_LEVEL.mid);
+});
+
+test("directionBand: link quality 0 with a valid RSSI is a measured low reading, basis rssi", () => {
+  const q = directionBand({ state: "measured", lqi: 0, rssi: -60 });
+  assert.deepEqual([q.band, q.basis, q.rssi, q.lq], ["low", "rssi", -60, 0]);
+  assert.equal(q.mismatch, true, "-60 dBm against link quality 0 is two bands apart");
+});
+
 test("directionBand: a reading two bands off its own link quality is a mismatch, one band is not", () => {
   const m = (lqi, rssi) => directionBand({ state: "measured", lqi, rssi }).mismatch;
   assert.equal(m(1, -60), true);
   assert.equal(m(3, -95), true);
-  assert.equal(m(3, -85), false, "hysteresis and averaging explain one band");
+  assert.equal(m(3, -85), false, "one band apart is not a mismatch");
   assert.equal(m(2, -95), false);
   assert.equal(m(null, -60), false);
 });
@@ -165,9 +181,31 @@ test("listed by one side: no hint when the silent side's table was not read (no 
 
 test("signal and link quality disagree: a hint at the receiver whose own link quality is two bands off", () => {
   const n = net([node(1, "leader"), node(2, "router")], [link(1, 2, dir(1, -60), dir(3, -58))]);
-  const found = qualityFindings(n);
+  const found = qualityFindings(n).filter((f) => f.kind === "signal and link quality disagree");
   assert.deepEqual(kinds(found), [`signal and link quality disagree@${idOf(n, 1)}`]);
   assert.deepEqual(found[0].evidence.readings, [{ other: idOf(n, 2), rssi: -60, lq: 1, rssiBand: "high", lqBand: "low" }]);
+});
+
+test("link quality 0 with a valid RSSI is listed as a live low reading, not as 'listed without a live link'", () => {
+  const n = net([node(1, "leader"), node(2, "router"), node(3, "router")],
+    [link(1, 2, dir(3, -60), dir(0, -95, "none")), link(2, 3, dir(3, -50), dir(3, -52))]);
+  assert.ok(!qualityFindings(n).some((f) => f.kind === "listed by one side"));
+  const fresh = net([node(1, "leader"), node(2, "router"), node(3, "router")],
+    [link(1, 2, dir(3, -60), dir(0, 127, "none")), link(2, 3, dir(3, -50), dir(3, -52))]);
+  const [h] = qualityFindings(fresh).filter((f) => f.kind === "listed by one side");
+  assert.equal(h.evidence.neighbours[0].ownEntry, "listed without a live link");
+});
+
+test("parent of an end device: its own table decides; the reviewer's case", () => {
+  // Router 1 lists the SED at -60 with no reverse entry; Router 2 lists it at -75; the SED lists only Router 2.
+  const n = net([node(1, "leader"), node(2, "router"), node(3, "sleepy_end_device")],
+    [link(1, 2, dir(3, -40), dir(3, -41)), link(1, 3, dir(3, -60), null), link(2, 3, dir(2, -75), dir(1, -92, "weak"))]);
+  const sed = n.devices.find((d) => d.nodeKey === "3");
+  assert.equal(sed.parent, idOf(n, 2));
+  assert.deepEqual(sed.possiblyStaleParents, [idOf(n, 1)]);
+  const [f] = nodeQualityFindings(n, sed.id);
+  assert.equal(f.kind, "weak parent link", "d1 judges the Router 2 pair");
+  assert.equal(f.evidence.parent, idOf(n, 2));
 });
 
 test("nothing is raised for an unavailable device, and the network is not changed", () => {

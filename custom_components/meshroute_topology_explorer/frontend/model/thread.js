@@ -86,15 +86,17 @@ function registryIndex(deviceRegistry) {
 }
 
 /** One reading "reporter hears subject" from a direction object { strength, lqi, rssi } of the snapshot, or null when
- *  the direction is missing. measured: a value says the link was heard; strength "none" is a link the reporter saw die
- *  and "unknown" no measurement (both not measured, never drawn as a dead link: spec 3.2). */
+ *  the direction is missing. measured: a valid RSSI, or link quality above 0, says the link was heard. Link quality 0
+ *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2, owner decision
+ *  2026-11-01). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
+ *  measurement) are not measured and never drawn as a dead link (spec 3.2). */
 function reading(reporter, subject, dir, connection) {
   if (!dir || typeof dir !== "object") return null;
   const lqi = threadLqi(dir.lqi);
   const rssi = threadRssi(dir.rssi);
   const strength = text(dir.strength);
   if (lqi === null && rssi === null && strength === null && dir.lqi === undefined) return null; // an empty object
-  const measured = strength !== "none" && strength !== "unknown" && ((lqi !== null && lqi > 0) || rssi !== null);
+  const measured = strength !== "unknown" && ((lqi !== null && lqi > 0) || rssi !== null);
   return { reporter, subject, lqi, rssi, strength, measured, scale: "thread-lqi", relationship: null, rating: null,
     viaRouteTable: typeof connection.via_route_table === "boolean" ? connection.via_route_table : null,
     pathCost: int(connection.path_cost) };
@@ -221,22 +223,31 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry } = 
     if (d.hasTable) d.tableSize = readings.filter((r) => r.reporter === d.id).length;
   }
 
-  // Parent of an end device: the router-role node it shares a link with (a Thread child keeps only its parent as a
-  // neighbour); if several, the best reading at the router (link quality, then RSSI), the others "possibly stale".
+  // Parent of an end device (tq2, owner decision 2026-11-01). A Thread child holds exactly one neighbour entry, its
+  // parent, so when the child's own table was read the parent is the router it lists (REED/FED: the best of several,
+  // the others are real links, not stale parents). Only when the child reported nothing do the routers' readings
+  // decide (best link quality, then RSSI at the router). Other routers that list the child are "possibly stale".
   const byId = new Map(devices.map((d) => [d.id, d]));
   const at = new Map(readings.map((r) => [`${r.reporter}|${r.subject}`, r]));
   for (const d of devices) {
     if (d.role !== "end device") continue;
-    const candidates = links.filter((l) => l.a === d.id || l.b === d.id).map((l) => byId.get(l.a === d.id ? l.b : l.a))
+    const linked = links.filter((l) => l.a === d.id || l.b === d.id).map((l) => byId.get(l.a === d.id ? l.b : l.a))
       .filter((p) => ROUTER_ROLES.has(p.role));
+    const listed = linked.filter((p) => at.has(`${d.id}|${p.id}`));
+    const ownTable = listed.length > 0;
+    const candidates = ownTable ? listed : linked;
     if (!candidates.length) continue;
-    const score = (p) => at.get(`${p.id}|${d.id}`) || {};
+    const score = (p) => (ownTable ? at.get(`${d.id}|${p.id}`) : at.get(`${p.id}|${d.id}`)) || {};
     const ranked = candidates.sort((x, y) => (y.available - x.available)
       || ((score(y).lqi ?? -1) - (score(x).lqi ?? -1)) || ((score(y).rssi ?? -999) - (score(x).rssi ?? -999))
       || (x.id < y.id ? -1 : 1));
     d.parent = ranked[0].id;
-    d.parentLqi = score(ranked[0]).lqi ?? null;
-    d.possiblyStaleParents = ranked.slice(1).map((p) => p.id);
+    d.parentLqi = (at.get(`${d.parent}|${d.id}`) || {}).lqi ?? null;
+    // Routers that list the child although its own table does not hold them. Without a read child table every
+    // other linked router is a candidate; with one, the child's other listed routers are real links.
+    d.possiblyStaleParents = ownTable
+      ? linked.filter((p) => !at.has(`${d.id}|${p.id}`) && at.has(`${p.id}|${d.id}`)).map((p) => p.id)
+      : ranked.slice(1).map((p) => p.id);
   }
   for (const d of devices) if (d.parent) byId.get(d.parent).children.push(d.id);
   for (const d of devices) d.children.sort();
