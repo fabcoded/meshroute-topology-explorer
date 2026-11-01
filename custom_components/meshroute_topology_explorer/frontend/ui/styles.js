@@ -189,7 +189,7 @@ p { margin: 4px 0; }
 .reading-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .reading-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading-rx { width: 72px; flex: none; text-align: right; white-space: nowrap; }
-.reading-rank { width: 86px; flex: none; text-align: right; white-space: nowrap; font-size: 13px; color: var(--mte-muted); }
+.reading-rank { width: 118px; flex: none; text-align: right; white-space: nowrap; font-size: 13px; color: var(--mte-muted); }
 .reading-row.weak .reading-rank { color: var(--mte-warn-text); font-weight: 600; }
 .reading-name .link { text-decoration: none; }
 .reading-name .link:hover { text-decoration: underline; }

@@ -220,8 +220,13 @@ function readingRows(list, ctx) {
   const t = ctx.t;
   return h("div", { class: "reading-rows", role: "table" }, list.map((r) => {
     const rated = typeof r.rating === "number";
-    const rank = rated ? t("rank.short", { pct: percent(r.rating) }) : t("rank.none");
-    const long = rankText(r.rating, r.reporter.label, t) + (r.pool === "vendor" ? ` ${t("rank.vendor")}` : "");
+    const vendorPool = rated && r.pool === "vendor";
+    const rank = rated ? t("rank.short", { pct: percent(r.rating) }) + (vendorPool ? ` \u00B7 ${t("rank.group")}` : "") : t("rank.none");
+    // The tooltip names the comparison basis the model used (model/ratings.js applyRatings): the reporter's own readings
+    // or, below ten of them, its vendor group.
+    const basis = !rated ? "" : vendorPool ? t("rank.basis_vendor", { vendor: r.reporter.vendor || "?", reporter: r.reporter.label })
+      : t("rank.basis_reporter", { reporter: r.reporter.label });
+    const long = `${rankText(r.rating, r.reporter.label, t)}${basis ? `, ${basis}` : ""}`;
     return h("div", { class: `reading-row${rated && r.rating < WEAKEST ? " weak" : ""}`, role: "row", title: long },
       h("span", { role: "cell", class: "reading-name" }, h("button", { type: "button", class: "link", text: r.device.label,
         on: { click: () => ctx.onSelect(r.device.id) } })),
@@ -239,6 +244,8 @@ function heardCard(info, ctx) {
   const top = info.heardBy.slice(0, TOP_READINGS);
   const rest = info.heardBy.slice(TOP_READINGS);
   body.push(top.length ? readingRows(top, ctx) : h("div", { class: "muted", text: t("details.no_readings") }));
+  // Every rank is relative; the note names what it is relative to (the receiving device's own readings or its vendor group).
+  if (top.length || info.hears.length) body.push(h("p", { class: "muted small", text: t("details.rank_note") }));
   if (rest.length || info.hears.length) {
     const more = h("details", { class: "more all-readings" },
       h("summary", { text: t("details.readings_all", { count: info.heardBy.length + info.hears.length }) }));
