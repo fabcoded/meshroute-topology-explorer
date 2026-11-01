@@ -8,15 +8,15 @@ import { engineFor } from "../engines/index.js";
 const PAGE = 10;
 
 /** Rows for the list from a Network: one per device, the coordinator first (board M3), then by label and address.
- *  The search text holds what a user may type: label, ZHA name, vendor, model, area, IEEE and network address (as
- *  0x1234 and decimal). */
+ *  The search text holds what a user may type: label, Home Assistant name, vendor, model, area, the device key (IEEE or
+ *  extended address) and the network address as the engine writes it (engine.addresses: Zigbee 0x1234 and decimal;
+ *  Thread the RLOC16 alike). */
 export function deviceRows(network) {
   const engine = engineFor(network);
   return network.devices.map((d) => ({
     id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating, kind: d.kind || null,
     sleepy: d.sleepy === true, connection: engine.connection(network, d),
-    search: [d.label, d.name, d.vendor, d.model, d.area, d.id,
-      typeof d.nwk === "number" ? `0x${d.nwk.toString(16).padStart(4, "0")} ${d.nwk}` : ""]
+    search: [d.label, d.name, d.vendor, d.model, d.area, d.id, ...engine.addresses(d)]
       .filter(Boolean).join(" ").toLowerCase(),
   })).sort((a, b) => (b.role === "coordinator") - (a.role === "coordinator") || a.label.localeCompare(b.label)
     || a.id.localeCompare(b.id));

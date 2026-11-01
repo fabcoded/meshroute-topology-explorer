@@ -30,6 +30,9 @@ export const zigbee = Object.freeze({
   /** Its finding kinds in the order the Findings tab groups them (model/findings.js), and the words of a finding:
    *  { title, lines }. */
   findings: Object.freeze({ kinds: FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
+  /** What a user may type to find a device by its network address (Devices search): "0x1234 4660", or none. */
+  addresses: (device) => (typeof device.nwk === "number"
+    ? [`0x${device.nwk.toString(16).padStart(4, "0")} ${device.nwk}`] : []),
   /** The grey line's connection of a device in the Devices list (board M3), or null. */
   connection: (network, device) => connection(network, device),
   /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow

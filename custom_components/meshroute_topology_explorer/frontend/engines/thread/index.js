@@ -40,6 +40,10 @@ export const thread = Object.freeze({
   /** Its finding kinds in the order the Findings tab groups them (offline, parent offline, parent unknown;
    *  model/thread.js threadFindings), and the words of a finding: { title, lines }. */
   findings: Object.freeze({ kinds: THREAD_FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
+  /** What a user may type to find a device by its network address (Devices search): the RLOC16 as "0x1c00 7168", or
+   *  none; the extended address is the device's key and searched anyway. */
+  addresses: (device) => (typeof device.rloc16 === "number"
+    ? [`0x${device.rloc16.toString(16).padStart(4, "0")} ${device.rloc16}`] : []),
   /** The grey line's connection of a device in the Devices list: an end device "via" its parent, else null. */
   connection: (network, device) => {
     if (device.role !== "end device" || !device.parent) return null;

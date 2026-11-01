@@ -193,3 +193,20 @@ test("merge A4w: zigpy's route records are read for ZHA only; the scan's re-read
   assert.equal(scan.calls.filter((m) => m.type === "matter/network_topology").length, 0);
   assert.deepEqual(networkChoices(reread).map((c) => c.key), ["zha"], "a skipped read greys nothing");
 });
+
+test("Devices search finds a Thread device by its RLOC16 and its extended address (engine.addresses)", async () => {
+  const { deviceRows, filterRows } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
+  const pan = "00112233aabbcc01";
+  const net = buildThreadNetwork({ nodes: [
+    { id: "1", kind: "matter", network_type: "thread", node_id: 1, role: "leader", available: true, rloc16: 0x1c00,
+      ext_address: "AABBCCDD00000001", ext_pan_id: pan },
+    { id: "2", kind: "matter", network_type: "thread", node_id: 2, role: "end_device", available: true, rloc16: 0x1c01,
+      ext_address: "AABBCCDD00000002", ext_pan_id: pan },
+  ], connections: [{ source: "2", target: "1", network: "thread", source_to_target: { lqi: 3, rssi: -60 } }] }, {});
+  const rows = deviceRows(net);
+  const found = (text) => filterRows(rows, text).map((r) => net.devices.find((d) => d.id === r.id).nodeKey);
+  assert.deepEqual(found("0x1c01"), ["2"], "RLOC16 in hex");
+  assert.deepEqual(found("7168"), ["1"], "RLOC16 in decimal");
+  assert.deepEqual(found("aa:bb:cc:dd:00:00:00:02"), ["2"], "extended address");
+  assert.equal("nwk" in net.devices[0], false, "the RLOC16 is no Zigbee network address");
+});
