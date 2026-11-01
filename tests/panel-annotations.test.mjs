@@ -24,3 +24,10 @@ test("1.4a: the rank names the comparison basis the model used", () => {
   assert.match(t("rank.basis_vendor", { vendor: "IKEA", reporter: "Router 12" }), /^rank within the IKEA group/);
   assert.match(t("details.rank_note"), /vendor group/);
 });
+
+test("1.4b: no 'weakest RX' summary: the heading names hop counts and the markers, and the function is gone", async () => {
+  assert.ok(!/weakest/i.test(en["details.theory_head"]), en["details.theory_head"]);
+  assert.match(en["details.theory_head"], /number of hops/);
+  const details = await import("../custom_components/meshroute_topology_explorer/frontend/ui/details.js");
+  assert.equal("weakestHop" in details, false);
+});

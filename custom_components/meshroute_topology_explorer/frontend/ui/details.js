@@ -68,16 +68,6 @@ export function stopText(reason, t) {
   return t(`details.stop_${String(reason || "unknown").replace(/ /g, "_")}`);
 }
 
-/** The weakest hop of a path for its row: a hop nothing proves ("?") first, else the lowest measured LQI, else the
- *  first hop only a route or a parent link implies; null without hops. */
-export function weakestHop(hops) {
-  if (!hops.length) return null;
-  const unknown = hops.find((h) => h.state !== "measured" && h.state !== "implied");
-  if (unknown) return unknown;
-  const measured = hops.filter((h) => h.state === "measured");
-  return measured.length ? measured.reduce((a, b) => (b.lqi < a.lqi ? b : a)) : hops[0];
-}
-
 /** The theoretical paths of a node view per other device (spec 5.7, 9.2): [{ id, out, in }] with out the path from
  *  the device and in the path back, sorted by the hop count of the way there, then of the way back, then by name (natural order: Router 2 before Router 10);
  *  incomplete ways last. Paths without `how` on their hops (up, down, the coordinator's routes) are not theoretical. */

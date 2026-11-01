@@ -4,7 +4,7 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, theoryRows, weakestHop }
+import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, theoryRows }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
 import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
 import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
@@ -126,12 +126,6 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.equal(de("details.theory_title", { count: 40 }), "Wege zu anderen Ger\u00E4ten (theoretisch) \u00B7 40");
   assert.equal(stopText("no link", de), "keine Verbindung");
   assert.equal(stopText("loop", en), "loop");
-  // The weakest hop: "?" first, else the lowest LQI, else what implies it.
-  const m = (lqi) => ({ state: "measured", lqi });
-  assert.equal(weakestHop([m(120), m(40), m(90)]).lqi, 40);
-  assert.equal(weakestHop([m(120), { state: "unknown", lqi: null }]).state, "unknown");
-  assert.equal(weakestHop([{ state: "implied", source: "parent" }]).source, "parent");
-  assert.equal(weakestHop([]), null);
   assert.deepEqual(theoryRows([], name), []);
   // Rows with the same hop counts sort by name in natural order: Router 2 before Router 10.
   const way = (kind, id) => ({ kind, from: kind === "out" ? "x" : id, to: kind === "out" ? id : "x", complete: true,

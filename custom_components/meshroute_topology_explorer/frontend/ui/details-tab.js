@@ -12,7 +12,7 @@
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
 import { h } from "./dom.js";
-import { detailsOf, hopValue, howText, pathParts, weakestHop } from "./details.js";
+import { detailsOf, hopValue, howText, pathParts } from "./details.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, percent, rankText, roleText } from "./format.js";
 import { formatNwk } from "../model/parse.js";
@@ -178,17 +178,14 @@ function pathsCard(all_, ctx, name) {
 }
 
 /** "Paths to other devices (theoretical)" (spec 5.7, 9.2; brief a4k): a row per other device, the shortest first,
- *  with the hops there (→) and back (←) and each way's weakest RX; a row opens to both ways, every hop with the
+ *  with the number of hops there (→) and back (←); a row opens to both ways, every hop with the
  *  reception at its hearer and how it is taken (table, neighbour, route discovery, parent, child), a discovery with its
  *  path cost. Collapsed above PATHS_OPEN rows, like "All paths". */
 function theoryCard(rows, ctx, name) {
   const t = ctx.t;
-  const way = (p, arrow) => {
-    if (!p) return h("span", { class: "theory-way" });
-    const weak = p.complete ? weakestHop(p.hops) : null;
-    return h("span", { class: "theory-way" }, `${arrow} ${p.complete ? p.hops.length : "?"}`,
-      weak ? [" · ", h("small", { text: `${t("details.rx")} ` }), h("b", { text: hopValue(weak, t) })] : null);
-  };
+  // Per direction the hop count only: a "weakest RX" would mix a missing value with a low one and compare receivers
+  // on different scales (review 1.4b); the values are in the opened row, hop by hop.
+  const way = (p, arrow) => h("span", { class: "theory-way", text: p ? `${arrow} ${p.complete ? p.hops.length : "?"}` : "" });
   const line = (p, label) => {
     const { steps, tail } = pathParts(p, t, name);
     const nodes = [h("span", { class: "muted", text: `${label}: ` })];
