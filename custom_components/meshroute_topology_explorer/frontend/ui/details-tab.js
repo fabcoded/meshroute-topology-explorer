@@ -32,7 +32,8 @@ const WEAKEST = 0.1;
 /** Fill `container` with the details of `id`. ctx: { network, t, id, debug, raw (Map id -> zha/devices entry),
  *  nodeView ("coordinator" | "all"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
  *  (formatted time the table was first seen as it is now, or null), pinned, idPrefix, onSub(sub, { focus }),
- *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener) }. */
+ *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener), onFindings(opener) (show
+ *  the Findings tab) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
@@ -120,12 +121,16 @@ function communication(panel, info, ctx, name) {
       ...info.children.map((c) => h("div", {}, deviceButton(ctx, c, c.model && c.model !== c.label ? c.model : null)))));
   }
 
+  // Findings only when the device has some (decision by Fabian Schwamborn, 2026-11-01), with a way to the Findings
+  // tab, where they stand among the network's; nothing when it has none.
   if (info.findings.length) {
     panel.append(card(t("details.findings", { count: info.findings.length }), h("ul", { class: "finding-list" },
       info.findings.map((f) => {
         const { title, lines } = findingText(f, t, name);
         return h("li", {}, h("strong", { text: title }), lines.map((l) => h("div", { class: "evidence", text: l })));
-      }))));
+      })), ctx.onFindings ? h("button", { type: "button", class: "link small findings-jump",
+      id: `${ctx.idPrefix || "mte-details"}-findings`, text: t("details.findings_jump"),
+      on: { click: (e) => ctx.onFindings(e.currentTarget) } }) : null));
   }
 
   panel.append(heardCard(info, ctx));

@@ -27,9 +27,7 @@ const en = {
   "status.label": "Data status",
   "status.source": "Source: {source}",
   "status.tables": "tables {x} of {y}",
-  "status.listed": "{x} of {y} devices in a table",
   "status.complete": "{pct} % complete",
-  "status.scan_hint": "ZHA reads the tables by itself, every 4 hours by default",
   "status.unchanged": "observed unchanged since {time}",
   "message.loading": "Reading the network …",
   "message.not_admin": "This panel needs an administrator account.",
@@ -172,7 +170,6 @@ const en = {
   "status.scan_not_sent": "scan not sent: {message}",
   "status.scan_stop": "Stop",
   "status.short_tables": "tables {x}/{y}",
-  "status.short_listed": "{x}/{y} in a table",
   "status.short_complete": "{pct} %",
   "status.short_unchanged": "unchanged since {time}",
   "status.short_scan_running": "scan: {changed}/{total} tables changed",
@@ -310,7 +307,7 @@ const en = {
   "details.tab_entity": "Entity",
   "details.tab_cluster": "Cluster",
   "details.tabs_label": "Details of the device",
-  "details.children_title": "Children (sleeping devices)",
+  "details.children_title": "Children (end devices)",
   "details.heard_title": "Heard by {by} · hears {hears}",
   "details.readings_all": "… all {count} with RX and rank relative to the reporter",
   "details.tables_title": "Tables and load",
@@ -427,6 +424,7 @@ const en = {
   "legend.stage": "(stage {n})",
   "legend.symbol_end_sleepy": "Closed frame, bed: end device, sleeps",
   "legend.symbol_wired": "Plug only, no arcs: wired device",
+  "details.findings_jump": "Show in Findings",
 };
 
 const de = {
@@ -453,9 +451,7 @@ const de = {
   "status.label": "Datenstand",
   "status.source": "Quelle: {source}",
   "status.tables": "Tabellen {x} von {y}",
-  "status.listed": "{x} von {y} Geräten in einer Tabelle",
   "status.complete": "{pct} % vollständig",
-  "status.scan_hint": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden",
   "status.unchanged": "beobachtet unverändert seit {time}",
   "message.loading": "Netz wird gelesen …",
   "message.not_admin": "Dieses Panel braucht ein Administratorkonto.",
@@ -598,7 +594,6 @@ const de = {
   "status.scan_not_sent": "Scan nicht gesendet: {message}",
   "status.scan_stop": "Stopp",
   "status.short_tables": "Tabellen {x}/{y}",
-  "status.short_listed": "{x}/{y} in einer Tabelle",
   "status.short_complete": "{pct} %",
   "status.short_unchanged": "unverändert seit {time}",
   "status.short_scan_running": "Scan: {changed}/{total} Tabellen geändert",
@@ -736,7 +731,7 @@ const de = {
   "details.tab_entity": "Entität",
   "details.tab_cluster": "Cluster",
   "details.tabs_label": "Details des Geräts",
-  "details.children_title": "Kinder (schlafende Geräte)",
+  "details.children_title": "Kinder (End-Devices)",
   "details.heard_title": "Wird gehört von {by} · hört {hears}",
   "details.readings_all": "… alle {count} mit RX und Rang relativ zum Messenden",
   "details.tables_title": "Tabellen und Last",
@@ -853,6 +848,7 @@ const de = {
   "legend.stage": "(Stufe {n})",
   "legend.symbol_end_sleepy": "geschlossener Rahmen, Bett: Endgerät, schläft",
   "legend.symbol_wired": "nur Stecker, keine Bögen: Kabelgerät",
+  "details.findings_jump": "Im Reiter Befunde zeigen",
 };
 
 export const STRINGS = Object.freeze({ en, de });

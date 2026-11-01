@@ -100,7 +100,7 @@ test("Details, cluster popup, device rows and the source-route stage use the own
   const words = {
     "details.tab_communication": "Kommunikation", "details.tab_entity": "Entität", "details.tab_cluster": "Cluster",
     "details.paths_coordinator": "Kommunikationsweg mit dem Koordinator", "details.path_up": "hin", "details.path_down": "zurück",
-    "details.children_title": "Kinder (schlafende Geräte)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
+    "details.children_title": "Kinder (End-Devices)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
     "details.readings_all": "\u2026 alle {count} mit RX und Rang relativ zum Messenden", "details.tables_title": "Tabellen und Last",
     "rank.short": "Rang {pct} %", "node.title": "Knoten", "node.rx_on": "immer empfangsbereit", "node.band_2400": "2,4 GHz",
     "node.firmware": "Firmware", "node.quirk_none": "keiner", "node.buffer_value": "{n} Byte, Transfer {transfer} Byte",
@@ -139,4 +139,27 @@ test("area names from Home Assistant's hass.areas win over the registry's; the c
   assert.equal(localize(network, translator("de")).devices.find((d) => d.id === device.id).area, device.area, "without: the registry");
   assert.equal(localize(network, translator("de"), { [device.areaId]: { name: " " } }).devices.find((d) => d.id === device.id).area,
     device.area, "an empty name does not win");
+});
+
+test("legend, View and Details texts of the A4j boards (M2, M7) in German, with English counterparts", () => {
+  const words = {
+    "legend.symbol_router": "Rahmen mit Lücken und Strichen: Router, leitet weiter",
+    "legend.symbol_end_sleepy": "geschlossener Rahmen, Bett: Endgerät, schläft",
+    "legend.symbol_coordinator": "Krone C: Koordinator; Stecker unten: am Kabel",
+    "legend.symbol_wired": "nur Stecker, keine Bögen: Kabelgerät",
+    "legend.state_offline": "offline: ohne Füllung", "legend.state_selected": "ausgewählt: dicker Rahmen",
+    "legend.state_pinned": "angepinnt: Nadel", "legend.symbols_title": "Symbole", "legend.states_title": "Zustände",
+    "view.reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
+    "details.children_title": "Kinder (End-Devices)",
+  };
+  for (const [key, text] of Object.entries(words)) {
+    assert.equal(STRINGS.de[key], text, key);
+    assert.ok(STRINGS.en[key] && STRINGS.en[key] !== key, `en ${key}`);
+  }
+  assert.equal(STRINGS.en["details.children_title"], "Children (end devices)", "not every end-device child sleeps");
+  // The status line lost its count of listed devices and the scan hint (board M1); the long legend paragraphs went.
+  for (const gone of ["status.listed", "status.short_listed", "status.scan_hint", "legend.links_default", "legend.rank",
+    "legend.debug", "legend.pictures_title", "legend.state_ring"]) {
+    assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
+  }
 });

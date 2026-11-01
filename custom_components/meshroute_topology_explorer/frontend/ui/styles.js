@@ -151,10 +151,14 @@ p { margin: 4px 0; }
 .details-head p { margin-top: 2px; }
 .device-name { font-size: 20px; font-weight: 700; line-height: 1.25; }
 .warn-text { color: var(--mte-warn-text); }
-.segmented { display: flex; gap: 4px; padding: 4px; margin: 0 0 12px; border-radius: 12px; background: var(--mte-track); }
+.segmented { display: flex; gap: 4px; padding: 4px; margin: 0 0 12px; border-radius: 12px; background: var(--mte-track);
+  container-type: inline-size; }
 /* Segments share the leftover width equally but never cut their word (flex-basis auto). */
 .segment { flex: 1 0 auto; height: 36px; padding: 0 8px; border: none; border-radius: 9px; background: none;
   color: var(--mte-muted); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; }
+/* The narrowest side panel (320 px) leaves the three segments about 260 px: a little less padding and type keeps
+   "Kommunikation" whole, never an ellipsis (A4j). */
+@container (max-width: 300px) { .segment { padding: 0 4px; font-size: 13px; } }
 .segment:hover { color: var(--mte-fg); }
 .segment[aria-selected="true"] { background: var(--mte-card); color: var(--mte-fg); font-weight: 700;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--mte-divider); }

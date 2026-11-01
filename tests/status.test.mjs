@@ -36,7 +36,7 @@ test("status line parts on the sample and a network below 90 %", () => {
   const network = buildNetwork(sample.responses["zha/devices"]);
   const parts = statusParts(network);
   assert.deepEqual(parts.map(([key]) => key),
-    ["status.source", "status.tables", "status.listed", "status.complete", "status.scan_hint"]);
+    ["status.source", "status.tables", "status.complete"], "as on board M1");
   assert.deepEqual(parts[1][1], { x: 29, y: 29 });
   assert.equal(isIncomplete(network.status), false);
   const low = { ...network.status, completeness: 26 / 29 };
@@ -45,5 +45,5 @@ test("status line parts on the sample and a network below 90 %", () => {
   assert.equal(completenessPercent({ completeness: 0.9 }), 90);
   assert.equal(isIncomplete({ completeness: 0.9 }), false);
   const later = statusParts(network, { unchangedSince: "2026-01-01 11:30" }).map(([key]) => key);
-  assert.ok(later.indexOf("status.unchanged") === 4, "the seam for observations sits before the scan hint");
+  assert.equal(later.at(-1), "status.unchanged", "observed unchanged since closes the line (board M1)");
 });

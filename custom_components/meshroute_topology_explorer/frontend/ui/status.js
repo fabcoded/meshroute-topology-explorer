@@ -39,10 +39,11 @@ export function sourceRoutePart(summary, compact = false) {
   return compact ? [short, { count: summary.count }, long] : [long, { count: summary.count }];
 }
 
-/** Parts of the status line as [key, params] for the translator, in order: source, tables x of y (available routers,
- *  coordinator not counted), devices in at least one table, completeness, "observed unchanged since" when known
- *  (formatted time, from the observations), the state of a followed scan (spec 6, 9.4), then the hint that ZHA scans
- *  by itself. compact (narrow screens): short forms in at most two lines, without the source and the hint; each part
+/** Parts of the status line as [key, params] for the translator, in order (board M1): source, tables x of y
+ *  (available routers, coordinator not counted), completeness, "observed unchanged since" when known (formatted time,
+ *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
+ *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again" (decision by Fabian
+ *  Schwamborn, 2026-11-01). compact (narrow screens): short forms in at most two lines, without the source; each part
  *  then carries a third element, the key of its long form, which the panel offers as the part's description. The
  *  source-route part (sourceRoutePart) is not among them: the panel sets it apart on the right. */
 export function statusParts(network, { unchangedSince = null, scan = null, compact = false } = {}) {
@@ -50,7 +51,6 @@ export function statusParts(network, { unchangedSince = null, scan = null, compa
   if (compact) {
     const parts = [
       ["status.short_tables", { x: s.routersWithTable, y: s.routersAvailable }, "status.tables"],
-      ["status.short_listed", { x: s.devicesListed, y: s.devicesTotal }, "status.listed"],
       ["status.short_complete", { pct: completenessPercent(s) }, "status.complete"],
     ];
     if (unchangedSince) parts.push(["status.short_unchanged", { time: unchangedSince }, "status.unchanged"]);
@@ -63,12 +63,10 @@ export function statusParts(network, { unchangedSince = null, scan = null, compa
   const parts = [
     ["status.source", { source: network.source === "zha" ? "ZHA" : network.source }],
     ["status.tables", { x: s.routersWithTable, y: s.routersAvailable }],
-    ["status.listed", { x: s.devicesListed, y: s.devicesTotal }],
     ["status.complete", { pct: completenessPercent(s) }],
   ];
   if (unchangedSince) parts.push(["status.unchanged", { time: unchangedSince }]);
   const scanKey = scan && SCAN_KEYS[scan.status];
   if (scanKey) parts.push([scanKey, { changed: scan.changed, total: scan.total, message: scan.message || "?" }]);
-  if (network.source === "zha") parts.push(["status.scan_hint", {}]);
   return parts;
 }
