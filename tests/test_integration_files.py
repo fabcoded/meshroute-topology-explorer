@@ -30,7 +30,10 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertEqual(m["domain"], COMP.name)
         self.assertEqual(m["name"], "Meshroute Topology Explorer")
         self.assertEqual(m["dependencies"], ["frontend", "http", "panel_custom"])
-        self.assertNotIn("after_dependencies", m)  # the panel checks ZHA in the browser; no need to pull in its requirements
+        # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared (since A4w).
+        # after_dependencies, not dependencies: the integration must also load without ZHA (Thread only).
+        self.assertEqual(m.get("after_dependencies"), ["zha"])
+        self.assertNotIn("zha", m["dependencies"])
         self.assertEqual(m["iot_class"], "calculated")
         self.assertEqual(m["requirements"], [])
         self.assertTrue(m["config_flow"] and m["single_config_entry"])
