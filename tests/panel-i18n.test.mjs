@@ -163,3 +163,12 @@ test("legend, View and Details texts of the A4j boards (M2, M7) in German, with 
     assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
   }
 });
+
+test("board texts M1 and M8: fit button, IEEE label and mains power badge (brief a4o)", () => {
+  const want = { "zoom.fit": ["Fit", "Einpassen"], "details.ieee": ["IEEE", "IEEE"], "power.mains": ["Mains power", "Netzstrom"],
+    "raw.power.mains": ["Mains", "Netzstrom"] };
+  for (const [key, [en, de]] of Object.entries(want)) {
+    assert.equal(STRINGS.en[key], en, `en ${key}`);
+    assert.equal(STRINGS.de[key], de, `de ${key}`);
+  }
+});
