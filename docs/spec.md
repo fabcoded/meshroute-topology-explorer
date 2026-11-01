@@ -366,7 +366,8 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
 
 - A **status line** is always visible (board M1): source; "Router tables: x/y" (x available routers with a table of y available
   routers; the coordinator is not counted; no completeness percentage, review 1.4c, 2026-11-01); the newest change the panel has observed ("unchanged since …"); on the
-  right the source-route stage (5.1). Devices missing from every table are named by the findings, and that ZHA reads
+  right the source-route stage (5.1; not in the view "routing table", which draws no assumed or recorded return
+  path, main session 2026-11-01). Devices missing from every table are named by the findings, and that ZHA reads
   the tables by itself, every 4 hours by default, is an info button beside "Read data again" (9.1; decision by Fabian
   Schwamborn, 2026-11-01).
 - **Thread** (brief a7, board Variant A): source "Thread (Matter)"; "Links with both directions: x/y" (pairs measured
@@ -626,7 +627,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   right a button **View** and directly below it a button **Legend**; bottom right the zoom group (+, −, fit); the
   status line below the map, with the source-route stage apart on its right ("Return paths assumed for 8 devices
   (source route)", "Source route off · 8 return paths unknown", "Source route from zigpy · 6 recorded, 2 assumed",
-  "zigpy not available · 8 assumed" with the reason as its description; nothing when no device is concerned, 5.1; ZHA
+  "zigpy not available · 8 assumed" with the reason as its description; nothing when no device is concerned or in
+  the view "routing table", 5.1; ZHA
   only, never for Thread); banners (incomplete data, connection lost, reading) between the top groups, or below
   them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). **Network switch** (brief a7;
   board "Variant A", draft not yet approved by the owner; one function, `sourcePart` in ui/network-switch.js): with
@@ -717,7 +719,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
     with its reason; the note (computed, not observed, and how) stands at the top of the card, rows of equal hop
     count sort by name in natural order (Router 2 before Router 10), and the cost of the whole path stands at the
     end of its row, apart from the last hop. In the view "table" (brief a4z) the card **"Routing table · n"** follows
-    the one with the coordinator, collapsed above 12 rows: a row per destination of the device's usable entries by
+    the one with the coordinator (for the coordinator itself it is the only path card: its view-1 list would repeat
+    the same routes, main session 2026-11-01), collapsed above 12 rows: a row per destination of the device's usable entries by
     name, with the hops there (→) and, with "include return routes", back (←), "?" for a walk that stops; a row opens
     to the walks, every hop with its RX and how it is taken ("routing table entry", "child", "parent"), a gap as "path
     unknown beyond X (no entry | entry inactive | table not read | loop | unavailable)"; notes: what the view

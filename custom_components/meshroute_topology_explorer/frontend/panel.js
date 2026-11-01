@@ -417,8 +417,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     })() : null;
     const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected });
     this._ui.status.classList.toggle("compact", compact);
-    // The source-route stage sits apart on the right (board M1).
-    const sr = this._settings && zha ? sourceRoutePart(sourceRouteSummary(net, this._settings.settings.sourceRoute), compact) : null;
+    // The source-route stage sits apart on the right (board M1); not in the view "routing table" (sourceRoutePart).
+    const s = this._settings && this._settings.settings;
+    const sr = s && zha ? sourceRoutePart(sourceRouteSummary(net, s.sourceRoute), compact, s.paths) : null;
     // The source part is the network switch when there is more than one network (ui/network-switch.js).
     const choices = networkChoices(this._controller.state);
     const source = sourcePart({ t, choices, active: zha ? "zha" : "thread", open: this._networkMenu, compact,

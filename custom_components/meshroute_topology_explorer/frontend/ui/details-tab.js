@@ -100,7 +100,8 @@ function deviceButton(ctx, dev, note) {
 function communication(panel, info, ctx, name) {
   const { t } = ctx;
   const d = info.device;
-  panel.append(pathsCard(info.paths, ctx, name, info.record));
+  // The coordinator in the view "routing table" has only that card (main session, 2026-11-01).
+  if (!(info.table && info.device.role === "coordinator")) panel.append(pathsCard(info.paths, ctx, name, info.record));
   if (info.table) panel.append(tableCard(info.table, ctx, name));
   if (info.theory.length) panel.append(theoryCard(info.theory, ctx, name));
 
