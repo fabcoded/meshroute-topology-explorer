@@ -233,3 +233,21 @@ test("a device on the selected device's paths keeps its label in a hub position 
     assert.ok(labelled.includes("Router 17"), `stage ${stage}: Router 17 is labelled`);
   }
 });
+
+test("every hop of the focus carries its value on click, overlap accepted (board M11 rule 8, owner 2026-11-01)", () => {
+  // On 7b7e9b1 a click in stage 2 lost 24-33 of 82 values (no free place or a lane too short) and Router 11 in stage 1
+  // showed 1 of 3 at the fitted view.
+  const { view, env } = show();
+  const { scene } = view;
+  for (const [label, stage, hops] of [["Router 13", "all", 82], ["Router 11", "coordinator", null], ["End device 06", "all", 85]]) {
+    view.setPaths(stage);
+    view.selected = scene.nodes.findIndex((n) => n.label === label);
+    view.draw();
+    const { paths } = view.lastDraw;
+    if (hops) assert.equal(paths.hops, hops, `${label}: hops`);
+    const missing = paths.values.filter((v) => !v.drawn || v.x === null);
+    assert.equal(missing.length, 0, `${label} (${stage}): ${missing.length} of ${paths.values.length} values dropped`);
+    assert.equal(paths.values.length, paths.hops, `${label}: one value per hop`);
+  }
+  env.flush();
+});

@@ -416,11 +416,12 @@ the centre).
   2026-11-01). Devices on the paths, their goals and the heard partners keep full strength and their labels.
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
   right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
-  below it the value. On a short lane it moves back just enough to stay beside its own lane; if the place is taken it
-  tries 60 % and 88 % of the lane; a value on a path may cover a dimmed device, never a label or another value. No
-  room: the details list it. A lane too short at the current zoom for its value, as between a router and the
-  coordinator right beside it in the fitted view, shows none; zooming in or the details show it (main session,
-  2026-11-01). The values of the way up and down take their places first, then routes, then computed hops, then heard
+  below it the value. On a short lane it moves back just enough to stay beside its own lane. **Values of the focus's
+  lanes (click and hover) are never dropped** and never move: each sits at that place even where it covers another
+  value, a label or a symbol (board M11 rule 8, "every value at its place, overlap accepted"; owner decision
+  2026-11-01); a lane too short for the two lines still shows its value, at its middle beside the lane. In the debug
+  overview, values on every lane look for a free place (60 % and 88 % of the lane next), and a lane too short or
+  without room shows none; the details list every value. The values of the way up and down take their places first, then routes, then computed hops, then heard
   only. This holds for path hops and for debug mode's values on every lane; the overview shows the rating by width
   only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
@@ -508,7 +509,7 @@ user-supplied image, or map tiles from an address the user configured.
   symbol and names 3 px below it, each line centred; (2) the whole block 3 px below, centred; (3) the whole block 3 px
   above, centred; (4) right of the symbol, 4 px from its edge, lines aligned left and the block centred vertically on
   the device; (5) the same on the left, aligned right. Places that come out the same (the name alone: 1 and 2) are
-  tried once. A dimmed device is no obstacle for a path value but is one for a label. Where no place is free the block
+  tried once. Where no place is free the block
   is left out, except for the coordinator, the focus and every device on the focus's paths, which take the first place
   (a hub such as Router 17 under End device 06 would otherwise lose its label to the lane values; overlap is accepted).
 - The legend (one place: the Legend tab, 9.1) explains every class of lines, the fill while one is chosen, the
