@@ -121,15 +121,16 @@ test("click: everything else off; stage 1 the way up and down, stage 2 adds rout
   // Stage 2: the way to and from every other device (spec 5.7). Out: r2 -> r1 and r2 -> r3 directly (r2 hears both),
   // r2 -> r1 -> r4 by the tables, r2 -> r1 -> e1 by discovery to the parent, which delivers. In: r1 and e1 by r1's
   // table; r3 does not hear r2 and r4 has no entry: their ways are what a discovery finds (r3 -> c -> r1 -> r2 costs
-  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). Every lane keeps its strongest class (main session, 2026-11-01): e1 ->
-  // r1, r3 -> c are up lanes, r1 -> e1 a down lane, r4 -> r1 a neighbour hop of r4's way to r1, so nothing is drawn as
-  // computed here.
+  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). On click the selection's own tree decides (main session, 2026-11-01,
+  // board M11 rule 5): r2's own up and down lanes stay up and down; e1 -> r1 and r1 -> e1 are parent hops of its
+  // trees, so routes (not the up and down lanes they are for e1); r3 -> c and r4 -> r1 are only what a discovery would
+  // take, so computed although they are someone's up lane or neighbour hop.
   assert.deepEqual(two.paths.values.map((v) => [ID[v.s], ID[v.h], v.text, v.cls, v.predicted]).sort(), [
-    ["c", "r1", "180", "down", false], ["e1", "r1", "60", "up", false], ["r1", "c", "200", "up", false],
-    ["r1", "e1", "Parent", "down", false], ["r1", "r2", "140", "down", false], ["r1", "r4", "70", "route", false],
-    ["r2", "r1", "150", "up", false], ["r2", "r3", "?", "route", false], ["r3", "c", "120", "up", false],
-    ["r4", "r1", "80", "route", false]]);
-  assert.deepEqual(two.classes, { heard: 0, route: 3, down: 3, up: 4, assumed: 0, predicted: 0, none: 0 });
+    ["c", "r1", "180", "down", false], ["e1", "r1", "60", "route", false], ["r1", "c", "200", "up", false],
+    ["r1", "e1", "Parent", "route", false], ["r1", "r2", "140", "down", false], ["r1", "r4", "70", "route", false],
+    ["r2", "r1", "150", "up", false], ["r2", "r3", "?", "route", false], ["r3", "c", "120", "route", true],
+    ["r4", "r1", "80", "route", true]]);
+  assert.deepEqual(two.classes, { heard: 0, route: 6, down: 2, up: 2, assumed: 0, predicted: 2, none: 0 });
   assert.equal(two.paths.ends, 0, "every way complete");
   // The checkbox in stage 1 adds r2's heard-only partner r3 (no up, down or route lane between them): r3 -> r2 as
   // heard, r2 -> r3 has no reading, so its glyph "–" (r3's table does not list r2: table full here, so "?").

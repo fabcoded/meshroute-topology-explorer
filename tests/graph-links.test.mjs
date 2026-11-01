@@ -220,7 +220,7 @@ test("stage 'all': paths to and from other devices join the click as routes; hov
   const all = draw({ selected: 1, paths: "all" });
   const values = all.stats.paths.values.map((v) => [v.s, v.h, v.text, v.cls]).sort();
   assert.deepEqual(values, [[1, 0, "200", "up"], [1, 4, "Parent", "route"], [2, 1, "Route", "route"],
-    [4, 1, "90", "up"]], "e1 -> r1 is e1's up lane and stays solid");
+    [4, 1, "90", "route"]], "e1 -> r1 is e1's up lane, but r1's own tree takes it as a route");
   assert.equal(all.stats.paths.ends, 4, "c -> r1, r1 -> r2, r1 -> r3, r3 -> r1");
   // The overview of stage 2 carries every lane a theoretical path takes, so hover previews r1's hops without adding a
   // lane; the "?" stems of incomplete ways wait for the click.

@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { BEST_HEARD } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { sceneBackbone, sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { theoreticalLanes, theoreticalPath }
   from "../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js";
 import { FakeCanvas, fakeEnv } from "./graph-fakes.mjs";
@@ -18,6 +18,9 @@ import { FakeCanvas, fakeEnv } from "./graph-fakes.mjs";
 const r = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
 const network = buildNetwork(r["zha/devices"], { deviceRegistry: r["config/device_registry/list"],
   areaRegistry: r["config/area_registry/list"], configEntries: r["config_entries/get"] });
+
+// [hops on click, of which computed]; before the change (backbone classes reaching in): 2, 1, 0, 0.
+const PREDICTED_ON_CLICK = { "End device 06": [85, 34], "Router 13": [82, 20], "Router 11": [82, 9], Coordinator: [96, 0] };
 
 function show() {
   const canvas = new FakeCanvas(1400, 860);
@@ -162,37 +165,63 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
   });
 });
 
-test("a lane keeps its strongest class on click and hover: up and down solid, computed only where nothing proves it", () => {
+test("on click and hover the selection's own tree decides each hop's class: computed where only a discovery takes it", () => {
   const { view, env } = show();
   const { scene } = view;
   const sc = sceneClasses(scene, "assume");
-  const bb = sceneBackbone(scene);
   view.setPaths("all");
   const tally = {};
   for (const label of ["End device 06", "Router 13", "Router 11", "Coordinator"]) {
     const i = scene.nodes.findIndex((n) => n.label === label);
+    const own = scenePaths(scene, i, "all", "assume");
+    // The selection's stage-1 lanes: its up and down paths with the coordinator.
+    const stage1 = scenePaths(scene, i, "coordinator", "assume");
     for (const focus of [{ selected: i, hovered: -1 }, { selected: -1, hovered: i }]) {
       view.selected = focus.selected;
       view.hovered = focus.hovered;
       view.draw();
       const { paths, classes } = view.lastDraw;
       for (const v of paths.values) {
-        const lane = scene.laneByKey.get(`${v.s}>${v.h}`);
-        const own = sc.cls[lane.index];
-        if (own === "up" || own === "down") assert.equal(v.cls, own, `${label}: ${v.s}>${v.h} stays ${own}`);
-        if (v.predicted) assert.equal(bb.kind[lane.index], "predicted", `${label}: ${v.s}>${v.h} is computed only`);
-        if (bb.kind[lane.index] === "route" && v.cls === "route") assert.equal(v.predicted, false);
+        const key = `${v.s}>${v.h}`;
+        const hop = own.hops.get(key);
+        const s1 = stage1.hops.get(key);
+        if (s1 && (s1.cls === "up" || s1.cls === "down")) {
+          assert.equal(v.cls, s1.cls, `${label}: ${key} is its own ${s1.cls} lane`);
+          continue;
+        }
+        assert.equal(v.cls, hop.cls, `${label}: ${key} has the class of the selection's own tree`);
+        assert.equal(v.predicted, hop.predicted, `${label}: ${key} computed only if its own tree says so`);
       }
-      // On click only the focus's lanes are drawn; hover lays them over the dimmed overview.
       if (focus.selected >= 0) tally[label] = [paths.hops, classes.predicted];
       else assert.equal(paths.hops, tally[label][0], `${label}: hover previews every hop of the click`);
     }
   }
   env.flush();
-  // Hops on click, of which drawn as computed: few, as most lanes are someone's up or down lane or a table's or
-  // neighbour's hop as well.
-  assert.deepEqual(tally, { "End device 06": [85, 2], "Router 13": [82, 1], "Router 11": [82, 0],
-    Coordinator: [96, 0] });
+  // Hops on click, of which computed (before: 2, 1, 0, 0 of the same hops, the backbone's classes reached in).
+  assert.deepEqual(tally, PREDICTED_ON_CLICK);
+  // Router 13 -> Router 21: the details say route discovery for both hops, and the map draws the second
+  // computed even though the backbone takes its lane as somebody's down lane.
+  const label = (l) => scene.nodes.findIndex((n) => n.label === l);
+  const [r13, r11, r21] = ["Router 13", "Router 11", "Router 21"].map(label);
+  const hops = theoreticalPath(scene.pathNet, scene.nodes[r13].id, scene.nodes[r21].id).hops;
+  assert.deepEqual(hops.map((h) => [h.sender, h.hearer, h.how]),
+    [[scene.nodes[r13].id, scene.nodes[r11].id, "discovery"], [scene.nodes[r11].id, scene.nodes[r21].id, "discovery"]]);
+  view.selected = r13;
+  view.draw();
+  const drawn = new Map(view.lastDraw.paths.values.map((v) => [`${v.s}>${v.h}`, v]));
+  // R13 -> R11 is R13's neighbour hop to R11 itself, so the strongest of its own ways makes it a proven route; R11 ->
+  // R21 only a discovery takes: computed.
+  assert.deepEqual([drawn.get(`${r13}>${r11}`).cls, drawn.get(`${r13}>${r11}`).predicted], ["route", false]);
+  assert.deepEqual([drawn.get(`${r11}>${r21}`).cls, drawn.get(`${r11}>${r21}`).predicted], ["route", true]);
+  // A lane the selection takes by a table stays a proven route, even where only discovery is computed elsewhere.
+  const proven = [...scenePaths(scene, r13, "all", "assume").hops.values()].filter((h) => h.cls === "route" && !h.predicted);
+  assert.ok(proven.length > 0);
+  for (const h of proven) assert.equal(drawn.get(`${h.s}>${h.h}`).predicted, false);
+  // The overview (no selection) keeps the backbone: 570 lanes, 19 of them computed only.
+  view.selected = -1;
+  view.draw();
+  assert.equal(view.lastDraw.lanes, 570);
+  assert.equal(view.lastDraw.classes.predicted, 19);
 });
 
 test("a stage or checkbox change redraws at once, with and without a selection (owner's report 2026-11-01)", () => {
