@@ -102,7 +102,7 @@ test("Details, cluster popup, device rows and the source-route stage use the own
     "details.tab_communication": "Kommunikation", "details.tab_entity": "Entität", "details.tab_cluster": "Cluster",
     "details.paths_coordinator": "Kommunikationsweg mit dem Koordinator", "details.path_up": "hin", "details.path_down": "zurück",
     "details.children_title": "Kinder (schlafende Geräte)", "details.heard_title": "Wird gehört von {by} \u00b7 hört {hears}",
-    "details.readings_all": "\u2026 alle mit RX und Rang relativ zum Messenden", "details.tables_title": "Tabellen und Last",
+    "details.readings_all": "\u2026 alle {count} mit RX und Rang relativ zum Messenden", "details.tables_title": "Tabellen und Last",
     "rank.short": "Rang {pct} %", "node.title": "Knoten", "node.rx_on": "immer empfangsbereit", "node.band_2400": "2,4 GHz",
     "node.firmware": "Firmware", "node.quirk_none": "keiner", "node.buffer_value": "{n} Byte, Transfer {transfer} Byte",
     "node.last_heard": "Zuletzt gehört", "node.unknown": "unbekannt",

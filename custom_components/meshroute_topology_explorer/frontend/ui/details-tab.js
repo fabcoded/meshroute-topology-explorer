@@ -1,131 +1,222 @@
 // SPDX-License-Identifier: MIT
-// The Details tab (spec 9.2): everything the model knows about the selected device as text, so every value on the
-// canvas also exists as text (9.3). Other devices appear as buttons that select them. Raw ZHA tables only in debug
-// mode (9.1). Runs in the browser; the data comes from details.js.
-import { h, icon } from "./dom.js";
-import { detailsOf, pathLine } from "./details.js";
+// The Details tab (spec 9.2; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the device's name and one
+// line "type · role · vendor model", then a segmented control with three sub-tabs, each a stack of cards:
+// - Communication: the path with the coordinator there and back with the reception at every hop (or all its paths),
+//   parent or children, findings, who hears it and whom it hears with RX and the rank relative to the reporter, its
+//   tables and load; raw tables in debug mode;
+// - Entity: the node card (badges for logical type, power, receiver when idle, frequency band, stack revision; then
+//   addresses, manufacturer with code, model, firmware, quirk, buffers, last heard), the ways into Home Assistant and
+//   the device's entities, each opening Home Assistant's more-info dialog;
+// - Cluster: the signature's clusters per endpoint, a row opens the cluster's details (cluster-dialog.js).
+// Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
+// comes from details.js, model/signature.js and model/zcl.js.
+import { h } from "./dom.js";
+import { detailsOf, pathParts } from "./details.js";
 import { findingText } from "./finding-text.js";
-import { lqiText, rankText, receptionText, roleText, percent } from "./format.js";
+import { lqiText, percent, rankText, roleText } from "./format.js";
 import { formatNwk } from "../model/parse.js";
+import { clusterTable, nodeCard } from "../model/signature.js";
+import { clusterName, deviceTypeName, profileName } from "../model/zcl.js";
 import { rawText, RAW_COLUMNS } from "./raw-values.js";
+import { deviceLinks, inApp, moreInfo } from "./ha-links.js";
 
-/** Home Assistant's device page. Path: the config panel's devices section (/config/devices) with the "device" route
- *  of home-assistant/frontend src/panels/config/devices/ha-config-devices.ts, which reads the id from the rest of the
- *  path. */
-export const devicePagePath = (registryId) => `/config/devices/device/${encodeURIComponent(registryId)}`;
+/** The sub-tabs, in the board's order. */
+export const DETAIL_TABS = Object.freeze(["communication", "entity", "cluster"]);
+/** Readings listed before "… all" (board M4). */
+const TOP_READINGS = 5;
+/** "All paths" collapses above this many lines (spec 9.2). */
+const PATHS_OPEN = 12;
+/** Below this rating a reading is in the weakest tenth of what its reporter hears (spec 5.4). */
+const WEAKEST = 0.1;
 
-/** In-app navigation as Home Assistant's frontend does it (home-assistant/frontend src/common/navigate.ts): push the
- *  path onto the history, then fire "location-changed" on the window; the app's router listens for it. A plain link
- *  would reload the whole frontend. */
-export function navigate(path) {
-  history.pushState(null, "", path);
-  window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
-}
-
-/** Fill `container` with the details of `id`. ctx: { network, t, debug, raw (Map id -> zha/devices entry),
- *  observedSince (formatted time this device's table was first seen as it is now, or null), pinned
- *  (boolean), nodeView ("coordinator" or "all": which paths the map shows), onSelect(id), onRelease(id) }. */
+/** Fill `container` with the details of `id`. ctx: { network, t, id, debug, raw (Map id -> zha/devices entry),
+ *  nodeView ("coordinator" | "all"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
+ *  (formatted time the table was first seen as it is now, or null), pinned, idPrefix, onSub(sub, { focus }),
+ *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
-  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView) : null;
+  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView, { sourceRoute: ctx.sourceRoute }) : null;
   if (!info) {
     container.append(h("p", { class: "empty", text: t("details.empty") }));
     return;
   }
   const d = info.device;
+  const sub = DETAIL_TABS.includes(ctx.sub) ? ctx.sub : DETAIL_TABS[0];
+  const prefix = ctx.idPrefix || "mte-details";
   const name = (id) => (network.devices.find((x) => x.id === id) || { label: id }).label;
-  const deviceButton = (dev, extra) => h("button", { type: "button", class: "link", on: { click: () => ctx.onSelect(dev.id) } },
-    dev.label, extra ? h("span", { class: "muted", text: ` (${extra})` }) : null);
 
-  const head = h("div", { class: "details-head" },
-    h("h2", { class: "device-name", text: d.label }),
-    h("p", { class: "muted", text: `${roleText(d.role, t)} · ${d.available ? receptionText(d.rating, t) : t("details.unavailable_since", { time: t.time(d.lastSeen) })}` }));
-  const actions = h("div", { class: "actions" });
-  if (d.registryId) {
-    const path = devicePagePath(d.registryId);
-    actions.append(h("a", { class: "button", href: path, on: { click: (e) => {
-      // Ordinary clicks stay in the app; modified clicks (new tab, new window) keep the browser's behaviour.
-      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      e.preventDefault();
-      navigate(path);
-    } } }, icon("link", 18), t("details.open_ha")));
-  }
+  // Head: name, then "type · role · vendor model" (board M4); the state when it is down.
+  const kind = d.kind && d.kind !== "unknown" ? t(`kind_short.${d.kind}`) : null;
+  const product = [d.vendor, d.model].filter(Boolean).join(" ");
+  const line = [kind, roleText(d.role, t), product].filter(Boolean).join(" · ");
+  const head = h("div", { class: "details-head" }, h("h2", { class: "device-name", text: d.label }),
+    h("p", { class: "muted", text: line }));
+  if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.unavailable_since", { time: t.time(d.lastSeen) }) }));
   if (ctx.pinned) {
-    actions.append(h("span", { class: "muted", text: t("details.pinned") }),
-      h("button", { type: "button", class: "button", text: t("details.release_pin"), on: { click: () => ctx.onRelease(d.id) } }));
+    head.append(h("div", { class: "actions" }, h("span", { class: "muted", text: t("details.pinned") }),
+      h("button", { type: "button", class: "button", text: t("details.release_pin"), on: { click: () => ctx.onRelease(d.id) } })));
   }
   container.append(head);
-  if (actions.childNodes.length) container.append(actions);
 
-  // Facts, in the order of spec 9.2.
-  const rows = [];
-  const row = (label, ...value) => rows.push(h("dt", { text: label }), h("dd", {}, ...value));
-  if (d.vendor) row(t("details.vendor"), d.vendor);
-  if (d.model) row(t("details.model"), d.model);
-  // The picture of the map's symbol and its bed, as text (spec 9.3).
-  row(t("details.kind"), t(`device_kind.${d.kind || "unknown"}`));
-  row(t("details.ieee"), h("span", { class: "mono", text: d.id }));
-  row(t("details.nwk"), h("span", { class: "mono", text: d.nwk === null ? "?" : `${formatNwk(d.nwk)} (${d.nwk})` }));
-  if (d.area) row(t("details.area"), d.area);
-  row(t("details.role"), roleText(d.role, t));
-  if (d.powerSource) row(t("details.power"), rawText("power", d.powerSource, t, { debug: ctx.debug }));
-  row(t("details.state"), d.available ? rawText("available", true, t, { debug: ctx.debug })
-    : t("details.unavailable_since", { time: t.time(d.lastSeen) }) + (ctx.debug ? " (false)" : ""));
-  if (d.available && d.lastSeen) {
-    row(t("details.last_seen"), d.role === "router" ? t("details.last_seen_router", { time: t.time(d.lastSeen) }) : t.time(d.lastSeen));
-  }
-  if (d.role === "router" || d.role === "coordinator") {
-    row(t("details.table"), d.hasTable ? t("details.table_yes") : t("details.table_no"));
-  }
+  // The segmented control: WAI-ARIA tabs with automatic activation (arrows, Home and End move and show).
+  const tabs = DETAIL_TABS.map((key) => h("button", { type: "button", role: "tab", class: "segment", id: `${prefix}-tab-${key}`,
+    "aria-selected": String(key === sub), "aria-controls": `${prefix}-panel`, tabIndex: key === sub ? 0 : -1,
+    text: t(`details.tab_${key}`), on: { click: () => ctx.onSub(key, { focus: false }) } }));
+  const list = h("div", { class: "segmented", role: "tablist", "aria-label": t("details.tabs_label"),
+    on: { keydown: (e) => {
+      const at = DETAIL_TABS.indexOf(sub);
+      const next = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: DETAIL_TABS.length - 1 }[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      ctx.onSub(DETAIL_TABS[(next + DETAIL_TABS.length) % DETAIL_TABS.length], { focus: true });
+    } } }, tabs);
+  const panel = h("div", { class: "sub-panel", role: "tabpanel", id: `${prefix}-panel`, "aria-labelledby": `${prefix}-tab-${sub}` });
+  container.append(list, panel);
+  const raw = ctx.raw ? ctx.raw.get(d.id) : null;
+  if (sub === "communication") communication(panel, info, ctx, name);
+  else if (sub === "entity") entity(panel, d, raw, ctx, network.source);
+  else clusters(panel, d, raw, ctx);
+}
+
+/** A card: a bordered box with a small bold heading (board M4). */
+function card(title, ...children) {
+  return h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null, ...children);
+}
+
+/** A device as a button that selects it, with an optional muted note. */
+function deviceButton(ctx, dev, note) {
+  return h("span", { class: "device-ref" }, h("button", { type: "button", class: "link", text: dev.label,
+    on: { click: () => ctx.onSelect(dev.id) } }), note ? h("span", { class: "muted", text: ` · ${note}` }) : null);
+}
+
+// ---- Communication ----------------------------------------------------------------------------------------------
+
+function communication(panel, info, ctx, name) {
+  const { t } = ctx;
+  const d = info.device;
+  panel.append(pathsCard(info.paths, ctx, name));
+
   if (d.role === "end device") {
-    row(t("details.sleepy"), t(d.sleepy === true ? "details.sleepy_yes" : d.sleepy === false ? "details.sleepy_no" : "details.sleepy_unknown"));
+    const rows = [];
     if (info.parent) {
       const notes = [];
       if (!info.parent.available) notes.push(t("details.parent_unavailable"));
       if (info.parentFromStaleTable) notes.push(t("details.parent_stale"));
-      row(t("details.parent"), deviceButton(info.parent, notes.join(", ")));
-      row(t("details.parent_lqi"), lqiText(info.parentLqi, t));
+      rows.push(h("div", {}, deviceButton(ctx, info.parent, notes.join(", "))),
+        h("div", { class: "muted" }, `${t("details.parent_lqi")}: `, lqiText(info.parentLqi, t)));
     } else {
-      row(t("details.parent"), t("details.parent_none"));
+      rows.push(h("div", { class: "muted", text: t("details.parent_none") }));
     }
     if (info.possiblyStaleParents.length) {
-      row(t("details.possibly_stale"), ...joinButtons(info.possiblyStaleParents.map((p) => deviceButton(p))));
+      rows.push(h("div", { class: "muted" }, `${t("details.possibly_stale")}: `,
+        joinNodes(info.possiblyStaleParents.map((p) => deviceButton(ctx, p)))));
     }
-  } else if (d.role === "router" || d.role === "coordinator") {
-    if (info.children.length) row(t("details.children"), ...joinButtons(info.children.map((c) => deviceButton(c))));
-    row(t("details.relay_load"), t("details.relay_load_value", { count: info.relayLoad }));
+    rows.push(h("div", { class: "muted", text: `${t("details.sleepy")}: ${t(d.sleepy === true ? "details.sleepy_yes"
+      : d.sleepy === false ? "details.sleepy_no" : "details.sleepy_unknown")}` }));
+    panel.append(card(t("details.parent"), ...rows));
+  } else if (info.children.length) {
+    panel.append(card(t("details.children_title"),
+      ...info.children.map((c) => h("div", {}, deviceButton(ctx, c, c.model && c.model !== c.label ? c.model : null)))));
   }
-  // The label says "Reception"; the value is the rank alone (spec 5.4: best rating among the readings of it).
-  row(t("details.reception"), typeof info.reception === "number" ? t("rank.value", { pct: percent(info.reception) }) : t("rank.none"));
-  container.append(h("dl", { class: "facts" }, rows));
 
-  // The paths the map shows for the selection, as text: every hop with the reception at its hearer (spec 9.3).
-  container.append(pathsSection(info.paths, ctx, name));
-
-  // Findings with their evidence.
-  container.append(h("h3", { text: t("details.findings", { count: info.findings.length }) }));
   if (info.findings.length) {
-    container.append(h("ul", { class: "finding-list" }, info.findings.map((f) => {
-      const { title, lines } = findingText(f, t, name);
-      return h("li", {}, h("strong", { text: title }), lines.map((line) => h("div", { class: "evidence", text: line })));
-    })));
-  } else {
-    container.append(h("p", { class: "muted", text: t("details.no_findings") }));
+    panel.append(card(t("details.findings", { count: info.findings.length }), h("ul", { class: "finding-list" },
+      info.findings.map((f) => {
+        const { title, lines } = findingText(f, t, name);
+        return h("li", {}, h("strong", { text: title }), lines.map((l) => h("div", { class: "evidence", text: l })));
+      }))));
   }
 
-  // Readings in both directions. "Heard by": others' readings of this device, ranked on each reporter's scale.
-  // "Hears": this device's own readings, ranked on its scale.
-  container.append(h("h3", { text: t("details.heard_by", { count: info.heardBy.length }) }));
-  if (info.heardBy.length) container.append(h("p", { class: "muted small", text: t("details.heard_by_note") }));
-  container.append(readingTable(info.heardBy, t, deviceButton));
-  container.append(h("h3", { text: t("details.hears", { count: info.hears.length }) }));
-  container.append(readingTable(info.hears, t, deviceButton));
+  panel.append(heardCard(info, ctx));
+  panel.append(tablesCard(info, ctx));
 
-  // Own routing entries; collapsed when long (the coordinator lists one per router).
-  const routes = h("details", { class: "routes", open: info.routes.length <= 8 },
-    h("summary", { text: t("details.routes", { count: info.routes.length }) }));
+  if (ctx.debug) {
+    const extra = [];
+    if (d.hasTable) {
+      extra.push(h("p", { text: ctx.observedSince ? t("details.observed", { time: ctx.observedSince }) : t("details.observed_none") }),
+        h("p", { class: "muted small", text: t("status.unchanged_note") }));
+    }
+    panel.append(card(t("details.raw_title"), ...extra, rawTables(ctx.raw && ctx.raw.get(d.id), t)));
+  }
+}
+
+/** The path card (board M4): "Communication path with the coordinator" with the lines there and back, or "All paths"
+ *  collapsed when long. Each hop names the device that hears it and the reception there, the value in bold; an
+ *  assumed return path (source route) says so in its prefix and in a note. */
+function pathsCard(paths, ctx, name) {
+  const t = ctx.t;
+  const all = ctx.nodeView === "all" || paths.some((p) => p.kind === "out" || p.kind === "in");
+  const lines = paths.map((p) => {
+    const { prefix, steps, tail } = pathParts(p, t, name);
+    const nodes = [`${prefix}: `];
+    steps.forEach((s, i) => {
+      if (i) nodes.push(" → ");
+      nodes.push(s.name);
+      if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
+    });
+    if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
+    return h("div", { class: `path-line${p.assumed ? " assumed" : ""}` }, nodes);
+  });
+  const body = lines.length ? lines : [h("div", { class: "muted", text: t("details.paths_none") })];
+  const notes = [h("p", { class: "muted small", text: t("details.paths_note") })];
+  if (paths.some((p) => p.assumed)) notes.push(h("p", { class: "muted small", text: t("details.paths_assumed_note") }));
+  if (!all) return card(t("details.paths_coordinator"), ...body, ...notes);
+  return card(null, h("details", { class: "card-details", open: paths.length <= PATHS_OPEN },
+    h("summary", { class: "card-title", text: t("details.paths_all", { count: paths.length }) }), ...body, ...notes));
+}
+
+/** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (board M4). */
+function readingRows(list, ctx) {
+  const t = ctx.t;
+  return h("div", { class: "reading-rows", role: "table" }, list.map((r) => {
+    const rated = typeof r.rating === "number";
+    const rank = rated ? t("rank.short", { pct: percent(r.rating) }) : t("rank.none");
+    const long = rankText(r.rating, r.reporter.label, t) + (r.pool === "vendor" ? ` ${t("rank.vendor")}` : "");
+    return h("div", { class: `reading-row${rated && r.rating < WEAKEST ? " weak" : ""}`, role: "row", title: long },
+      h("span", { role: "cell", class: "reading-name" }, h("button", { type: "button", class: "link", text: r.device.label,
+        on: { click: () => ctx.onSelect(r.device.id) } })),
+      h("span", { role: "cell", class: "reading-rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: lqiText(r.lqi, t) })),
+      h("span", { role: "cell", class: "reading-rank", text: rank }));
+  }));
+}
+
+/** "Heard by 18 · hears 25" (board M4): the reception, the best readings of the device, then behind "… all" the rest
+ *  and what the device itself hears. */
+function heardCard(info, ctx) {
+  const t = ctx.t;
+  const reception = typeof info.reception === "number" ? t("rank.value", { pct: percent(info.reception) }) : t("rank.none");
+  const body = [h("div", { class: "muted small", text: `${t("details.reception")}: ${reception}` })];
+  const top = info.heardBy.slice(0, TOP_READINGS);
+  const rest = info.heardBy.slice(TOP_READINGS);
+  body.push(top.length ? readingRows(top, ctx) : h("div", { class: "muted", text: t("details.no_readings") }));
+  if (rest.length || info.hears.length) {
+    const more = h("details", { class: "more all-readings" },
+      h("summary", { text: t("details.readings_all", { count: info.heardBy.length + info.hears.length }) }));
+    if (rest.length) more.append(readingRows(rest, ctx));
+    if (info.hears.length) more.append(h("h4", { text: t("details.hears", { count: info.hears.length }) }), readingRows(info.hears, ctx));
+    body.push(more);
+  }
+  return card(t("details.heard_title", { by: info.heardBy.length, hears: info.hears.length }), ...body);
+}
+
+/** "Tables and load" (board M4): the neighbour table against the model's capacity, the routing table, the relay load;
+ *  the routing entries behind a disclosure. */
+function tablesCard(info, ctx) {
+  const t = ctx.t;
+  const d = info.device;
+  const lines = [];
+  if (d.role === "router" || d.role === "coordinator") {
+    if (!d.hasTable) lines.push(h("div", { text: t("details.table_no") }));
+    else if (d.tableCapacity) lines.push(h("div", { text: t("details.table_of", { n: d.tableSize, cap: d.tableCapacity }) }));
+    else lines.push(h("div", { text: t("details.table_size", { n: d.tableSize }) }));
+    lines.push(h("div", { text: t("details.routing_size", { count: info.routingEntries }) }),
+      h("div", { text: t("details.relay_load_value", { count: info.relayLoad }) }));
+  } else {
+    lines.push(h("div", { class: "muted", text: t("details.tables_end_device") }));
+  }
   if (info.routes.length) {
+    const routes = h("details", { class: "more", open: info.routes.length <= 8 }, h("summary", { text: t("details.routes", { count: info.routes.length }) }));
     routes.append(h("ul", { class: "plain" }, info.routes.map((r) => {
       const text = r.direct ? t("details.route_direct", { destination: r.destination.label })
         : t("details.route_via", { destination: r.destination.label, next: r.nextHop.label });
@@ -136,49 +227,100 @@ export function renderDetails(container, ctx) {
       if (r.stale) notes.push(t("details.route_stale"));
       return h("li", {}, text, notes.length ? h("span", { class: "muted", text: ` (${notes.join(", ")})` }) : null);
     })));
-  } else {
-    routes.append(h("p", { class: "muted", text: t("details.no_routes") }));
+    lines.push(routes);
   }
-  container.append(routes);
-
-  if (ctx.debug) {
-    // Per table: since when it was observed as it is now (spec 9.1, debug), with the caveat of spec 6.
-    if (d.hasTable) {
-      container.append(h("h3", { text: ctx.observedSince ? t("details.observed", { time: ctx.observedSince }) : t("details.observed_none") }),
-        h("p", { class: "muted small", text: t("status.unchanged_note") }));
-    }
-    container.append(rawTables(ctx.raw && ctx.raw.get(d.id), t));
-  }
+  return card(t("details.tables_title"), ...lines);
 }
 
-/** The selection's paths in the node view: "Path to coordinator" as two lines, "All paths" as a list that is collapsed
- *  when long (the coordinator has one path per router each way). */
-function pathsSection(paths, ctx, name) {
+/** Nodes separated by commas. */
+function joinNodes(nodes) {
+  return nodes.flatMap((b, i) => (i ? [", ", b] : [b]));
+}
+
+// ---- Entity -------------------------------------------------------------------------------------------------------
+
+function entity(panel, d, raw, ctx, source) {
   const t = ctx.t;
-  const all = ctx.nodeView === "all" || paths.some((p) => p.kind === "out" || p.kind === "in");
-  const list = paths.length ? h("ul", { class: "plain paths" }, paths.map((p) => h("li", { text: pathLine(p, t, name) })))
-    : h("p", { class: "muted", text: t("details.paths_none") });
-  const note = h("p", { class: "muted small", text: t("details.paths_note") });
-  if (!all) return h("section", { class: "paths-box" }, h("h3", { text: t("details.paths_coordinator") }), list, note);
-  return h("details", { class: "paths-box", open: paths.length <= 12 },
-    h("summary", { text: t("details.paths_all", { count: paths.length }) }), list, note);
+  const node = nodeCard(raw, d);
+  const chips = [];
+  const chip = (text) => chips.push(h("span", { class: "chip", text }));
+  chip(roleText(node.logicalType || d.role, t));
+  if (d.powerSource) chip(rawText("power", d.powerSource, t));
+  const rx = node.mac ? node.mac.rxOnWhenIdle : d.sleepy === null ? null : !d.sleepy;
+  if (rx !== null) chip(t(rx ? "node.rx_on" : "node.rx_off"));
+  for (const band of node.bands) chip(t(`node.band_${band}`));
+  if (node.revision !== null) chip(node.revision ? t("node.revision", { r: node.revision }) : t("node.revision_old"));
+
+  const facts = [];
+  const fact = (label, ...value) => facts.push(h("div", { class: "kv" }, h("span", { class: "kv-key", text: label }),
+    h("span", { class: "kv-value" }, ...value)));
+  const unknown = () => h("span", { class: "muted", text: t("node.unknown") });
+  fact(t("details.ieee"), h("span", { class: "mono", text: d.id }));
+  fact(t("details.nwk"), h("span", { class: "mono", text: d.nwk === null ? "?" : `${formatNwk(d.nwk)} (${d.nwk})` }));
+  fact(t("details.vendor"), d.vendor || unknown(), node.manufacturerCode !== null ? ` · ${formatNwk(node.manufacturerCode)}` : "");
+  fact(t("details.model"), d.model || unknown());
+  fact(t("node.firmware"), node.firmware || unknown());
+  fact(t("node.quirk"), node.quirk ? h("span", { class: "mono small", text: node.quirk }) : t("node.quirk_none"));
+  if (node.bufferSize !== null) {
+    const transfer = node.transferIn !== null && node.transferOut !== null && node.transferIn !== node.transferOut
+      ? `${node.transferIn}/${node.transferOut}` : node.transferIn ?? node.transferOut;
+    fact(t("node.buffer"), transfer === null ? t("node.bytes", { n: node.bufferSize })
+      : t("node.buffer_value", { n: node.bufferSize, transfer }));
+  }
+  fact(t("node.last_heard"), node.lastSeen ? (d.role === "router" ? t("details.last_seen_router", { time: t.time(node.lastSeen) })
+    : t.time(node.lastSeen)) : unknown());
+  panel.append(card(t("node.title"), h("div", { class: "chips" }, chips), h("div", { class: "kv-list" }, facts)));
+
+  // The ways into Home Assistant (board M8), as links that stay in the app.
+  const links = deviceLinks(d, source).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
+    key === "area" ? t("ha.area", { name: d.area || d.areaId }) : t(`ha.${key}`)));
+  panel.append(card(t("ha.title"), links.length ? h("div", { class: "pills" }, links) : h("div", { class: "muted", text: t("ha.none") }),
+    h("p", { class: "muted small", text: t("ha.note") })));
+
+  const ids = d.entities || [];
+  panel.append(card(t("ha.entities_title", { count: ids.length }), ids.length
+    ? h("ul", { class: "plain entity-list" }, ids.map((id) => h("li", {}, h("button", { type: "button", class: "link mono",
+      text: id, on: { click: (e) => moreInfo(e.currentTarget, id) } }))))
+    : h("div", { class: "muted", text: t("ha.entities_none") })));
 }
 
-/** Buttons separated by commas, for inline lists of devices. */
-function joinButtons(buttons) {
-  return buttons.flatMap((b, i) => (i ? [", ", b] : [b]));
+// ---- Cluster ------------------------------------------------------------------------------------------------------
+
+function clusters(panel, d, raw, ctx) {
+  const t = ctx.t;
+  const table = clusterTable(raw && raw.signature);
+  if (!table.length) {
+    panel.append(h("p", { class: "muted", text: t("cluster.none") }));
+    return;
+  }
+  const body = h("tbody");
+  for (const ep of table) {
+    const profile = profileName(ep.profile);
+    const type = ep.profile !== null && ep.deviceType !== null ? deviceTypeName(ep.profile, ep.deviceType, t.lang) : null;
+    const head = [t("cluster.endpoint", { n: ep.endpoint }),
+      ep.profile !== null ? `${profile || t("cluster.profile_unknown")} ${formatNwk(ep.profile)}` : null,
+      ep.deviceType !== null ? `${type || t("cluster.type_unknown")} ${formatNwk(ep.deviceType)}` : null]
+      .filter(Boolean).join(" · ");
+    body.append(h("tr", { class: "ep-row" }, h("th", { colSpan: 3, scope: "colgroup", text: head })));
+    for (const c of ep.clusters) {
+      const open = (opener) => ctx.onCluster({ endpoint: ep.endpoint, profile: ep.profile, cluster: c.id, direction: c.direction }, opener);
+      const label = c.manufacturerSpecific ? (d.vendor || t("cluster.vendor_unknown")) : clusterName(c.id, t.lang) || t("cluster.unknown");
+      const button = h("button", { type: "button", class: "row-button", on: { click: (e) => { e.stopPropagation(); open(e.currentTarget); } } },
+        label, c.manufacturerSpecific ? h("span", { class: "tag", text: t("cluster.manufacturer") }) : null);
+      body.append(h("tr", { class: "cluster-row", on: { click: () => open(button) } },
+        h("td", {}, button), h("td", { class: "mono id", text: formatNwk(c.id) }),
+        h("td", { text: t(c.direction === "in" ? "cluster.in" : "cluster.out") })));
+    }
+  }
+  // The table stands on its own, not in a card (board M9).
+  panel.append(h("section", { class: "cluster-section" }, h("table", { class: "cluster-table" }, h("thead", {}, h("tr", {},
+    h("th", { scope: "col", text: t("cluster.col_cluster") }), h("th", { scope: "col", text: t("cluster.col_id") }),
+    h("th", { scope: "col", text: t("cluster.col_direction") }))), body),
+  h("p", { class: "muted small", text: t("cluster.legend") })));
+  panel.append(h("p", { class: "muted small", text: t("cluster.source_note") }));
 }
 
-function readingTable(rows, t, deviceButton) {
-  if (!rows.length) return h("p", { class: "muted", text: t("details.no_readings") });
-  return h("table", { class: "readings" },
-    h("thead", {}, h("tr", {}, h("th", { scope: "col", text: t("details.col_device") }),
-      h("th", { scope: "col", class: "num", text: t("details.col_lqi") }), h("th", { scope: "col", text: t("details.col_rank") }))),
-    h("tbody", {}, rows.map((r) => h("tr", {},
-      h("td", {}, deviceButton(r.device)),
-      h("td", { class: "num", text: lqiText(r.lqi, t) }),
-      h("td", { text: rankText(r.rating, r.reporter.label, t) + (r.pool === "vendor" ? ` ${t("rank.vendor")}` : "") })))));
-}
+// ---- raw tables (debug) -------------------------------------------------------------------------------------------
 
 /** A raw table cell: enum values in words with the raw text beside them, everything else as ZHA sent it. */
 function cell(column, value, t) {
@@ -186,13 +328,12 @@ function cell(column, value, t) {
   return RAW_COLUMNS[column] ? rawText(RAW_COLUMNS[column], value, t, { debug: true }) : String(value);
 }
 
-/** The device's neighbour and routing tables as zha/devices delivered them (debug mode). Columns are the keys with
- *  plain values; enum values carry their translation next to the raw text. */
+/** The device's neighbour and routing tables as zha/devices delivered them (debug mode). */
 function rawTables(raw, t) {
   const box = h("div", { class: "raw" });
   for (const [key, label] of [["neighbors", "details.raw_neighbours"], ["routes", "details.raw_routes"]]) {
     const entries = raw && Array.isArray(raw[key]) ? raw[key].filter((e) => e && typeof e === "object") : [];
-    const section = h("details", { open: true }, h("summary", { text: t(label, { count: entries.length }) }));
+    const section = h("details", { class: "more", open: true }, h("summary", { text: t(label, { count: entries.length }) }));
     if (!entries.length) {
       section.append(h("p", { class: "muted", text: t("details.raw_empty") }));
     } else {

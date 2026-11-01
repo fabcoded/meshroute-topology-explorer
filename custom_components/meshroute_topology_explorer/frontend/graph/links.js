@@ -84,11 +84,12 @@ export function laneStyle(cls, state, rating, theme, { colored = false } = {}) {
  *  hearer measured it; dotted with an arrowhead when only a route or parent link proves it, or nothing does (the
  *  direction of travel is still known from the route). With colored, measured hops take their rating's colour.
  *  assumed: the hop lies on an assumed return path (source route, model/source-routes.js): never drawn as measured,
- *  whatever the hearer reports, but grey and sparsely dotted (decision by Fabian Schwamborn, 2026-11-01). */
+ *  whatever the hearer reports, but sparsely dotted in the foreground, so it reads apart from a hop a route proves
+ *  (denser dots) and never as a measured one (solid; decision by Fabian Schwamborn, 2026-11-01). */
 export function pathLaneStyle(state, rating, theme, { colored = false, assumed = false } = {}) {
   if (assumed) {
     const width = WIDTHS.route[1];
-    return { color: theme.muted, width, dash: [0.01, width + 5], cap: "round", head: true };
+    return { color: theme.foreground, width, dash: [0.01, width + 6], cap: "round", head: true };
   }
   if (state === "measured") {
     const width = WIDTHS.up[widthStep(rating)];

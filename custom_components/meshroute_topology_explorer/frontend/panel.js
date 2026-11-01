@@ -9,7 +9,9 @@
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
 // Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
 // since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
-// Only read-only websocket commands from spec 3.4 are used. Names are always set as text, never as HTML.
+// Only the websocket commands of spec 3.4 are used: read-only ones, the user-started scan and the user-started reading
+// of a cluster's attributes (ui/cluster-dialog.js). Entity states and area names come from the hass object Home
+// Assistant hands every panel (hass.states, hass.areas). Names are always set as text, never as HTML.
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
@@ -31,7 +33,9 @@ import { renderFindings, markFindings } from "./ui/findings-tab.js";
 import { renderLegend } from "./ui/legend-tab.js";
 import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
-import { statusParts, isIncomplete } from "./ui/status.js";
+import { statusParts, sourceRoutePart, isIncomplete } from "./ui/status.js";
+import { openClusterDialog } from "./ui/cluster-dialog.js";
+import { sourceRouteSummary } from "./model/source-routes.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
 import { h, iconButton } from "./ui/dom.js";
@@ -63,6 +67,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._wide = true;
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
     this._densityInfo = false; // the density note in the View tab is shown
+    this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
+    this._cluster = null; // the open cluster dialog, if any
     this._dirty = new Set();
     this._connection = "ok";
     this._controller = new PanelController();
@@ -98,6 +104,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (this._ui) requestAnimationFrame(() => this._applyTheme());
     }
     this._controller.setHass(value);
+    // An open cluster dialog shows entity states as current values: they follow the house.
+    if (this._cluster) this._cluster.refresh();
   }
   get hass() { return this._hass; }
 
@@ -205,7 +213,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._right.setTexts(t, t("panel.right_label"));
     if (this._source) {
       // The coordinator's label is translated, so the map gets the new network (same layout seed, same picture).
-      this._network = localize(this._source, t);
+      this._network = localize(this._source, t, this._areas());
       if (this._view) this._view.setTexts(this._graphTexts());
       if (this._view) this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
       this._devicesTab.setNetwork(this._network, t);
@@ -256,7 +264,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     await this._observe(network);
     if (token !== this._token) return;
-    this._network = localize(network, this._t);
+    this._network = localize(network, this._t, this._areas());
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
     this._ensureView();
     this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
@@ -288,7 +296,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, links: s.links, nodeView: s.nodeView, receptionColors: s.pathColors.mode === "coloured",
+      debug: this._debug, links: s.links, nodeView: s.nodeView, sourceRoute: s.sourceRoute,
+      receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
@@ -309,6 +318,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setFill(s.fill);
       this._view.setLinks(s.links);
       this._view.setNodeView(s.nodeView);
+      this._view.setSourceRoute(s.sourceRoute);
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
       this._view.setLabels(s.labels);
@@ -365,8 +375,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const compact = !this._wide;
     const parts = statusParts(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact });
     this._ui.status.classList.toggle("compact", compact);
-    this._ui.status.replaceChildren(...parts.map(([key, params, long]) => {
-      const span = h("span", { class: "part", text: t(key, params) });
+    // The source-route stage sits apart on the right (board M1).
+    const sr = this._settings ? sourceRoutePart(sourceRouteSummary(net, this._settings.settings.sourceRoute), compact) : null;
+    const spans = parts.map(([key, params, long], i) => {
+      const span = h("span", { class: i < parts.length - 1 ? "part sep" : "part", text: t(key, params) });
       if (long) span.title = t(long, params);
       if (key === "status.unchanged" || key === "status.short_unchanged") {
         span.title = long ? `${t(long, params)}. ${t("status.unchanged_note")}` : t("status.unchanged_note");
@@ -376,7 +388,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           "aria-label": t("status.scan_stop_label"), on: { click: () => this._scan.stop() } }));
       }
       return span;
-    }));
+    });
+    if (sr) {
+      const span = h("span", { class: "part right", text: t(sr[0], sr[1]) });
+      if (sr[2]) span.title = t(sr[2], sr[1]);
+      spans.push(span);
+    }
+    this._ui.status.replaceChildren(...spans);
   }
 
   /** The controls on the map (spec 9.1). On wide screens a side panel covers its corner, so that corner's group is
@@ -436,11 +454,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._dirty.delete(d.tab);
       if (d.tab === "details") {
         const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
-        renderDetails(panel, { network: this._network, t, id: this._selected, debug: this._debug, raw: this._raw,
-          nodeView: this._settings.settings.nodeView,
+        keepFocus(this._root, panel, () => renderDetails(panel, { network: this._network, t, id: this._selected,
+          debug: this._debug, raw: this._raw, nodeView: this._settings.settings.nodeView,
+          sourceRoute: this._settings.settings.sourceRoute, sub: this._detailsSub, idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
-          onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) });
+          onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
+          onCluster: (spec, opener) => this._openCluster(spec, opener),
+          onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
       } else if (d.tab === "findings") {
         renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "findings") });
       } else if (d.tab === "legend") {
@@ -569,6 +590,32 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this.style.setProperty("--band-left", `${f.band.left}px`);
     this.style.setProperty("--band-right", `${f.band.right}px`);
     if (this._view) this._view.setInsets(insets);
+  }
+
+  /** Switch the Details tab's sub-tab (Communication, Entity, Cluster); focus: move focus to its tab (arrow keys). */
+  _setDetailsSub(sub, focus) {
+    this._detailsSub = sub;
+    this._dirty.add("details");
+    this._render();
+    if (focus) {
+      const tab = this._left.panel("details").querySelector(`[id="mte-details-tab-${sub}"]`);
+      if (tab) tab.focus();
+    }
+  }
+
+  /** The details of one cluster of the selected device (spec 9.2, board M10), a modal dialog. */
+  _openCluster(spec, opener) {
+    const device = this._device(this._selected);
+    if (!device || !this._hass) return;
+    if (this._cluster) this._cluster.close();
+    this._cluster = openClusterDialog({ root: this._ui.app, t: this._t, device, ...spec, opener,
+      states: () => this._hass && this._hass.states, callWS: (msg) => this._hass.callWS(msg),
+      onClose: () => { this._cluster = null; } });
+  }
+
+  /** Area names from the hass object (hass.areas: id -> { name }), where Home Assistant provides it. */
+  _areas() {
+    return this._hass && this._hass.areas && typeof this._hass.areas === "object" ? this._hass.areas : null;
   }
 
   /** Release pins: the given ids, or all pins of devices in the network (null). */

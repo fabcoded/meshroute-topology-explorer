@@ -330,7 +330,7 @@ const en = {
   "details.tabs_label": "Details of the device",
   "details.children_title": "Children (sleeping devices)",
   "details.heard_title": "Heard by {by} · hears {hears}",
-  "details.readings_all": "… all with RX and rank relative to the reporter",
+  "details.readings_all": "… all {count} with RX and rank relative to the reporter",
   "details.tables_title": "Tables and load",
   "details.table_of": "Neighbour table {n} of {cap} router entries",
   "details.table_size": "Neighbour table {n} router entries",
@@ -431,7 +431,7 @@ const en = {
   "status.sr_off": "Source route off · {count} return paths unknown",
   "status.short_sr_assumed": "{count} return paths assumed",
   "status.short_sr_off": "{count} return paths unknown",
-  "legend.link.path-assumed": "Assumed return path (source route): the way up reversed, no table entry proves it (dotted, grey)",
+  "legend.link.path-assumed": "Assumed return path (source route): the way up reversed, no table entry proves it (sparse dots)",
 };
 
 const de = {
@@ -761,7 +761,7 @@ const de = {
   "details.tabs_label": "Details des Geräts",
   "details.children_title": "Kinder (schlafende Geräte)",
   "details.heard_title": "Wird gehört von {by} · hört {hears}",
-  "details.readings_all": "… alle mit RX und Rang relativ zum Messenden",
+  "details.readings_all": "… alle {count} mit RX und Rang relativ zum Messenden",
   "details.tables_title": "Tabellen und Last",
   "details.table_of": "Nachbartabelle {n} von {cap} Router-Einträgen",
   "details.table_size": "Nachbartabelle {n} Router-Einträge",
@@ -862,7 +862,7 @@ const de = {
   "status.sr_off": "Source Route aus · {count} Rückwege unbekannt",
   "status.short_sr_assumed": "{count} Rückwege angenommen",
   "status.short_sr_off": "{count} Rückwege unbekannt",
-  "legend.link.path-assumed": "Angenommener Rückweg (Source Route): Umkehr des Hinwegs, kein Tabelleneintrag belegt ihn (gepunktet, grau)",
+  "legend.link.path-assumed": "Angenommener Rückweg (Source Route): Umkehr des Hinwegs, kein Tabelleneintrag belegt ihn (weit gepunktet)",
 };
 
 export const STRINGS = Object.freeze({ en, de });

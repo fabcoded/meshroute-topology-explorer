@@ -5,8 +5,7 @@
 // the active row is announced through aria-activedescendant (WAI-ARIA listbox pattern). Runs in the browser; the
 // keyboard model is ListModel in device-list.js.
 import { h } from "./dom.js";
-import { ListModel, deviceRows } from "./device-list.js";
-import { receptionText, roleText } from "./format.js";
+import { ListModel, deviceRows, rowMeta } from "./device-list.js";
 
 let uid = 0;
 
@@ -85,16 +84,17 @@ export class DevicesTab {
     const t = this.t;
     if (!t) return;
     const rows = this.model.visible;
-    // The count is a live region: written only when it changes, so arrow keys do not repeat it.
-    const countText = rows.length ? t("devices.count", { shown: rows.length, total: this.model.rows.length }) : t("devices.none");
+    // The count is a live region: written only when it changes, so arrow keys do not repeat it. It shows only while a
+    // search filters the list (board M3: no count over the full list).
+    const filtered = Boolean(this.model.filter.trim());
+    const countText = !rows.length ? t("devices.none") : filtered ? t("devices.count", { shown: rows.length, total: this.model.rows.length }) : "";
     if (countText !== this._countText) {
       this.count.textContent = countText;
       this._countText = countText;
     }
+    this.count.hidden = !countText;
     this.list.replaceChildren(...rows.map((r) => {
-      const kind = r.kind && r.kind !== "unknown" ? t(`kind_short.${r.kind}`) : null;
-      const meta = [kind, roleText(r.role, t), r.area, r.available ? receptionText(r.rating, t) : t("devices.unavailable")]
-        .filter(Boolean).join(" · ");
+      const meta = rowMeta(r, t);
       return h("li", { role: "option", id: this.prefix + r.id.replace(/:/g, ""), class: "device-row",
         "aria-selected": r.id === this.selected ? "true" : "false",
         "data-active": r.id === this.model.activeId ? "true" : null,
