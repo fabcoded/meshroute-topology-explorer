@@ -14,7 +14,7 @@ import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
 import { DEFAULT_LINKS } from "./graph/links.js";
 import { resolveTheme } from "./graph/palette.js";
-import { normalizeIeee } from "./model/index.js";
+import { normalizeIeee, NODE_VIEWS } from "./model/index.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
 import { ObservationsClient } from "./ui/observations-client.js";
 import { ScanFollower, tablesDiffer } from "./ui/scan.js";
@@ -162,9 +162,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       onFindings: (button) => this._toggleTab("findings", button),
       links: () => (this._settings ? this._settings.settings.links : DEFAULT_LINKS),
       onLink: (cls, on) => this._settings && this._settings.update({ links: { ...this._settings.settings.links, [cls]: on } }),
+      colors: () => Boolean(this._settings && this._settings.settings.receptionColors),
+      onColors: (on) => this._settings && this._settings.update({ receptionColors: on }),
       densityItems: () => DENSITY_NAMES.map((name) => ({ id: name, type: "radio", label: this._t(`density.${name}`),
         checked: this._settings && this._settings.settings.density === name })),
       onDensity: (name) => this._settings && this._settings.update({ density: name }),
+      nodeViewItems: () => NODE_VIEWS.map((name) => ({ id: name, type: "radio", label: this._t(`nodeview.${name}`),
+        checked: this._settings && this._settings.settings.nodeView === name })),
+      onNodeView: (name) => this._settings && this._settings.update({ nodeView: name }),
       fillItems: () => FILLS.map((name) => ({ id: name, type: "radio", label: this._t(`fill.${name}`),
         checked: this._settings && this._settings.settings.fill === name })),
       onFill: (name) => this._settings && this._settings.update({ fill: name }),
@@ -309,7 +314,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, links: s.links, texts: this._graphTexts() });
+      debug: this._debug, links: s.links, nodeView: s.nodeView, receptionColors: s.receptionColors,
+      texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
@@ -328,8 +334,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
       this._view.setLinks(s.links);
+      this._view.setNodeView(s.nodeView);
+      this._view.setReceptionColors(s.receptionColors);
     }
-    this._dirty.add("settings").add("legend");
+    // The details carry the selection's paths as text, in the node view's mode.
+    this._dirty.add("settings").add("legend").add("details");
     this._render();
   }
 
@@ -413,7 +422,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (!ready || !this._settings || !this._network) return;
     const s = this._settings.settings;
     this._options.update({ t, count: badgeCount(this._network.findings), density: t(`density.${s.density}`),
-      fill: t(`fill.${s.fill}`) });
+      nodeView: t(`nodeview.${s.nodeView}`), fill: t(`fill.${s.fill}`) });
   }
 
   /** Whether the legend pill is expanded: as stored, else by width (expanded on wide panels, spec 11). */
@@ -422,10 +431,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     return stored === null || stored === undefined ? this._wide : stored;
   }
 
-  /** Words the map draws itself: LQI 0 and the values of implied lanes. */
+  /** Words the map draws itself: LQI 0, the values of implied lanes, "RX:" above a value, an unknown path's end. */
   _graphTexts() {
     const t = this._t;
-    return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route") };
+    return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route"), rx: t("lane.rx"),
+      pathUnknown: t("lane.path_unknown") };
   }
 
   _renderMessage(phase, detail) {
@@ -465,6 +475,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (d.tab === "details") {
       const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
       renderDetails(panel, { network: this._network, t, id: this._selected, debug: this._debug, raw: this._raw,
+        nodeView: this._settings.settings.nodeView,
         observedSince: seen ? t.when(seen) : null,
         pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
         onSelect: (id) => this._select(id, "list"), onRelease: (id) => this._release([id]) });

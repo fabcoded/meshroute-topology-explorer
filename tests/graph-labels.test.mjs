@@ -67,20 +67,23 @@ function labelsAt(network, pos, k, { selected = -1, width = 4000, height = 400, 
   return { texts, stats };
 }
 
-test("below the label scale only the coordinator, the selection and its neighbours carry labels", () => {
+test("below the label scale only the coordinator, the selection and the devices on its paths carry labels", () => {
   assert.equal(labelsForAll(1, 1), true);
   assert.equal(labelsForAll(0.99, 1), false);
-  // Five devices far apart: a-b, b-c linked; d alone; z the coordinator.
+  // Five devices far apart: a-b, b-c linked; d alone; z the coordinator. a reaches z through b, b directly.
   const network = {
     devices: ["a", "b", "c", "d"].map((id) => ({ id, label: `Device ${id}`, role: "router" }))
       .concat([{ id: "z", label: "Coordinator", role: "coordinator" }]),
     readings: [{ reporter: "a", subject: "b", lqi: 100 }, { reporter: "b", subject: "c", lqi: 100 }],
+    routes: [{ owner: "a", destination: "z", nextHop: "b", status: "Active", stale: false },
+      { owner: "b", destination: "z", nextHop: "z", status: "Active", stale: false }],
   };
   const pos = { x: [0, 1000, 2000, 3000, 1500], y: [0, 0, 0, 0, 100], pinned: [0, 0, 0, 0, 0], mesh: [1, 1, 1, 0, 0] };
   const deviceLabels = new Set(network.devices.map((d) => d.label));
   const names = (k, selected) => labelsAt(network, pos, k, { selected }).texts.map((t) => t.text)
     .filter((t) => deviceLabels.has(t)).sort(); // lane values of the selection are not labels
-  assert.deepEqual(names(0.2, 0), ["Coordinator", "Device a", "Device b"]);
+  assert.deepEqual(names(0.2, 0), ["Coordinator", "Device a", "Device b"], "a's way up runs through b");
+  assert.deepEqual(names(0.2, 1), ["Coordinator", "Device b"], "b's neighbours a and c are on none of its paths");
   assert.deepEqual(names(0.2, -1), ["Coordinator"], "the coordinator, also on a narrow screen");
   assert.deepEqual(names(1, -1), ["Coordinator", "Device a", "Device b", "Device c", "Device d"]);
 });

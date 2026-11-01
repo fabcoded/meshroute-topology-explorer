@@ -3,7 +3,7 @@
 // canvas also exists as text (9.3). Other devices appear as buttons that select them. Raw ZHA tables only in debug
 // mode (9.1). Runs in the browser; the data comes from details.js.
 import { h, icon } from "./dom.js";
-import { detailsOf } from "./details.js";
+import { detailsOf, pathLine } from "./details.js";
 import { findingText } from "./finding-text.js";
 import { lqiText, rankText, receptionText, roleText, percent } from "./format.js";
 import { formatNwk } from "../model/parse.js";
@@ -24,11 +24,11 @@ export function navigate(path) {
 
 /** Fill `container` with the details of `id`. ctx: { network, t, debug, raw (Map id -> zha/devices entry),
  *  observedSince (formatted time this device's table was first seen as it is now, or null), pinned
- *  (boolean), onSelect(id), onRelease(id) }. */
+ *  (boolean), nodeView ("coordinator" or "all": which paths the map shows), onSelect(id), onRelease(id) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
-  const info = ctx.id ? detailsOf(network, ctx.id) : null;
+  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView) : null;
   if (!info) {
     container.append(h("p", { class: "empty", text: t("details.empty") }));
     return;
@@ -100,6 +100,9 @@ export function renderDetails(container, ctx) {
   row(t("details.reception"), typeof info.reception === "number" ? t("rank.value", { pct: percent(info.reception) }) : t("rank.none"));
   container.append(h("dl", { class: "facts" }, rows));
 
+  // The paths the map shows for the selection, as text: every hop with the reception at its hearer (spec 9.3).
+  container.append(pathsSection(info.paths, ctx, name));
+
   // Findings with their evidence.
   container.append(h("h3", { text: t("details.findings", { count: info.findings.length }) }));
   if (info.findings.length) {
@@ -146,6 +149,19 @@ export function renderDetails(container, ctx) {
     }
     container.append(rawTables(ctx.raw && ctx.raw.get(d.id), t));
   }
+}
+
+/** The selection's paths in the node view: "Path to coordinator" as two lines, "All paths" as a list that is collapsed
+ *  when long (the coordinator has one path per router each way). */
+function pathsSection(paths, ctx, name) {
+  const t = ctx.t;
+  const all = ctx.nodeView === "all" || paths.some((p) => p.kind === "out" || p.kind === "in");
+  const list = paths.length ? h("ul", { class: "plain paths" }, paths.map((p) => h("li", { text: pathLine(p, t, name) })))
+    : h("p", { class: "muted", text: t("details.paths_none") });
+  const note = h("p", { class: "muted small", text: t("details.paths_note") });
+  if (!all) return h("section", { class: "paths-box" }, h("h3", { text: t("details.paths_coordinator") }), list, note);
+  return h("details", { class: "paths-box", open: paths.length <= 12 },
+    h("summary", { text: t("details.paths_all", { count: paths.length }) }), list, note);
 }
 
 /** Buttons separated by commas, for inline lists of devices. */

@@ -107,7 +107,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
   assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, legendOpen: null, links: { up: true, route: true, heard: true }, extra: 1,
-    pins: { [A]: [1.235, -2] } });
+    nodeView: "coordinator", receptionColors: false, pins: { [A]: [1.235, -2] } });
   await c.flush();
   assert.equal(server.sets().length, 1, "nothing pending, nothing sent");
   c.removePin(A);
@@ -229,4 +229,32 @@ test("the legend's collapsed or expanded state is stored per network; anything b
   await c.flush();
   assert.equal(server.stored.legendOpen, true);
   assert.deepEqual(server.stored.pins, { [A]: [1, 1] }, "other keys untouched");
+});
+
+test("node view and reception colours are stored per network; bad values fall back to the defaults", async () => {
+  assert.equal(DEFAULTS.nodeView, "coordinator");
+  assert.equal(DEFAULTS.receptionColors, false, "colour is opt-in");
+  assert.equal(sanitizeSettings({ nodeView: "all" }).nodeView, "all");
+  for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
+    assert.equal(sanitizeSettings({ nodeView: bad }).nodeView, "coordinator", JSON.stringify(bad));
+  }
+  assert.equal(sanitizeSettings({ receptionColors: true }).receptionColors, true);
+  for (const bad of ["true", 1, "yes", {}, null, undefined]) {
+    assert.equal(sanitizeSettings({ receptionColors: bad }).receptionColors, false, JSON.stringify(bad));
+  }
+  // Round trip through the integration: what one panel saves, the next one reads.
+  const server = fakeServer({ stored: { nodeView: "bogus", receptionColors: "on" } });
+  const timers = manualTimers();
+  const c = client(server, timers);
+  await c.load();
+  assert.equal(c.settings.nodeView, "coordinator");
+  assert.equal(c.settings.receptionColors, false);
+  c.update({ nodeView: "all", receptionColors: true });
+  await c.flush();
+  assert.equal(server.stored.nodeView, "all");
+  assert.equal(server.stored.receptionColors, true);
+  const again = client(server, manualTimers());
+  await again.load();
+  assert.equal(again.settings.nodeView, "all");
+  assert.equal(again.settings.receptionColors, true);
 });

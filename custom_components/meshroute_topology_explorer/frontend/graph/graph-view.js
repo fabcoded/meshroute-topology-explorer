@@ -18,6 +18,7 @@ import { GestureRecognizer } from "./gestures.js";
 import { LABEL_SCALE } from "./labels.js";
 import { DEFAULT_LINKS, legendEntries } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
+import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
 } from "./camera.js";
@@ -71,8 +72,9 @@ function defaultEnv() {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), texts ({ uncertain, parent, route }), seed, debug, env (timers and media queries, injectable
-   *  for tests). */
+   *  "role" or "power"), links (class switches), nodeView ("coordinator" or "all": what a selected device shows),
+   *  receptionColors (lanes coloured by their reading), texts ({ uncertain, parent, route, rx, pathUnknown }), seed,
+   *  debug, env (timers and media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
@@ -84,7 +86,10 @@ export class GraphView extends EventTarget {
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
     this.links = { ...DEFAULT_LINKS, ...(options.links || {}) };
-    this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(options.texts || {}) };
+    this.nodeView = NODE_VIEWS.includes(options.nodeView) ? options.nodeView : DEFAULT_NODE_VIEW;
+    this.receptionColors = options.receptionColors === true;
+    this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
+      ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
@@ -172,6 +177,22 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
+  /** What a selected device shows (spec 7.1, 9.1): "coordinator" (its up and down path, default) or "all" (every path
+   *  its routes and other devices' routes towards it give); anything else is ignored. Drawing only. */
+  setNodeView(mode) {
+    if (!NODE_VIEWS.includes(mode) || mode === this.nodeView) return;
+    this.nodeView = mode;
+    this._invalidate();
+  }
+
+  /** Colour lanes by their reading, red to green (opt-in, spec 8); anything but true is off. Drawing only. */
+  setReceptionColors(on) {
+    const next = on === true;
+    if (next === this.receptionColors) return;
+    this.receptionColors = next;
+    this._invalidate();
+  }
+
   /** Choose the fill of the devices (spec 8): "none" (default), "role" or "power"; anything else is ignored. */
   setFill(fill) {
     if (!FILLS.includes(fill) || fill === this.fill) return;
@@ -180,14 +201,16 @@ export class GraphView extends EventTarget {
   }
 
   /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane, { parent, route } on
-   *  a lane that a parent link or a route implies. */
+   *  a lane that a parent link or a route implies, { rx } above a lane's value, { pathUnknown } at an unknown end. */
   setTexts(texts) {
     this.texts = { ...this.texts, ...texts };
     this._invalidate();
   }
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
-  legend() { return legendEntries(this.theme, { links: this.links, debug: this.debug }); }
+  legend() {
+    return legendEntries(this.theme, { links: this.links, debug: this.debug, colored: this.receptionColors });
+  }
 
   setTheme(theme) {
     this.theme = resolveTheme(theme);
@@ -483,7 +506,7 @@ export class GraphView extends EventTarget {
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, links: this.links, selected: this.selected, hovered: this.hovered, fps: this._fps,
-      fill: this.fill,
+      fill: this.fill, nodeView: this.nodeView, receptionColors: this.receptionColors,
       texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);

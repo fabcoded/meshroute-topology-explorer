@@ -56,6 +56,9 @@ const ICONS = {
   findings: [["path", { d: "M5 21V4M5 4h11l-2 4 2 4H5" }]],
   // Two devices pushed apart: density.
   density: [["circle", { cx: 5, cy: 12, r: 2.5 }], ["circle", { cx: 19, cy: 12, r: 2.5 }], ["path", { d: "M8 12h8M13 9l3 3-3 3M11 9l-3 3 3 3" }]],
+  // Three devices joined by hops, one selected: the node view (a device's paths).
+  path: [["circle", { cx: 5, cy: 18, r: 2.5, fill: "currentColor" }], ["circle", { cx: 12, cy: 7, r: 2.5 }],
+    ["circle", { cx: 19, cy: 17, r: 2.5 }], ["path", { d: "M6.4 15.8l4.2-6.6M13.4 9.2l4.2 5.6" }]],
   // A half-filled circle: fill.
   fill: [["circle", { cx: 12, cy: 12, r: 8 }], ["path", { d: "M12 4a8 8 0 0 1 0 16Z", fill: "currentColor", stroke: "none" }]],
 };

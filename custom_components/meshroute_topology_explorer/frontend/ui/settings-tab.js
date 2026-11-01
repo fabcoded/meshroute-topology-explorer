@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// The Settings tab (spec 11): density, fill, "open details on select", releasing pins, and where the settings are
-// kept. Debug mode is not here: it lives in the menu and is never stored (spec 9.1). Runs in the browser.
+// The Settings tab (spec 11): density, fill, node view, "open details on select", releasing pins, and where the
+// settings are kept. Debug mode is not here: it lives in the menu and is never stored (spec 9.1). Runs in the browser.
 import { h } from "./dom.js";
 import { DENSITY_NAMES } from "./settings.js";
 import { FILLS } from "../graph/palette.js";
+import { NODE_VIEWS } from "../model/node-paths.js";
 
 /** Fill `container`. ctx: { t, settings (sanitized object), wide, pinCount, client (SettingsClient: mode, reason,
  *  error), observations (ObservationsClient, only in debug mode), idPrefix (stable, so focus can be found again after
@@ -22,6 +23,9 @@ export function renderSettings(container, ctx) {
   container.append(radios("density", t("settings.density"), DENSITY_NAMES, settings.density, (v) => t(`density.${v}`),
     t("settings.density_note")));
   container.append(radios("fill", t("settings.fill"), FILLS, settings.fill, (v) => t(`fill.${v}`)));
+  // On narrow panels the options group has no Node view row: this is its home there.
+  container.append(radios("nodeView", t("settings.nodeview"), NODE_VIEWS, settings.nodeView, (v) => t(`nodeview.${v}`),
+    t("settings.nodeview_note")));
 
   const open = settings.openDetailsOnSelect;
   const select = h("select", { id: `${id}-open`, on: { change: (e) => {

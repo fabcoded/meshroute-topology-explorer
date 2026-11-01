@@ -17,7 +17,8 @@ import { computePairs, pairEvidence } from "./pairs.js";
 import { computeFindings, computeStatus } from "./findings.js";
 
 export { parseAddress, parseLqi, normalizeIeee } from "./parse.js";
-export { upPath, downPath } from "./paths.js";
+export { upPath, downPath, routePath } from "./paths.js";
+export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "./node-paths.js";
 export { fingerprints, updateObservations, newestChange } from "./observations.js";
 export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";

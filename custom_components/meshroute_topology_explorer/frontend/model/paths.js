@@ -52,36 +52,62 @@ export function upPath(network, id) {
   return { ids, complete: true };
 }
 
-/** Walk the coordinator's routing entries towards `id`; stops at a missing entry, loop or unavailable hop. */
-function followRoutes(c, id) {
-  const ids = [c.coordinator];
+/** Walk the routing entries from `from` towards `to`, hop by hop through each hop's own entry for `to`; stops at a
+ *  missing entry, a loop or an unavailable hop. Complete only if `to` is reached and available. */
+function followRoutes(c, from, to) {
+  const ids = [from];
   const seen = new Set(ids);
-  let cur = c.coordinator;
-  while (cur !== id) {
-    const next = nextHop(c, cur, id);
+  let cur = from;
+  while (cur !== to) {
+    const next = nextHop(c, cur, to);
     if (!next || seen.has(next)) return { ids, complete: false };
     ids.push(next);
     seen.add(next);
     cur = next;
-    if (cur !== id && !c.byId.get(cur).available) return { ids, complete: false };
+    if (cur !== to && !c.byId.get(cur).available) return { ids, complete: false };
   }
-  return { ids, complete: c.byId.get(id).available };
+  return { ids, complete: c.byId.get(to).available };
 }
 
-/** Path from the coordinator to `id`: { ids, complete }. For an end device that the coordinator's routes do not
- *  reach, the path to its parent plus the parent link (the parent's listing of the child is the evidence), but only
- *  when the path to the parent is complete; else the incomplete path to the parent is returned as it is. */
-export function downPath(network, id) {
-  const c = lookups(network);
-  const target = c.byId.get(id);
-  if (!target || !c.coordinator) return { ids: [], complete: false };
-  if (id === c.coordinator) return { ids: [id], complete: true };
-  const direct = followRoutes(c, id);
-  if (direct.complete || target.role !== "end device" || !target.parent) return direct;
-  const viaParent = downPath(network, target.parent);
+/** Path from `from` to `to` by routing entries: { ids, complete }. For an end device that the routes do not reach,
+ *  the path to its parent plus the parent link (the parent's listing of the child is the evidence), but only when the
+ *  path to the parent is complete; else the incomplete path to the parent is returned as it is (spec 5.1). */
+function pathFrom(c, from, to, depth = 0) {
+  if (from === to) return { ids: [from], complete: c.byId.get(from).available };
+  const direct = followRoutes(c, from, to);
+  const target = c.byId.get(to);
+  // A parent is a router or the coordinator (only they list children); depth guards against broken data anyway.
+  if (direct.complete || target.role !== "end device" || !target.parent || depth > 0) return direct;
+  const viaParent = pathFrom(c, from, target.parent, depth + 1);
   // Delivery to a child is the last hop only when the way to its parent is known; otherwise nothing is appended.
   if (!viaParent.complete) return viaParent;
-  return { ids: [...viaParent.ids, id], complete: target.available };
+  return { ids: [...viaParent.ids, to], complete: target.available };
+}
+
+/** Path from the coordinator to `id`: { ids, complete } (spec 5.1). */
+export function downPath(network, id) {
+  const c = lookups(network);
+  if (!c.byId.has(id) || !c.coordinator) return { ids: [], complete: false };
+  if (id === c.coordinator) return { ids: [id], complete: true };
+  return pathFrom(c, c.coordinator, id);
+}
+
+/** Path from device `from` to device `to` along routing entries, the same walk as the down path (spec 5.1) from any
+ *  start: { ids, complete }. Used for every path of one device in the node view ("all paths"). */
+export function routePath(network, from, to) {
+  const c = lookups(network);
+  if (!c.byId.has(from) || !c.byId.has(to)) return { ids: [], complete: false };
+  return pathFrom(c, from, to);
+}
+
+/** Destinations of `id`'s own active, current routes, and owners of active, current routes towards `id`, both in
+ *  the network's order of routes: what "all paths" follows. */
+export function routeEnds(network, id) {
+  const c = lookups(network);
+  const destinations = c.routes.has(id) ? [...c.routes.get(id).keys()].filter((d) => d !== id && c.byId.has(d)) : [];
+  const owners = [];
+  for (const [owner, m] of c.routes) if (owner !== id && m.has(id)) owners.push(owner);
+  return { destinations, owners };
 }
 
 /** Relay load per router id (spec 5.2): active routes in available tables that use it as next hop towards another

@@ -60,10 +60,15 @@ test("the links legend is built from the graph's entries, with words for every e
         assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), `${lang} ${row.id}`);
       }
       const lanes = rows.filter((r) => r.kind === "lane");
-      assert.deepEqual(lanes.map((r) => r.id), ["up", "route", "heard", "implied"]);
+      assert.deepEqual(lanes.map((r) => r.id), ["up", "route", "heard", "implied", "path", "path-implied"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
       const short = linkLegendRows(entries, t, { short: true });
       assert.deepEqual(short.map((r) => r.id), [...SHORT_IDS]);
+      // With colour by reception on, the scale joins both legends, in words in both languages.
+      const colored = legendEntries(resolveTheme({ background }), { colored: true });
+      const scale = linkLegendRows(colored, t, { short: true }).find((r) => r.id === "reception");
+      assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), `${lang} scale`);
+      assert.ok(linkLegendRows(colored, t).some((r) => r.id === "reception" && r.label !== "reception"));
     }
   }
   const t = translator("en");

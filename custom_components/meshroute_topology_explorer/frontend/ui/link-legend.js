@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 // The links part of the legend, built from what the graph says it draws (GraphView.legend(), graph/links.js
 // legendEntries): the three colour-free classes (up path solid, other active route dotted, heard only dashed grey),
-// the implied lane, the width steps, the glyphs "–" and "?" and the selection's band. The samples use the entries'
-// own stroke styles, so legend and map cannot drift apart; the words come from i18n by entry id.
+// the implied lane, the width steps, the glyphs "–" and "?", the selection's band, its path hops and unknown end, and
+// the red-to-green scale while "colour by reception" is on. The samples use the entries' own stroke styles, so legend
+// and map cannot drift apart; the words come from i18n by entry id.
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.
 import { h, svg } from "./dom.js";
 
 /** Classes shown in the small legend on the map. */
 export const SHORT_IDS = Object.freeze(["up", "route", "heard"]);
+/** Shown in the small legend too whenever the graph lists them: the reception scale while colour is on. */
+export const SHORT_EXTRA = Object.freeze(["reception"]);
 
 /** Rows for the legend: each entry of the graph with its words as `label` (an entry's own `text` is its glyph);
- *  short: only the three classes, with short names. An entry the panel has no words for keeps its id as label, so
- *  nothing the map draws goes unexplained silently. */
+ *  short: only the three classes (and the reception scale while it is on), with short names. An entry the panel has
+ *  no words for keeps its id as label, so nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t, { short = false } = {}) {
-  const list = short ? entries.filter((e) => SHORT_IDS.includes(e.id)) : entries;
+  const list = short ? entries.filter((e) => SHORT_IDS.includes(e.id) || SHORT_EXTRA.includes(e.id)) : entries;
   return list.map((e) => {
     const key = short ? `legend.link_short.${e.id}` : `legend.link.${e.id}`;
     return { ...e, label: t.has(key) ? t(key) : e.id };
@@ -48,6 +51,26 @@ function bandSample(entry) {
   return el;
 }
 
+/** An incomplete path's end: the dashed stem and its "?". */
+function stemSample(entry) {
+  const el = svg("svg", { viewBox: "0 0 36 12", width: 36, height: 12, "aria-hidden": "true", class: "lane-sample" });
+  el.append(svg("path", { d: "M1 6H22", stroke: entry.color, "stroke-width": entry.width, "stroke-dasharray": entry.dash.join(" "),
+    fill: "none" }));
+  const q = svg("text", { x: 30, y: 10, "text-anchor": "middle", "font-size": 12, fill: entry.color });
+  q.textContent = entry.text;
+  el.append(q);
+  return el;
+}
+
+/** The reception scale: its colours from weakest (left) to strongest (right) as a bar of short strokes. */
+function scaleSample(entry) {
+  const el = svg("svg", { viewBox: "0 0 36 12", width: 36, height: 12, "aria-hidden": "true", class: "lane-sample" });
+  const step = 34 / entry.colors.length;
+  entry.colors.forEach((c, i) => el.append(svg("path", { d: `M${1 + i * step} 6H${1 + (i + 1) * step}`, stroke: c,
+    "stroke-width": 4 })));
+  return el;
+}
+
 /** The drawing for one row. */
 function sampleFor(row, entries) {
   if (row.kind === "lane") return laneSample(row.style);
@@ -57,6 +80,8 @@ function sampleFor(row, entries) {
   }
   if (row.kind === "glyph") return h("span", { class: "glyph-sample", style: { color: row.color }, "aria-hidden": "true", text: row.text });
   if (row.kind === "band") return bandSample(row);
+  if (row.kind === "stem") return stemSample(row);
+  if (row.kind === "scale") return scaleSample(row);
   return h("span", { class: "glyph-sample" });
 }
 

@@ -20,6 +20,10 @@ const VARIANTS = [
   ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German", "lang=de"], ["Dark", "dark=1"],
     ["German + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
     ["Debug", "debug=1"], ["Legend collapsed", "legend=closed"], ["Narrow, legend open", "phone=1&legend=open"]]],
+  ["Node view", [["Path to coordinator: End device 06", "select=End%20device%2006"],
+    ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
+    ["All paths: Router 11", "select=Router%2011&nodeview=all"], ["Colour by reception", "select=Router%2016&colors=1"],
+    ["Colour by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
     ["without-coordinator", "variant=without-coordinator"]]],
   ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
@@ -181,6 +185,8 @@ if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
 if (q.get("links")) initial.links = Object.fromEntries(["up", "route", "heard"].map((c) => [c, q.get("links").split(",").includes(c)])); // links=up,route
 if (q.get("legend")) initial.legendOpen = q.get("legend") === "open";
+if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all|coordinator
+if (q.get("colors")) initial.receptionColors = q.get("colors") === "1";
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
 
@@ -261,7 +267,10 @@ async function drive() {
   if (!el._network) return;
   if (flag("debug")) el._onMenu("debug");
   if (flag("linksopen")) el._options.linksPanel.open();
-  const id = q.get("select") && byLabel(q.get("select"));
+  if (flag("nodeviewopen")) el._options.nodeViewMenu.open();
+  // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
+  const id = q.get("select") && (byLabel(q.get("select"))
+    || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
   if (id && flag("collapsed")) { el._view.select(id); el._select(id, "map"); } // as a tap on the map would
   else if (id) el._select(id, "list");
   const tab = q.get("tab");

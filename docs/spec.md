@@ -3,7 +3,7 @@
 What Meshroute Topology Explorer does, described from the user's side and from Home Assistant's public interfaces.
 It fixes behaviour, data rules and measurable acceptance, not code structure: how files and modules are cut is up to
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
-version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31.
+version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01.
 
 ## 1. Purpose and principles [v1]
 
@@ -27,7 +27,7 @@ a lamp that drops out, a sensor that reports late, a corner of the garden that h
 | Which devices are badly connected, and to whom? | quality view, default fill, findings, details | v1 |
 | Can I trust this picture right now? | status line, "data incomplete" findings | v1 |
 | Which router carries my battery devices? | details, findings | v1 |
-| Which way does a packet travel, there and back? | route view, playback | v1.1 |
+| Which way does a packet travel, there and back? | selection (node view), details; route view, playback | v1, v1.1 |
 | Which routers relay most traffic; what depends on one? | route view, subtree, relay-load fill | v1.1 |
 | Where are my devices physically? | geo view | later |
 
@@ -178,7 +178,7 @@ A view, fill or finding that needs a missing capability shows "not available for
 
 ## 5. Derived facts
 
-### 5.1 Paths [v1 computed, v1.1 shown]
+### 5.1 Paths [v1]
 - **Up path** (device to coordinator): from the device, follow its parent if it is an end device, else its routing
   entry towards the coordinator, hop by hop.
 - **Down path** (coordinator to device): follow the coordinator's routing entry towards the device, then each hop's
@@ -187,6 +187,15 @@ A view, fill or finding that needs a missing capability shows "not available for
   is and nothing is appended.
 - A path that meets a missing table or entry, a loop, or an unavailable hop stops and is **incomplete**; it is
   never guessed, not even for the coordinator's direct neighbours.
+- **Paths of one device** (node view, 7.1; request by Fabian Schwamborn, 2026-11-01): "path to coordinator" is its
+  up and down path; "all paths" adds an **out path** for each of its own active routes (to that route's destination,
+  walked like the down path from the device) and an **in path** for each other available device with an active route
+  towards it (walked the same way from that device). The device's route to the coordinator is its up path and the
+  coordinator's route to it its down path, so neither appears twice. The coordinator stands for Home Assistant and
+  shows all its paths in both modes. On the sample: out paths 98 (82 complete, 14 unknown from a point on, 2 reaching
+  an unavailable destination), in paths 97 (85, 10, 2).
+- The **reception at a hop** (sender to hearer) is the hearer's evidence for that direction (4.3): its LQI of the
+  sender, or "Parent" or "Route" where only a parent link or a route implies the hop, or unknown ("?").
 
 ### 5.2 Relay load [v1]
 Per router: routes in all available routers' tables that use it as next hop towards another destination; direct
@@ -274,13 +283,18 @@ the centre).
 - Links (decision by Fabian Schwamborn, 2026-10-31): each pair (4.3) is two lanes, one per direction from sender to
   hearer, each on the right of its own direction of travel (3 px from the centre line at zoom 1, growing with the
   symbols), ending 1 px outside the symbols' contour (the rounded square, 8) with an arrowhead at the hearer.
-- Pairs fall into three classes, drawn without colour: up path (a hop of any device's up path, 5.1: solid,
+- Pairs fall into three classes, drawn without colour by default: up path (a hop of any device's up path, 5.1: solid,
   foreground, strongest), other route (an active, current route's next hop on no up path: round dots, foreground)
   and heard only (readings, no route: dashed, grey); a lane's width follows its own reading's rating in three steps.
 - A direction without a reading has no lane but a glyph where its lane's middle would be: "–" when the hearer's
   table does not list the sender (table full, nearly full or with space), "?" when there is no table to ask (end
   device, missing or stale table) or it says LQI 0. A direction only a route or a parent link proves is a thin dotted
   grey lane without a head.
+- **Colour by reception** (request by Fabian Schwamborn, 2026-11-01; off by default, Links popover 9.1, stored 11): every
+  drawn lane with a rated reading takes its rating (5.4, relative to the hearer) on a scale from red (weakest) over
+  yellow to green (strongest); lanes without a reading or rating keep their class colour. Dash and width stay, so the
+  class and the rating still read without colour. Shades per theme keep 3:1 against the background and differ in
+  lightness (8).
 - By default all up-path and route pairs are drawn, heard-only pairs as each device's 3 best (by the pair's better
   rating), and all pairs of the selection and of the device under the pointer; debug mode draws all. Order: heard
   only, other route, up path on top.
@@ -288,10 +302,23 @@ the centre).
   Heard only, all on by default. A switched-off class is not drawn, except around the selection and the device under
   the pointer and in debug mode; heard only keeps its 3-best rule when on. The switches only filter the drawing:
   springs, positions and fitting stay as they are, and a class that is off leaves the legend (debug mode keeps it).
-- Selecting a device draws its up path as a wide translucent band under its lanes, puts each of its lanes' values
-  (raw LQI; "Parent" or "Route" on a lane a parent link or route implies) beside the lane, and dims everything that
-  does not touch it to about 20 %; hover previews the same without the band. These values are how reception appears
-  at the arrows (at the hearer end of each lane); the overview shows the rating by width only.
+- Selecting a device shows its paths in the **node view** (5.1; request by Fabian Schwamborn, 2026-11-01), chosen in
+  the options group (9.1): "Path to coordinator" (default: its up and down path; the coordinator stands for Home
+  Assistant) or "All paths". Each hop is drawn on the lane of its direction of travel with an arrowhead at the hearer:
+  solid in the foreground (up-path widths by rating) where the hearer measured it, dotted where only a route or a
+  parent link proves it. Every hop carries its value (raw LQI at the hearer; "Parent" or "Route" where implied; "?"
+  where unknown). Where up and down differ, both are drawn; the up path also as a wide translucent band under its
+  hops. An incomplete path ends at the device where its walk stopped with a short dashed stem towards its goal (on
+  the right of that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown": unknown
+  beats wrong. Everything else is dimmed to about 20 %, the selection's own pairs included (they are still drawn
+  whatever the switches say); devices on the paths and their goals keep full strength and their labels. Without a
+  selection, hover previews the paths of the device under the pointer without the band.
+- **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
+  right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
+  below it the value. On a short lane it moves back just enough to stay beside its own lane; if the place is taken it
+  tries 60 % and 88 % of the lane; a value on a path may cover a dimmed device, never a label or another value. No
+  room: the details list it. This holds for path hops and for debug mode's values on every lane; the overview shows
+  the rating by width only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
   keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
@@ -304,7 +331,9 @@ the centre).
   stored (11).
 
 ### 7.2 Route view [v1.1]
-The layout comes from routing, so the map sorts itself by paths.
+The layout comes from routing, so the map sorts itself by paths. The paths of a selected device with the reception
+at every hop and the unknown ends are shown in v1 already, in the quality view (node view, 7.1); the route view adds
+the radial layout, the direction switch, playback with the packet marker, the subtree and the relay-load fill.
 - A radial tree from the up paths, used in both directions: coordinator in the centre; a device's tree parent is
   the next hop of its up path; one ring per hop, ring spacing L0 × D; a subtree's angle is proportional to its
   number of devices; siblings sorted by subtree size, then address. Devices with an incomplete up path sit on an
@@ -353,8 +382,11 @@ user-supplied image, or map tiles from an address the user configured.
 - One selectable **fill**: none (default), role, power source; relay load in v1.1; time since last heard later.
   Areas and vendors are "highlight group" filters (later), not colours.
 - Palettes: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 contrast against light and
-  dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour: their class shows by dash (solid, dots, dashes)
-  and the foreground or grey, their rating by width (7.1).
+  dark Home Assistant themes. Colour never carries meaning alone. Links carry no colour by default: their class shows by dash (solid, dots, dashes)
+  and the foreground or grey, their rating by width (7.1). The one exception is the opt-in colour by reception (7.1):
+  red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d, #f2c230, #3fbd5c, interpolated
+  between them and nudged to 3:1 against the theme's background), CIELAB lightness at least 8 apart, so the three
+  stay apart without hue; the numbers and widths say the same.
 - Labels are text, never HTML. A label never cuts away the part that distinguishes it from similar names (cut
   shared beginnings at word starts, keep the end); identical names get the network address appended. Below a scale
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
@@ -391,18 +423,24 @@ user-supplied image, or map tiles from an address the user configured.
   edges (rounded, light shadow, theme surface, targets of 44 px) that move out of the drawer's way: the title pill
   "Meshroute" top left (with the sidebar button on narrow screens); the options group top right, labelled rows on
   wide panels (Options: the menu with devices, legend, settings, debug mode, fit, release all pins, read data again;
-  Findings with the badge; Links; Fill with its current value) and one row of icons on narrow ones (menu, findings
-  count, links, fit). Links opens a popover that stays open while switching: a checkbox per link class (7.1) and
-  below them the density (7.1) as a single choice, real checkboxes and radios with 44 px rows; the zoom group bottom right; the legend bottom left, a pill "Legend ›" that
-  expands to the current fill and the three link classes. The links part of every legend comes from the graph's
-  own legend entries (7.1). The legend says that the number at an arrow is the LQI at the hearer.
+  Findings with the badge; Links; Node view with its current value, a single choice of "Path to coordinator" and
+  "All paths" (7.1); Fill with its current value) and one row of icons on narrow ones (menu, findings count, links,
+  fit; node view and fill are in the Settings tab there). Links opens a popover that stays open while switching: a
+  checkbox per link class (7.1), the checkbox "Colour by reception" (7.1), and below them the density (7.1) as a
+  single choice, real checkboxes and radios with 44 px rows; the zoom group bottom right; the legend bottom left, a
+  pill "Legend ›" that expands to the current fill and the three link classes (and the reception scale while colour
+  is on). The links part of every legend comes from the graph's own legend entries (7.1), path hops and the unknown
+  end included. The legend says that the number at an arrow is the LQI at the hearer.
 
 ### 9.2 Selection and details
-- Click or tap selects a device in every view; selection highlights its readings (quality view) or plays its path
-  (route view). Clicking the background or Esc clears it.
+- Click or tap selects a device in every view; selection shows its paths in the node view (quality view, 7.1) or
+  plays its path (route view). Clicking the background or Esc clears it.
 - **Details** (tab of the drawer): name, vendor, model, device type (kind), addresses, area, role, for end devices
-  whether the receiver is off when idle, parent and its availability, LQI at the parent, end-device children, relay load, readings in both directions with their reporters and ratings,
-  routes, findings with evidence, last seen, link to the Home Assistant device page.
+  whether the receiver is off when idle, parent and its availability, LQI at the parent, end-device children, relay
+  load, reception; its paths in the node view as text, one line per path with every hop and the reception at its
+  hearer ("To the coordinator: Sensor → Router 17 (RX 103) → Coordinator (RX 51)"), "path unknown" where a walk
+  stops, a goal that is unavailable named so ("All paths" collapses above 12 lines); findings with evidence, readings
+  in both directions with their reporters and ratings, routes, last seen, link to the Home Assistant device page.
 - "Open details on select" defaults to on for wide screens and off for narrow ones. Details also open with
   right-click on a node (captured on nodes only, the browser menu stays elsewhere), long press, an info button or
   the menu key.
@@ -421,8 +459,8 @@ user-supplied image, or map tiles from an address the user configured.
   (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
   keeps the device clear of the drawer (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
-- A value on a lane sits on the right of its lane at the lane's middle, with a halo, so the two values of a pair
-  never share a side (7.1).
+- A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a
+  halo, so the two values of a pair never share a side (7.1).
 - Keys: arrows and Enter in the device list (the keyboard path to every device; a text filter above it matches
   words in any order in name, model, vendor, area and addresses); Esc clears selection and stops
   playback; Space plays again; Right arrow steps; +, −, 0 zoom. Closing the drawer returns focus to where it was
@@ -464,7 +502,8 @@ picture under a banner and reads again when the connection is back.
 ## 11. Settings per network [v1]
 
 View, direction (v1.1), density, link class switches (`links`: `{ up, route, heard }`, booleans, a bad or missing
-value counts as on), fill (`none`, `role` or `power`; anything else, including the former `reception`, counts as `none`), "open details on select", whether the legend is expanded (`legendOpen`; by
+value counts as on), node view (`nodeView`: `coordinator` or `all`; anything else counts as `coordinator`), colour by
+reception (`receptionColors`: only `true` is on, anything else off), fill (`none`, `role` or `power`; anything else, including the former `reception`, counts as `none`), "open details on select", whether the legend is expanded (`legendOpen`; by
 default expanded on wide panels, collapsed on narrow ones), pinned positions; later geo positions and map background
 address (empty by default).
 

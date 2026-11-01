@@ -42,3 +42,25 @@ test("the model's coordinator label is translated, user labels stay", () => {
   const others = de.devices.filter((d) => d.labelKind !== "coordinator");
   assert.ok(others.every((d) => d === network.devices.find((x) => x.id === d.id)), "other devices are the same objects");
 });
+
+test("node view, colour by reception and the path texts have words in English and German", () => {
+  const en = translator("en");
+  const de = translator("de");
+  const keys = ["nodeview.title", "nodeview.coordinator", "nodeview.all", "options.nodeview", "settings.nodeview",
+    "settings.nodeview_note", "links.colors", "lane.rx", "lane.path_unknown", "details.paths_coordinator",
+    "details.paths_all", "details.paths_note", "details.path_up", "details.path_down", "details.path_out",
+    "details.path_in", "details.path_hop", "details.path_unknown", "details.path_unavailable", "details.paths_none",
+    "legend.link.path", "legend.link.path-implied", "legend.link.path-end", "legend.link.reception",
+    "legend.link_short.reception"];
+  for (const key of keys) {
+    assert.ok(key in STRINGS.en && key in STRINGS.de, key);
+  }
+  assert.equal(en("nodeview.title"), "Node view");
+  assert.equal(de("nodeview.title"), "Knotenansicht");
+  assert.equal(en("nodeview.coordinator"), "Path to coordinator");
+  assert.equal(en("nodeview.all"), "All paths");
+  assert.equal(de("nodeview.all"), "Alle Wege");
+  assert.equal(en("lane.rx"), "RX:");
+  assert.equal(de("lane.rx"), "RX:", "the owner's own abbreviation, in both languages");
+  assert.equal(de("options.nodeview", { value: de("nodeview.coordinator") }), "Knotenansicht: Weg zum Koordinator");
+});
