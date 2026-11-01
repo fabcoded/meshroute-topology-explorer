@@ -335,7 +335,7 @@ the centre).
   a reading of 0 or without a value (unmeasured or very weak, 3.1) is no spring (decision by Fabian Schwamborn,
   2026-10-31). A pair with two readings therefore has two springs.
 - L0 is the base length: node diameter plus the mean label width in the label font, at zoom 1. D is the density:
-  0.7 dense, 1.0 medium (default), 1.5 spread. Repulsion scales with (L0 × D)², so the balance of springs and
+  0.7 dense, 1.0 medium (default), 1.9 spread (was 1.5; owner, 2026-11-01: at least 20 to 30 % further apart). Repulsion scales with (L0 × D)², so the balance of springs and
   repulsion, and with it the meaning of the picture, is the same in every density: the layout is therefore computed
   once with D = 1 and drawn at D times its positions.
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
@@ -640,7 +640,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   0.1 to 8 times the fitted view. Buttons +, −, fit.
 - Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
   scale, a fixed zoom at which devices of the medium layout sit one mean label width from their nearest neighbour
-  (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
+  (the density is not compensated: spread then shows 1.9, dense 0.7 label widths; never out past the overview), and
   keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a

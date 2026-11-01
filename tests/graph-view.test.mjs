@@ -216,7 +216,7 @@ test("density only scales the drawn positions: no new layout, positions at base 
   const { view } = setup();
   const layout = view.layout;
   const steps = layout.steps;
-  for (const d of [1.5, 0.7, 1]) {
+  for (const d of [1.9, 0.7, 1]) {
     view.setDensity(d);
     assert.equal(view.layout, layout, "the same layout object");
     assert.equal(layout.steps, steps, "not one step more");

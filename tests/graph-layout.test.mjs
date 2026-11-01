@@ -86,6 +86,10 @@ test("Spearman helper: perfect, inverse and tied ranks", () => {
   assert.ok(Math.abs(spearman([1, 1, 2, 3], [1, 2, 3, 4]) - 0.9486832980505138) < 1e-12);
 });
 
+test("density factors are pinned: dense 0.7, medium 1, spread 1.9 (spec 7.1; spread +27 % over the former 1.5)", () => {
+  assert.deepEqual({ ...DENSITY }, { dense: 0.7, medium: 1, spread: 1.9 });
+});
+
 test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
   const net = syntheticNetwork({ devices: 300, readings: 3000, seed: 7 });
   assert.equal(net.devices.length, 300);

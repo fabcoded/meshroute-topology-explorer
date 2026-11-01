@@ -10,8 +10,8 @@
 
 import { buildQuadtree, quadtreeForce } from "./quadtree.js";
 
-/** Densities of spec 7.1. */
-export const DENSITY = Object.freeze({ dense: 0.7, medium: 1, spread: 1.5 });
+/** Densities of spec 7.1. Spread was 1.5 until 2026-11-01 (owner: at least 20-30 % further apart; 1.9 is +27 %). */
+export const DENSITY = Object.freeze({ dense: 0.7, medium: 1, spread: 1.9 });
 /** Settled: the largest move of a step is below this many layout units (spec 12). */
 export const SETTLE_MOVE = 0.5;
 
