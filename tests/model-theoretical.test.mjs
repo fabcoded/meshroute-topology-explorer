@@ -279,3 +279,22 @@ test("a click stays well under 100 ms of model time on the sample (CPU time, fre
   t.diagnostic && t.diagnostic(`slowest click ${worst.toFixed(1)} ms CPU`);
   assert.ok(worst < 100, `${worst} ms CPU`);
 });
+
+test("on the sample the cheapest way hits the real next hop of 11 of 37 active non-direct router entries (note of brief a4o)", async () => {
+  const { sampleNetwork } = await import("./panel-fixture.mjs");
+  const { discoveryTree } = await import("../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js");
+  const n = sampleNetwork();
+  const by = new Map(n.devices.map((d) => [d.id, d]));
+  let hit = 0;
+  let total = 0;
+  for (const r of n.routes) {
+    const owner = by.get(r.owner);
+    const dest = by.get(r.destination);
+    if (r.stale || !/^active/i.test(String(r.status)) || r.owner === r.nextHop || r.nextHop === r.destination) continue;
+    if (!owner || !dest || owner.role !== "router" || !owner.available) continue;
+    total++;
+    const found = discoveryTree(n, owner.id).get(dest.role === "end device" ? dest.parent : dest.id);
+    if (found && found.ids[1] === r.nextHop) hit++;
+  }
+  assert.deepEqual([hit, total], [11, 37]);
+});

@@ -280,7 +280,7 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
    neighbours: on the sample 35 active entries go via another hop to a destination their owner measures (LQI 1–169).
    An end device is routed by its own address under stochastic addressing (3.6.3.3, `nwkAddrAlloc` 0x02), so a router
    that hears only its parent does not deliver there; it discovers.
-5. Otherwise the rest of the way is what a **route discovery** from H would find today ("discovery"): the lowest
+5. Otherwise the rest of the way is **one of the cheapest ways by the tables' LQI**, a candidate for what a route discovery from H would take, not a prediction ("discovery"; on the sample it names the real next hop of 11 of the 37 active non-direct entries of routers, 14 of 62 with the coordinator's): the lowest
    **path cost** to D, for an end device to its parent (the parent answers for its child, 3.6.3.5.2), which then
    delivers ("child"). Usable are links between available routers or the coordinator that each side measures (with
    `nwkSymLink` a route request over a neighbour without an outgoing cost is dropped, 3.6.3.5.2). Path cost is the sum
@@ -574,7 +574,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   coarse one.
 - **Legend** tab (board M7), compact, in sections: **Communication paths**: every path class whatever the stage
   (decision by Fabian Schwamborn, 2026-11-01): there and back with the coordinator, the assumed return path, paths to
-  other devices "(stage 2)", the path a route discovery would find "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
+  other devices "(stage 2)", one of the cheapest ways by the tables' LQI "(computed, stage 2)", heard only "(option "heard only", needs a selection)"; the
   band, the glyphs "–" and "?" where the option draws them (option on, and debug)
   (an addition to M7: the legend explains every glyph the map can show), in debug mode also the lane without traffic,
   the width steps and the unknown end, "RX:" (the reception at the hearer, a quarter of the lane before it) and the

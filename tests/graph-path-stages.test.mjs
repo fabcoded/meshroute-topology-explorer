@@ -251,7 +251,7 @@ test("the three stages, their hints and the legend's words in English and German
     "legend.option_heard": "(Option \"nur gehört\", braucht eine Auswahl)",
     "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
     "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
-    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "Weg nach Routensuche",
+    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
     "legend.link.heard": "nur gehört", "legend.stage": "(Stufe {n})", "legend.stage_computed": "(berechnet, Stufe {n})",
     "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
   };
@@ -266,7 +266,7 @@ test("the three stages, their hints and the legend's words in English and German
     "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
   assert.equal(STRINGS.en["view.paths_heard_hint"],
     "needs a selection: adds the device's 3 best heard-only partners, in either stage");
-  assert.equal(STRINGS.en["legend.link.discovery"], "path a route discovery would find");
+  assert.equal(STRINGS.en["legend.link.discovery"], "one of the cheapest ways by the tables' LQI");
   assert.equal(STRINGS.en["legend.stage_computed"], "(computed, stage {n})");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
     "legend.link.up", "legend.link.path"]) {
