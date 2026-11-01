@@ -362,7 +362,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderTabs();
   }
 
-  /** Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" (with its caveat as the
+  /** Status line (spec 6, board M1): source, tables, completeness, "unchanged since" (with its caveat as the
    *  part's description), a followed scan with its stop button, and the source-route stage on the right. Below the
    *  wide breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions. */
   _renderStatus() {

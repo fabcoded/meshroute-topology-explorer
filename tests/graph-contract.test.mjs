@@ -223,3 +223,37 @@ test("a stage or checkbox change redraws at once, with and without a selection (
   // (82), where every measured neighbour is a lane of its paths, so the checkbox adds none (spec 12).
   assert.deepEqual(steps(r13), [82, 82, 7, 2, 7, 82]);
 });
+
+test("a device on the selected device's paths keeps its label in a hub position (A4m, owner report 2026-11-01)", () => {
+  // End device 06 with every theoretical path: Router 17 is the hub of the lanes, and their values had taken every
+  // place around it, so its label vanished (blocks were left out when no place was free).
+  const { view, env } = show();
+  const i = view.scene.nodes.findIndex((n) => n.label === "End device 06");
+  for (const stage of ["coordinator", "all"]) {
+    view.setPaths(stage);
+    view.selected = i;
+    view.ctx.calls.length = 0;
+    view.draw();
+    env.flush();
+    const labelled = view.ctx.calls.filter((c) => c[0] === "fillText").map((c) => c[1]);
+    assert.ok(labelled.includes("Router 17"), `stage ${stage}: Router 17 is labelled`);
+  }
+});
+
+test("every hop of the focus carries its value on click, overlap accepted (board M11 rule 8, owner 2026-11-01)", () => {
+  // On 7b7e9b1 a click in stage 2 lost 24-33 of 82 values (no free place or a lane too short) and Router 11 in stage 1
+  // showed 1 of 3 at the fitted view.
+  const { view, env } = show();
+  const { scene } = view;
+  for (const [label, stage, hops] of [["Router 13", "all", 82], ["Router 11", "coordinator", null], ["End device 06", "all", 85]]) {
+    view.setPaths(stage);
+    view.selected = scene.nodes.findIndex((n) => n.label === label);
+    view.draw();
+    const { paths } = view.lastDraw;
+    if (hops) assert.equal(paths.hops, hops, `${label}: hops`);
+    const missing = paths.values.filter((v) => !v.drawn || v.x === null);
+    assert.equal(missing.length, 0, `${label} (${stage}): ${missing.length} of ${paths.values.length} values dropped`);
+    assert.equal(paths.values.length, paths.hops, `${label}: one value per hop`);
+  }
+  env.flush();
+});

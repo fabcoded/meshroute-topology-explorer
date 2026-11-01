@@ -8,6 +8,7 @@ import { GraphView } from "../custom_components/meshroute_topology_explorer/fron
 import { hitRadius, MIN_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { symbolSize } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { FakeCanvas, fakeEnv, domEvent, drawnSymbols, labelWidth } from "./graph-fakes.mjs";
+import { DENSITY } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 
 const NETWORK = {
   source: "zha",
@@ -128,7 +129,7 @@ test("dragging a device pins it where it is dropped; a double tap releases it", 
   assert.ok(view.layout.isPinned("r1"));
   const k = view.cam.k;
   const K = view.layout.K; // events carry base lengths
-  assert.ok(Math.abs(pin[1].x * K - (before.x + 40 / k)) < 1e-6 && Math.abs(pin[1].y * K - (before.y + 30 / k)) < 1e-6);
+  assert.ok(Math.abs(pin[1].x * K - (before.x + 40 / (k * view.density))) < 1e-6 && Math.abs(pin[1].y * K - (before.y + 30 / (k * view.density))) < 1e-6);
   const now = view.layout.position("r1");
   assert.ok(Math.abs(now.x - pin[1].x * K) < 1e-9 && Math.abs(now.y - pin[1].y * K) < 1e-9, "stays after the layout settles again");
   assert.ok(view.pinnedPositions().has("r1"));
@@ -216,7 +217,7 @@ test("density only scales the drawn positions: no new layout, positions at base 
   const { view } = setup();
   const layout = view.layout;
   const steps = layout.steps;
-  for (const d of [1.5, 0.7, 1]) {
+  for (const d of [1.9, 0.7, 1]) {
     view.setDensity(d);
     assert.equal(view.layout, layout, "the same layout object");
     assert.equal(layout.steps, steps, "not one step more");
@@ -230,11 +231,11 @@ test("density only scales the drawn positions: no new layout, positions at base 
 });
 
 test("fit and symbol sizes do not depend on the density", () => {
-  const views = [0.7, 1, 1.5].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
+  const views = [0.8, 1.2, 1.9].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
   const [dense, medium, spread] = views;
   for (const { d, view } of views) {
     assert.equal(view.cam.k, medium.view.cam.k, `fit zoom at D=${d}`);
-    assert.ok(Math.abs(view.cam.cx - medium.view.cam.cx * d) < 1e-9, "centred on the same map point");
+    assert.ok(Math.abs(view.cam.cx - medium.view.cam.cx * d / medium.d) < 1e-9, "centred on the same map point");
     assert.equal(view.fitK, medium.view.fitK);
   }
   const sizes = drawnSizes(dense.canvas, dense.view);
@@ -242,9 +243,9 @@ test("fit and symbol sizes do not depend on the density", () => {
   assert.deepEqual(drawnSizes(spread.canvas, spread.view), sizes);
   // A density change keeps the zoom, and with it every symbol size.
   const before = drawnSizes(medium.canvas, medium.view);
-  medium.view.setDensity(1.5);
+  medium.view.setDensity(1.9);
   assert.deepEqual(drawnSizes(medium.canvas, medium.view), before);
-  // Fit after a change still fits the medium layout: it does not undo the density.
+  // Fit after a change still fits the base layout (D = 1): it does not undo the density.
   medium.view.fit({ animate: false });
   assert.equal(medium.view.cam.k, dense.view.cam.k);
 });
@@ -291,9 +292,9 @@ test("fidelity is the same in every density: drawn lengths only scale", () => {
   const { view } = setup();
   const lengths = () => view.scene.pairs.map((p) => Math.hypot(view.pos.x[p.b] - view.pos.x[p.a], view.pos.y[p.b] - view.pos.y[p.a]));
   const base = lengths();
-  for (const d of [0.7, 1.5]) {
+  for (const d of [0.8, 1.9]) {
     view.setDensity(d);
-    lengths().forEach((len, j) => assert.ok(Math.abs(len - base[j] * d) < 1e-9));
+    lengths().forEach((len, j) => assert.ok(Math.abs(len - base[j] * d / DENSITY.medium) < 1e-9));
   }
 });
 
@@ -308,7 +309,7 @@ function medianNearest(view) {
 }
 
 test("reveal with zoom goes to the working scale: median nearest-neighbour distance = D x mean label width", () => {
-  for (const density of [0.7, 1, 1.5]) {
+  for (const density of [0.8, 1.2, 1.9]) {
     const canvas = new FakeCanvas(240, 180); // small: the overview is below the working scale
     const env = fakeEnv();
     const view = new GraphView(canvas, { env, density });

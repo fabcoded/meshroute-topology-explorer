@@ -310,7 +310,9 @@ devices really talk. The walk decides at each holder H of the frame, in this ord
 - **Observations**: ZHA has no scan timestamp and the integration has no public way to read ZHA's tables. The panel
   therefore keeps, per router, a fingerprint of its sorted neighbour and routing tables (with LQI) and the time it
   first saw that fingerprint, and stores them through the integration (10). "Unchanged since" thus means "observed
-  unchanged since"; it is accurate only for times a panel was open, and the status line says so.
+  unchanged since"; it is accurate only for times a panel was open. The status line shows the board's wording
+  ("unchanged since {time}", de "unverändert seit {time}", decision by Fabian Schwamborn, 2026-11-01); the caveat
+  "observed, not reported" is its tooltip (and the Details row "Table observed unchanged since").
   The stored object holds `routers: { <ieee>: { fingerprint, firstSeen } }`; saves merge per router (the same
   fingerprint keeps the earlier time, another one the newest view) and keep unknown keys; above 256 KiB the oldest
   entries go first, which debug mode reports. Times are shown in the browser's local time.
@@ -335,7 +337,9 @@ the centre).
   a reading of 0 or without a value (unmeasured or very weak, 3.1) is no spring (decision by Fabian Schwamborn,
   2026-10-31). A pair with two readings therefore has two springs.
 - L0 is the base length: node diameter plus the mean label width in the label font, at zoom 1. D is the density:
-  0.7 dense, 1.0 medium (default), 1.5 spread. Repulsion scales with (L0 × D)², so the balance of springs and
+  0.8 dense, 1.2 medium (default), 1.9 spread (were 0.7 / 1.0 / 1.5; owner, 2026-11-01: all further apart; min
+  distance between node centres on the sample at 1280 × 800 after fit: 26.1 / 39.2 / 62.0 px, was 22.9 / 32.7 / 49.0;
+  phone 9.2 / 13.7 / 21.7 px). Repulsion scales with (L0 × D)², so the balance of springs and
   repulsion, and with it the meaning of the picture, is the same in every density: the layout is therefore computed
   once with D = 1 and drawn at D times its positions.
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
@@ -418,17 +422,18 @@ the centre).
   2026-11-01). Devices on the paths, their goals and the heard partners keep full strength and their labels.
 - **Values at the arrows** (decision by Fabian Schwamborn, 2026-11-01): a lane's value sits beside its lane on the
   right of travel, a quarter of the lane before the hearer (three quarters from the sender), as two lines: "RX:" and
-  below it the value. On a short lane it moves back just enough to stay beside its own lane; if the place is taken it
-  tries 60 % and 88 % of the lane; a value on a path may cover a dimmed device, never a label or another value. No
-  room: the details list it. A lane too short at the current zoom for its value, as between a router and the
-  coordinator right beside it in the fitted view, shows none; zooming in or the details show it (main session,
-  2026-11-01). The values of the way up and down take their places first, then routes, then computed hops, then heard
+  below it the value. On a short lane it moves back just enough to stay beside its own lane. **Values of the focus's
+  lanes (click and hover) are never dropped** and never move: each sits at that place even where it covers another
+  value, a label or a symbol (board M11 rule 8, "every value at its place, overlap accepted"; owner decision
+  2026-11-01); a lane too short for the two lines still shows its value, at its middle beside the lane. In the debug
+  overview, values on every lane look for a free place (60 % and 88 % of the lane next), and a lane too short or
+  without room shows none; the details list every value. The values of the way up and down take their places first, then routes, then computed hops, then heard
   only. This holds for path hops and for debug mode's values on every lane; the overview shows the rating by width
   only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
-  keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
-  spread one reaches past it), the selection or else the centre of the view stays in place, and the stored density
+  keep their size, "fit" and the first view fit the base layout, D = 1 (owner decision 2026-11-01, replacing "fit refers to
+  medium"): dense 0.8 sits smaller in the window, medium 1.2 reaches about 20 % and spread 1.9 about 90 % past it, the selection or else the centre of the view stays in place, and the stored density
   (11) applies when the panel loads.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
   plus L0 / 2, in the layout before D is applied); the ring and the details ("No readings") say so, the symbol does
@@ -510,8 +515,9 @@ user-supplied image, or map tiles from an address the user configured.
   symbol and names 3 px below it, each line centred; (2) the whole block 3 px below, centred; (3) the whole block 3 px
   above, centred; (4) right of the symbol, 4 px from its edge, lines aligned left and the block centred vertically on
   the device; (5) the same on the left, aligned right. Places that come out the same (the name alone: 1 and 2) are
-  tried once. A dimmed device is no obstacle for a path value but is one for a label. Where no place is free the block
-  is left out, except for the coordinator and the focus, which take the first place.
+  tried once. Where no place is free the block
+  is left out, except for the coordinator, the focus and every device on the focus's paths, which take the first place
+  (a hub such as Router 17 under End device 06 would otherwise lose its label to the lane values; overlap is accepted).
 - The legend (one place: the Legend tab, 9.1) explains every class of lines, the fill while one is chosen, the
   symbols (each sign on a device of the network, with its own picture) and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1
@@ -646,8 +652,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   pan). Long press: 500 ms without moving 8 px. Pinch zooms. Wheel: × 1.2 per notch around the pointer. Zoom range
   0.1 to 8 times the fitted view. Buttons +, −, fit.
 - Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
-  scale, a fixed zoom at which devices of the medium layout sit one mean label width from their nearest neighbour
-  (the density is not compensated: spread then shows 1.5, dense 0.7 label widths; never out past the overview), and
+  scale, a fixed zoom at which devices of the base layout (D = 1) sit one mean label width from their nearest neighbour
+  (the density is not compensated: spread then shows 1.9, medium 1.2, dense 0.8 label widths; never out past the overview), and
   keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a
@@ -723,7 +729,7 @@ reads them again on reconnect.
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
-| Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time (CPU time with fresh caches, Node; about 10–35 ms alone, up to 65 ms beside the other suites); the backbone is computed once per network (about 20–70 ms wall on the sample). |
+| Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node, measured as the layout's own CPU time (process.cpuUsage, about 1.5 s alone), best of up to three runs so that a loaded machine does not decide it; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time (CPU time with fresh caches, Node; about 10–35 ms alone, up to 65 ms beside the other suites); the backbone is computed once per network (about 20–70 ms wall on the sample). |
 | Calm default | Default view state shows only the elements listed in 9.1. |
 | Accessibility | Keyboard path to every device and value; hit areas ≥ 24 px; reduced motion honoured; 3:1 contrast of graphic elements. |
 | Tests | No device needed; each suite under a minute; fixtures anonymized. |

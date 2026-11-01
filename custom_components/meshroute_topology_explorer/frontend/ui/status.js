@@ -40,7 +40,7 @@ export function sourceRoutePart(summary, compact = false) {
 }
 
 /** Parts of the status line as [key, params] for the translator, in order (board M1): source, tables x of y
- *  (available routers, coordinator not counted), completeness, "observed unchanged since" when known (formatted time,
+ *  (available routers, coordinator not counted), completeness, "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
  *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
  *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again" (decision by Fabian
  *  Schwamborn, 2026-11-01). compact (narrow screens): short forms in at most two lines, without the source; each part

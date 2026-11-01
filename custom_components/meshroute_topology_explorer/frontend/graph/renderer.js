@@ -328,14 +328,13 @@ class RectGrid {
       this.cells.get(key).push(r);
     });
   }
-  /** Whether r overlaps anything placed; with soft: true, dimmed symbols (marked soft) do not count. */
-  hits(r, { soft = false } = {}) {
+  /** Whether r overlaps anything placed. */
+  hits(r) {
     let hit = false;
     this._keys(r, (key) => {
       if (hit) return;
       for (const q of this.cells.get(key) || []) {
         if (q.owner !== undefined && q.owner === r.owner) continue; // a label may touch its own symbol
-        if (soft && q.soft) continue;
         if (r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) { hit = true; return; }
       }
     });
@@ -487,13 +486,15 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // A lane's value: "RX:" over the value at the hearer, beside the lane on its right, a quarter of the lane before
   // the hearer (VALUE_AT); on a short lane it moves back just enough to stay beside its own lane. If that spot is
   // taken, it tries a little further back and a little closer to the hearer, always beside its own lane. No room:
-  // the details list it (spec 9.3).
+  // the details list it (spec 9.3). Values of the focus's lanes (extra.path) do not yield: see value() below.
   const addValue = (lane, text, extra) => {
     const w = Math.max(measure(texts.rx), measure(text));
     const h = 2 * LINE_HEIGHT;
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
-    if (along + 8 > lane.len) return null;
-    const half = along / 2 / lane.len;
+    // A focus lane's value is never dropped (board M11 rule 8, owner 2026-11-01): on a short lane it sits at its
+    // middle, beside the lane, where the lane is long enough for nothing else. Other values yield (spec 9.3).
+    if (along + 8 > lane.len && !extra.path) return null;
+    const half = Math.min(0.5, along / 2 / lane.len);
     const spots = [];
     for (const share of VALUE_SPOTS) {
       const at = Math.max(half, Math.min(1 - half, share));
@@ -619,9 +620,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const x = sx[i];
     const y = sy[i];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
-    // A dimmed device is a soft obstacle: the reception at a path hop may cover it, a label may not.
-    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i,
-      soft: dimming && !near.has(i) });
+    obstacles.add({ x: x - half - 1, y: y - half - 1, w: size + 2, h: size + 2, owner: i });
     const value = node.available ? fillColor(node, view.fill, theme) : null;
     const fill = node.available ? value || theme.node : theme.background;
     // The neutral fill is designed for the theme's own line colour; no flip (spec 8).
@@ -709,9 +708,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   const value = (t) => {
     let rect = null;
-    for (const [x, y] of t.spots) {
+    // The focus's values sit at their preferred place whatever is there (board M11 rule 8, owner decision 2026-11-01:
+    // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
+    for (const [x, y] of t.path ? t.spots.slice(0, 1) : t.spots) {
       const r = { x: x - t.w / 2 - 2, y: y - t.h / 2, w: t.w + 4, h: t.h };
-      if (placed.hits(r, { soft: t.path })) continue;
+      if (!t.path && placed.hits(r)) continue;
       rect = r;
       t.x = x;
       t.y = y;
@@ -753,7 +754,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
-  for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, false);
+  // A device on the focus's paths is always labelled (A4m, owner report 2026-11-01: Router 17 lost its label in a hub
+  // position where lane values had taken every place): the values were placed first, so the block takes its first
+  // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
+  for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);
   if (labelsForAll(k, view.labelZoom)) {
     const rank = { coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 };
     const rest = [];
