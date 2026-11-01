@@ -12,7 +12,8 @@ import { activeNetwork, loadNetworkChoice, networkChoices, PANEL_STORE, saveNetw
 import { ageParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
 import { threadParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/status.js";
 import { SettingsClient } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
-import { buildScene, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { buildScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { ENGINES } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 import { laneValue, legendEntries, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/ui/thread-details.js";
 import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
@@ -141,11 +142,12 @@ test("status line for Thread: coverage, collection time with age, missing border
 
 test("map: the overview draws parent links and neighbours; a click shows the device's own lanes and glyphs", () => {
   const scene = buildScene(thread, (s) => s.length * 6);
-  assert.equal(scene.routes, false);
+  assert.equal(scene.engine, ENGINES.thread);
   const leader = scene.index.get(thread.devices.find((d) => d.leader).id);
-  const own = scenePaths(scene, leader, "all", "assume", true);
+  // Zigbee view settings are not the Thread engine's: they change nothing.
+  const own = ENGINES.thread.scene.focus(scene, leader, { paths: "all", sourceRoute: "assume", heard: true, selected: leader });
   assert.equal(own.ends.length, 0, "no paths, no unknown ends");
-  assert.equal(own.hops.size, 5, "leader: both lanes to router 15 and to its child, one to the border router");
+  assert.equal(own.hops.length, 5, "leader: both lanes to router 15 and to its child, one to the border router");
   assert.equal(own.glyphs.length, 1, "the border router has no table: one direction without a reading");
   assert.equal(own.nodes.size, 4);
 });

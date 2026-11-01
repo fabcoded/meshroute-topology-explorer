@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildThreadNetwork, extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET,
   THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
-import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 
 const sampleTopology = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8"))
@@ -185,12 +185,14 @@ test("parsers: extended addresses, link quality, RSSI, times", () => {
 });
 
 test("lanes: parent links are drawn as traffic, other readings as neighbours, no up path band", () => {
-  const { lanes, upPaths } = classifyLanes(sample);
+  // The Thread engine's own lane meaning (engines cut step 6b): toParent / fromParent instead of Zigbee's up and down;
+  // no up paths at all, so no band (tests/engine-leaks.test.mjs 7).
+  const { lanes } = classifyLanes(sample);
   const id = (k) => byNode(sample, k).id;
   const lane = (s, h) => lanes.find((l) => l.sender === id(s) && l.hearer === id(h));
-  assert.equal(lane("16", "14").up, true, "end device -> parent");
-  assert.equal(lane("14", "16").downMeasured, true, "parent -> child");
-  assert.equal(lane("14", "15").up, false);
+  assert.equal(lane("16", "14").toParent, true, "end device -> parent");
+  assert.equal(lane("14", "16").fromParent, true, "parent -> child");
+  assert.equal(lane("14", "15").toParent, false);
   assert.equal(lane("14", "15").dir.state, "measured");
-  assert.ok([...upPaths.values()].every((ids) => ids.length === 0));
+  assert.ok(lanes.every((l) => !("up" in l) && !("downMeasured" in l)), "no Zigbee lane flags");
 });

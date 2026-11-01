@@ -42,3 +42,28 @@ export function legendEntries(theme) {
     { id: "rx-thread", kind: "rx", sample: "−75 dBm" },
   ];
 }
+
+/** Pairs and lanes of a Thread network with what each lane carries (spec 3.2, 4.6): there are no routes and no
+ *  coordinator, so the only traffic the data names is a parent link, while both ends are available: the end device
+ *  sends to its parent (toParent) and the parent delivers to it (fromParent). Returns { pairs: [{ a, b, ab, ba }],
+ *  lanes: [{ pair, sender, hearer, dir, toParent, fromParent }] }, two lanes per pair (first b -> a, whose evidence is
+ *  ab: a hears b; then a -> b). */
+export function classifyLanes(network) {
+  const devices = (network.devices || []).filter((d) => d && typeof d.id === "string");
+  const known = new Set(devices.map((d) => d.id));
+  const available = new Set(devices.filter((d) => d.available !== false).map((d) => d.id));
+  const toParent = new Set();
+  for (const d of devices) {
+    if (d.role !== "end device" || !d.parent || !available.has(d.id) || !available.has(d.parent)) continue;
+    toParent.add(`${d.id}>${d.parent}`);
+  }
+  const pairs = (Array.isArray(network.pairs) ? network.pairs : []).filter((p) => known.has(p.a) && known.has(p.b));
+  const lanes = [];
+  pairs.forEach((p, pair) => {
+    for (const [sender, hearer, dir] of [[p.b, p.a, p.ab], [p.a, p.b, p.ba]]) {
+      lanes.push({ pair, sender, hearer, dir, toParent: toParent.has(`${sender}>${hearer}`),
+        fromParent: toParent.has(`${hearer}>${sender}`) });
+    }
+  });
+  return { pairs, lanes };
+}

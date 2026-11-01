@@ -11,6 +11,7 @@ import { connection } from "./connection.js";
 import { zigbeeOptions } from "./options.js";
 import { statusLine } from "./status.js";
 import { settings } from "./settings.js";
+import * as zigbeeScene from "./scene.js";
 
 export const zigbee = Object.freeze({
   key: "zigbee",
@@ -35,6 +36,11 @@ export const zigbee = Object.freeze({
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
    *  paths without a table entry. */
   options: (network, settings) => zigbeeOptions(network, settings),
+  /** What its map draws (graph/renderer.js): lanes and classify once per scene, then per view the overview's look
+   *  of every lane and the focus of a selected or hovered device (scene.js). classes: the counters of the drawn
+   *  lanes. */
+  scene: Object.freeze({ lanes: zigbeeScene.lanes, classify: zigbeeScene.classify, viewKey: zigbeeScene.viewKey,
+    overview: zigbeeScene.overview, focus: zigbeeScene.focus, classes: zigbeeScene.CLASSES }),
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
    *  (ui/settings.js) keeps every other key. */
   settings,

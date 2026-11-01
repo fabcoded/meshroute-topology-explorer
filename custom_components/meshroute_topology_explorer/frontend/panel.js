@@ -306,6 +306,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._network = localize(network, this._t, this._areas());
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
     this._ensureView();
+    // The new network's engine reads its own keys of the new settings (another engine's stay unread).
+    this._view.setEngineView(this._engineView());
     this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
     this._devicesTab.setNetwork(this._network, this._t);
     this._devicesTab.setSelected(this._selected);
@@ -335,8 +337,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, paths: s.paths, heard: s.heard, returnRoutes: s.returnRoutes, sourceRoute: s.sourceRoute,
-      receptionColors: s.pathColors.mode === "coloured",
+      debug: this._debug, engineView: this._engineView(), receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
@@ -355,10 +356,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
-      this._view.setPaths(s.paths);
-      this._view.setHeard(s.heard);
-      this._view.setReturnRoutes(s.returnRoutes);
-      this._view.setSourceRoute(s.sourceRoute);
+      if (this._network) this._view.setEngineView(this._engineView());
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
       this._view.setLabels(s.labels);
@@ -465,6 +463,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._buttons.update({ t: this._t, count: badgeCount(this._network.findings), openOnSelect: this._openOnSelect(),
       narrow: this._narrow, hideLeft: !ready || (side && this._left.isOpen), hideRight: !ready || (side && this._right.isOpen),
       leftOpen: this._left.isOpen });
+  }
+
+  /** The network engine's own settings, for the map (GraphView.setEngineView): the keys it owns, as stored. */
+  _engineView() {
+    const s = this._settings.settings;
+    return Object.fromEntries(engineFor(this._network).settings.keys.map((key) => [key, s[key]]));
   }
 
   /** "Details on click": as stored, else by width (spec 9.2). */

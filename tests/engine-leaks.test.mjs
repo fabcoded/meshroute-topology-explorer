@@ -164,8 +164,7 @@ test("4b: the panel shows its error state for a network without an engine", asyn
   assert.match(String(controller.state.message), /engine/i);
 });
 
-test("4c: nothing is ever treated as routes: true by default (no hasRoutes in the shell)", { todo: "step 6a/6b" },
-  async () => {
+test("4c: nothing is ever treated as routes: true by default (no hasRoutes in the shell)", async () => {
     const links = await mod("graph/links.js");
     assert.equal("hasRoutes" in links, false);
     for (const rel of sharedFiles()) {
@@ -199,7 +198,7 @@ test("6: the shared code has no network words", { todo: "steps 6-10" }, () => {
   }
 });
 
-test("7: the Thread focus is the device's own lanes: no band, no ends", { todo: "step 6b" }, async () => {
+test("7: the Thread focus is the device's own lanes: no band, no ends", async () => {
   const { thread, threadNet } = await engines();
   const { buildScene } = await mod("graph/renderer.js");
   const scene = buildScene(threadNet, (s) => s.length * 6);
@@ -209,7 +208,11 @@ test("7: the Thread focus is the device's own lanes: no band, no ends", { todo: 
     assert.equal(focus.band, null);
     assert.deepEqual(focus.ends, []);
     for (const hop of focus.hops) assert.ok(hop.s === i || hop.h === i, `hop ${hop.s}>${hop.h} of ${i}`);
+    // Its own class names, never Zigbee's.
+    for (const hop of focus.hops) assert.ok(["parent", "neighbour"].includes(hop.cls), hop.cls);
   }
+  const drawn = thread.scene.overview(scene, {}).filter(Boolean).map((l) => l.cls);
+  assert.ok(drawn.length > 0 && drawn.every((c) => ["parent", "neighbour"].includes(c)), drawn.join());
 });
 
 // A save writes the whole sanitized object (shell defaults included, tests/panel-settings.test.mjs); what matters

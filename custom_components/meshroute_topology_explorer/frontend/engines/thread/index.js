@@ -8,6 +8,7 @@ import { laneValue, legendEntries, unknownGlyph } from "./lanes.js";
 import { renderThreadDetails } from "../../ui/thread-details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
+import * as threadScene from "./scene.js";
 
 /** Thread owns no settings keys today (engines cut, section 3): a stored Zigbee key under a Thread id is kept by the
  *  shell, never read and never written. */
@@ -44,6 +45,10 @@ export const thread = Object.freeze({
   /** The View tab's Thread groups: none of the Zigbee path groups (owner decision 2026-11-01: hidden, not greyed;
    *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
   options: () => THREAD_OPTIONS,
+  /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's own
+   *  lanes, no band, no ends (scene.js). */
+  scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
+    overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES }),
   /** Its own settings keys: none. */
   settings: SETTINGS,
 });

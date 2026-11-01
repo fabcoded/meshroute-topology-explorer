@@ -6,7 +6,7 @@
 // 2026-11-01); path display, grey or coloured by reception (the shared key pathColors); return paths without a table
 // entry (source route: off, assume, read from zigpy with its "experimental" tag), after "On click".
 // Pure. node --test tests/
-import { PATH_STAGES } from "../../graph/links.js";
+import { PATH_STAGES } from "./lanes.js";
 import { SOURCE_ROUTE_MODES } from "../../model/source-routes.js";
 
 /** OptionGroup[] for the View tab from the network's settings (sanitized). Text values are i18n keys. */

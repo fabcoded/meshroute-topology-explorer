@@ -1,77 +1,16 @@
 // SPDX-License-Identifier: MIT
 // How the quality view draws links (spec 7.1, 8; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01, boards
 // M2, M7, M11): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
-// of travel, with an arrowhead at the hearer. Classes belong to a lane, not to a pair: "up" (the hearer is the
-// sender's next hop on the sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a
-// device, measured from the tables or assumed as the reversed way up, model/source-routes.js), "route" (on an active
-// route between two devices, neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry
-// several; it is drawn as its strongest. "Communication paths" says what is drawn: the stage "coordinator" (default)
-// shows the up and down lanes of all devices and, on click, only the device's way up and down; "all" adds, on click,
-// the device's paths to and from other devices; the option "heard only" adds, on click, heard-only lanes (the
-// device's 3 best partners). Hover previews within the stage; debug mode draws every lane. Line styles carry no colour: up and
-// down solid, assumed down dotted, routes between devices dash-dot, heard only dashed grey; width follows the lane's
-// own rating. A direction without a reading has no lane but a glyph: "–" when the hearer's table does not list the
-// sender, "?" when there is no table to ask. Opt-in: lanes coloured by reception, red to green.
-// Pure functions: classification from the data model's pairs, routes and paths; geometry; stroke styles by look. The
-// legend rows, the glyph texts and the lane values are the engines' (engines/*/lanes.js).
+// of travel, with an arrowhead at the hearer, shortened to the symbols' contours; a value beside a lane, the dashed
+// stem of an unknown end, the band under a selection's way, the dimming of what is out of focus. Line styles are
+// looks (solid, dotted, dash-dot, dashed, faint) and carry no colour of their own; width follows the lane's own
+// rating; opt-in, rated lanes are coloured by reception, red to green. What a lane means, and which look it gets, is
+// the network engine's (engines/<type>/lanes.js and scene.js; engines cut, section 3).
+// Pure functions: geometry and stroke styles.
 // node --test tests/
 
-import { computePairs } from "../model/pairs.js";
-import { downPath, routePath, upPath } from "../model/paths.js";
-import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "../model/source-routes.js";
-import { isActive } from "../model/normalize.js";
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";
-
-/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view
- *  by owner proposal 2026-11-01, Codex 5): three views, each its own basis, none containing another: with the
- *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
- *  a separate option (checkbox) on top of any of them. */
-export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);
-export const DEFAULT_PATHS = "coordinator";
-
-/** A stored or passed stage as one of PATH_STAGES; anything else is the default. */
-export function pathStage(value) {
-  return PATH_STAGES.includes(value) ? value : DEFAULT_PATHS;
-}
-
-/** Lane classes in drawing order: the more a lane carries, the later (higher) it is drawn. */
-export const CLASSES = Object.freeze(["heard", "route", "down", "up"]);
-/** Heard-only partners shown per device: its best by the pair's best rating at the hearer (decision 2026-10-31). */
-export const BEST_HEARD = 3;
-
-/** The class of a lane under a source-route stage (model/source-routes.js), the strongest it carries: up or a
- *  measured down lane, then a return path of the stage (assumed under "assume"; recorded by zigpy or else assumed
- *  under "zigpy"), then a route between devices, then heard (a reading without traffic); null for a lane that carries
- *  nothing and has no reading (only a route or a parent link implies it, or nothing does). */
-export function laneClass(lane, sourceRoute = "off") {
-  if (lane.up) return "up";
-  if (lane.downMeasured) return "down";
-  const stage = drawMode(sourceRoute);
-  if (lane.downAssumed && stage === "assume") return "down";
-  if ((lane.downRecorded || lane.downZigpyAssumed) && stage === "zigpy") return "down";
-  if (lane.route) return "route";
-  return lane.dir && lane.dir.state === "measured" ? "heard" : null;
-}
-
-/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1; decisions by Fabian Schwamborn,
- *  2026-11-01): in "coordinator" and "all" up and down always; in "all" the backbone, every lane a theoretical path
- *  between two devices uses (backbone: the lane is one), drawn as a route; in "table" only the lane of a usable routing
- *  entry (table: owner -> next hop), drawn as a route, and no up or down lane; heard only never without a selection
- *  (the option adds its partners on click); everything in debug mode. */
-export function overviewShows(cls, stage, { backbone = false, table = false, debug = false } = {}) {
-  if (debug) return true;
-  const view = pathStage(stage);
-  if (view === "table") return cls === "route" && table;
-  if (cls === "up" || cls === "down") return true;
-  return cls === "route" && backbone && view === "all";
-}
-
-/** Whether a network has routes with a next hop (spec 4.6): ZHA yes; Thread through Matter no (model/thread.js), so
- *  there are no paths, no stages and no theoretical paths, and the overview draws every measured neighbour lane. */
-export function hasRoutes(network) {
-  return !(network && network.capabilities && network.capabilities.routes === false);
-}
 
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
  *  2 px apart. */
@@ -137,99 +76,6 @@ export function laneStyle(stroke, rating, theme, { colored = false, state = "mea
   if (stroke === "solid") return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
   if (stroke === "dashdot") return { color: tint(theme.foreground), width, dash: [...DASH.dashdot], cap: "butt", head: true };
   return { color: tint(theme.muted), width, dash: [...DASH.dashed], cap: "butt", head: true };
-}
-
-/** The look of a Zigbee lane class (CLASSES or null) on the map (board M11): up and down solid, an assumed down lane
- *  dotted, a route between devices dash-dot, one only a computed route discovery takes dash-dot in the lighter grey,
- *  heard only dashed, no class faint. */
-export function strokeOf(cls, { assumed = false, predicted = false } = {}) {
-  if (!cls) return "faint";
-  if (cls === "route") return predicted ? "dashdot-muted" : "dashdot";
-  if (cls === "down" && assumed) return "dotted";
-  return cls === "heard" ? "dashed" : "solid";
-}
-
-const laneKey = (sender, hearer) => `${sender}>${hearer}`;
-
-/** Directed hops "sender>hearer" of a walk's ids into `set`. */
-function addHops(set, ids) {
-  for (let i = 0; i + 1 < ids.length; i++) set.add(laneKey(ids[i], ids[i + 1]));
-}
-
-/** Pairs and lanes of a network with what each lane carries, and every device's up path. Uses the model's pairs when
- *  the network carries them (buildNetwork does); otherwise computes them from devices, readings and routes, treating
- *  a reading without a `measured` flag as measured when its LQI is above 0. Returns { pairs: [{ a, b, ab, ba }],
- *  lanes: [{ pair, sender, hearer, dir, up, downMeasured, downAssumed, downRecorded, downZigpyAssumed, route }],
- *  upPaths: Map, network } with two lanes
- *  per pair (first b -> a, whose evidence is ab: a hears b; then a -> b) and `network` the cleaned devices, routes and
- *  pairs that the selection's paths are walked on. What a lane carries (spec 7.1):
- *  - up: a hop of a device's way to the coordinator (model/paths.js upPath);
- *  - downMeasured: a hop of the coordinator's way to a device (downPath), incomplete walks up to where they stop;
- *  - downAssumed: a hop of an assumed return path (source route, model/source-routes.js), counted only under "assume";
- *  - downRecorded: a hop of a return path from zigpy's route record, drawn as measured, only under "zigpy";
- *  - downZigpyAssumed: a hop of an assumed return path of a device without a record, only under "zigpy";
- *  - route: a hop of the walk of an active, current route whose owner and destination are not the coordinator. */
-export function classifyLanes(network) {
-  const devices = (network.devices || []).filter((d) => d && typeof d.id === "string")
-    .map((d) => (typeof d.available === "boolean" ? d : { ...d, available: d.available !== false }));
-  const known = new Set(devices.map((d) => d.id));
-  const routes = (Array.isArray(network.routes) ? network.routes : [])
-    .filter((r) => r && known.has(r.owner) && known.has(r.nextHop) && known.has(r.destination));
-  const net = { ...network, devices, routes };
-  let pairs = network.pairs;
-  if (!Array.isArray(pairs)) {
-    const readings = (network.readings || [])
-      .filter((r) => r && known.has(r.reporter) && known.has(r.subject) && r.reporter !== r.subject)
-      .map((r) => ({ ...r,
-        measured: typeof r.measured === "boolean" ? r.measured : typeof r.lqi === "number" && r.lqi > 0 }));
-    pairs = computePairs({ devices, readings, routes });
-  }
-  const coordinator = (devices.find((d) => d.role === "coordinator") || {}).id || null;
-  const upPaths = new Map();
-  const up = new Set();
-  const down = new Set();
-  if (!hasRoutes(network)) {
-    // Thread (spec 3.2, 4.6): no routes, no coordinator. The only traffic the data names is a parent link: the end
-    // device sends to its parent (drawn like "up") and the parent delivers to it ("down"); no up path, no band.
-    const available = new Set(devices.filter((d) => d.available).map((d) => d.id));
-    for (const d of devices) {
-      upPaths.set(d.id, []);
-      if (d.role !== "end device" || !d.parent || !available.has(d.id) || !available.has(d.parent)) continue;
-      up.add(laneKey(d.id, d.parent));
-      down.add(laneKey(d.parent, d.id));
-    }
-  } else for (const d of devices) {
-    const { ids } = upPath(net, d.id);
-    upPaths.set(d.id, ids);
-    addHops(up, ids);
-    if (d.id !== coordinator) addHops(down, downPath(net, d.id).ids);
-  }
-  const assumed = new Set();
-  for (const walk of assumedDownPaths(net).values()) addHops(assumed, walk.ids);
-  const recorded = new Set();
-  for (const walk of zigpyRecords(net).paths.values()) addHops(recorded, walk.ids);
-  const zigpyAssumed = new Set();
-  for (const walk of returnPaths(net, "zigpy").values()) if (walk.assumed) addHops(zigpyAssumed, walk.ids);
-  const route = new Set();
-  const walked = new Set();
-  for (const r of routes) {
-    if (r.stale || !isActive(r.status) || r.owner === r.destination) continue;
-    if (r.owner === coordinator || r.destination === coordinator) continue;
-    const k = laneKey(r.owner, r.destination);
-    if (walked.has(k)) continue;
-    walked.add(k);
-    addHops(route, routePath(net, r.owner, r.destination).ids);
-  }
-  const valid = pairs.filter((p) => known.has(p.a) && known.has(p.b));
-  const lanes = [];
-  valid.forEach((p, pair) => {
-    for (const [sender, hearer, dir] of [[p.b, p.a, p.ab], [p.a, p.b, p.ba]]) {
-      const k = laneKey(sender, hearer);
-      lanes.push({ pair, sender, hearer, dir, up: up.has(k), downMeasured: down.has(k), downAssumed: assumed.has(k),
-        downRecorded: recorded.has(k), downZigpyAssumed: zigpyAssumed.has(k), route: route.has(k) });
-    }
-  });
-  return { pairs: valid, lanes, upPaths, network: { ...net, pairs: valid } };
 }
 
 /** Geometry of one lane from sender (x1, y1) to hearer (x2, y2) on screen: shifted by `offset` to the right of the

@@ -1,29 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Canvas 2D drawing of the quality view (spec 7.1, 8): devices as symbols (symbols.js: role, picture, state) whose
-// background carries the fill, none (default), role or power source; links as two lanes per pair, each with the class
-// of its own direction (links.js), optionally coloured by reception. What is drawn follows the stage of
-// "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11): the overview shows the up and down
-// lanes of all devices (the option "heard only" adds the selection's best heard-only partners); a selected device shows only its
-// own lanes of the stage, every hop with the reception at its hearer, its way up as a band, unknown ends as dashed
-// stems with "?", and dims the other devices; the device under the pointer previews its lanes within the overview; debug mode draws every lane
-// with its value. Labels as canvas text placed around obstacles: a block of the device's type above the symbol, its
-// readable name below and optionally the original Home Assistant name under that (labels.js). Also hit testing,
-// which shares the symbols' size. Pure except for the context passed in.
+// background carries the fill, none (default), role or power source; links as two lanes per pair, each in the look
+// its network engine gives it (engines/<type>/scene.js overview and focus; graph/links.js laneStyle), optionally
+// coloured by reception. The overview's lanes form a layer of their own, dimmed while something is in focus; a
+// selected device shows only its focus (its lanes with the reception at every hearer, a band under its way where the
+// engine gives one, unknown ends as dashed stems with "?") and dims the other devices; the device under the pointer
+// previews its focus within the overview; debug mode draws every lane with its value. Labels as canvas text placed
+// around obstacles: a block of the device's type above the symbol, its readable name below and optionally the original
+// Home Assistant name under that (labels.js). Also hit testing, which shares the symbols' size. What a lane means is
+// the engine's; this module only indexes, draws and places. Pure except for the context passed in.
 // node --test tests/
 
 import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
-import {
-  BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, hasRoutes, laneClass,
-  laneGeometry, laneStyle, overviewShows, pathStage, stemGeometry, strokeOf, textBeside,
-} from "./links.js";
+import { BAND, DIM, LANE_OFFSET, STEM, VALUE_AT, laneGeometry, laneStyle, stemGeometry, textBeside } from "./links.js";
 import { engineFor } from "../engines/index.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
-import { nodePaths, unknownEnd } from "../model/node-paths.js";
-import { theoreticalLanes } from "../model/theoretical.js";
-import { usableRoutes } from "../model/paths.js";
-import { drawMode } from "../model/source-routes.js";
 
 /** Roles the map knows (spec 4.2); anything else is drawn as unknown. */
 const ROLES = new Set(["coordinator", "router", "end device", "border router", "unknown"]);
@@ -46,17 +39,19 @@ const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
 const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 
 /** Screen length (CSS px) of the shortest focus lane of device `index` at camera `cam`, as drawn by drawScene: the
- *  lanes of the selection's paths in the view's stage (heard-only partners included when `view.heard`), through
- *  laneGeometry; a hop the symbols leave no room for (laneGeometry null) counts as 0. Infinity without hops. Used
- *  by the graph view to zoom on a tap when the paths are too short to read (spec 9.3). */
+ *  hops of the engine's focus with `index` selected (engines/<type>/scene.js focus; view: the graph view, whose
+ *  engineView overlays the engine's default settings), through laneGeometry; a hop the symbols leave no room for (laneGeometry
+ *  null) counts as 0. Infinity without hops. Used by the graph view to zoom on a tap when the paths are too short to
+ *  read (spec 9.3). */
 export function shortestFocusLane(view, index, cam) {
   const { scene, pos, width, height } = view;
-  const route = scenePaths(scene, index, pathStage(view.paths), drawMode(view.sourceRoute),
-    Boolean(view.heard), Boolean(view.returnRoutes));
+  if (!scene.engine) return Infinity;
+  const settings = { ...scene.engine.settings.defaults, ...view.engineView };
+  const focus = scene.engine.scene.focus(scene, index, { ...settings, debug: view.debug, selected: index });
   const size = symbolSize(cam.k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   let shortest = Infinity;
-  for (const hop of route.hops.values()) {
+  for (const hop of focus.hops) {
     const [x1, y1] = toScreen(cam, pos.x[hop.s], pos.y[hop.s], width, height);
     const [x2, y2] = toScreen(cam, pos.x[hop.h], pos.y[hop.h], width, height);
     const lane = laneGeometry(x1, y1, x2, y2, size, size, offset);
@@ -71,16 +66,13 @@ export function hitRadius(k) {
 }
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-/** Order of two pairs for the default view: higher rating first, then higher LQI; unknown last. */
-const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
 
 /** Static part of the picture for one network: nodes with display labels (readable name, Home Assistant name, kind
  *  for the type line); pairs with their evidence per direction (ab: a hears b, ba: b hears a; { state, lqi, rating,
  *  source, reason } from the data model) and their two lanes; lanes { s, h (node indices of sender and hearer), pair,
- *  dir (the hearer's evidence), up, downMeasured, downAssumed, route (what the lane carries, links.js classifyLanes),
- *  key "s>h" }; every device's up path as node indices; neighbours; engine: the network's viewer engine
- *  (engines/index.js; null for a network without devices, which has nothing to mean), whose values and glyphs the
- *  lanes show. Classes per source-route stage: sceneClasses. */
+ *  dir (the hearer's evidence), key "s>h", index, and the engine's meaning of the lane (engines/<type>/scene.js
+ *  lanes) }; neighbours; network (the devices deduplicated); engine: the network's viewer engine (engines/index.js;
+ *  null for a network without devices, which has nothing to mean), which adds its own fields once (classify). */
 export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   // No default engine (spec 4.6): a network with devices names its engine or this throws.
   const engine = !(network.devices || []).length && network.engine === undefined ? null : engineFor(network);
@@ -110,10 +102,11 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const neighbours = nodes.map(() => new Set());
-  const classified = classifyLanes({ ...network, devices });
+  const net = { ...network, devices };
+  const base = engine ? engine.scene.lanes(net) : { pairs: [], lanes: [], extra: null };
   const pairs = [];
-  const pairAt = new Map(); // index in classified.pairs -> index in pairs
-  classified.pairs.forEach((p, k) => {
+  const pairAt = new Map(); // index in base.pairs -> index in pairs
+  base.pairs.forEach((p, k) => {
     const a = index.get(p.a);
     const b = index.get(p.b);
     if (a === undefined || b === undefined || a === b) return;
@@ -124,204 +117,19 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
   });
   const lanes = [];
   const laneByKey = new Map();
-  for (const l of classified.lanes) {
+  for (const l of base.lanes) {
     const pair = pairAt.get(l.pair);
     if (pair === undefined) continue;
     const s = index.get(l.sender);
     const h = index.get(l.hearer);
-    const lane = { s, h, pair, dir: l.dir, up: l.up, downMeasured: l.downMeasured, downAssumed: l.downAssumed,
-      route: l.route, key: `${s}>${h}`, index: lanes.length };
+    const lane = { s, h, pair, dir: l.dir, ...l.meaning, key: `${s}>${h}`, index: lanes.length };
     pairs[pair].lanes.push(lane.index);
     laneByKey.set(lane.key, lane);
     lanes.push(lane);
   }
-  const paths = nodes.map((n) => (classified.upPaths.get(n.id) || []).map((id) => index.get(id))
-    .filter((i) => i !== undefined));
-  const coordinator = nodes.findIndex((n) => n.role === "coordinator");
-  // routes false (Thread, spec 4.6): no paths and no stages; the overview draws every lane with a class and a click
-  // shows the device's own lanes (scenePaths).
-  return { engine, nodes, index, pairs, lanes, laneByKey, neighbours, labels, upPaths: paths, coordinator,
-    routes: hasRoutes(network), pathNet: classified.network, pathCache: new Map(), classCache: new Map(), backbone: null,
-    tableLanes: null };
-}
-
-/** The backbone the overview draws from the stage "all" on (spec 5.7, 7.1; decision by Fabian Schwamborn,
- *  2026-11-01): every lane a theoretical path between two devices uses, computed once per scene (the network's
- *  theoretical lanes are cached as well), not per frame. { kind (per lane: null, "route" when a table, neighbour or
- *  parent link takes it, "predicted" when only a computed route discovery does), counts: { route, predicted } }. */
-export function sceneBackbone(scene) {
-  if (scene.backbone) return scene.backbone;
-  const kind = scene.lanes.map(() => null);
-  const counts = { route: 0, predicted: 0 };
-  for (const { sender, hearer, hows } of scene.pathNet ? theoreticalLanes(scene.pathNet).values() : []) {
-    const lane = scene.laneByKey.get(`${scene.index.get(sender)}>${scene.index.get(hearer)}`);
-    if (!lane) continue;
-    kind[lane.index] = [...hows].every((h) => h === "discovery") ? "predicted" : "route";
-    counts[kind[lane.index]]++;
-  }
-  scene.backbone = { kind, counts };
-  return scene.backbone;
-}
-
-/** The overview of the view "routing table" (spec 7.1; owner proposal 2026-11-01): per lane whether it is the hop of
- *  a usable routing entry, owner -> next hop, of any device (model/paths.js usableRoutes), computed once per scene.
- *  { table (per lane: boolean), count }. */
-export function sceneTableLanes(scene) {
-  if (scene.tableLanes) return scene.tableLanes;
-  const table = scene.lanes.map(() => false);
-  let count = 0;
-  for (const r of scene.pathNet ? usableRoutes(scene.pathNet) : []) {
-    const lane = scene.laneByKey.get(`${scene.index.get(r.owner)}>${scene.index.get(r.nextHop)}`);
-    if (!lane || table[lane.index]) continue;
-    table[lane.index] = true;
-    count++;
-  }
-  scene.tableLanes = { table, count };
-  return scene.tableLanes;
-}
-
-/** Classes of the scene's lanes under a source-route stage ("off", "assume" or "zigpy"), cached per scene: { cls (per
- *  lane, one of CLASSES or null), assumed (per lane: drawn as an assumed down lane; a lane of a recorded return path
- *  is drawn as measured), heardOnly (per pair: a reading in some
- *  direction and no up, down or route lane in either), rank (per pair: its best heard lane's reception, the rating
- *  at that lane's hearer, for ranking partners), counts (lanes per class, assumed counted apart as well) }. */
-export function sceneClasses(scene, sourceRoute = "off") {
-  const mode = drawMode(sourceRoute);
-  if (scene.classCache.has(mode)) return scene.classCache.get(mode);
-  const cls = scene.lanes.map((l) => laneClass(l, mode));
-  const assumed = scene.lanes.map((l, i) => cls[i] === "down" && !l.downMeasured && !(mode === "zigpy" && l.downRecorded));
-  const heardOnly = scene.pairs.map((p) => p.lanes.some((i) => cls[i] === "heard")
-    && p.lanes.every((i) => cls[i] === "heard" || cls[i] === null));
-  // A heard-only pair ranks by its best heard lane: the rating is relative to that lane's hearer (spec 5.4).
-  const rank = scene.pairs.map((p) => p.lanes.filter((i) => cls[i] === "heard").map((i) => scene.lanes[i].dir)
-    .sort(better)[0] || {});
-  const counts = Object.fromEntries([...CLASSES, "assumed"].map((c) => [c, 0]));
-  cls.forEach((c, i) => { if (c) counts[c]++; if (assumed[i]) counts.assumed++; });
-  const result = { cls, assumed, heardOnly, rank, counts };
-  scene.classCache.set(mode, result);
-  return result;
-}
-
-/** How strongly a hop of the focus's paths is drawn when two paths share it: up or measured down, then assumed down,
- *  then a route between devices, then a hop only a computed route discovery takes, then heard only (a hop a measured
- *  walk takes is never drawn as assumed, one a table or a neighbour entry proves never as computed). */
-const strength = (cls, assumed, predicted = false) => (cls === "route" ? (predicted ? 1.5 : 2) : cls === "heard" ? 1
-  : assumed ? 3 : 4);
-
-/** Whether a lane carries a reading (a measured direction): what "additional heard neighbours" draws. */
-const measured = (lane) => Boolean(lane.dir && lane.dir.state === "measured");
-
-/** The partners of device i for the option "additional heard neighbours (best 3)" (the one place to change the rule):
- *  pairs with a reading and no lane drawn between the two in the active view. "coordinator" and "all": pairs with a
- *  heard lane and no up, down or route lane (sc.heardOnly), in "all" also none of whose lanes the device's own
- *  theoretical paths (`hops`, keys "s>h") take. "table" (owner proposal 2026-11-01): pairs with a reading in either
- *  direction none of whose lanes the view's walks take; up and down lanes are not drawn there, so they do not count.
- *  The best BEST_HEARD by the reading's rating at its hearer. */
-function heardPartners(scene, i, sc, hops, stage) {
-  const taken = (pair) => stage !== "coordinator" && pair.lanes.some((li) => hops.has(scene.lanes[li].key));
-  if (stage === "table") {
-    const best = (p) => p.lanes.map((li) => scene.lanes[li]).filter(measured).map((l) => l.dir).sort(better)[0];
-    return scene.pairs.filter((p) => (p.a === i || p.b === i) && p.lanes.some((li) => measured(scene.lanes[li]))
-      && !taken(p)).sort((x, y) => better(best(x), best(y)) || x.index - y.index).slice(0, BEST_HEARD);
-  }
-  return scene.pairs.filter((p) => (p.a === i || p.b === i) && sc.heardOnly[p.index] && !taken(p))
-    .sort((x, y) => better(sc.rank[x.index], sc.rank[y.index]) || x.index - y.index).slice(0, BEST_HEARD);
-}
-
-/** The lanes of node i in a stage of "Communication paths" (links.js PATH_STAGES), cached per scene: { hops: Map
- *  "s>h" -> { s, h, dir, cls, assumed, predicted } (each directed hop once, dir the reception at h with how the hop is
- *  taken, cls the class it is drawn with, predicted: only a computed route discovery takes it), ends: [{ at, toward,
- *  cls }] (incomplete paths, with the class of their path), glyphs: [{ s, h, dir }] (directions without a reading of
- *  the heard-only partners), nodes: Set of every device on a path, named as a goal or a partner, paths (the model's,
- *  for tests) }. "coordinator": the device's way up and down (model/node-paths.js); "all" adds its theoretical way to
- *  and from every other device as routes, the out tree and the in tree (spec 5.7); `heard` adds its best heard-only
- *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
- *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "zigpy" recorded ones as
- *  measured and assumed ones for the rest, "off" leaves them unknown. */
-export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false, returns = false) {
-  const mode = pathStage(stage);
-  const sr = drawMode(sourceRoute);
-  const back = mode === "table" && returns; // "Include return routes" belongs to the view "table" only
-  const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}|${back ? 1 : 0}`;
-  if (scene.pathCache.has(key)) return scene.pathCache.get(key);
-  const hops = new Map();
-  const ends = [];
-  const glyphs = [];
-  const nodes = new Set([i]);
-  if (scene.routes === false) {
-    // Thread (spec 3.2): no routes, so no paths: the device's own lanes, each with its class (parent link or
-    // neighbour) and its value, and the glyph of each direction without a reading.
-    const sc = sceneClasses(scene, "off");
-    for (const pair of scene.pairs) {
-      if (pair.a !== i && pair.b !== i) continue;
-      nodes.add(pair.a);
-      nodes.add(pair.b);
-      for (const li of pair.lanes) {
-        const lane = scene.lanes[li];
-        if (sc.cls[li]) hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: sc.cls[li], assumed: false, predicted: false });
-        else glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir });
-      }
-    }
-    const result = { hops, ends, glyphs, nodes, paths: [] };
-    scene.pathCache.set(key, result);
-    return result;
-  }
-  const coordinator = scene.coordinator >= 0 ? scene.nodes[scene.coordinator].id : null;
-  const paths = scene.pathNet
-    ? nodePaths(scene.pathNet, scene.nodes[i].id, mode, { sourceRoute: sr, returns: back })
-    : [];
-  const at = (id) => scene.index.get(id);
-  const seenEnds = new Set();
-  for (const p of paths) {
-    // The coordinator's own routes (its stage-1 view) are its ways down and up; a theoretical path (its hops say how
-    // they are taken) is a route for every device, the coordinator's trees included: where it runs over someone's up
-    // or down lane, drawScene draws that lane's own class.
-    const theoretical = p.hops.some((hop) => hop.how);
-    const cls = p.kind === "up" ? "up" : p.kind === "down" ? "down" : theoretical ? "route"
-      : p.from === coordinator ? "down" : p.to === coordinator ? "up" : "route";
-    const assumed = cls === "down" && p.assumed === true;
-    for (const id of p.ids) if (at(id) !== undefined) nodes.add(at(id));
-    for (const hop of p.hops) {
-      const s = at(hop.sender);
-      const h = at(hop.hearer);
-      if (s === undefined || h === undefined) continue;
-      const predicted = cls === "route" && hop.how === "discovery";
-      const st = strength(cls, assumed, predicted);
-      const had = hops.get(`${s}>${h}`);
-      if (had && strength(had.cls, had.assumed, had.predicted) >= st) continue;
-      hops.set(`${s}>${h}`, { s, h, dir: hop, cls, assumed, predicted });
-    }
-    const end = unknownEnd(p);
-    if (!end || at(end.at) === undefined || at(end.toward) === undefined) continue;
-    const k = `${at(end.at)}>${at(end.toward)}`;
-    if (seenEnds.has(k)) continue;
-    seenEnds.add(k);
-    ends.push({ at: at(end.at), toward: at(end.toward), cls });
-    nodes.add(at(end.toward)); // the goal is named, so the stem points at something the user can read
-  }
-  if (heard) {
-    // The checkbox "heard only (best 3)" (decision by Fabian Schwamborn, 2026-11-01): the 3 best partners of device i with
-    // a reading and no lane drawn between the two in this stage: no up, down or route lane (heardOnly) and, from the
-    // stage "all" on, no hop of the device's own theoretical paths (decision of the main session, same day).
-    const sc = sceneClasses(scene, sr);
-    const partners = heardPartners(scene, i, sc, hops, mode);
-    for (const pair of partners) {
-      nodes.add(pair.a);
-      nodes.add(pair.b);
-      for (const li of pair.lanes) {
-        const lane = scene.lanes[li];
-        // In "table" a measured lane of the pair is drawn as the reading it is, whatever else it carries elsewhere.
-        if (mode === "table" ? measured(lane) : sc.cls[li] === "heard") {
-          hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false, predicted: false });
-        } else if (!lane.dir || lane.dir.state === "unknown") {
-          glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir }); // a path hop on this lane shows its "?" itself
-        }
-      }
-    }
-  }
-  const result = { hops, ends, glyphs, nodes, paths };
-  scene.pathCache.set(key, result);
-  return result;
+  const scene = { engine, network: net, nodes, index, pairs, lanes, laneByKey, neighbours, labels };
+  if (engine) engine.scene.classify(scene, base.extra);
+  return scene;
 }
 
 /** Nearest device whose hit area contains (px, py), as a node index, or -1. sx, sy: screen positions. */
@@ -442,17 +250,17 @@ const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(","
 const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0);
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
- *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), paths (the stage of "Communication
- *  paths": "coordinator" | "all", links.js PATH_STAGES), heard (the checkbox "heard only", on click only), receptionColors (lanes coloured by their rating),
- *  labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is drawn:
- *  the working scale, so the overview stays calm; none: always), sourceRoute ("off" | "assume" | "zigpy": return paths),
- *  texts ({ uncertain, parent, route, rx, pathUnknown, kinds }, words drawn on the map) }; pos: { x, y, pinned, mesh }
- *  arrays by node index; measure(text) for the label font.
+ *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), receptionColors (lanes coloured by their
+ *  rating), labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is
+ *  drawn: the working scale, so the overview stays calm; none: always), texts ({ uncertain, parent, route, rx,
+ *  pathUnknown, kinds }, words drawn on the map), and the engine's own view settings (Zigbee: paths, heard,
+ *  returnRoutes, sourceRoute), which only the engine reads }; pos: { x, y, pinned, mesh } arrays by node index;
+ *  measure(text) for the label font.
  *  Returns what was drawn: { sx, sy, lines (pairs with a lane or glyph drawn), lanes, glyphs, values, labels, dropped,
- *  classes (lanes drawn per class, assumed down lanes also apart, lanes without class as "none"), order (class of each
- *  lane in drawing order), symbols (devices drawn), size (symbol size on screen), paths (null, or for the focused
- *  device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls, predicted }] }) }. classes also counts the
- *  focus's computed hops apart ("predicted"). */
+ *  classes (lanes drawn per class of the engine, assumed and computed ("predicted") lanes also apart, lanes without
+ *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
+ *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
+ *  predicted }] }) }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -467,80 +275,21 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (let i = 0; i < n; i++) [sx[i], sy[i]] = toScreen(cam, pos.x[i], pos.y[i], width, height);
   const focus = [view.selected, view.hovered].filter((i, j, all) => i >= 0 && all.indexOf(i) === j);
   const focusSet = new Set(focus);
-  const routes = scene.routes !== false; // Thread has no stages: its overview draws every lane with a class
-  const stage = routes ? pathStage(view.paths) : "coordinator";
-  const sourceRoute = drawMode(view.sourceRoute);
+  const engine = scene.engine;
   const debug = Boolean(view.debug);
-  const sc = sceneClasses(scene, sourceRoute);
-  // What the overview of the stage draws (decisions by Fabian Schwamborn, 2026-11-01): up and down lanes; from "all"
-  // on the backbone of theoretical paths as routes, lanes only a computed discovery takes lighter; never heard-only
-  // lanes (stage 3 adds partners on click only); every lane in its own class in debug mode, with the glyphs of
-  // directions without a reading. overview(lane): { cls, predicted } or null when the overview leaves it out.
-  const bb = stage === "all" && !debug ? sceneBackbone(scene) : null;
-  // The view "routing table" (owner proposal 2026-11-01): the lane of every usable routing entry, as a route, and
-  // nothing else; its basis is the tables, not the ways to the coordinator.
-  const tl = stage === "table" && !debug ? sceneTableLanes(scene) : null;
-  const overview = (lane) => {
-    const cls = sc.cls[lane.index];
-    if (tl) return tl.table[lane.index] ? { cls: "route", predicted: false } : null;
-    if (debug || cls === "up" || cls === "down" || (!routes && cls)) return { cls, predicted: false };
-    const kind = bb ? bb.kind[lane.index] : null;
-    if (!kind || !overviewShows("route", stage, { backbone: true })) return null;
-    return { cls: "route", predicted: kind === "predicted" };
-  };
-  const laneShown = (lane) => overview(lane) !== null;
-  // The lanes of the focus: the selection's (its stage on click), else the device under the pointer previews its own,
-  // but only lanes the overview of the stage draws anyway (hover never adds what the stage hides).
+  // What the overview draws, a look per lane or null (engines/<type>/scene.js overview), cached per view.
+  const looks = engine ? engine.scene.overview(scene, view) : [];
+  // The focus: the selection's (on click), else the device under the pointer previews its own, within what the
+  // overview draws (the engine's focus decides both, and each hop's look).
   const selecting = view.selected >= 0;
   const pathNode = selecting ? view.selected : view.hovered;
-  const route = pathNode >= 0 ? scenePaths(scene, pathNode, stage, sourceRoute, selecting && Boolean(view.heard),
-    Boolean(view.returnRoutes)) : null;
+  const route = engine && pathNode >= 0 ? engine.scene.focus(scene, pathNode, view) : null;
   let pathHops = [];
   let pathEnds = [];
   const near = new Set(focus);
   if (route) {
-    // Stage 1: a lane keeps its strongest class whatever is in focus (main session, 2026-11-01): a hop of the focus's
-    // ways on someone's up or down lane is drawn as that lane. From stage 2 on the focus's own tree decides (main
-    // session, 2026-11-01, board M11 rule 5): scenePaths already gives each hop the strongest of the selection's own
-    // ways (its up and down lanes, tables, neighbours, parent and child links, else discovery = computed); the
-    // network-wide backbone does not reach into the focus, or nearly every computed hop would look proven.
-    // Only the selection's stage-1 lanes (its up and down paths; the coordinator's routes down and up) override: they
-    // are the same lanes in both stages for a device, but the coordinator's trees come as routes in stage 2.
-    // The view "routing table" draws its walks as they are (a route each, heard lanes of the option): no other class
-    // overrides them, as up and down are another basis (main session, 2026-11-01).
-    const own = stage === "all" ? scenePaths(scene, pathNode, "coordinator", sourceRoute).hops : null;
-    const strongest = (hop) => {
-      if (stage === "table") return hop;
-      if (own) {
-        const s1 = own.get(`${hop.s}>${hop.h}`);
-        return s1 && strength(s1.cls, s1.assumed) > strength(hop.cls, hop.assumed, hop.predicted)
-          ? { ...hop, cls: s1.cls, assumed: s1.assumed, predicted: false } : hop;
-      }
-      const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
-      if (!lane) return hop;
-      const lc = sc.cls[lane.index];
-      const la = lc === "down" && sc.assumed[lane.index];
-      if ((lc === "up" || lc === "down") && strength(lc, la) > strength(hop.cls, hop.assumed, hop.predicted)) {
-        return { ...hop, cls: lc, assumed: la, predicted: false };
-      }
-      if (lc === "route" && strength("route", false) > strength(hop.cls, hop.assumed, hop.predicted)) {
-        return { ...hop, cls: "route", assumed: false, predicted: false };
-      }
-      return hop;
-    };
-    pathHops = [...route.hops.values()].map(strongest);
+    pathHops = route.hops;
     pathEnds = route.ends;
-    if (!selecting && !debug) {
-      // A preview keeps only what the overview draws, in a class it draws: routes from the stage "all" on, where the
-      // backbone carries them; heard-only partners wait for the click.
-      const previewed = (cls) => (!routes ? Boolean(cls)
-        : overviewShows(cls, stage, { backbone: true, table: true }));
-      pathHops = pathHops.filter((hop) => {
-        const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
-        return previewed(hop.cls) && Boolean(lane) && laneShown(lane);
-      });
-      pathEnds = pathEnds.filter((end) => previewed(end.cls));
-    }
     if (selecting) for (const j of route.nodes) near.add(j);
     else {
       for (const hop of pathHops) { near.add(hop.s); near.add(hop.h); }
@@ -553,11 +302,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     !(Math.max(sx[a], sx[b]) < -margin || Math.min(sx[a], sx[b]) > width + margin ||
       Math.max(sy[a], sy[b]) < -margin || Math.min(sy[a], sy[b]) > height + margin);
 
-  // Links: each lane runs from sender to hearer on the right of its travel, styled by its own class and rating. A
+  // Links: each lane runs from sender to hearer on the right of its travel, in its look and by its own rating. A
   // selection (outside debug mode) draws nothing but its own lanes; otherwise the overview's lanes form a layer of
-  // their own, dimmed while something is in focus, and the focus's lanes lie on top at full strength. Within a layer:
-  // lanes without class (debug), heard only, routes between devices, down, up, so the links that carry traffic lie on
-  // top.
+  // their own, dimmed while something is in focus, and the focus's lanes lie on top at full strength. Within a layer
+  // the engine's rank orders them, the weakest first, so the links that carry traffic lie on top.
   const size = symbolSize(k);
   const offset = Math.max(1, (LANE_OFFSET * size) / SYMBOL_SIZE);
   const colored = Boolean(view.receptionColors);
@@ -568,7 +316,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const laneTexts = [];
   const glyphs = [];
   const order = [];
-  const classes = Object.fromEntries([...CLASSES, "assumed", "predicted", "none"].map((c) => [c, 0]));
+  const classes = Object.fromEntries([...(engine ? engine.scene.classes : []), "assumed", "predicted", "none"]
+    .map((c) => [c, 0]));
   const pairsDrawn = new Set();
   let lanes = 0;
   ctx.font = theme.font;
@@ -603,43 +352,38 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     laneTexts.push(t);
     return t;
   };
-  const count = (cls, assumed, predicted = false) => {
-    classes[cls || "none"]++;
-    if (assumed) classes.assumed++;
-    if (predicted) classes.predicted++;
-    order.push(cls || "none");
+  const count = (look) => {
+    classes[look.cls || "none"]++;
+    if (look.assumed) classes.assumed++;
+    if (look.predicted) classes.predicted++;
+    order.push(look.cls || "none");
   };
-  const rank = (cls) => (cls ? CLASSES.indexOf(cls) + 1 : 0);
-  /** A focus hop's rank: a hop only a computed route discovery takes sits just below the routes a table proves. */
-  const hopRank = (hop) => rank(hop.cls) - (hop.predicted ? 0.5 : 0);
   const skip = new Set(pathHops.map((hop) => `${hop.s}>${hop.h}`)); // directions the focus layer draws itself
   const glyphAt = (s, h, dir, a) => {
     const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
-    if (lane) glyphs.push({ text: scene.engine.unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha: a });
+    if (lane) glyphs.push({ text: engine.unknownGlyph(dir && dir.reason), x: lane.mx, y: lane.my, alpha: a });
   };
   if (!selecting || debug) {
     const items = [];
     const ordered = scene.lanes.filter((lane) => !skip.has(lane.key) && segmentVisible(lane.s, lane.h))
-      .map((lane) => ({ lane, o: overview(lane) })).filter(({ o }) => o)
-      .sort((p, q) => hopRank(p.o) - hopRank(q.o) || p.lane.index - q.lane.index);
+      .map((lane) => ({ lane, o: looks[lane.index] })).filter(({ o }) => o)
+      .sort((p, q) => p.o.rank - q.o.rank || p.lane.index - q.lane.index);
     for (const { lane, o } of ordered) {
-      const { cls, predicted } = o;
       const dir = lane.dir;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      if (!cls && state === "unknown") { // debug mode only: a direction without a reading gets its glyph
+      if (!o.cls && state === "unknown") { // debug mode only: a direction without a reading gets its glyph
         glyphAt(lane.s, lane.h, dir, alpha);
         pairsDrawn.add(lane.pair);
         continue;
       }
       const geo = laneGeometry(sx[lane.s], sy[lane.s], sx[lane.h], sy[lane.h], size, size, offset);
       if (!geo) continue;
-      const assumed = cls === "down" && sc.assumed[lane.index];
-      const style = laneStyle(strokeOf(cls, { assumed, predicted }), dir.rating, theme, { colored, state });
-      items.push({ lane: geo, style, key: styleKey(style), rank: hopRank(o) });
-      count(cls, assumed, predicted);
+      const style = laneStyle(o.stroke, dir.rating, theme, { colored, state });
+      items.push({ lane: geo, style, key: styleKey(style), rank: o.rank });
+      count(o);
       pairsDrawn.add(lane.pair);
       if (!debug) continue; // values beside every lane in debug mode; otherwise only on the focus's lanes
-      let text = scene.engine.laneValue(dir, texts);
+      let text = engine.laneValue(dir, texts);
       if (state === "measured") text += ` \u2190 ${scene.nodes[lane.h].label}`;
       addValue(geo, text, { path: false, alpha });
     }
@@ -653,24 +397,24 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const ends = [];
   if (route) {
     ctx.globalAlpha = 1;
-    // The selection's way up as a band under its lanes; hover previews without it.
-    // No band in the view "routing table": the way up is another basis (main session, 2026-11-01).
-    if (selecting && stage !== "table") drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
+    // The selection's way as a band under its lanes, where the engine gives one; hover previews without it.
+    if (selecting && route.band) drawBand(ctx, route.band, sx, sy, theme);
     const items = [];
-    const hops = [...pathHops].sort((p, q) => hopRank(p) - hopRank(q));
+    const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
     for (const hop of hops) {
-      const { s, h, dir, cls, assumed, predicted } = hop;
+      const { s, h, dir } = hop;
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(strokeOf(cls, { assumed, predicted }), dir.rating, theme, { colored, state });
-      items.push({ lane, style, key: styleKey(style), rank: hopRank(hop) });
-      count(cls, assumed, predicted);
-      let text = scene.engine.laneValue(dir, texts);
+      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state });
+      items.push({ lane, style, key: styleKey(style), rank: hop.rank });
+      count(hop);
+      let text = engine.laneValue(dir, texts);
       if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
       const t = addValue(lane, text, { path: true, alpha: 1 });
-      pathValues.push({ s, h, text, cls, predicted: Boolean(predicted), rank: hopRank(hop), drawn: false, ref: t });
+      pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
+        ref: t });
     }
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
@@ -873,9 +617,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const always = [];
   for (let i = 0; i < n; i++) if (scene.nodes[i].role === "coordinator" && !focusSet.has(i)) always.push(i);
   for (const i of [...focus, ...always]) label(i, true);
-  // Values of the way up and down claim their places first, then routes, then computed hops, then heard only: the
-  // drawing order puts the weakest first, the room for text goes to the strongest; where there is no room the weaker
-  // gives way, and Details list it.
+  // Values of the strongest hops claim their places first (the engine's rank; Zigbee: the way up and down, then
+  // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
+  // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
   // A device on the focus's paths is always labelled (A4m, owner report 2026-11-01: Router 17 lost its label in a hub

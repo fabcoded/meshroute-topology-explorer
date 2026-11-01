@@ -16,8 +16,6 @@ import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
-import { sourceRouteMode } from "../model/source-routes.js";
-import { pathStage } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -89,13 +87,11 @@ function cleanLabels(labels) {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.96 / 1.44 / 2.28, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), paths (the view of "Communication paths": "coordinator", "table" or "all", links.js), heard
-   *  (the option "additional heard neighbours"), returnRoutes (the view "table"'s "Include return routes"),
-   *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
-   *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
-   *  sourceRoute ("assume", "zigpy" or "off": return paths without a table entry, model/source-routes.js), texts
-   *  ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light", ... } }), seed, debug, env (timers and
-   *  media queries, injectable for tests). */
+   *  "role" or "power"), engineView (the network engine's own view settings, which only the engine reads; Zigbee:
+   *  paths, heard, returnRoutes, sourceRoute), receptionColors (lanes coloured by their reading), receptionStops (the
+   *  user's [bad, medium, good] colours, each a colour or null for the theme's own), labels ({ type, name, haName }:
+   *  the lines of a device's label), texts ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light",
+   *  ... } }), seed, debug, env (timers and media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
@@ -108,14 +104,9 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
-    this.paths = pathStage(options.paths);
-    this.heard = options.heard === true;
-    this.returnRoutes = options.returnRoutes === true;
+    this.engineView = { ...(options.engineView || {}) };
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
-    // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "zigpy"
-    // draws zigpy's route records as measured and assumes the rest; "off" not.
-    this.sourceRoute = sourceRouteMode(options.sourceRoute);
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
       kinds: {}, ...(options.texts || {}) };
     this.width = 0;
@@ -195,42 +186,13 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** The view of "Communication paths" (spec 7.1, 9.1; board M11): "coordinator" (default: the way up and down of
-   *  every device, on click only the device's), "table" (every usable routing entry, on click the device's own entries
-   *  followed hop by hop) or "all" (on click also its paths to and from other devices); anything else counts as the
-   *  default. Drawing only: the layout and the
-   *  positions stay. */
-  setPaths(stage) {
-    const next = pathStage(stage);
-    if (next === this.paths) return;
-    this.paths = next;
-    this._invalidate();
-  }
-
-  /** The option "additional heard neighbours (best 3)": on click, also the selection's 3 best partners with a reading
-   *  and no lane drawn between the two, in any view. */
-  setHeard(on) {
-    const next = on === true;
-    if (next === this.heard) return;
-    this.heard = next;
-    this._invalidate();
-  }
-
-  /** "Include return routes" of the view "routing table": on click, also each destination's walk back. */
-  setReturnRoutes(on) {
-    const next = on === true;
-    if (next === this.returnRoutes) return;
-    this.returnRoutes = next;
-    this._invalidate();
-  }
-
-  /** Return paths without a table entry (spec 5.1, 9.1): "assume" draws the way up reversed as assumed, "zigpy" the
-   *  route records as measured and the rest as assumed, "off" leaves them unknown; anything else counts as "assume".
-   *  Drawing only. */
-  setSourceRoute(mode) {
-    const next = sourceRouteMode(mode);
-    if (next === this.sourceRoute) return;
-    this.sourceRoute = next;
+  /** The network engine's own view settings (engines cut, section 2; Zigbee: paths, heard, returnRoutes, sourceRoute),
+   *  merged into what it has: the shell passes them on and never reads them, the engine's overview and focus do.
+   *  Drawing only: the layout and the positions stay. */
+  setEngineView(patch) {
+    const next = { ...this.engineView, ...(patch || {}) };
+    if (Object.keys(next).every((k) => next[k] === this.engineView[k])) return;
+    this.engineView = next;
     this._invalidate();
   }
 
@@ -280,7 +242,14 @@ export class GraphView extends EventTarget {
    *  legendEntries): the panel draws them in its words. None before a network with an engine is shown. */
   legend() {
     if (!this.scene || !this.scene.engine) return [];
-    return this.scene.engine.legend(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors });
+    return this.scene.engine.legend(this.theme, { ...this._engineSettings(), debug: this.debug,
+      colored: this.receptionColors });
+  }
+
+  /** The engine's view settings as drawn: its own defaults (engine.settings.defaults), overlaid with what was set. */
+  _engineSettings() {
+    const engine = this.scene && this.scene.engine;
+    return engine ? { ...engine.settings.defaults, ...this.engineView } : { ...this.engineView };
   }
 
   setTheme(theme) {
@@ -575,12 +544,13 @@ export class GraphView extends EventTarget {
       this._fps = this._fps === null ? fps : this._fps * 0.9 + fps * 0.1;
     }
     this._lastFrame = now;
+    // The engine's own settings first: the shell's keys win if a name were ever shared.
     const view = {
+      ...this._engineSettings(),
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, paths: this.paths, heard: this.heard, returnRoutes: this.returnRoutes, selected: this.selected,
-      hovered: this.hovered, fps: this._fps,
+      debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps,
       fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
-      typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
+      typeZoom: this.workingZoom, texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);
   }

@@ -19,7 +19,7 @@ const network = buildNetwork(r["zha/devices"], { deviceRegistry: r["config/devic
 function setup(w, h, paths = "coordinator") {
   const canvas = new FakeCanvas(w, h);
   const env = fakeEnv({ dpr: 1, reducedMotion: true });
-  const view = new GraphView(canvas, { env, paths });
+  const view = new GraphView(canvas, { env, engineView: { paths } });
   view.setNetwork(network);
   env.flush();
   let t = 1000;

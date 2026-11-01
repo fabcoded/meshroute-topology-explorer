@@ -7,12 +7,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, CLASSES, DASH, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, strokeOf,
-  widthStep, textBeside, WIDTHS,
+  BAND, DASH, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { legendEntries, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
+import { CLASSES, legendEntries, strokeOf, unknownGlyph }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
+import { sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
-import { buildScene, drawScene, sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColor } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 

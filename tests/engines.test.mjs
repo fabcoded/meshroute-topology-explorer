@@ -28,7 +28,7 @@ const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx
 /** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
   status: "function", findings: "object", connection: "function", details: "function", options: "function",
-  settings: "object" };
+  settings: "object", scene: "object" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);
@@ -41,6 +41,9 @@ test("interface: both engines offer exactly the same hooks, frozen, under their 
     assert.deepEqual(Object.keys(engine.settings).sort(), ["defaults", "keys", "sanitize"], `${key}.settings`);
     assert.ok(Object.isFrozen(engine.settings) && Object.isFrozen(engine.settings.keys), `${key}.settings frozen`);
     assert.deepEqual(Object.keys(engine.settings.defaults), [...engine.settings.keys], `${key}: a default per key`);
+    assert.deepEqual(Object.keys(engine.scene).sort(), ["classes", "classify", "focus", "lanes", "overview", "viewKey"],
+      `${key}.scene`);
+    assert.ok(Object.isFrozen(engine.scene), `${key}.scene frozen`);
   }
 });
 
