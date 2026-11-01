@@ -505,7 +505,8 @@ user-supplied image, or map tiles from an address the user configured.
   above, centred; (4) right of the symbol, 4 px from its edge, lines aligned left and the block centred vertically on
   the device; (5) the same on the left, aligned right. Places that come out the same (the name alone: 1 and 2) are
   tried once. A dimmed device is no obstacle for a path value but is one for a label. Where no place is free the block
-  is left out, except for the coordinator and the focus, which take the first place.
+  is left out, except for the coordinator, the focus and every device on the focus's paths, which take the first place
+  (a hub such as Router 17 under End device 06 would otherwise lose its label to the lane values; overlap is accepted).
 - The legend (one place: the Legend tab, 9.1) explains every class of lines, the fill while one is chosen, the
   symbols (each sign on a device of the network, with its own picture) and the states.
 - Category fills use the four Okabe–Ito colours that come close to 3:1 on both white and near-black, nudged to 3:1

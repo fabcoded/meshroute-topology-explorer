@@ -751,7 +751,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
-  for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, false);
+  // A device on the focus's paths is always labelled (A4m, owner report 2026-11-01: Router 17 lost its label in a hub
+  // position where lane values had taken every place): the values were placed first, so the block takes its first
+  // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
+  for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);
   if (labelsForAll(k, view.labelZoom)) {
     const rank = { coordinator: 0, "border router": 1, router: 2, unknown: 3, "end device": 4 };
     const rest = [];

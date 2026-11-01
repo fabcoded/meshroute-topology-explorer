@@ -217,3 +217,19 @@ test("a stage change redraws at once, with and without a selection (owner's repo
   assert.deepEqual([selected[0] > 4, selected[1] >= selected[0], selected[2], selected[3]], [true, true, 2,
     selected[0]]);
 });
+
+test("a device on the selected device's paths keeps its label in a hub position (A4m, owner report 2026-11-01)", () => {
+  // End device 06 with every theoretical path: Router 17 is the hub of the lanes, and their values had taken every
+  // place around it, so its label vanished (blocks were left out when no place was free).
+  const { view, env } = show();
+  const i = view.scene.nodes.findIndex((n) => n.label === "End device 06");
+  for (const stage of ["coordinator", "all"]) {
+    view.setPaths(stage);
+    view.selected = i;
+    view.ctx.calls.length = 0;
+    view.draw();
+    env.flush();
+    const labelled = view.ctx.calls.filter((c) => c[0] === "fillText").map((c) => c[1]);
+    assert.ok(labelled.includes("Router 17"), `stage ${stage}: Router 17 is labelled`);
+  }
+});
