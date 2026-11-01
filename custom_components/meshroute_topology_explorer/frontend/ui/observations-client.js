@@ -9,7 +9,7 @@
 // Tested in Node: node --test tests/
 import { fingerprints, updateObservations, newestChange } from "../model/index.js";
 import { normalizeIeee } from "../model/parse.js";
-import { errorText, isConnectionLost } from "./controller.js";
+import { errorText, isConnectionLost } from "../adapters/ws.js";
 import { isUnknownCommand, MAX_BYTES, SAVE_DELAY_MS } from "./settings.js";
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

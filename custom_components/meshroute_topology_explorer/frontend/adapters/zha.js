@@ -1,13 +1,30 @@
 // SPDX-License-Identifier: MIT
-// zigpy's route records for the source-route stage "read from zigpy" (spec 5.1; brief a4w). One call of the
-// integration's own command per data load; the answer is attached to the network as `network.zigpy` and read by
-// model/source-routes.js. Read only: the command reads what zigpy holds in memory and causes no radio traffic.
+// The ZHA adapter (spec 3.1): reads a Zigbee network through Home Assistant's ZHA commands and hands the answer to the
+// Zigbee engine (engines/index.js), which builds the model. Read only: `zha/devices` returns what ZHA holds; the
+// scan is started elsewhere, by the user (panel.js). Also zigpy's route records for the source-route stage "read from
+// zigpy" (spec 5.1; brief a4w): one call of the integration's own command per data load, attached to the network as
+// `network.zigpy` and read by model/source-routes.js; it reads what zigpy holds in memory and causes no radio traffic.
 // No DOM. node --test tests/
+import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
+import { isConnectionLost } from "./ws.js";
 
-// A command that died with the connection (home-assistant-js-websocket ERR_CONNECTION_LOST = 3, both forms; the same
-// check as controller.js isConnectionLost, kept here so the two modules do not import each other).
-const connectionLost = (err) => Boolean(err) && (err.code === 3 || (err.error && err.error.code === 3));
+/** ZHA's config entries (`config_entries/get`): whether ZHA is loaded, and the entry id that names the network. */
+export function readZhaEntries(hass) {
+  return hass.callWS({ type: "config_entries/get", domain: "zha" });
+}
+
+/** Read ZHA's devices once and build the Zigbee network from them, with zigpy's route records attached. registries():
+ *  the device and area registries, read once on first need (shared with the Matter adapter). Returns { raw, network },
+ *  network null when ZHA lists no device; errors are thrown to the caller, which turns them into its states. */
+export async function readZha(hass, { configEntries, registries }) {
+  const raw = await hass.callWS({ type: "zha/devices" });
+  if (!(Array.isArray(raw) && raw.length)) return { raw, network: null };
+  const network = ENGINES.zigbee.build(raw, { ...(await registries()), configEntries });
+  // Read only, never fails the load; ZHA only, never for Thread.
+  network.zigpy = await readZigpyRoutes(hass);
+  return { raw, network };
+}
 
 const nwkOf = (value) => {
   const n = parseAddress(value);
@@ -39,7 +56,7 @@ export async function readZigpyRoutes(hass) {
   try {
     return parseZigpyRoutes(await hass.callWS({ type: "meshroute_topology_explorer/zigpy_routes" }));
   } catch (err) {
-    if (connectionLost(err)) throw err;
+    if (isConnectionLost(err)) throw err;
     const e = (err && err.error) || err || {};
     const message = String(e.message || e.code || e);
     const reason = e.code === "not_supported" ? String(e.message || "").split(":")[0] || "not_supported" : String(e.code || "error");

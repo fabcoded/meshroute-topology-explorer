@@ -82,7 +82,7 @@ function importsOf(rel) {
  *  a shared frame. */
 const ENGINE_UI = new Set(["ui/details.js", "ui/details-tab.js", "ui/cluster-dialog.js", "ui/attribute-read.js",
   "ui/entity-values.js", "ui/raw-values.js", "ui/finding-text.js", "ui/thread-details.js", "ui/scan.js",
-  "ui/observations-client.js", "ui/zigpy-routes.js"]);
+  "ui/observations-client.js"]);
 const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"),
   ...jsFiles("ui/").filter((f) => !ENGINE_UI.has(f))];
 

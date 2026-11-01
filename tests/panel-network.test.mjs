@@ -5,7 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { readNetwork, readThread } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { readNetwork } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
+import { readThread } from "../custom_components/meshroute_topology_explorer/frontend/adapters/matter.js";
 import { activeNetwork, loadNetworkChoice, networkChoices, PANEL_STORE, saveNetworkChoice }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/network-switch.js";
 import { ageParts, statusParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
