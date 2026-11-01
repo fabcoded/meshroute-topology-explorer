@@ -14,7 +14,7 @@ export function springQuality(r) {
 }
 
 /** Glyph for a direction without a reading: "–" where the hearer's neighbour table was read and does not list the
- *  sender (model/thread.js reason "not in the neighbour table"), "?" where there is no table to ask. */
+ *  sender (model.js reason "not in the neighbour table"), "?" where there is no table to ask. */
 export function unknownGlyph(reason) {
   return typeof reason === "string" && /^not in the neighbour table/.test(reason) ? "–" : "?";
 }

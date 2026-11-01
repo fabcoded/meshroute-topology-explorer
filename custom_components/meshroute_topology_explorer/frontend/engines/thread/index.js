@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// The Thread viewer engine (engines/index.js): what a Thread network read through Matter means (spec 3.2, 4.6). For
-// now a facade over the modules that hold that meaning today (model/thread.js, graph/links.js, graph/renderer.js); the
-// cut moves it here step by step without changing behaviour, and each hook appears once a caller needs it.
+// The Thread viewer engine (engines/index.js): what a Thread network read through Matter means (spec 3.2, 4.6). The
+// object gathers the engine's modules (from-matter.js and model.js, lanes.js, scene.js, status.js, findings.js,
+// details.js, texts.js); every hook has a caller in the shell, and both engines offer the same hooks.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildThreadNetwork } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
@@ -39,7 +39,7 @@ export const thread = Object.freeze({
   /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Its finding kinds in the order the Findings tab groups them (offline, parent offline, parent unknown;
-   *  model/thread.js threadFindings), and the words of a finding: { title, lines }. */
+   *  model.js threadFindings), and the words of a finding: { title, lines }. */
   findings: Object.freeze({ kinds: THREAD_FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
   /** What a user may type to find a device by its network address (Devices search): the RLOC16 as "0x1c00 7168", or
    *  none; the extended address is the device's key and searched anyway. */

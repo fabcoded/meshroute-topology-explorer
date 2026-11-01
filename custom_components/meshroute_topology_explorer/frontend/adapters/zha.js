@@ -3,7 +3,7 @@
 // Zigbee engine (engines/index.js), which builds the model. Read only: `zha/devices` returns what ZHA holds; the
 // scan is started elsewhere, by the user (panel.js). Also zigpy's route records for the source-route stage "read from
 // zigpy" (spec 5.1; brief a4w): one call of the integration's own command per data load, attached to the network as
-// `network.zigpy` and read by model/source-routes.js; it reads what zigpy holds in memory and causes no radio traffic.
+// `network.zigpy` and read by engines/zigbee/source-routes.js; it reads what zigpy holds in memory and causes no radio traffic.
 // No DOM. node --test tests/
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";

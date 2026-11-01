@@ -2,7 +2,7 @@
 // What a Zigbee lane carries and says (spec 4.3, 7.1, 8; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01,
 // boards M2, M7, M11). Classes belong to a lane, not to a pair: "up" (the hearer is the sender's next hop on the
 // sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a device, measured from the
-// tables or assumed as the reversed way up, model/source-routes.js), "route" (on an active route between two devices,
+// tables or assumed as the reversed way up, source-routes.js), "route" (on an active route between two devices,
 // neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry several; it is drawn as its
 // strongest, in the look of its class (strokeOf: up and down solid, assumed down dotted, routes between devices
 // dash-dot, computed hops dash-dot in the lighter grey, heard only dashed). "Communication paths" says what is drawn
@@ -34,7 +34,7 @@ export const CLASSES = Object.freeze(["heard", "route", "down", "up"]);
 /** Heard-only partners shown per device: its best by the pair's best rating at the hearer (decision 2026-10-31). */
 export const BEST_HEARD = 3;
 
-/** The class of a lane under a source-route stage (model/source-routes.js), the strongest it carries: up or a
+/** The class of a lane under a source-route stage (source-routes.js), the strongest it carries: up or a
  *  measured down lane, then a return path of the stage (assumed under "assume"; recorded by zigpy or else assumed
  *  under "zigpy"), then a route between devices, then heard (a reading without traffic); null for a lane that carries
  *  nothing and has no reading (only a route or a parent link implies it, or nothing does). */
@@ -85,9 +85,9 @@ function addHops(set, ids) {
  *  upPaths: Map, network } with two lanes
  *  per pair (first b -> a, whose evidence is ab: a hears b; then a -> b) and `network` the cleaned devices, routes and
  *  pairs that the selection's paths are walked on. What a lane carries (spec 7.1):
- *  - up: a hop of a device's way to the coordinator (model/paths.js upPath);
+ *  - up: a hop of a device's way to the coordinator (paths.js upPath);
  *  - downMeasured: a hop of the coordinator's way to a device (downPath), incomplete walks up to where they stop;
- *  - downAssumed: a hop of an assumed return path (source route, model/source-routes.js), counted only under "assume";
+ *  - downAssumed: a hop of an assumed return path (source route, source-routes.js), counted only under "assume";
  *  - downRecorded: a hop of a return path from zigpy's route record, drawn as measured, only under "zigpy";
  *  - downZigpyAssumed: a hop of an assumed return path of a device without a record, only under "zigpy";
  *  - route: a hop of the walk of an active, current route whose owner and destination are not the coordinator. */

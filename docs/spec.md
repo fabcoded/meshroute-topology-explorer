@@ -113,7 +113,8 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   NetworkTopologyConnection, and its websocket schema changelog, schema 13; confirmed by the main session,
   2026-11-01): `source_to_target` is the source's own neighbour-table record of the target, so it is the reading
   "source hears target", received at the source; `target_to_source` the reverse. A missing direction is `null`.
-- **Mapping** (`model/thread.js`): device key is the extended address; roles `leader` and `router` are routers (the
+- **Mapping** (`engines/thread/from-matter.js`; parents, pairs, status and findings in `engines/thread/model.js`):
+  device key is the extended address; roles `leader` and `router` are routers (the
   leader with the crown "L", 8), `reed`, `end_device` and `sleepy_end_device` end devices (sleepy or not), kind
   `border_router` the role "border router" (wired, picture hub), anything else unknown. Names come from the device
   registry through `ha_device_id`, else the border router's `host_name` or model, else "Matter node <id>". Availability
@@ -122,12 +123,17 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   drawn as a dead link; RSSI 127 is no value. Link quality 0 with a valid RSSI is a measured low reading. An end
   device's parent is the router its own table lists (a Thread child holds only its parent); only if the child reported
   nothing, the router-role node whose reading is best; other routers listing the child are possibly stale (a REED's or
-  FED's further routers are real links); none: "parent unknown", the device stays listed.
+  FED's further routers are real links); none: "parent unknown", the device stays listed. No Zigbee field gets a
+  default (engines cut, step 7): no network address (the RLOC16 has its own field and is searchable in the Devices
+  list), no router-table counts or capacity, no relay load or rating, no "router tables x/y" or completeness; what the
+  snapshot does not name is null.
   Readings of an unavailable node are stale: kept for the Details, not drawn. Wi-Fi nodes and links, and nodes of
   another extended PAN id than the largest group, are ignored and counted.
 - The snapshot has no next hop per destination: no paths, no stages, no theoretical paths, no path playback and no
   direction switch for Thread (4.6). The map draws parent links solid (both directions) and every measured neighbour
   lane dashed; a click shows the device's own lanes with values and the glyphs of its directions without a reading.
+  The leader and the border routers are always labelled (owner decision 2026-11-01); the fitted view contains every
+  device and its label at the active density (9.3).
 - Limits: the snapshot is what the Matter server last read; it may list removed routers or miss end devices, and
   border routers vanish when Thread diagnostics are off. The explorer reads only `matter/network_topology` and does not
   reconcile it with OTBR data (`otbr/*` returns keys and is forbidden, 3.4).
@@ -235,7 +241,9 @@ their place: "Thread data names neighbours and parents, not routes; there are no
 scan only where the source has one (`capabilities.scan`); findings are offline, parent offline and parent unknown
 ("The topology lists no link between this end device and a router."). Each network carries `engine` and
 `capabilities`, stamped by the build of its source; `engineFor()` (engines/index.js) finds its viewer engine and never
-falls back to one; the map's lanes still test `hasRoutes()` (graph/links.js) until the cut moves them.
+falls back to one. The adapter declares the capabilities (adapters/, with the schema mapping); only the engine reads
+them, and the shared shell (panel, graph, ui frames) never tests a network type (engines cut, owner decision
+2026-11-01: one viewer engine per network type; tests/engine-leaks.test.mjs).
 
 ## 5. Derived facts
 
@@ -531,7 +539,10 @@ the centre).
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
   keep their size, "fit" and the first view fit the base layout, D = 1 (owner decision 2026-11-01, replacing "fit refers to
   medium"): dense 0.96 sits slightly smaller in the window, medium 1.44 reaches about 44 % and spread 2.28 about 128 % past it, the selection or else the centre of the view stays in place, and the stored density
-  (11) applies when the panel loads.
+  (11) applies when the panel loads. This is the Zigbee map's fit ("base"). A Thread map fits "contain" (main session,
+  2026-11-01): every device and its label inside the window at the active density, as a network of a few devices,
+  each an extreme of its box, would otherwise reach past the window; a density change refits it while the user has not
+  moved the view. The fit is a field of the network engine's scene.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
   plus L0 / 2, in the layout before D is applied); the ring and the details ("No readings") say so, the symbol does
   not change (8).
@@ -607,7 +618,8 @@ user-supplied image, or map tiles from an address the user configured.
   Labels are text, never HTML. A name never loses the part that distinguishes it from similar names (cut shared
   beginnings at word starts, keep the end); identical readable names get the network address appended. Below a scale
   measured on screen (devices half a label width from their nearest neighbour, so a spread map is labelled from a
-  smaller zoom) only the coordinator, the selection and its neighbours carry labels. A block tries five places around
+  smaller zoom) only the engine's anchors (the Zigbee coordinator; on Thread the leader and the border routers), the
+  selection and its neighbours carry labels. A block tries five places around
   its device, as a whole and in this order, every line free of other devices and texts: (1) split, type 3 px above the
   symbol and names 3 px below it, each line centred; (2) the whole block 3 px below, centred; (3) the whole block 3 px
   above, centred; (4) right of the symbol, 4 px from its edge, lines aligned left and the block centred vertically on
@@ -783,8 +795,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   scale, a fixed zoom at which devices of the base layout (D = 1) sit one mean label width from their nearest neighbour
   (the density is not compensated: spread then shows 2.28, medium 1.44, dense 0.96 label widths; never out past the overview), and
   keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
-- A tap on a device on the map zooms the same way, but only when the shortest lane of the selection's paths (stage 1
-  or 2, `shortestFocusLane` in graph/renderer.js) would be shorter than 24 px on screen at the current zoom
+- A tap on a device on the map zooms the same way, but only when the shortest lane of the selection's paths (the
+  engine's focus, `shortestFocusLane` in graph/renderer.js) would be shorter than 24 px on screen at the current zoom
   (`TAP_ZOOM_MIN_LANE`; laneGeometry drops lanes under 4 px, so a phone at fit zoom would skip hops and stack RX
   values). In open areas the view only pans clear of the edge and the panels. The shortest lane decides, not a
   percentile, because one skipped hop breaks a path. Hover never zooms (decision by Fabian Schwamborn, 2026-11-01).

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Entry module of the Meshroute Topology Explorer panel: the quality view of a ZHA network (spec 6-11). Home
+// Entry module of the Meshroute Topology Explorer panel: the quality view of a Zigbee or Thread network (spec 6-11). Home
 // Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
 // Layout (spec 9.1; design by Fabian Schwamborn, 2026-11-01, "one place per thing"): no header bar; the map fills the
 // panel. On the map only: top left "Devices" with the findings count and below it the slide switch "Details on click"
@@ -7,10 +7,11 @@
 // the status line. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide
 // screens and bottom sheets on narrow ones (one sheet at a time).
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
-// Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
-// since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
+// Data: ui/controller.js (load, errors, reconnect) over the adapters (adapters/index.js); settings: ui/settings.js;
+// the meaning of the network: its engine (engines/index.js); observations ("observed unchanged since", spec 6) and the
+// scan in debug mode: the source's adapter, where it has them; map: graph/graph-view.js.
 // Only the websocket commands of spec 3.4 are used: read-only ones, the user-started scan and the user-started reading
-// of a cluster's attributes (ui/cluster-dialog.js). Entity states and area names come from the hass object Home
+// of a cluster's attributes (the Zigbee engine's cluster dialog). Entity states and area names come from the hass object Home
 // Assistant hands every panel (hass.states, hass.areas). Names are always set as text, never as HTML.
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";

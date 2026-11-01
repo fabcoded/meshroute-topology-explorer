@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The Zigbee viewer engine (engines/index.js): what a Zigbee network means. For now a facade over the modules that
-// hold that meaning today (model/, graph/links.js, graph/renderer.js); the cut moves them here step by step without
-// changing behaviour, and each hook appears once a caller needs it.
+// The Zigbee viewer engine (engines/index.js): what a Zigbee network means (spec 3.1, 4, 5, 7.1). The object gathers
+// the engine's modules (from-zha.js and model.js with the derived facts, lanes.js, scene.js, options.js, settings.js,
+// status.js, connection.js, texts.js, the Details in ui/); every hook has a caller in the shell, and both engines offer
+// the same hooks.
 // Pure except details(), which fills the Details tab. node --test tests/
 import { buildNetwork, FINDING_KINDS } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
@@ -29,7 +30,7 @@ export const zigbee = Object.freeze({
   legend: (theme, view = {}) => legendEntries(theme, view),
   /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
   status: (network, extras = {}) => statusLine(network, extras),
-  /** Its finding kinds in the order the Findings tab groups them (model/findings.js), and the words of a finding:
+  /** Its finding kinds in the order the Findings tab groups them (findings.js), and the words of a finding:
    *  { title, lines }. */
   findings: Object.freeze({ kinds: FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
   /** What a user may type to find a device by its network address (Devices search): "0x1234 4660", or none. */

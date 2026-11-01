@@ -103,7 +103,7 @@ link-quality margins on a constant of −100 dBm (section 2).
 - **Details:** RSSI, link quality, the band and its basis ("from RSSI", "from link quality", or "−75 dBm, link
   quality 2 (the receiver's own class)" where the cap applied).
 - **Server `strength`:** not used and not shown. It is link quality renamed [S9]. Its connection-level summary hides
-  the weaker direction. Its `none` and `unknown` already make a direction "not measured" in `model/thread.js`.
+  the weaker direction. Its `none` and `unknown` already make a direction "not measured" in `engines/thread/from-matter.js`.
 
 **(d) Findings and hints.**
 
@@ -136,7 +136,7 @@ link-quality margins on a constant of −100 dBm (section 2).
 - **Own entry "listed without a live link":** only for link quality 0 with no valid RSSI (a fresh entry without
   samples). Link quality 0 with a valid RSSI is a live low reading.
 - **Why:** a stale child entry, or a router link that is set up on one side only. It is a hint, not a verdict.
-- **Parent of an end device** (`model/thread.js`, owner decision 2026-11-01): a sleepy or minimal end device has one
+- **Parent of an end device** (`engines/thread/model.js`, owner decision 2026-11-01): a sleepy or minimal end device has one
   neighbour entry, its parent. Where the child's own table was read, the parent is the router it lists. The routers'
   readings decide only when the child reported nothing. Other routers that list the child are "possibly stale". For a
   REED or FED, the other routers in its table are real links, not stale parents.

@@ -68,7 +68,7 @@ export function sceneBackbone(scene) {
 }
 
 /** The overview of the view "routing table" (spec 7.1; owner proposal 2026-11-01): per lane whether it is the hop of
- *  a usable routing entry, owner -> next hop, of any device (model/paths.js usableRoutes), computed once per scene.
+ *  a usable routing entry, owner -> next hop, of any device (paths.js usableRoutes), computed once per scene.
  *  { table (per lane: boolean), count }. */
 export function sceneTableLanes(scene) {
   if (scene.tableLanes) return scene.tableLanes;
@@ -137,10 +137,10 @@ function heardPartners(scene, i, sc, hops, stage) {
  *  taken, cls the class it is drawn with, predicted: only a computed route discovery takes it), ends: [{ at, toward,
  *  cls }] (incomplete paths, with the class of their path), glyphs: [{ s, h, dir }] (directions without a reading of
  *  the heard-only partners), nodes: Set of every device on a path, named as a goal or a partner, paths (the model's,
- *  for tests) }. "coordinator": the device's way up and down (model/node-paths.js); "all" adds its theoretical way to
+ *  for tests) }. "coordinator": the device's way up and down (node-paths.js); "all" adds its theoretical way to
  *  and from every other device as routes, the out tree and the in tree (spec 5.7); `heard` adds its best heard-only
  *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
- *  routes). sourceRoute: "assume" draws assumed return paths (model/source-routes.js), "zigpy" recorded ones as
+ *  routes). sourceRoute: "assume" draws assumed return paths (source-routes.js), "zigpy" recorded ones as
  *  measured and assumed ones for the rest, "off" leaves them unknown. */
 export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false, returns = false) {
   const mode = pathStage(stage);

@@ -79,7 +79,7 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
 }
 
 
-/** Evidence per direction for every linked pair (spec 4.3), the shape of model/pairs.js: { a, b, ab, ba }, ab = "a
+/** Evidence per direction for every linked pair (spec 4.3), the shape of the Zigbee engine's pairs: { a, b, ab, ba }, ab = "a
  *  hears b". measured: a reading; implied: a parent link without a reading at that end; else unknown with a reason. */
 export function threadPairs(devices, readings, links) {
   const byId = new Map(devices.map((d) => [d.id, d]));

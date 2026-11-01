@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Words for a Thread finding (spec 5.6, 4.6): its title and the sentences that name its evidence. Thread raises only
-// offline, parent offline and parent unknown (model/thread.js threadFindings); none of them names missing tables.
+// offline, parent offline and parent unknown (model.js threadFindings); none of them names missing tables.
 // Pure: t is the translator (ui/i18n.js), name(id) labels a device. node --test tests/
 
 /** { title, lines: [text] } for one finding. */

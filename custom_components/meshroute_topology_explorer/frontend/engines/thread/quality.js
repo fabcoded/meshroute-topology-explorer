@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Thread reception model (review draft, brief tq; docs/thread-quality-model.md): turns the readings of a Thread
-// network (model/thread.js, pairs { a, b, ab, ba }, ab = "a hears b") into one of three signal bands per direction,
+// network (model.js, pairs { a, b, ab, ba }, ab = "a hears b") into one of three signal bands per direction,
 // a stroke level for a lane, and finding candidates per node. Pure, no DOM. Not wired into the map yet: the engine
 // refactor feeds laneLook() to the shared laneStyle() and the findings to the Findings tab.
 // node --test tests/

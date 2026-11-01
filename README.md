@@ -39,5 +39,24 @@ unset HASS_TOKEN
   `python3 tools/anonymize_capture.py raw.json safe.json` on it first.
 - Exit codes: 0 ok, 1 usage, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout, 6 anonymizer refused.
 
+## How the code is organized
+
+The panel lives in `custom_components/meshroute_topology_explorer/frontend/`, plain JavaScript without a build step.
+One viewer engine per network type, one adapter per data source, and a shared shell that knows neither (owner
+decision 2026-11-01; [docs/spec.md](docs/spec.md) 4.6):
+
+| Folder | What it holds |
+|---|---|
+| `engines/index.js` | The registry: `engineFor(network)` finds a network's engine and never falls back to one. |
+| `engines/zigbee/` | What a Zigbee network means: the ZHA schema mapping (`from-zha.js`, with ZHA's capability set), model, paths and theoretical paths, findings, lane classes and the three path views (`lanes.js`, `scene.js`), options, settings keys, status line, texts, and the Details (`ui/`). |
+| `engines/thread/` | What a Thread network read through Matter means: the Matter mapping (`from-matter.js`), parents, pairs, status and findings (`model.js`), parent and neighbour lanes (`lanes.js`, `scene.js`), status, Details, texts; `quality.js` (reception model, awaiting review, not wired). |
+| `adapters/` | The data sources: `zha.js` (with its scan, observations and fingerprints) and `matter.js`, each with its texts; `index.js` lists them for the shell. |
+| `graph/` | Shared drawing: layout (springs from the engine's quality), camera, gestures, symbols, palette, labels, lane geometry and stroke looks, the renderer that strokes what the engine's scene returns. |
+| `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status line frame, shared texts (`i18n.js`). |
+| `panel.js` | The custom element that wires shell, engines and adapters together. |
+
+`tests/engine-leaks.test.mjs` keeps the boundaries: no engine imports another, shared code reaches the engines only
+through `engines/index.js` and names no network or source.
+
 Contributions from humans and AI agents are welcome, see [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 Security issues: [SECURITY.md](SECURITY.md). License: [MIT](LICENSE).

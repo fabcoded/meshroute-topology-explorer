@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The quality-view map on a <canvas> (spec 7.1, 8, 9.3): runs the layout, draws frames, turns pointer, wheel and key
 // input into pan, zoom, pin and selection, and reports what the user did as events. Knows nothing about Home
-// Assistant: it reads a Network ({ source, id, devices, readings }, see model/index.js) and a theme of plain colours.
+// Assistant: it reads a Network ({ engine, source, id, devices, readings }, built by its engine, engines/<type>/model.js) and a theme of plain colours.
 // Usage: const view = new GraphView(canvas, { theme, density }); view.setNetwork(network);
 //        view.addEventListener("select", (e) => e.detail.id); view.reveal(id, insets, { zoom: true })
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:

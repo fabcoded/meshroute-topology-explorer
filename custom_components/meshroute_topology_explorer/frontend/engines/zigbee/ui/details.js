@@ -64,7 +64,7 @@ export function howText(how, t) {
   return t(`details.how_${how}`);
 }
 
-/** Why a theoretical path stopped (model/theoretical.js reasons), in words. */
+/** Why a theoretical path stopped (../theoretical.js reasons), in words. */
 export function stopText(reason, t) {
   return t(`details.stop_${String(reason || "unknown").replace(/ /g, "_")}`);
 }
@@ -115,10 +115,10 @@ export function tableRows(network, id, returns, name) {
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", model/node-paths.js; the view "table" lists the way with the coordinator here
+ *  `nodeView` ("coordinator" or "all", ../node-paths.js; the view "table" lists the way with the coordinator here
  *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
  *  then empty, main session 2026-11-01), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
- *  model/source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
+ *  ../source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */
 export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRoutes = false } = {}) {
