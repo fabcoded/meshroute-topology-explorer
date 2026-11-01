@@ -55,25 +55,25 @@ test("paths as text: every hop with the reception at its hearer, unknown ends sa
   const de = translator("de");
   const lines = (label, mode, t = en) => detailsOf(network, byLabel(label), mode).paths.map((p) => pathLine(p, t, name));
   assert.deepEqual(lines("End device 06", "coordinator"), [
-    "To the coordinator: End device 06 \u2192 Router 17 (RX 103) \u2192 Router 13 (RX 111) \u2192 Coordinator (RX 51)",
-    "From the coordinator: Coordinator \u2192 Router 16 (RX 114) \u2192 Router 17 (RX 168) \u2192 End device 06 (RX Parent)",
+    "there: End device 06 \u2192 Router 17 \u00B7 RX 103 \u2192 Router 13 \u00B7 RX 111 \u2192 Coordinator \u00B7 RX 51",
+    "back: Coordinator \u2192 Router 16 \u00B7 RX 114 \u2192 Router 17 \u00B7 RX 168 \u2192 End device 06 \u00B7 RX Parent",
   ]);
   assert.deepEqual(lines("End device 08", "coordinator", de), [
-    "Zum Koordinator: End device 08 \u2192 Router 02 (RX 161) \u2192 Router 04 (RX 200) \u2192 Coordinator (RX 165)",
-    "Vom Koordinator: Coordinator \u2192 Weg unbekannt",
+    "hin: End device 08 \u2192 Router 02 \u00B7 RX 161 \u2192 Router 04 \u00B7 RX 200 \u2192 Coordinator \u00B7 RX 165",
+    "zur\u00FCck: Coordinator \u2192 Weg unbekannt",
   ]);
   // All paths: out and in paths are named by their other end.
   const all = lines("Router 11", "all");
   assert.equal(all.length, 11);
-  assert.ok(all.includes("To Router 30: Router 11 \u2192 Router 27 (RX 134) \u2192 Router 30 (RX 108)"));
-  assert.ok(all.includes("From Router 01: Router 01 \u2192 Router 11 (RX 142)"));
-  assert.ok(all.includes("To Router 26: Router 11 \u2192 Router 26 (RX Route)"), "a hop only a route proves");
+  assert.ok(all.includes("to Router 30: Router 11 \u2192 Router 27 \u00B7 RX 134 \u2192 Router 30 \u00B7 RX 108"));
+  assert.ok(all.includes("from Router 01: Router 01 \u2192 Router 11 \u00B7 RX 142"));
+  assert.ok(all.includes("to Router 26: Router 11 \u2192 Router 26 \u00B7 RX Route"), "a hop only a route proves");
   // A route to an unavailable device names it as unavailable instead of inventing a reception.
   const toOffline = detailsOf(network, byLabel("Router 01"), "all").paths.filter((p) => !p.complete && p.ids.at(-1) === p.to);
-  assert.deepEqual(toOffline.map((p) => pathLine(p, en, name)), ["To Router 08: Router 01 \u2192 Router 08 (unavailable)"]);
+  assert.deepEqual(toOffline.map((p) => pathLine(p, en, name)), ["to Router 08: Router 01 \u2192 Router 08 (unavailable)"]);
   // An unavailable router: alone, its way up unknown.
   const off = network.devices.find((d) => !d.available);
-  assert.equal(pathLine(detailsOf(network, off.id).paths[0], en, name), `To the coordinator: ${off.label} \u2192 path unknown`);
+  assert.equal(pathLine(detailsOf(network, off.id).paths[0], en, name), `there: ${off.label} \u2192 path unknown`);
   // Values as on the map: LQI 0 uncertain, "?" without evidence.
   assert.equal(hopValue({ state: "unknown", lqi: 0 }, en), "0 (uncertain)");
   assert.equal(hopValue({ state: "unknown", lqi: null }, en), "?");

@@ -11,6 +11,7 @@ import { DEFAULT_LINKS } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";
 import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
+import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "../model/source-routes.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./controller.js";
 
@@ -23,10 +24,10 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
 
 /** Defaults of spec 11. openDetailsOnSelect null means "by screen width": details open on a click on wide panels and
  *  not on narrow ones (spec 9.2). nodeView: what a selected device shows (its path to the coordinator, or all its
- *  paths). */
+ *  paths). sourceRoute: return paths without a table entry are "assume"d (the way up reversed) or "off" (unknown). */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
   links: DEFAULT_LINKS, nodeView: DEFAULT_NODE_VIEW, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS,
-  pins: Object.freeze({}) });
+  sourceRoute: DEFAULT_SOURCE_ROUTE, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -101,6 +102,8 @@ export function sanitizeSettings(input) {
   delete out.receptionColors;
   delete out.legendOpen;
   out.labels = sanitizeLabels(src.labels);
+  // "zigpy" (reading the route records) is a later stage: until it exists, it and anything else count as "assume".
+  out.sourceRoute = sourceRouteMode(src.sourceRoute);
   out.pins = sanitizePins(src.pins);
   return out;
 }

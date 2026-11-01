@@ -2,19 +2,63 @@
 // The device list as data: rows, a text filter and the keyboard model of a single-select listbox (WAI-ARIA Authoring
 // Practices, listbox pattern). It is the keyboard path to every device (spec 9.3): arrows move, Enter selects.
 // No DOM; the Devices tab renders it. Tested in Node: node --test tests/
+import { upPath } from "../model/paths.js";
 
 /** Keys that move the active row, as steps; Home/End go to the ends. PageUp/PageDown step by this many. */
 const PAGE = 10;
 
-/** Rows for the list from a Network: one per device, sorted by label, then address. The search text holds what a
- *  user may type: label, ZHA name, vendor, model, area, IEEE and network address (as 0x1234 and decimal). */
+/** How a device hangs in the network, for its row (design by Fabian Schwamborn, 2026-11-01, board M3): the
+ *  coordinator is the network; an end device is "via" its parent, or "direct" when the parent is the coordinator; a
+ *  router is "direct" when its up path is the one hop to the coordinator. Otherwise null: a router's next hop is a
+ *  route, not a bond, and an end device without a known parent says nothing here (Details explains). */
+export function connectionOf(network, d, coordinatorId) {
+  if (d.role === "coordinator") return { kind: "network" };
+  if (d.role === "end device") {
+    if (!d.parent) return null;
+    if (d.parent === coordinatorId) return { kind: "direct" };
+    const parent = network.devices.find((x) => x.id === d.parent);
+    return parent ? { kind: "via", label: parent.label } : null;
+  }
+  if (d.role === "router" && coordinatorId) {
+    const up = upPath(network, d.id);
+    if (up.complete && up.ids.length === 2) return { kind: "direct" };
+  }
+  return null;
+}
+
+/** Rows for the list from a Network: one per device, the coordinator first (board M3), then by label and address.
+ *  The search text holds what a user may type: label, ZHA name, vendor, model, area, IEEE and network address (as
+ *  0x1234 and decimal). */
 export function deviceRows(network) {
+  const coordinator = network.devices.find((d) => d.role === "coordinator");
+  const coordinatorId = coordinator ? coordinator.id : null;
   return network.devices.map((d) => ({
     id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating, kind: d.kind || null,
+    sleepy: d.sleepy === true, connection: connectionOf(network, d, coordinatorId),
     search: [d.label, d.name, d.vendor, d.model, d.area, d.id,
       typeof d.nwk === "number" ? `0x${d.nwk.toString(16).padStart(4, "0")} ${d.nwk}` : ""]
       .filter(Boolean).join(" ").toLowerCase(),
-  })).sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  })).sort((a, b) => (b.role === "coordinator") - (a.role === "coordinator") || a.label.localeCompare(b.label)
+    || a.id.localeCompare(b.id));
+}
+
+/** The grey line under a row's name (board M3): "Light · Router · direct to the coordinator", "Button · sleeps · via
+ *  Router 03", "Coordinator · Network"; then the area and, when it is down, "unavailable". The reception rank lives in
+ *  Details. t: the translator. */
+export function rowMeta(row, t) {
+  const parts = [];
+  if (row.role === "coordinator") {
+    parts.push(t("role.coordinator"), t("devices.network"));
+  } else {
+    if (row.kind && row.kind !== "unknown") parts.push(t(`kind_short.${row.kind}`));
+    parts.push(row.role === "end device" && row.sleepy ? t("devices.sleeps") : t(`role.${row.role}`));
+    const c = row.connection;
+    if (c && c.kind === "direct") parts.push(t("devices.direct"));
+    if (c && c.kind === "via") parts.push(t("devices.via", { name: c.label }));
+  }
+  if (row.area) parts.push(row.area);
+  if (!row.available) parts.push(t("devices.unavailable"));
+  return parts.join(" \u00B7 ");
 }
 
 /** Rows whose search text contains every word of the filter, in any order. */

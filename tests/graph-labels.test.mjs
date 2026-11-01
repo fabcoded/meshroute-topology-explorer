@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import {
   shortenName, displayLabels, labelsForAll, labelLines, haLabels, DEFAULT_LABELS, ELLIPSIS, MAX_LABEL_WIDTH,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
-import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { buildScene, drawScene, typeShown } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { recordingContext, labelWidth as measure } from "./graph-fakes.mjs";
@@ -58,11 +58,11 @@ test("the model's labels are used as they are when they fit", () => {
 });
 
 /** Draw a scene at zoom k (everyone labelled from zoom 1) and return the label texts and their centres. */
-function labelsAt(network, pos, k, { selected = -1, width = 4000, height = 400, cx = 1500, cy = 0, labels, kinds } = {}) {
+function labelsAt(network, pos, k, { selected = -1, width = 4000, height = 400, cx = 1500, cy = 0, labels, kinds, typeZoom } = {}) {
   const scene = buildScene(network, measure);
   const ctx = recordingContext({ props: true });
   const stats = drawScene(ctx, scene, pos, { cam: { k, cx, cy }, width, height, dpr: 1, labelZoom: 1,
-    debug: false, selected, hovered: -1, fps: null, labels, texts: kinds ? { kinds } : undefined }, resolveTheme({}), measure);
+    debug: false, selected, hovered: -1, fps: null, labels, typeZoom, texts: kinds ? { kinds } : undefined }, resolveTheme({}), measure);
   // Each text with the font and colour it was drawn in.
   const texts = [];
   let font = null;
@@ -206,4 +206,17 @@ test("a label block moves as a whole and never covers another device or label", 
     }
   }
   assert.equal(stats.labels + stats.dropped, 9, "every device placed or counted as left out");
+});
+
+test("the type line shows only from the working scale up; the overview stays calm (A4h review)", () => {
+  assert.equal(typeShown(1, 1), true);
+  assert.equal(typeShown(0.99, 1), false);
+  assert.equal(typeShown(0.2, undefined), true, "without a working scale: always");
+  const network = { devices: [{ id: "a", label: "Kitchen", role: "router", kind: "light" }], readings: [] };
+  const pos = { x: [0], y: [0], pinned: [0], mesh: [0] };
+  const at = (k, typeZoom) => labelsAt(network, pos, k, { width: 400, height: 400, cx: 0, cy: 0, kinds: { light: "Light" }, typeZoom })
+    .texts.map((t) => t.text).sort();
+  assert.deepEqual(at(1, 2), ["Kitchen"], "below the working scale: the name only");
+  assert.deepEqual(at(2, 2), ["Kitchen", "Light"], "at the working scale: type and name");
+  assert.deepEqual(at(3, 2), ["Kitchen", "Light"]);
 });

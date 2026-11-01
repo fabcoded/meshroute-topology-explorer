@@ -320,7 +320,11 @@ test("text beside a lane stays clear of it, on its right", () => {
 test("legend entries name every class, the implied lane, both glyphs, the width steps, the band and the paths", () => {
   const entries = legendEntries(theme);
   assert.deepEqual(entries.map((e) => e.id),
-    ["up", "route", "heard", "implied", "width", "not-listed", "no-table", "up-path", "path", "path-implied", "path-end"]);
+    ["up", "route", "heard", "implied", "width", "not-listed", "no-table", "up-path", "path", "path-implied", "path-assumed", "path-end"]);
+  // An assumed return path (source route) is never drawn as measured: grey, dotted, with its arrow.
+  const assumed = entries.find((e) => e.id === "path-assumed").style;
+  assert.equal(assumed.color, theme.muted);
+  assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");
   const colored = legendEntries(theme, { colored: true });
   const scale = colored.find((e) => e.id === "reception");
   assert.deepEqual(scale.colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)), "the scale while colour is on");

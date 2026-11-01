@@ -6,6 +6,7 @@
 // unavailable hop, and say so: unknown beats wrong. Pure functions over a Network. node --test tests/
 import { downPath, routeEnds, routePath, upPath } from "./paths.js";
 import { pairEvidence } from "./pairs.js";
+import { assumedDownPaths } from "./source-routes.js";
 
 /** The node views (spec 9.1, 11): the default shows the way to and from the coordinator, which stands for Home
  *  Assistant; "all" every path the routing tables give for the device. */
@@ -44,25 +45,32 @@ export function pathHops(network, ids) {
   return hops;
 }
 
-/** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops }].
+/** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
+ *  assumed }].
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds out paths to the destinations of the device's own active routes and in paths from the owners
  *  of active routes towards it. The coordinator's own route to the device is the down path and the device's route
  *  to the coordinator its up path, so neither appears twice. Unknown modes count as "coordinator". The coordinator
  *  stands for Home Assistant: its paths to and from Home Assistant are all its paths, so it shows them in both modes
- *  (an empty map on its click would say nothing). */
-export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW) {
+ *  (an empty map on its click would say nothing). sourceRoute "assume" replaces an unknown down path by the up path
+ *  reversed where source-routes.js says the assumption applies; that path carries assumed: true, and so do its hops.
+ *  The default "off" gives the measured paths of spec 5.1 only. */
+export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off" } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
   if (!device) return [];
   const coordinator = (devices.find((d) => d.role === "coordinator") || {}).id || null;
   const out = [];
-  const add = (kind, from, to, walk) => out.push({ kind, from, to, ids: walk.ids, complete: walk.complete,
-    hops: pathHops(network, walk.ids) });
+  const add = (kind, from, to, walk) => {
+    const assumed = walk.assumed === true;
+    const hops = pathHops(network, walk.ids).map((h) => (assumed ? { ...h, assumed } : h));
+    out.push({ kind, from, to, ids: walk.ids, complete: walk.complete, hops, assumed });
+  };
   if (id !== coordinator) {
     add("up", id, coordinator, upPath(network, id));
-    add("down", coordinator, id, downPath(network, id));
+    const assumed = sourceRoute === "assume" ? assumedDownPaths(network).get(id) : null;
+    add("down", coordinator, id, assumed || downPath(network, id));
   }
   if (mode !== "all" && id !== coordinator) return out;
   const { destinations, owners } = routeEnds(network, id);

@@ -17,25 +17,39 @@ export function hopValue(hop, t) {
   return "?";
 }
 
-/** One path as a line of text: "To the coordinator: Sensor → Router 17 (RX 103) → Coordinator (RX 51)"; an
- *  incomplete path ends in "path unknown", or names its unavailable goal. name(id) gives a device's label. */
-export function pathLine(path, t, name) {
-  const parts = path.ids.length ? [name(path.ids[0]), ...path.hops.map((hop) =>
-    t("details.path_hop", { name: name(hop.hearer), value: hopValue(hop, t) }))] : [];
+/** One path in parts (board M4): prefix ("there", "back", "back, assumed (source route)", "to X", "from X"), the
+ *  steps in the direction of travel, each { name, rx } with rx the reception at that device (null for the first),
+ *  and tail ("path unknown") where the walk stopped short of its goal. A goal that is unavailable is named so.
+ *  name(id) gives a device's label. */
+export function pathParts(path, t, name) {
+  const prefix = path.kind === "out" ? t("details.path_out", { name: name(path.to) })
+    : path.kind === "in" ? t("details.path_in", { name: name(path.from) })
+      : path.kind === "up" ? t("details.path_up")
+        : t(path.assumed ? "details.path_down_assumed" : "details.path_down");
+  const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null },
+    ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t) }))] : [];
+  let tail = null;
   if (!path.complete) {
-    if (unknownEnd(path) || !parts.length) parts.push(t("details.path_unknown"));
-    else parts[parts.length - 1] = t("details.path_unavailable", { name: name(path.to) });
+    if (unknownEnd(path) || !steps.length) tail = t("details.path_unknown");
+    else steps[steps.length - 1] = { name: t("details.path_unavailable", { name: name(path.to) }), rx: null };
   }
-  const text = parts.join(" \u2192 ");
-  if (path.kind === "out") return t("details.path_out", { name: name(path.to), path: text });
-  if (path.kind === "in") return t("details.path_in", { name: name(path.from), path: text });
-  return t(path.kind === "up" ? "details.path_up" : "details.path_down", { path: text });
+  return { prefix, steps, tail };
+}
+
+/** One path as a line of text: "there: Sensor → Router 17 · RX 103 → Coordinator · RX 51"; an incomplete path ends
+ *  in "path unknown", or names its unavailable goal. */
+export function pathLine(path, t, name) {
+  const { prefix, steps, tail } = pathParts(path, t, name);
+  const items = steps.map((s) => (s.rx === null ? s.name : `${s.name} \u00B7 ${t("details.rx")} ${s.rx}`));
+  if (tail) items.push(tail);
+  return `${prefix}: ${items.join(" \u2192 ")}`;
 }
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", model/node-paths.js). */
-export function detailsOf(network, id, nodeView) {
+ *  `nodeView` ("coordinator" or "all", model/node-paths.js), with the source-route stage `sourceRoute` ("off" or
+ *  "assume", model/source-routes.js). */
+export function detailsOf(network, id, nodeView, { sourceRoute = "off" } = {}) {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const device = byId.get(id);
   if (!device) return null;
@@ -64,6 +78,7 @@ export function detailsOf(network, id, nodeView) {
     hears,
     routes,
     findings: network.findings.filter((f) => f.device === id),
-    paths: nodePaths(network, id, nodeView),
+    routingEntries: network.routes.filter((r) => r.owner === id).length,
+    paths: nodePaths(network, id, nodeView, { sourceRoute }),
   };
 }

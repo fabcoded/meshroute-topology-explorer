@@ -4,8 +4,8 @@
 // serialized. Tested in Node: node --test tests/
 //
 // Network = { source: 'zha', id, devices, readings, routes, pairs, status, findings, unresolved }
-// Device  = { id, registryId, nwk, role, label, labelKind, name, area, vendor, model, powerSource, kind, sleepy, battery,
-//             available, lastSeen, parent, children, relayLoad, rating, hasTable, tableSize, tableCapacity,
+// Device  = { id, registryId, nwk, role, label, labelKind, name, haName, area, areaId, firmware, entities, vendor,
+//             model, powerSource, kind, sleepy, battery, available, lastSeen, parent, children, relayLoad, rating, hasTable, tableSize, tableCapacity,
 //             tableCapacitySource, tableFull, parentLqi, parentFromStaleTable, possiblyStaleParents }
 // Reading = { reporter, subject, lqi, measured, scale, relationship, rating, pool, poolMedian }
 // Pair    = { a, b, ab, ba }, direction = { state, lqi, rating, source, reason } (pairs.js)
@@ -19,6 +19,8 @@ import { computeFindings, computeStatus } from "./findings.js";
 export { parseAddress, parseLqi, normalizeIeee } from "./parse.js";
 export { upPath, downPath, routePath } from "./paths.js";
 export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "./node-paths.js";
+export { assumedDownPaths, sourceRouteSummary, sourceRouteMode, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
+  from "./source-routes.js";
 export { fingerprints, updateObservations, newestChange } from "./observations.js";
 export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";

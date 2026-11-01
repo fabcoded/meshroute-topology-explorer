@@ -82,8 +82,14 @@ export function laneStyle(cls, state, rating, theme, { colored = false } = {}) {
 
 /** Stroke style of a hop on the selected device's paths: solid in the foreground with the up-path widths when the
  *  hearer measured it; dotted with an arrowhead when only a route or parent link proves it, or nothing does (the
- *  direction of travel is still known from the route). With colored, measured hops take their rating's colour. */
-export function pathLaneStyle(state, rating, theme, { colored = false } = {}) {
+ *  direction of travel is still known from the route). With colored, measured hops take their rating's colour.
+ *  assumed: the hop lies on an assumed return path (source route, model/source-routes.js): never drawn as measured,
+ *  whatever the hearer reports, but grey and sparsely dotted (decision by Fabian Schwamborn, 2026-11-01). */
+export function pathLaneStyle(state, rating, theme, { colored = false, assumed = false } = {}) {
+  if (assumed) {
+    const width = WIDTHS.route[1];
+    return { color: theme.muted, width, dash: [0.01, width + 5], cap: "round", head: true };
+  }
   if (state === "measured") {
     const width = WIDTHS.up[widthStep(rating)];
     const color = (colored && receptionColor(rating, theme)) || theme.foreground;
@@ -206,6 +212,7 @@ export function legendEntries(theme, { links = DEFAULT_LINKS, debug = false, col
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     { id: "path", kind: "lane", style: pathLaneStyle("measured", 1, theme) },
     { id: "path-implied", kind: "lane", style: pathLaneStyle("implied", null, theme) },
+    { id: "path-assumed", kind: "lane", style: pathLaneStyle("measured", 1, theme, { assumed: true }) },
     { id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash], text: "?" },
     ...(colored ? [{ id: "reception", kind: "scale",
       colors: [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)) }] : []),

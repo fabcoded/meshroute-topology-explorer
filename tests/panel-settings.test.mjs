@@ -110,7 +110,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true,
     links: { up: true, route: true, heard: true }, extra: 1, nodeView: "coordinator",
     pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
-    pins: { [A]: [1.235, -2] } });
+    sourceRoute: "assume", pins: { [A]: [1.235, -2] } });
   await c.flush();
   assert.equal(server.sets().length, 1, "nothing pending, nothing sent");
   c.removePin(A);
