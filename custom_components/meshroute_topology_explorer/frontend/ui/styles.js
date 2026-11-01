@@ -180,6 +180,7 @@ p { margin: 4px 0; }
 .theory-way { white-space: nowrap; font-size: 13px; min-width: 64px; text-align: right; }
 .theory-way small { font-size: 12px; color: var(--mte-muted); }
 .theory-line { font-size: 13px; padding-left: 1em; }
+.theory-cost { display: block; text-align: right; margin-top: 2px; }
 .how { color: var(--mte-muted); font-size: 12px; }
 .rx small, .reading-rx small { font-size: 12px; color: var(--mte-muted); }
 .rx b, .reading-rx b { font-weight: 700; color: var(--mte-fg); }

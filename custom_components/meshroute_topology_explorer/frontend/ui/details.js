@@ -63,7 +63,7 @@ export function weakestHop(hops) {
 }
 
 /** The theoretical paths of a node view per other device (spec 5.7, 9.2): [{ id, out, in }] with out the path from
- *  the device and in the path back, sorted by the hop count of the way there, then of the way back, then by name;
+ *  the device and in the path back, sorted by the hop count of the way there, then of the way back, then by name (natural order: Router 2 before Router 10);
  *  incomplete ways last. Paths without `how` on their hops (up, down, the coordinator's routes) are not theoretical. */
 export function theoryRows(paths, name) {
   const rows = new Map();
@@ -75,7 +75,7 @@ export function theoryRows(paths, name) {
   }
   const count = (p) => (p && p.complete ? p.hops.length : Infinity);
   return [...rows.values()].sort((a, b) => count(a.out) - count(b.out) || count(a.in) - count(b.in)
-    || name(a.id).localeCompare(name(b.id)));
+    || name(a.id).localeCompare(name(b.id), undefined, { numeric: true }));
 }
 
 /** One path as a line of text: "there: Sensor → Router 17 · RX 103 → Coordinator · RX 51"; an incomplete path ends

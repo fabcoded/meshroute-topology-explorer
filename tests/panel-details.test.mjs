@@ -131,4 +131,11 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.equal(weakestHop([{ state: "implied", source: "parent" }]).source, "parent");
   assert.equal(weakestHop([]), null);
   assert.deepEqual(theoryRows([], name), []);
+  // Rows with the same hop counts sort by name in natural order: Router 2 before Router 10.
+  const way = (kind, id) => ({ kind, from: kind === "out" ? "x" : id, to: kind === "out" ? id : "x", complete: true,
+    hops: [{ how: "table" }] });
+  const rows = theoryRows(["Router 10", "Router 2", "Router 1"].flatMap((id) => [way("out", id), way("in", id)]), (x) => x);
+  assert.deepEqual(rows.map((r) => r.id), ["Router 1", "Router 2", "Router 10"]);
+  assert.equal(de("details.theory_cost", { cost: 9 }), "Pfadkosten gesamt 9");
+  assert.equal(en("details.theory_cost", { cost: 9 }), "Total path cost 9");
 });

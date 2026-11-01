@@ -201,7 +201,8 @@ function theoryCard(rows, ctx, name) {
       if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));
     });
     if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
-    if (p.cost !== null && p.cost !== undefined) nodes.push(h("span", { class: "how", text: ` · ${t("details.theory_cost", { cost: p.cost })}` }));
+    // The cost of the whole path, in a place of its own at the end of the row (not read as the last hop's).
+    if (p.cost !== null && p.cost !== undefined) nodes.push(h("span", { class: "how theory-cost", text: t("details.theory_cost", { cost: p.cost }) }));
     return h("div", { class: "path-line theory-line" }, nodes);
   };
   const items = rows.map((r) => h("details", { class: "theory-row" },
@@ -209,8 +210,8 @@ function theoryCard(rows, ctx, name) {
     r.out ? line(r.out, t("details.path_up")) : null, r.in ? line(r.in, t("details.path_down")) : null));
   return card(null, h("details", { class: "card-details theory", open: rows.length <= PATHS_OPEN },
     h("summary", { class: "card-title", text: t("details.theory_title", { count: rows.length }) }),
-    h("p", { class: "muted small", text: t("details.theory_head") }), ...items,
-    h("p", { class: "muted small", text: t("details.theory_note") })));
+    h("p", { class: "muted small", text: t("details.theory_note") }),
+    h("p", { class: "muted small", text: t("details.theory_head") }), ...items));
 }
 
 /** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (board M4). */
