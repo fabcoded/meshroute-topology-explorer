@@ -13,7 +13,7 @@
 // node --test tests/
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
-import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
+import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
 import { sourceRouteMode } from "../model/source-routes.js";
@@ -41,6 +41,11 @@ const ZOOM_ANIMATION_MS = 200;
 const FIT_MARGIN = 56;
 /** A revealed device keeps this much room to the edge of the free area (CSS pixels): its label fits beside it. */
 const REVEAL_MARGIN = 48;
+/** A tap on the map zooms to the working scale when the shortest lane of the selection's paths would be shorter than
+ *  this on screen (CSS px). Below it, values stack and short hops vanish (phone at fit zoom: lanes of a few px). The
+ *  shortest lane decides, not a percentile: laneGeometry drops any lane under 4 px, and one skipped hop makes a path
+ *  unreadable. In open areas the view stays (owner decision, Fabian Schwamborn, 2026-11-01, spec 9.3). */
+export const TAP_ZOOM_MIN_LANE = 24;
 
 function defaultEnv() {
   const g = globalThis;
@@ -581,8 +586,19 @@ export class GraphView extends EventTarget {
     if (index === this.selected) return;
     this.selected = index;
     this._emit("select", { id: this.selectedId });
-    if (index >= 0) this.reveal(this.selectedId); // keep it clear of the drawer
+    if (index >= 0) {
+      const zoom = this._lanesTooShort(index);
+      this.reveal(this.selectedId, this.insets, { zoom }); // keep it clear of the drawer, zoomed in if the paths are short
+    }
     this._invalidate();
+  }
+
+  /** True if the selection's focus lanes would be shorter than TAP_ZOOM_MIN_LANE at the camera the view is heading to
+   *  and the working scale is a larger zoom (otherwise zooming would not help). */
+  _lanesTooShort(index) {
+    const cam = this._anim ? this._anim.to : this.cam;
+    if (!this.width || this.workingZoom <= cam.k) return false;
+    return shortestFocusLane(this, index, cam) < TAP_ZOOM_MIN_LANE;
   }
 
   _requestDetails(index, via) {

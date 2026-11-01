@@ -664,6 +664,11 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   scale, a fixed zoom at which devices of the base layout (D = 1) sit one mean label width from their nearest neighbour
   (the density is not compensated: spread then shows 2.28, medium 1.44, dense 0.96 label widths; never out past the overview), and
   keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
+- A tap on a device on the map zooms the same way, but only when the shortest lane of the selection's paths (stage 1
+  or 2, `shortestFocusLane` in graph/renderer.js) would be shorter than 24 px on screen at the current zoom
+  (`TAP_ZOOM_MIN_LANE`; laneGeometry drops lanes under 4 px, so a phone at fit zoom would skip hops and stack RX
+  values). In open areas the view only pans clear of the edge and the panels. The shortest lane decides, not a
+  percentile, because one skipped hop breaks a path. Hover never zooms (decision by Fabian Schwamborn, 2026-11-01).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a
   halo, so the two values of a pair never share a side (7.1).
