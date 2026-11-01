@@ -231,7 +231,7 @@ test("density only scales the drawn positions: no new layout, positions at base 
 });
 
 test("fit and symbol sizes do not depend on the density", () => {
-  const views = [0.8, 1.2, 1.9].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
+  const views = [0.96, 1.44, 2.28].map((d) => ({ d, ...viewAt(d, [1600, 1200]) }));
   const [dense, medium, spread] = views;
   for (const { d, view } of views) {
     assert.equal(view.cam.k, medium.view.cam.k, `fit zoom at D=${d}`);

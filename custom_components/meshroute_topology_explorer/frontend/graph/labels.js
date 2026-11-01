@@ -81,7 +81,7 @@ export function displayLabels(devices, measure, maxWidth = MAX_LABEL_WIDTH) {
  *  divided by the mean label width. At the working scale (spec 9.3) this equals the density D. */
 /** Everyone may carry a label (where there is room) from this scale on: devices are half a label apart, so most
  *  labels find a free place around their device. Below it only the coordinator, the focus and its neighbours are
- *  labelled (spec 8). Own choice, below the densest working scale (dense 0.8) so every working scale shows labels. */
+ *  labelled (spec 8). Own choice, below the densest working scale (dense 0.96) so every working scale shows labels. */
 export const LABEL_SCALE = 0.5;
 
 /** Whether everyone may be labelled at this zoom; labelZoom is the zoom at which the scale reaches LABEL_SCALE. */
