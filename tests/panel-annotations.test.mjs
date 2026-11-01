@@ -97,7 +97,7 @@ test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbo
   assert.equal(t("details.how_discovery"), "route discovery (computed)");
   assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
   assert.match(en["details.theory_note"], /^Computed, not observed/);
-  assert.match(en["details.paths_assumed_note"], /^Assumed:/);
+  assert.equal(en["details.paths_assumed_note"], "Return path assumed: the outbound path reversed. The actual return path is not available in these data.");
   assert.match(en["legend.link.assumed"], /assumed/);
   // No evidence levels 0-4 and no "predicted" / "calculated" synonyms in the active texts.
   for (const [key, text] of Object.entries(en)) {

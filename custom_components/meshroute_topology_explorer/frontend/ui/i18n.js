@@ -341,7 +341,7 @@ const en = {
   "details.paths_recorded_note": "Measured: the coordinator's route record for this device, as zigpy holds it (radio library {radio}). zigpy keeps no time for it, so its age is unknown.",
   "details.path_record_differs": "Route record differs: via {via}",
   "details.path_record_differs_direct": "Route record differs: direct, without a relay",
-  "details.paths_assumed_note": "Assumed: the coordinator keeps no table entry for this device and reaches it by source route, along its way up reversed. Home Assistant does not show that route, so it is drawn dotted, not as measured. Assumed, not verified.",
+  "details.paths_assumed_note": "Return path assumed: the outbound path reversed. The actual return path is not available in these data.",
   "details.rx": "RX",
   "details.tab_communication": "Communication",
   "details.tab_entity": "Entity",
