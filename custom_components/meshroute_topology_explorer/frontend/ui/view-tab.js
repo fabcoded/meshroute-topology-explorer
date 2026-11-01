@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
-// The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01): everything that changes
-// how the map looks, in this order: communication paths (the three link classes), path display (grey, or coloured by
-// reception with the user's own colours for bad, medium and good), what a click on a device does (open details, which
-// paths it shows), return paths without a table entry (source route: off, assume, and "read from zigpy" shown disabled
-// until it exists), node distance (density) with an info button, symbol fill, labels on the map; then debug mode (not
-// stored), "Read data again", "Release all pins", the scan in debug mode, and where the settings are kept. Real
-// checkboxes, radios and colour inputs inside labels, so state is announced and every row is a 44 px target.
+// The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01, board M2): everything that
+// changes how the map looks, in this order: communication paths (one radio group of three cumulative stages, each with
+// a one-line hint, board M11), path display (grey, or coloured by reception with the user's own colours for bad,
+// medium and good), what a click on a device does (open details), return paths without a table entry (source route:
+// off, assume, and "read from zigpy" shown disabled until it exists), node distance (density) with an info button,
+// symbol fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (ZHA reads the
+// tables by itself), "Release all pins", the scan in debug mode, and a note only when the settings are not kept in
+// Home Assistant. Real checkboxes, radios and colour inputs inside labels, so state is announced; rows of 32 px with
+// a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";
 import { DENSITY_NAMES, PATH_STOPS } from "./settings.js";
-import { LINK_CLASSES } from "./links-rows.js";
+import { PATH_STAGES } from "../graph/links.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
-import { NODE_VIEWS } from "../model/node-paths.js";
 import { SOURCE_ROUTE_MODES } from "../model/source-routes.js";
 
 /** Fill `container`. ctx: { t, settings (sanitized), openOnSelect (effective "Details on click"), dark (the map's
  *  theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running } or null), client
  *  (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only), idPrefix (stable, so focus
- *  is found again after a re-render), infoOpen (the density note is shown), onChange(patch), onOpenDetails(on),
- *  onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(), onInfo(open) }. */
+ *  is found again after a re-render), info ({ density, reload }: which info notes are shown), onChange(patch),
+ *  onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(), onInfo(key, open) }. */
 export function renderView(container, ctx) {
   const { t, settings } = ctx;
   const id = ctx.idPrefix || "mte-view";
@@ -31,10 +32,31 @@ export function renderView(container, ctx) {
     h("span", { text: label }));
   const group = (title, ...children) => h("fieldset", { class: "view-group" }, h("legend", { text: title }), ...children);
 
-  // Communication paths: the link classes of the overview (spec 7.1).
-  const links = settings.links;
-  container.append(group(t("view.paths"), LINK_CLASSES.map((c) => check(`link-${c}`, t(`view.link_${c}`), Boolean(links[c]),
-    (on) => ctx.onChange({ links: { ...settings.links, [c]: on } })))));
+  const info = ctx.info || {};
+  // An info button (a toggletip: works with touch and keyboard alike) and the note it shows.
+  const infoNote = (key, label, text) => {
+    const noteId = `${id}-${key}-note`;
+    const open = Boolean(info[key]);
+    return {
+      button: h("button", { type: "button", class: "info-button", "aria-expanded": String(open),
+        "aria-controls": noteId, "aria-label": label, title: text, id: `${id}-${key}-info`,
+        on: { click: () => ctx.onInfo(key, !open) } },
+      h("span", { "aria-hidden": "true", text: "i" })),
+      note: h("p", { class: "muted small info-note", id: noteId, hidden: !open, text }),
+    };
+  };
+
+  // Communication paths (spec 7.1; board M11): one stage of three, each containing the previous one, with a hint.
+  const paths = group(t("view.paths"), PATH_STAGES.map((v) => {
+    const hint = `${id}-paths-${v}-hint`;
+    return [h("label", { class: "check-row" },
+      h("input", { type: "radio", name: `${id}-paths`, value: v, checked: settings.paths === v,
+        "aria-describedby": hint, on: { change: () => ctx.onChange({ paths: v }) } }),
+      h("span", { text: t(`view.paths_${v}`) })),
+    h("span", { class: "radio-hint", id: hint, text: t(`view.paths_${v}_hint`) })];
+  }), h("span", { class: "muted small group-note", text: t("view.paths_note") }));
+  paths.classList.add("paths-group");
+  container.append(paths);
 
   // Path display: grey or coloured by reception; with coloured, the user's own colours (null: the theme's own).
   const pc = settings.pathColors;
@@ -58,11 +80,10 @@ export function renderView(container, ctx) {
   }
   container.append(display);
 
-  // On click on a device: "Details on click" (the map's slide switch is the same setting) and the node view.
+  // On click on a device: "Details on click" (the map's slide switch is the same setting); what the map shows on click
+  // follows the communication paths above.
   container.append(group(t("view.on_click"),
-    check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on)),
-    NODE_VIEWS.map((v) => radio("nodeView", v, t(`view.nodeview_${v}`), settings.nodeView === v,
-      () => ctx.onChange({ nodeView: v })))));
+    check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
 
   // Return paths without a table entry (source route; decision by Fabian Schwamborn, 2026-11-01): off or assume; reading
   // the route records from zigpy is announced but not built, so its radio is disabled and says "coming later".
@@ -74,17 +95,13 @@ export function renderView(container, ctx) {
     SOURCE_ROUTE_MODES.map((v) => radio("sourceRoute", v, t(`view.sr_${v}`), settings.sourceRoute === v,
       () => ctx.onChange({ sourceRoute: v }))), zigpy));
 
-  // Node distance (density), with a note behind an info button (a toggletip: works with touch and keyboard alike).
-  const noteId = `${id}-density-note`;
-  const info = h("button", { type: "button", class: "info-button", "aria-expanded": String(Boolean(ctx.infoOpen)),
-    "aria-controls": noteId, "aria-label": t("view.density_info_label"), title: t("view.density_info"), id: `${id}-density-info`,
-    on: { click: () => ctx.onInfo(!ctx.infoOpen) } }, h("span", { "aria-hidden": "true", text: "i" }));
-  const density = h("fieldset", { class: "view-group" },
-    h("legend", { class: "with-info" }, h("span", { text: t("view.density") }), info),
-    h("p", { class: "muted small", id: noteId, hidden: !ctx.infoOpen, text: t("view.density_info") }),
+  // Node distance (density), with a note behind an info button.
+  const densityInfo = infoNote("density", t("view.density_info_label"), t("view.density_info"));
+  container.append(h("fieldset", { class: "view-group" },
+    h("legend", { class: "with-info" }, h("span", { text: t("view.density") }), densityInfo.button),
+    densityInfo.note,
     h("div", { class: "radio-line" }, DENSITY_NAMES.map((v) => radio("density", v, t(`density.${v}`), settings.density === v,
-      () => ctx.onChange({ density: v })))));
-  container.append(density);
+      () => ctx.onChange({ density: v }))))));
 
   container.append(group(t("view.fill"), h("div", { class: "radio-line" },
     FILLS.map((v) => radio("fill", v, t(`fill.${v}`), settings.fill === v, () => ctx.onChange({ fill: v }))))));
@@ -95,15 +112,20 @@ export function renderView(container, ctx) {
     check("label-name", t("view.label_name"), lab.name, (on) => ctx.onChange({ labels: { ...lab, name: on } })),
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
-  // Below a line: debug mode (never stored, spec 9.1), reading again, releasing pins, the scan (debug mode only: it
-  // causes radio traffic), where the settings live.
+  // Below a line: debug mode (never stored, spec 9.1), reading again (with the note that ZHA reads the tables by
+  // itself, board M1 review), releasing pins, the scan (debug mode only: it causes radio traffic).
+  const reloadInfo = infoNote("reload", t("view.reload_info_label"), t("view.reload_info"));
   const tools = h("div", { class: "view-tools" },
     check("debug", t("view.debug"), Boolean(ctx.debug), (on) => ctx.onDebug(on)),
     h("div", { class: "actions" },
-      h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"), on: { click: () => ctx.onReload() } }),
+      h("span", { class: "with-info" },
+        h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"),
+          on: { click: () => ctx.onReload() } }),
+        reloadInfo.button),
       h("button", { type: "button", class: "button", id: `${id}-release`, disabled: !ctx.pinCount,
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
-        on: { click: () => ctx.onReleaseAll() } })));
+        on: { click: () => ctx.onReleaseAll() } })),
+    reloadInfo.note);
   if (ctx.debug) {
     const running = Boolean(ctx.scan && ctx.scan.running);
     const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
@@ -111,8 +133,10 @@ export function renderView(container, ctx) {
     tools.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
       id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
   }
+  // Where the settings live: said only when they are not kept in Home Assistant as usual (board M2 has no note).
+  const kept = ctx.client.mode === "stored" && !ctx.client.error;
   tools.append(h("p", { class: `storage small ${ctx.client.mode === "memory" || ctx.client.error ? "warn" : ""}`.trim(),
-    role: "status", text: storageText(ctx.client, t) }));
+    role: "status", hidden: kept, text: kept ? "" : storageText(ctx.client, t) }));
   const obs = ctx.observations;
   if (obs) {
     const count = Object.keys(obs.routers).length;

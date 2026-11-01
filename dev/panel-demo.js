@@ -39,10 +39,15 @@ const VARIANTS = [
     ["Cluster popup: manufacturer-specific", "select=Router%2003&left=details&dtab=cluster&cluster=0xfc7c&ep=1&dir=in"],
     ["Assumed return path: Router 02", "select=Router%2002&left=details"],
     ["Source route off: Router 02", "select=Router%2002&left=details&sourceroute=off"]]],
-  ["Node view", [["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
+  ["Communication paths", [["Stage 2 overview", "paths=all"], ["Stage 3 overview", "paths=heard"],
+    ["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
     ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
+    ["Stage 1 click: Router 11", "select=Router%2011&open=off"],
+    ["Stage 2 click: Router 11", "select=Router%2011&open=off&paths=all"],
+    ["Stage 3 click: Router 11", "select=Router%2011&open=off&paths=heard"], ["Hover: Router 11", "hover=Router%2011"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
-    ["All paths: Router 11", "select=Router%2011&nodeview=all"], ["Coloured by reception", "select=Router%2016&colors=1"],
+    ["Stage 2 from a stored node view", "select=Router%2011&nodeview=all"],
+    ["Coloured by reception", "select=Router%2016&colors=1"],
     ["Coloured by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
     ["without-coordinator", "variant=without-coordinator"]]],
@@ -204,8 +209,8 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
-if (q.get("links")) initial.links = Object.fromEntries(["up", "route", "heard"].map((c) => [c, q.get("links").split(",").includes(c)])); // links=up,route
-if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all|coordinator
+if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|all|heard
+if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored before A4j (migration)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {
   const hex = (key) => (q.get(key) ? `#${q.get(key)}` : null);
@@ -349,7 +354,8 @@ async function drive() {
   for (let i = 0; i < 100 && !el._network; i++) await sleep(50);
   if (!el._network) return;
   if (flag("debug")) el._setDebug(true);
-  if (flag("info")) el._densityInfo = true;
+  // info=1|reload: the density note or the note beside "Read data again" shown.
+  if (q.get("info")) el._info = { density: q.get("info") !== "reload", reload: q.get("info") === "reload" };
   // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
   const id = q.get("select") && (byLabel(q.get("select"))
     || (el._network.devices.find((d) => d.label === q.get("select")) || {}).id);
@@ -359,6 +365,10 @@ async function drive() {
   else if (id) el._select(id, "findings");
   if (q.get("left")) el._request("left", q.get("left"), null);
   if (q.get("right")) el._request("right", q.get("right"), null);
+  // hover=<label>: the device under the pointer, as a mouse over it would set it (the preview of its lanes).
+  const hover = q.get("hover")
+    && (byLabel(q.get("hover")) || (el._network.devices.find((d) => d.label === q.get("hover")) || {}).id);
+  if (hover && el._view && el._view.scene.index.has(hover)) el._view._setHover(el._view.scene.index.get(hover));
   // cluster=0x0006&ep=1&dir=in opens that cluster's details; readvalues=1 then presses "Read values from the device".
   if (q.get("cluster") && id) {
     await sleep(100);

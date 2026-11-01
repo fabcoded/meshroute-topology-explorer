@@ -1,34 +1,60 @@
 // SPDX-License-Identifier: MIT
-// How the quality view draws links (spec 7.1, 8; decision by Fabian Schwamborn, 2026-10-31): every pair as two lanes,
-// one per direction (sender -> hearer), each on the right of its own direction of travel, with an arrowhead at the
-// hearer. Pairs fall into three colour-free classes, told apart by dash: up path (solid), other active route
-// (dotted), heard only (dashed, grey); lane width follows the lane's own rating. A direction without a reading has no
-// lane but a glyph: "–" when the hearer's table does not list the sender, "?" when there is no table to ask.
-// A selected device shows its paths (node view, model/node-paths.js): each hop on the lane of its direction of travel
-// with "RX:" and the value at the hearer a quarter of the lane before it; an incomplete path ends in a short dashed
-// stem with "?" (requests by Fabian Schwamborn, 2026-11-01). Opt-in: lanes coloured by reception, red to green.
-// Pure functions: classification from the data model's pairs, routes and up paths; geometry; styles; legend data.
+// How the quality view draws links (spec 7.1, 8; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01, boards
+// M2, M7, M11): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
+// of travel, with an arrowhead at the hearer. Classes belong to a lane, not to a pair: "up" (the hearer is the
+// sender's next hop on the sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a
+// device, measured from the tables or assumed as the reversed way up, model/source-routes.js), "route" (on an active
+// route between two devices, neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry
+// several; it is drawn as its strongest. One cumulative choice, "Communication paths", says what is drawn: the stage
+// "coordinator" (default) shows the up and down lanes of all devices and, on click, only the device's way up and down;
+// "all" adds, on click, the device's paths to and from other devices; "heard" adds heard-only lanes (each device's 3
+// best partners). Hover previews within the stage; debug mode draws every lane. Line styles carry no colour: up and
+// down solid, assumed down dotted, routes between devices dash-dot, heard only dashed grey; width follows the lane's
+// own rating. A direction without a reading has no lane but a glyph: "–" when the hearer's table does not list the
+// sender, "?" when there is no table to ask. Opt-in: lanes coloured by reception, red to green.
+// Pure functions: classification from the data model's pairs, routes and paths; geometry; styles; legend data.
 // node --test tests/
 
 import { computePairs } from "../model/pairs.js";
-import { upPath } from "../model/paths.js";
+import { downPath, routePath, upPath } from "../model/paths.js";
+import { assumedDownPaths } from "../model/source-routes.js";
 import { isActive } from "../model/normalize.js";
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";
 
-/** Classes in drawing order: the more a link carries, the later (higher) it is drawn. */
-export const CLASSES = Object.freeze(["heard", "route", "up"]);
-/** Heard-only pairs shown by default per device: its best by the pair's better rating (decision 2026-10-31). */
-export const BEST_HEARD = 3;
-/** Class switches (spec 9.1): which classes the overview draws. Selection and debug mode override them. */
-export const DEFAULT_LINKS = Object.freeze({ up: true, route: true, heard: true });
+/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11): three stages, each
+ *  containing the previous one. */
+export const PATH_STAGES = Object.freeze(["coordinator", "all", "heard"]);
+export const DEFAULT_PATHS = "coordinator";
 
-/** Whether a pair is drawn: debug mode and pairs touching the selection or hover always; otherwise its class must be
- *  switched on, and a heard-only pair must also be among its devices' best (pair.shown). Drawing only: the layout
- *  never looks at this, so toggling cannot move a device. */
-export function pairDrawn(pair, links, { debug = false, touched = false } = {}) {
-  if (debug || touched) return true;
-  return Boolean((links || DEFAULT_LINKS)[pair.cls]) && Boolean(pair.shown);
+/** A stored or passed stage as one of PATH_STAGES; anything else is the default. */
+export function pathStage(value) {
+  return PATH_STAGES.includes(value) ? value : DEFAULT_PATHS;
+}
+
+/** Lane classes in drawing order: the more a lane carries, the later (higher) it is drawn. */
+export const CLASSES = Object.freeze(["heard", "route", "down", "up"]);
+/** Heard-only partners shown per device: its best by the pair's best rating at the hearer (decision 2026-10-31). */
+export const BEST_HEARD = 3;
+
+/** The class of a lane under a source-route stage (model/source-routes.js), the strongest it carries: up or a
+ *  measured down lane, then an assumed down lane (only with "assume"), then a route between devices, then heard
+ *  (a reading without traffic); null for a lane that carries nothing and has no reading (only a route or a parent
+ *  link implies it, or nothing does). */
+export function laneClass(lane, sourceRoute = "off") {
+  if (lane.up) return "up";
+  if (lane.downMeasured) return "down";
+  if (lane.downAssumed && sourceRoute === "assume") return "down";
+  if (lane.route) return "route";
+  return lane.dir && lane.dir.state === "measured" ? "heard" : null;
+}
+
+/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1): up and down always, heard-only
+ *  lanes of a shown pair from the stage "heard" on; routes between devices only on click; everything in debug mode. */
+export function overviewShows(cls, stage, { shown = false, debug = false } = {}) {
+  if (debug) return true;
+  if (cls === "up" || cls === "down") return true;
+  return cls === "heard" && pathStage(stage) === "heard" && shown;
 }
 
 /** Distance of a lane from the pair's centre line at zoom 1, CSS pixels; grows with the symbols, lanes stay at least
@@ -37,8 +63,6 @@ export const LANE_OFFSET = 3;
 /** Room between a lane's end (or its arrowhead's tip) and the symbol's contour, CSS pixels: the tip stays readable
  *  against the frame. Own choice. */
 export const LANE_GAP = 1;
-/** The selected device's up path: a band in the foreground colour under its lanes. */
-export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;
 /** Where a lane's value sits, as a share of the lane from the sender: a quarter before the hearer, the device the value
@@ -49,13 +73,18 @@ export const VALUE_AT = 0.75;
 export const STEM = Object.freeze({ length: 30, share: 0.45, width: 1.5, dash: Object.freeze([3, 3]) });
 /** Rating limits of the three lane widths. */
 export const WIDTH_STEPS = Object.freeze([1 / 3, 2 / 3]);
-/** Lane widths per class and width step (CSS pixels): up path strongest, heard only thinnest. Own choice. */
+/** Lane widths per class and width step (CSS pixels): up and down strongest, heard only thinnest. Own choice. */
 export const WIDTHS = Object.freeze({
   up: Object.freeze([1.5, 2.25, 3]),
+  down: Object.freeze([1.5, 2.25, 3]),
   route: Object.freeze([1.25, 1.75, 2.25]),
   heard: Object.freeze([0.75, 1, 1.4]),
   implied: Object.freeze([1, 1, 1]),
 });
+/** Dash patterns (CSS pixels) of board M11: routes between devices dash-dot, heard only dashed. Assumed down lanes
+ *  are sparse round dots, a dash of almost nothing with round caps, so they stay dots at every width. */
+export const DASH = Object.freeze({ route: Object.freeze([6, 3, 1.5, 3]), heard: Object.freeze([6, 3]),
+  assumedGap: 6 });
 
 /** Width step 0..2 of a rating (0..1); an unrated reading gets the thinnest. */
 export function widthStep(rating) {
@@ -63,42 +92,28 @@ export function widthStep(rating) {
   return rating < WIDTH_STEPS[0] ? 0 : rating < WIDTH_STEPS[1] ? 1 : 2;
 }
 
-/** Stroke style of a lane: { color, width, dash, cap, head }. Dash patterns are relative to the width, so dots stay
- *  round. Implied directions (a route or parent link proves them, no reading) are thin dotted grey without a head.
- *  colored: "colour by reception" is on, so a measured, rated lane takes its rating's colour (palette.js
- *  receptionColor); dash and width stay, so the class still reads without colour. */
-export function laneStyle(cls, state, rating, theme, { colored = false } = {}) {
-  if (state === "implied") {
-    return { color: theme.muted, width: WIDTHS.implied[0], dash: [0.01, 3], cap: "round", head: false };
+/** Stroke style of a lane: { color, width, dash, cap, head }. cls: one of CLASSES, or null for a lane without traffic
+ *  and without a reading (debug mode only: thin dotted grey, no head). The class sets the dash: up and down solid,
+ *  assumed down sparse dots (never drawn as measured, whatever the hearer reports; decision by Fabian Schwamborn,
+ *  2026-11-01), routes between devices dash-dot, heard only dashed grey; the lane's own rating sets the width.
+ *  state "unknown" (a path hop nothing proves) keeps the class's dash in grey at the thinnest width. colored: "colour
+ *  by reception" is on, so a rated lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
+ *  the class still reads without colour. */
+export function laneStyle(cls, rating, theme, { colored = false, assumed = false, state = "measured" } = {}) {
+  if (!cls) return { color: theme.muted, width: WIDTHS.implied[0], dash: [0.01, 3], cap: "round", head: false };
+  const unknown = state === "unknown";
+  const width = WIDTHS[cls][unknown ? 0 : widthStep(rating)];
+  const tint = (fallback) => (unknown ? theme.muted : (colored && receptionColor(rating, theme)) || fallback);
+  if (cls === "down" && assumed) {
+    const w = WIDTHS.route[1];
+    return { color: unknown ? theme.muted : theme.foreground, width: w, dash: [0.01, w + DASH.assumedGap], cap: "round",
+      head: true };
   }
-  const width = WIDTHS[cls][widthStep(rating)];
-  const tint = (fallback) => (colored && receptionColor(rating, theme)) || fallback;
-  if (cls === "up") return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
-  if (cls === "route") {
-    return { color: tint(theme.foreground), width, dash: [0.01, width + 3], cap: "round", head: true };
+  if (cls === "up" || cls === "down") {
+    return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };
   }
-  return { color: tint(theme.muted), width, dash: [5, 3.5], cap: "butt", head: true };
-}
-
-/** Stroke style of a hop on the selected device's paths: solid in the foreground with the up-path widths when the
- *  hearer measured it; dotted with an arrowhead when only a route or parent link proves it, or nothing does (the
- *  direction of travel is still known from the route). With colored, measured hops take their rating's colour.
- *  assumed: the hop lies on an assumed return path (source route, model/source-routes.js): never drawn as measured,
- *  whatever the hearer reports, but sparsely dotted in the foreground, so it reads apart from a hop a route proves
- *  (denser dots) and never as a measured one (solid; decision by Fabian Schwamborn, 2026-11-01). */
-export function pathLaneStyle(state, rating, theme, { colored = false, assumed = false } = {}) {
-  if (assumed) {
-    const width = WIDTHS.route[1];
-    return { color: theme.foreground, width, dash: [0.01, width + 6], cap: "round", head: true };
-  }
-  if (state === "measured") {
-    const width = WIDTHS.up[widthStep(rating)];
-    const color = (colored && receptionColor(rating, theme)) || theme.foreground;
-    return { color, width, dash: [], cap: "butt", head: true };
-  }
-  const width = WIDTHS.route[1];
-  return { color: state === "implied" ? theme.foreground : theme.muted, width, dash: [0.01, width + 3], cap: "round",
-    head: true };
+  if (cls === "route") return { color: tint(theme.foreground), width, dash: [...DASH.route], cap: "butt", head: true };
+  return { color: tint(theme.muted), width, dash: [...DASH.heard], cap: "butt", head: true };
 }
 
 /** Glyph for a direction without a reading (spec 4.3 reasons): "–" when the hearer has a table that does not list the
@@ -109,13 +124,24 @@ export function unknownGlyph(reason) {
   return typeof reason === "string" && listedNot.test(reason) ? "–" : "?";
 }
 
-const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+const laneKey = (sender, hearer) => `${sender}>${hearer}`;
 
-/** Pairs of a network with their class, and every device's up path. Uses the model's pairs when the network carries
- *  them (buildNetwork does); otherwise computes them from devices, readings and routes, treating a reading without a
- *  `measured` flag as measured when its LQI is above 0. Returns { pairs: [{ a, b, ab, ba, cls }], upPaths: Map,
- *  network } with `network` the cleaned devices, routes and pairs that the selection's paths are walked on. */
-export function classifyPairs(network) {
+/** Directed hops "sender>hearer" of a walk's ids into `set`. */
+function addHops(set, ids) {
+  for (let i = 0; i + 1 < ids.length; i++) set.add(laneKey(ids[i], ids[i + 1]));
+}
+
+/** Pairs and lanes of a network with what each lane carries, and every device's up path. Uses the model's pairs when
+ *  the network carries them (buildNetwork does); otherwise computes them from devices, readings and routes, treating
+ *  a reading without a `measured` flag as measured when its LQI is above 0. Returns { pairs: [{ a, b, ab, ba }],
+ *  lanes: [{ pair, sender, hearer, dir, up, downMeasured, downAssumed, route }], upPaths: Map, network } with two lanes
+ *  per pair (first b -> a, whose evidence is ab: a hears b; then a -> b) and `network` the cleaned devices, routes and
+ *  pairs that the selection's paths are walked on. What a lane carries (spec 7.1):
+ *  - up: a hop of a device's way to the coordinator (model/paths.js upPath);
+ *  - downMeasured: a hop of the coordinator's way to a device (downPath), incomplete walks up to where they stop;
+ *  - downAssumed: a hop of an assumed return path (source route, model/source-routes.js), counted only under "assume";
+ *  - route: a hop of the walk of an active, current route whose owner and destination are not the coordinator. */
+export function classifyLanes(network) {
   const devices = (network.devices || []).filter((d) => d && typeof d.id === "string")
     .map((d) => (typeof d.available === "boolean" ? d : { ...d, available: d.available !== false }));
   const known = new Set(devices.map((d) => d.id));
@@ -130,23 +156,38 @@ export function classifyPairs(network) {
         measured: typeof r.measured === "boolean" ? r.measured : typeof r.lqi === "number" && r.lqi > 0 }));
     pairs = computePairs({ devices, readings, routes });
   }
+  const coordinator = (devices.find((d) => d.role === "coordinator") || {}).id || null;
   const upPaths = new Map();
   const up = new Set();
+  const down = new Set();
   for (const d of devices) {
     const { ids } = upPath(net, d.id);
     upPaths.set(d.id, ids);
-    for (let i = 0; i + 1 < ids.length; i++) up.add(pairKey(ids[i], ids[i + 1]));
+    addHops(up, ids);
+    if (d.id !== coordinator) addHops(down, downPath(net, d.id).ids);
   }
-  const routed = new Set();
+  const assumed = new Set();
+  for (const walk of assumedDownPaths(net).values()) addHops(assumed, walk.ids);
+  const route = new Set();
+  const walked = new Set();
   for (const r of routes) {
-    if (!r.stale && isActive(r.status) && r.owner !== r.nextHop) routed.add(pairKey(r.owner, r.nextHop));
+    if (r.stale || !isActive(r.status) || r.owner === r.destination) continue;
+    if (r.owner === coordinator || r.destination === coordinator) continue;
+    const k = laneKey(r.owner, r.destination);
+    if (walked.has(k)) continue;
+    walked.add(k);
+    addHops(route, routePath(net, r.owner, r.destination).ids);
   }
   const valid = pairs.filter((p) => known.has(p.a) && known.has(p.b));
-  const classed = valid.map((p) => {
-    const k = pairKey(p.a, p.b);
-    return { ...p, cls: up.has(k) ? "up" : routed.has(k) ? "route" : "heard" };
+  const lanes = [];
+  valid.forEach((p, pair) => {
+    for (const [sender, hearer, dir] of [[p.b, p.a, p.ab], [p.a, p.b, p.ba]]) {
+      const k = laneKey(sender, hearer);
+      lanes.push({ pair, sender, hearer, dir, up: up.has(k), downMeasured: down.has(k), downAssumed: assumed.has(k),
+        route: route.has(k) });
+    }
   });
-  return { pairs: classed, upPaths, network: { ...net, pairs: valid } };
+  return { pairs: valid, lanes, upPaths, network: { ...net, pairs: valid } };
 }
 
 /** Geometry of one lane from sender (x1, y1) to hearer (x2, y2) on screen: shifted by `offset` to the right of the
@@ -197,27 +238,31 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
     uy: lane.uy };
 }
 
-/** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations):
- *  the switched-on classes (all in debug mode) and the implied lane with their stroke samples, the width steps, the two
- *  glyphs, the band, the selected device's path hops and unknown end, and with colored the reception scale. */
-export function legendEntries(theme, { links = DEFAULT_LINKS, debug = false, colored = false } = {}) {
-  const sample = (cls, state, rating) => laneStyle(cls, state, rating, theme);
-  const all = [
-    { id: "up", kind: "lane", style: sample("up", "measured", 1), widths: [...WIDTHS.up] },
-    { id: "route", kind: "lane", style: sample("route", "measured", 1), widths: [...WIDTHS.route] },
-    { id: "heard", kind: "lane", style: sample("heard", "measured", 1), widths: [...WIDTHS.heard] },
-    { id: "implied", kind: "lane", style: sample("up", "implied", null) },
-    { id: "width", kind: "width", steps: [...WIDTH_STEPS] },
-    { id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
-    { id: "no-table", kind: "glyph", text: "?", color: theme.muted },
-    { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
-    { id: "path", kind: "lane", style: pathLaneStyle("measured", 1, theme) },
-    { id: "path-implied", kind: "lane", style: pathLaneStyle("implied", null, theme) },
-    { id: "path-assumed", kind: "lane", style: pathLaneStyle("measured", 1, theme, { assumed: true }) },
-    { id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash], text: "?" },
+/** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
+ *  M7): the classes the stage draws (all in debug mode) with their stroke samples, "RX:" at the hearer, and with
+ *  colored the reception scale. Up and down share one row ("there and back with the coordinator"); the assumed return
+ *  path shows while source routes are assumed; routes between devices from the stage "all", heard only from "heard"
+ *  (each with its stage); the glyphs for directions without a reading where the stage draws them (heard only, debug);
+ *  debug mode adds the lane without traffic or reading, the width steps and the unknown end. */
+export function legendEntries(theme,
+  { paths = DEFAULT_PATHS, sourceRoute = "off", debug = false, colored = false } = {}) {
+  const stage = pathStage(paths);
+  const sample = (cls, opts) => laneStyle(cls, 1, theme, opts);
+  const heard = debug || stage === "heard";
+  return [
+    { id: "coordinator", kind: "lane", style: sample("up") },
+    ...(debug || sourceRoute === "assume"
+      ? [{ id: "assumed", kind: "lane", style: sample("down", { assumed: true }) }] : []),
+    ...(debug || stage !== "coordinator" ? [{ id: "route", kind: "lane", style: sample("route"), stage: 2 }] : []),
+    ...(heard ? [{ id: "heard", kind: "lane", style: sample("heard"), stage: 3 }] : []),
+    ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },
+      { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.up], color: theme.foreground }] : []),
+    ...(heard ? [{ id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },
+      { id: "no-table", kind: "glyph", text: "?", color: theme.muted }] : []),
+    ...(debug ? [{ id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash],
+      text: "?" }] : []),
+    { id: "rx", kind: "rx" },
     ...(colored ? [{ id: "reception", kind: "scale",
       colors: [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)) }] : []),
   ];
-  // A switched-off class leaves the legend (debug mode draws all, so it keeps all).
-  return all.filter((e) => debug || !CLASSES.includes(e.id) || links[e.id]);
 }

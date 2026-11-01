@@ -55,28 +55,32 @@ test("narrow panels: no room between the groups, so banners go below them across
 
 test("the links legend is built from the graph's entries, with words for every entry in English and German", () => {
   for (const background of ["#ffffff", "#111111"]) {
-    const entries = legendEntries(resolveTheme({ background }));
     for (const lang of ["en", "de"]) {
       const t = translator(lang);
+      // Debug mode: every entry the graph can name, so every one needs words.
+      const entries = legendEntries(resolveTheme({ background }), { debug: true, colored: true });
       const rows = linkLegendRows(entries, t);
       assert.deepEqual(rows.map((r) => r.id), entries.map((e) => e.id), "every entry, in the graph's order");
       for (const row of rows) {
         assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), `${lang} ${row.id}`);
       }
       const lanes = rows.filter((r) => r.kind === "lane");
-      assert.deepEqual(lanes.map((r) => r.id), ["up", "route", "heard", "implied", "path", "path-implied", "path-assumed"]);
+      assert.deepEqual(lanes.map((r) => r.id), ["coordinator", "assumed", "route", "heard", "implied"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
-      // With coloured paths, the scale joins the legend, in words in both languages.
-      const colored = legendEntries(resolveTheme({ background }), { colored: true });
-      const scale = linkLegendRows(colored, t).find((r) => r.id === "reception");
+      assert.deepEqual(rows.filter((r) => r.note).map((r) => [r.id, r.note]),
+        [["route", t("legend.stage", { n: 2 })], ["heard", t("legend.stage", { n: 3 })]], "a class names its stage");
+      const scale = rows.find((r) => r.id === "reception");
       assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), `${lang} scale`);
+      assert.equal(rows.find((r) => r.id === "rx").label, t("legend.rx"));
     }
   }
-  const t = translator("en");
-  const rows = linkLegendRows(legendEntries(resolveTheme({})), t);
+  const t = translator("de");
+  const rows = linkLegendRows(legendEntries(resolveTheme({}), { paths: "heard" }), t);
+  assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Weg zu einem anderen Gerät",
+    "nur gehört", t("legend.link.not-listed"), t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
+  assert.equal(rows[1].note, "(Stufe 2)");
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
-  assert.match(notListed.label, /does not list the sender/);
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");
   const unknown = linkLegendRows([{ id: "future", kind: "lane", style: { width: 1 } }], t);
   assert.equal(unknown[0].label, "future", "an entry without words keeps its id instead of vanishing");
@@ -84,7 +88,8 @@ test("the links legend is built from the graph's entries, with words for every e
 
 test("the none fill and the arrows' reception are named in both languages", () => {
   assert.equal(translator("en")("fill.none"), "None");
-  assert.equal(translator("de")("fill.none"), "Keine");
+  assert.equal(translator("de")("fill.none"), "keine", "German option words in lower case (board M2)");
+  assert.deepEqual(["dense", "medium", "spread"].map((d) => translator("de")(`density.${d}`)), ["dicht", "mittel", "weit"]);
   assert.equal(translator("en")("legend.fill_none"), "Fill: none");
   assert.equal(translator("de")("legend.fill_none"), "Füllung: keine");
   assert.match(translator("en")("legend.rx"), /Reception at the hearer, a quarter of the lane before it/);

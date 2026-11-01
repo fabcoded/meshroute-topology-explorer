@@ -17,9 +17,8 @@ import { buildScene, drawScene, hitTest, NODE_DIAMETER } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
 import { sourceRouteMode } from "../model/source-routes.js";
-import { DEFAULT_LINKS, legendEntries } from "./links.js";
+import { legendEntries, pathStage } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
-import { DEFAULT_NODE_VIEW, NODE_VIEWS } from "../model/node-paths.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
 } from "./camera.js";
@@ -85,7 +84,7 @@ function cleanLabels(labels) {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.5, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), links (class switches), nodeView ("coordinator" or "all": what a selected device shows),
+   *  "role" or "power"), paths (the stage of "Communication paths": "coordinator", "all" or "heard", links.js),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
    *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
    *  sourceRoute ("assume" or "off": return paths without a table entry, model/source-routes.js), texts
@@ -103,8 +102,7 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
-    this.links = { ...DEFAULT_LINKS, ...(options.links || {}) };
-    this.nodeView = NODE_VIEWS.includes(options.nodeView) ? options.nodeView : DEFAULT_NODE_VIEW;
+    this.paths = pathStage(options.paths);
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
     // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "off" not.
@@ -188,21 +186,14 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Choose which link classes the overview draws (spec 9.1): { up, route, heard } booleans. Drawing only, the layout
-   *  and the positions stay; a selection and debug mode still show everything. */
-  setLinks(links) {
-    const next = { ...DEFAULT_LINKS };
-    for (const c of Object.keys(next)) if (links && typeof links[c] === "boolean") next[c] = links[c];
-    if (Object.keys(next).every((c) => next[c] === this.links[c])) return;
-    this.links = next;
-    this._invalidate();
-  }
-
-  /** What a selected device shows (spec 7.1, 9.1): "coordinator" (its up and down path, default) or "all" (every path
-   *  its routes and other devices' routes towards it give); anything else is ignored. Drawing only. */
-  setNodeView(mode) {
-    if (!NODE_VIEWS.includes(mode) || mode === this.nodeView) return;
-    this.nodeView = mode;
+  /** The stage of "Communication paths" (spec 7.1, 9.1; board M11): "coordinator" (default: the way up and down of
+   *  every device, on click only the device's), "all" (on click also its paths to and from other devices) or "heard"
+   *  (also the best heard-only partners); anything else counts as the default. Drawing only: the layout and the
+   *  positions stay. */
+  setPaths(stage) {
+    const next = pathStage(stage);
+    if (next === this.paths) return;
+    this.paths = next;
     this._invalidate();
   }
 
@@ -259,7 +250,8 @@ export class GraphView extends EventTarget {
 
   /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
   legend() {
-    return legendEntries(this.theme, { links: this.links, debug: this.debug, colored: this.receptionColors });
+    return legendEntries(this.theme, { paths: this.paths, sourceRoute: this.sourceRoute, debug: this.debug,
+      colored: this.receptionColors });
   }
 
   setTheme(theme) {
@@ -556,8 +548,8 @@ export class GraphView extends EventTarget {
     this._lastFrame = now;
     const view = {
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, links: this.links, selected: this.selected, hovered: this.hovered, fps: this._fps,
-      fill: this.fill, nodeView: this.nodeView, receptionColors: this.receptionColors, labels: this.labels,
+      debug: this.debug, paths: this.paths, selected: this.selected, hovered: this.hovered, fps: this._fps,
+      fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
       typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);

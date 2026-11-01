@@ -261,20 +261,36 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
   outline: 2px solid var(--mte-fg); outline-offset: -2px; }
 .row-label { font-weight: 700; overflow-wrap: anywhere; }
 .row-meta { color: var(--mte-muted); font-size: 13px; }
-.swatches { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.swatches li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.swatches.symbols li, .swatches.pictures li { gap: 12px; }
-.swatches.pictures { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+/* Legend (board M7): compact rows, 28 px for links, 40 px for symbols; section titles 13 px bold. */
+.legend-title { margin: 10px 0 4px; font-size: 13px; font-weight: 700; color: var(--mte-muted); }
+.legend-title:first-child { margin-top: 0; }
+.legend-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.legend-rows li { display: flex; align-items: center; gap: 12px; min-height: 28px; font-size: 14px; }
+.legend-rows.symbols li { min-height: 40px; }
+.legend-rows .lane-sample, .scale-sample, .glyph-sample { flex: none; width: 40px; }
+.scale-sample { display: inline-block; height: 6px; border-radius: 3px; }
+.glyph-sample { text-align: center; font-weight: 700; }
 .small svg { vertical-align: middle; }
 fieldset { border: none; margin: 0 0 14px; padding: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
-/* View tab (design by Fabian Schwamborn, 2026-11-01): groups of real checkboxes and radios, 44 px rows. */
-.view-group { display: flex; flex-direction: column; margin: 0 0 16px; }
-.view-group > legend { font-size: 13px; font-weight: 700; color: var(--mte-muted); margin-bottom: 2px; }
+/* View tab (design by Fabian Schwamborn, 2026-11-01, board M2): groups of real checkboxes and radios, titles 13 px
+   bold, rows of 32 px with a fine pointer and 44 px targets with a coarse one (WCAG 2.2 2.5.8 needs 24 px). */
+.view-group { display: flex; flex-direction: column; margin: 0 0 18px; }
+.view-group > legend { font-size: 13px; font-weight: 700; color: var(--mte-muted); margin-bottom: 4px; }
 .with-info { display: flex; align-items: center; gap: 2px; }
-.check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 8px; margin: 0 -8px;
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 8px; margin: 0 -8px;
   border-radius: 8px; cursor: pointer; font-size: 15px; }
-.check-row input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--mte-fg); }
+.check-row input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--mte-fg); }
+@media (pointer: coarse) {
+  .check-row { min-height: 44px; }
+  .check-row input { width: 20px; height: 20px; }
+}
+/* A stage's hint under its radio, aligned with the label's text (input plus gap). */
+.radio-hint { padding-left: 26px; margin: -4px 0 4px; font-size: 12px; color: var(--mte-muted); }
+@media (pointer: coarse) { .radio-hint { padding-left: 30px; } }
+.group-note { margin-top: 2px; }
+.info-note { margin: 2px 0 6px; }
+.findings-jump { align-self: flex-start; min-height: 32px; }
 .radio-line { display: flex; flex-wrap: wrap; column-gap: 20px; }
 .radio-line .check-row { margin: 0; }
 .color-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding-left: 24px; margin-top: 2px; }

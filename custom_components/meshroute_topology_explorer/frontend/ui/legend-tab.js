@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
-// The Legend tab of the right panel (spec 8: it explains the current view and fill; design by Fabian Schwamborn,
-// 2026-11-01): communication paths with "RX:" and, while paths are coloured, the colour scale; the fill (when one is
-// chosen); the symbols, the pictures present and the states. It is the only legend: nothing appears twice. Colours come
-// from the resolved map theme, the links part from the graph's own legend entries (link-legend.js) and the symbols are
-// drawn by the map's own drawSymbol (graph/symbols.js), so legend and map always agree. Runs in the browser.
+// The Legend tab of the right panel (spec 8, 9.1; design by Fabian Schwamborn, 2026-11-01, board M7): compact, in three
+// sections. Communication paths: the classes the current stage draws (all in debug mode), "RX:" and, while paths are
+// coloured, the colour bar; the fill when one is chosen; Symbols: four rows, each a device of this network drawn by the
+// map's own drawSymbol with its picture (router, end device, coordinator, wired only); States: offline, selected,
+// pinned. It is the only legend: nothing appears twice, and the longer explanations stay in the specification. Colours
+// come from the resolved map theme, the links part from the graph's own legend entries (link-legend.js), so legend
+// and map always agree. Runs in the browser.
 import { h, svg } from "./dom.js";
 import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
 import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
-/** Symbols in the Legend tab are drawn at 48 px (design: 32 px for the overview, 48 px zoomed, in details and legend). */
-const SWATCH = 48;
+/** Symbols in the Legend tab are drawn at 40 px (board M7 and brief A4j). */
+const SWATCH = 40;
 
 /** [{ label, color, slash }] of the category fill; the grey "none" entry last. */
 function categoryEntries(fill, theme, t, roles) {
@@ -49,30 +51,16 @@ function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
   return el;
 }
 
-/** Parts without picture, arcs or cable: one sign at a time. */
-const bare = (extra = {}) => ({ picture: null, router: false, radio: false, cable: false, mark: null, bed: false, ...extra });
-
-/** "RX:" over a value, as the map writes it beside a lane. */
-function rxSample(t) {
-  return h("span", { class: "rx-sample", "aria-hidden": "true" }, h("span", { class: "muted", text: t("lane.rx") }),
-    h("strong", { text: "103" }));
-}
-
 /** The Legend tab. ctx: { t, theme (resolved), fill, roles (Set of roles in the network), devices (the network's
- *  devices: which pictures and marks to explain), links (GraphView.legend()), debug }. */
-export function renderLegend(container, { t, theme, fill, roles, devices = [], links, debug }) {
+ *  devices: which symbols to show, with their own pictures), links (GraphView.legend()), debug }. */
+export function renderLegend(container, { t, theme, fill, roles, devices = [], links }) {
   container.replaceChildren();
-  // Communication paths: what the graph says it draws (three classes without colour, implied lanes, widths, glyphs,
-  // band, path hops, the scale while paths are coloured), then the value at an arrow.
-  const list = linkLegendList(links || [], t);
-  list.append(h("li", {}, rxSample(t), h("span", { text: t("legend.rx") })));
-  container.append(h("h3", { text: t("legend.paths_title") }), list,
-    h("p", { class: "small muted", text: t("legend.links_default") }),
-    h("p", { class: "small muted", text: t("legend.rank") }));
-  if (debug) container.append(h("p", { class: "small muted", text: t("legend.debug") }));
+  const title = (key) => h("h3", { class: "legend-title", text: t(key) });
+  // Communication paths: what the graph says it draws for the stage, "RX:" and the colour bar (link-legend.js).
+  container.append(title("legend.paths_title"), linkLegendList(links || [], t));
 
   if (fill !== "none") {
-    container.append(h("h3", { text: t(`legend.fill_${fill}`) }), h("ul", { class: "swatches" },
+    container.append(title(`legend.fill_${fill}`), h("ul", { class: "legend-rows" },
       categoryEntries(fill, theme, t, roles).map((e) =>
         h("li", {}, chip({ fill: e.color, outline: theme.outline, slash: e.slash }), h("span", { text: e.label })))));
   }
@@ -80,32 +68,39 @@ export function renderLegend(container, { t, theme, fill, roles, devices = [], l
   // Symbols carry a value of the current fill, never the grey that means "no value"; the "none" fill is the neutral grey.
   const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
     : fill === "power" ? theme.categories.power.mains : theme.neutral);
-  const parts = devices.map((d) => symbolParts(d));
-  const has = (key) => parts.some((p) => p[key]);
+  // One device of this network per sign, so each row shows a symbol as the map draws it, picture included (board M7):
+  // a router (a light where there is one), an end device (a sleeping one where there is one), the coordinator, and a
+  // device on a cable only. A sign no device carries has no row.
+  const parts = devices.map((d) => ({ role: d.role, parts: symbolParts(d) }));
+  const pick = (...tests) => {
+    for (const test of tests) {
+      const found = parts.find(test);
+      if (found) return found.parts;
+    }
+    return null;
+  };
+  const router = pick((x) => x.role === "router" && x.parts.picture === "light", (x) => x.role === "router");
+  const end = pick((x) => x.role === "end device" && x.parts.bed, (x) => x.role === "end device");
+  const coordinator = pick((x) => x.role === "coordinator");
+  const wired = pick((x) => x.parts.cable && !x.parts.radio);
   const item = (swatch, key) => h("li", {}, swatch, h("span", { text: t(key) }));
   const signs = [];
-  if (has("router")) signs.push(item(symbolSwatch(bare({ router: true }), theme, typical("router")), "legend.symbol_router"));
-  if (roles.has("end device")) signs.push(item(symbolSwatch(bare(), theme, typical("end device")), "legend.symbol_end"));
-  if (has("radio")) signs.push(item(symbolSwatch(bare({ radio: true }), theme, typical("end device")), "legend.symbol_radio"));
-  if (has("cable")) signs.push(item(symbolSwatch(bare({ cable: true }), theme, typical("coordinator")), "legend.symbol_cable"));
-  if (roles.has("coordinator")) {
-    signs.push(item(symbolSwatch(bare({ router: true, mark: "C" }), theme, typical("coordinator")), "legend.symbol_coordinator"));
+  if (router) signs.push(item(symbolSwatch(router, theme, typical("router")), "legend.symbol_router"));
+  if (end) {
+    const key = end.bed ? "legend.symbol_end_sleepy" : "legend.symbol_end";
+    signs.push(item(symbolSwatch(end, theme, typical("end device")), key));
   }
-  if (has("bed")) signs.push(item(symbolSwatch(bare({ bed: true }), theme, typical("end device")), "legend.symbol_sleepy"));
-  container.append(h("h3", { text: t("legend.symbols_title") }), h("ul", { class: "swatches symbols" }, signs));
+  if (coordinator) {
+    signs.push(item(symbolSwatch(coordinator, theme, typical("coordinator")), "legend.symbol_coordinator"));
+  }
+  if (wired) signs.push(item(symbolSwatch(wired, theme, typical("router")), "legend.symbol_wired"));
+  if (signs.length) container.append(title("legend.symbols_title"), h("ul", { class: "legend-rows symbols" }, signs));
 
-  // Pictures present in this network, in the order of their first device; the type line above a symbol names them.
-  const pictures = [...new Set(parts.map((p) => p.picture))];
-  container.append(h("h3", { text: t("legend.pictures_title") }),
-    h("ul", { class: "swatches pictures" }, pictures.map((picture) =>
-      item(symbolSwatch(bare({ picture }), theme, typical("router")), `device_kind.${picture}`))),
-    h("p", { class: "small muted", text: t("legend.pictures_note") }));
-
-  const example = bare({ picture: pictures.includes("light") ? "light" : pictures[0] || "unknown", router: true });
-  const router = typical("router");
-  container.append(h("h3", { text: t("legend.states_title") }), h("ul", { class: "swatches symbols" },
-    item(symbolSwatch(example, theme, router, { offline: true }), "legend.state_offline"),
-    item(symbolSwatch(example, theme, router, { selected: true }), "legend.state_selected"),
-    item(symbolSwatch(example, theme, router, { pinned: true }), "legend.state_pinned")),
-  h("p", { class: "small muted", text: t("legend.state_ring") }));
+  // States, on the router's symbol (board M7), else on any device's.
+  const example = router || (parts[0] && parts[0].parts) || symbolParts({ role: "router", kind: "light" });
+  const tint = typical("router");
+  container.append(title("legend.states_title"), h("ul", { class: "legend-rows symbols" },
+    item(symbolSwatch(example, theme, tint, { offline: true }), "legend.state_offline"),
+    item(symbolSwatch(example, theme, tint, { selected: true }), "legend.state_selected"),
+    item(symbolSwatch(example, theme, tint, { pinned: true }), "legend.state_pinned")));
 }

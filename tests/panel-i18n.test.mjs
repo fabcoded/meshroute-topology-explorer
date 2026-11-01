@@ -43,20 +43,19 @@ test("the model's coordinator label is translated, user labels stay", () => {
   assert.ok(others.every((d) => d === network.devices.find((x) => x.id === d.id)), "other devices are the same objects");
 });
 
-test("node view, path display and the path texts have words in English and German", () => {
+test("communication paths, path display and the path texts have words in English and German", () => {
   const en = translator("en");
   const de = translator("de");
-  const keys = ["view.on_click", "view.nodeview_coordinator", "view.nodeview_all", "view.path_display", "view.grey",
+  const keys = ["view.on_click", "view.paths_coordinator", "view.paths_all", "view.paths_heard", "view.path_display", "view.grey",
     "view.coloured", "lane.rx", "lane.path_unknown", "details.paths_coordinator",
     "details.paths_all", "details.paths_note", "details.path_up", "details.path_down", "details.path_out",
     "details.path_in", "details.path_down_assumed", "details.rx", "details.path_unknown", "details.path_unavailable", "details.paths_none",
-    "legend.link.path", "legend.link.path-implied", "legend.link.path-end", "legend.link.reception"];
+    "legend.link.coordinator", "legend.link.assumed", "legend.link.path-end", "legend.link.reception"];
   for (const key of keys) {
     assert.ok(key in STRINGS.en && key in STRINGS.de, key);
   }
-  assert.equal(en("view.nodeview_coordinator"), "Only the communication path with the coordinator (there and back)");
-  assert.equal(de("view.nodeview_coordinator"), "nur Kommunikationsweg mit dem Koordinator (hin und zurück)");
-  assert.equal(de("view.nodeview_all"), "alle Routen von und zu anderen Geräten");
+  assert.equal(en("view.paths_all"), "+ paths to all devices (theoretical)");
+  assert.equal(de("view.paths_all"), "+ Wege zu allen Geräten (theoretisch)");
   assert.equal(en("lane.rx"), "RX:");
   assert.equal(de("lane.rx"), "RX:", "the owner's own abbreviation, in both languages");
 });
@@ -68,8 +67,8 @@ test("the new menu: every control on the map and in both panels has words in Eng
   const words = {
     "map.devices": "Geräte", "map.details_on_click": "Details bei Klick", "map.view": "Ansicht", "map.legend": "Legende",
     "tab.devices": "Geräte", "tab.findings": "Befunde", "tab.details": "Details", "tab.view": "Ansicht", "tab.legend": "Legende",
-    "view.paths": "Kommunikationspfade", "view.link_up": "Weg nach oben", "view.link_route": "andere Routen",
-    "view.link_heard": "nur gehört", "view.path_display": "Pfaddarstellung", "view.grey": "grau",
+    "view.paths": "Kommunikationspfade", "view.paths_heard": "+ nur gehört (beste 3)",
+    "view.path_display": "Pfaddarstellung", "view.grey": "grau",
     "view.coloured": "farbig nach Empfang", "view.bad": "schlecht", "view.medium": "mittel", "view.good": "gut",
     "view.colors_note": "frei wählbar, z. B. für Farbenblinde", "view.on_click": "Bei Klick auf ein Gerät",
     "view.open_details": "Details öffnen", "view.density": "Knotenentfernung (Dichte)", "view.fill": "Füllung der Symbole",

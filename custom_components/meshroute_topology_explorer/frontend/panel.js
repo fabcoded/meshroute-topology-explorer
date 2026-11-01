@@ -66,7 +66,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._debug = false; // never stored (spec 9.1)
     this._wide = true;
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
-    this._densityInfo = false; // the density note in the View tab is shown
+    this._info = { density: false, reload: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
     this._cluster = null; // the open cluster dialog, if any
     this._dirty = new Set();
@@ -296,7 +296,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, links: s.links, nodeView: s.nodeView, sourceRoute: s.sourceRoute,
+      debug: this._debug, paths: s.paths, sourceRoute: s.sourceRoute,
       receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
@@ -316,14 +316,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
-      this._view.setLinks(s.links);
-      this._view.setNodeView(s.nodeView);
+      this._view.setPaths(s.paths);
       this._view.setSourceRoute(s.sourceRoute);
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
       this._view.setLabels(s.labels);
     }
-    // The details carry the selection's paths as text, in the node view's mode.
+    // The details carry the selection's paths as text, in the stage of "Communication paths".
     this._dirty.add("view").add("legend").add("details");
     this._render();
   }
@@ -349,8 +348,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const net = this._network;
     this._renderButtons();
 
-    // Status line (spec 6): source, tables, devices in a table, completeness, the 4-hour hint, "observed unchanged
-    // since" and a followed scan.
+    // Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" and a followed scan.
     this._renderStatus();
     const incomplete = isIncomplete(net.status);
     ui.incomplete.hidden = !incomplete;
@@ -363,10 +361,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderTabs();
   }
 
-  /** Status line (spec 6): source, tables, devices in a table, completeness, "observed unchanged since" (with its
-   *  caveat as the part's description), a followed scan with its stop button, the 4-hour hint. Below the wide
-   *  breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions, and the
-   *  hint and caveats stay in Details and on wide screens. */
+  /** Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" (with its caveat as the
+   *  part's description), a followed scan with its stop button, and the source-route stage on the right. Below the
+   *  wide breakpoint it is compact: short forms in at most two lines; the long forms are the parts' descriptions. */
   _renderStatus() {
     const t = this._t;
     const net = this._network;
@@ -455,12 +452,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (d.tab === "details") {
         const seen = this._selected && this._observations ? this._observations.firstSeen(this._selected) : null;
         keepFocus(this._root, panel, () => renderDetails(panel, { network: this._network, t, id: this._selected,
-          debug: this._debug, raw: this._raw, nodeView: this._settings.settings.nodeView,
+          debug: this._debug, raw: this._raw,
+          nodeView: this._settings.settings.paths === "coordinator" ? "coordinator" : "all",
           sourceRoute: this._settings.settings.sourceRoute, sub: this._detailsSub, idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
           onCluster: (spec, opener) => this._openCluster(spec, opener),
+          onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
       } else if (d.tab === "findings") {
         renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "findings") });
@@ -472,12 +471,16 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",
-          observations: this._debug ? this._observations : null, infoOpen: this._densityInfo,
+          observations: this._debug ? this._observations : null, info: this._info,
           onChange: (patch) => this._settings.update(patch), onOpenDetails: (on) => this._setOpenOnSelect(on),
           onDebug: (on) => this._setDebug(on), onReload: () => this._controller.reload(),
           onReleaseAll: () => this._release(null), onScan: (button) => this._startScan(button),
           onScanStop: () => this._scan && this._scan.stop(),
-          onInfo: (open) => { this._densityInfo = open; this._dirty.add("view"); this._render(); } }));
+          onInfo: (key, open) => {
+            this._info = { ...this._info, [key]: open };
+            this._dirty.add("view");
+            this._render();
+          } }));
       }
     }
   }
