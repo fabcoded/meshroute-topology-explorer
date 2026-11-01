@@ -56,10 +56,14 @@ test("paths as text: every hop with the reception at its hearer, unknown ends sa
   const lines = (label, mode, t = en) => detailsOf(network, byLabel(label), mode).paths.map((p) => pathLine(p, t, name));
   assert.deepEqual(lines("End device 06", "coordinator"), [
     "there: End device 06 \u2192 Router 17 \u00B7 RX 103 \u2192 Router 13 \u00B7 RX 111 \u2192 Coordinator \u00B7 RX 51",
-    "back: Coordinator \u2192 Router 16 \u00B7 RX 114 \u2192 Router 17 \u00B7 RX 168 \u2192 End device 06 \u00B7 RX Parent",
+    "back: Coordinator \u2192 Router 13 \u00B7 RX 104 \u2192 Router 17 \u00B7 RX 124 \u2192 End device 06 \u00B7 RX Parent",
   ]);
   assert.deepEqual(lines("End device 08", "coordinator", de), [
     "hin: End device 08 \u2192 Router 02 \u00B7 RX 161 \u2192 Router 04 \u00B7 RX 200 \u2192 Coordinator \u00B7 RX 165",
+    "zur\u00FCck: Coordinator \u2192 Router 03 \u00B7 RX 236 \u2192 Router 02 \u00B7 RX 252 \u2192 End device 08 \u00B7 RX Parent",
+  ]);
+  assert.deepEqual(lines("Router 01", "coordinator", de), [
+    "hin: Router 01 \u2192 Coordinator \u00B7 RX 101",
     "zur\u00FCck: Coordinator \u2192 Weg unbekannt",
   ]);
   // All paths: out and in paths are named by their other end.

@@ -193,9 +193,11 @@ A view, fill or finding that needs a missing capability shows "not available for
 - **Up path** (device to coordinator): from the device, follow its parent if it is an end device, else its routing
   entry towards the coordinator, hop by hop.
 - **Down path** (coordinator to device): follow the coordinator's routing entry towards the device, then each hop's
-  entry. For an end device: if that does not reach the device, take the down path to its parent and append the
-  parent link, but only if the path to the parent is complete; otherwise the incomplete path to the parent stays as it
-  is and nothing is appended.
+  entry. A hop that is the parent of an end-device goal delivers to its child directly: a parent keeps no routing
+  entry for its own child, and the child check comes first (Zigbee r22, 3.6.3.3; A4k: before, the walk stopped there
+  and hid four down paths on the sample). For an end device whose entries do not lead to its parent: take the down
+  path to its parent and append the parent link, but only if the path to the parent is complete; otherwise the
+  incomplete path to the parent stays as it is and nothing is appended.
 - A path that meets a missing table or entry, a loop, or an unavailable hop stops and is **incomplete**; it is
   never guessed, not even for the coordinator's direct neighbours.
 - **Paths of one device** (node view, 7.1; request by Fabian Schwamborn, 2026-11-01): "path to coordinator" (the stage
@@ -313,8 +315,8 @@ the centre).
   the stage "assume"). **Route**: on the walk of an active, current route between two devices of which neither is the
   coordinator. **Heard**: a reading, no traffic. A lane can carry several and is drawn as its strongest: up and
   measured down, then assumed down, then route, then heard. On the sample: 656 lanes, 41 up (12 of them to a
-  parent), 41 down measured, 4 more down assumed, 27 routes, 464 heard only; 79 lanes carry nothing and have no
-  reading (73 unknown, 6 only implied by a route or a parent link).
+  parent), 52 down measured, 2 more down assumed, 29 routes, 457 heard only; 75 lanes carry nothing and have no
+  reading (73 unknown, 2 only implied by a route or a parent link).
 - Lines carry no colour by default: up and down solid in the foreground, assumed down sparse round dots in the
   foreground, routes between devices dash-dot (6 3 1.5 3) in the foreground, heard only dashed (6 3) in grey, each
   with an arrowhead at the hearer; a lane's width follows its own reading's rating in three steps.
@@ -350,8 +352,8 @@ the centre).
     wait for the click). **Debug mode** draws every lane of every class, the glyphs and lanes without traffic, with
     values on both lanes; a selection's lanes lie on top.
   - Order within the drawing: lanes without class (debug), heard only, routes, down, up on top. On the sample the
-    overview draws 86 lanes in the first two stages (41 up, 45 down, 4 of them assumed) and 198 lanes and 6 glyphs in
-    the third (112 heard only); with source routes off 82 and 194.
+    overview draws 95 lanes in the first two stages (41 up, 54 down, 2 of them assumed) and 207 lanes and 6 glyphs in
+    the third (112 heard only); with source routes off 93 and 205.
 - **The node view on the map**: each hop on the lane of its direction of travel with an arrowhead at the hearer, in
   the style of its class (a hop of the device's own up or down path solid, an assumed return path sparsely dotted
   whatever the hearer measured, a path to or from another device dash-dot), its width by the hearer's rating where
@@ -653,8 +655,8 @@ reads them again on reconnect.
 | Target | Measure |
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
-| Paths | On the sample: up paths complete 41 of 44, down paths 29 of 44, 20 of 29 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 37 of 44 with a measured or assumed down path; none without the coordinator's table. |
-| Lanes | On the sample: 656 lanes, 41 up, 41 down measured and 4 more assumed, 27 routes between devices, 464 heard only (467 with source routes off); the overview draws 86 lanes in the stages "coordinator" and "all" and 198 lanes with 6 glyphs in "heard" (82 and 194 with source routes off); debug mode 583 lanes and 73 glyphs. |
+| Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. |
+| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stages "coordinator" and "all" and 207 lanes with 6 glyphs in "heard" (93 and 205 with source routes off); debug mode 583 lanes and 73 glyphs. |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |

@@ -47,16 +47,16 @@ test("every measured reading is a spring; LQI 0 and unknown values are not", () 
   assert.equal(view.layout.rest.length, new Set(measured.map((x) => `${x.reporter}>${x.subject}`)).size);
 });
 
-test("the sample's lanes by class, per direction: 41 up (12 parent links), 41 down, 27 routes, 467 heard only", (t) => {
+test("the sample's lanes by class, per direction: 41 up (12 parent links), 52 down, 29 routes, 458 heard only", (t) => {
   const { view } = show();
   const { scene } = view;
   assert.equal(scene.pairs.length, network.pairs.length);
   assert.equal(scene.lanes.length, 2 * network.pairs.length, "two lanes per pair");
   const off = sceneClasses(scene, "off");
-  assert.deepEqual(off.counts, { heard: 467, route: 27, down: 41, up: 41, assumed: 0 });
-  // Source routes assumed (spec 5.1): four lanes only an assumed return path uses; the other hops of the 8 assumed
+  assert.deepEqual(off.counts, { heard: 458, route: 29, down: 52, up: 41, assumed: 0 });
+  // Source routes assumed (spec 5.1): two lanes only an assumed return path uses; the other hops of the 8 assumed
   // paths are measured down lanes or lanes another class already carries.
-  assert.deepEqual(sceneClasses(scene, "assume").counts, { heard: 464, route: 27, down: 45, up: 41, assumed: 4 });
+  assert.deepEqual(sceneClasses(scene, "assume").counts, { heard: 457, route: 29, down: 54, up: 41, assumed: 2 });
   const role = (i) => scene.nodes[i].role;
   const up = scene.lanes.filter((l) => off.cls[l.index] === "up");
   assert.equal(up.filter((l) => role(l.s) === "end device").length, 12, "an end device's way to its parent");
@@ -106,4 +106,25 @@ test("the overview per stage: up and down lanes, from 'heard' each device's best
   const all = view.lastDraw.classes;
   assert.equal(all.up + all.down + all.route + all.heard + all.none + view.lastDraw.glyphs, scene.lanes.length,
     "every lane, or its glyph");
+});
+
+test("spec 12: lanes the overview draws per stage, with source routes assumed and off, and in debug mode", () => {
+  const counts = {};
+  for (const sourceRoute of ["assume", "off"]) {
+    const { view, env } = show();
+    view.setSourceRoute(sourceRoute);
+    for (const paths of ["coordinator", "all", "heard"]) {
+      view.setPaths(paths);
+      env.flush();
+      counts[`${sourceRoute} ${paths}`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
+    }
+    view.setDebug(true);
+    env.flush();
+    counts[`${sourceRoute} debug`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
+  }
+  // 41 up and 54 down lanes (2 of them assumed); "heard" adds 112 heard-only lanes and their 6 glyphs.
+  assert.deepEqual(counts, {
+    "assume coordinator": [95, 0], "assume all": [95, 0], "assume heard": [207, 6], "assume debug": [583, 73],
+    "off coordinator": [93, 0], "off all": [93, 0], "off heard": [205, 6], "off debug": [583, 73],
+  });
 });

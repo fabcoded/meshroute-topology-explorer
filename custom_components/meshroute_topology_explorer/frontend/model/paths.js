@@ -53,13 +53,18 @@ export function upPath(network, id) {
 }
 
 /** Walk the routing entries from `from` towards `to`, hop by hop through each hop's own entry for `to`; stops at a
- *  missing entry, a loop or an unavailable hop. Complete only if `to` is reached and available. */
+ *  missing entry, a loop or an unavailable hop. Complete only if `to` is reached and available. A hop that is the
+ *  parent of an end-device goal delivers to its child directly: a parent keeps no routing entry for its own child
+ *  (Zigbee r22, 3.6.3.3, the child check comes first). Without this, a walk that had reached the parent was thrown
+ *  away for the shorter walk towards the parent (A4k; it hid four down paths on the sample). */
 function followRoutes(c, from, to) {
   const ids = [from];
   const seen = new Set(ids);
+  const target = c.byId.get(to);
+  const childOf = target.role === "end device" ? target.parent : null;
   let cur = from;
   while (cur !== to) {
-    const next = nextHop(c, cur, to);
+    const next = cur === childOf ? to : nextHop(c, cur, to);
     if (!next || seen.has(next)) return { ids, complete: false };
     ids.push(next);
     seen.add(next);
