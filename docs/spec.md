@@ -6,7 +6,7 @@ the implementation. Terms in **bold** are defined where they first appear. Relea
 version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01;
 details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01; communication
 paths per direction in two stages and a heard-only option, compact legend, status line as on the boards 2026-11-01; theoretical paths to every
-device and the backbone overview 2026-11-01.
+device and the backbone overview 2026-11-01; source routes read from zigpy 2026-11-01.
 
 ## 1. Purpose and principles [v1]
 
@@ -86,8 +86,18 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
     per-direction evidence from this (4.3). A neighbour listed twice in one table counts once, with the higher LQI.
   - `Child` and `Parent` entries also occur between routers; they record joining, not routing, and are ignored.
   - For some destinations the coordinator keeps no routing entry (its direct neighbours; source routing whose route
-    records Home Assistant does not expose): such paths are unknown, unless the user lets the explorer assume them
-    (source route, 5.1).
+    records Home Assistant does not expose): such paths are unknown, unless the user lets the explorer assume them or
+    read the records from zigpy (source route, 5.1).
+- **zigpy's route records** (stage "read from zigpy", 5.1; brief a4w, research against Home Assistant core 2026.10.1
+  and zigpy 2.4.0): the integration's own command `meshroute_topology_explorer/zigpy_routes` (admin only) reads, in
+  memory and without radio traffic, ZHA's zigpy application (`homeassistant/components/zha/helpers.py`
+  `get_zha_gateway(hass).application_controller`) and per device its `relays`: None until the coordinator received a
+  route record, then the relays from the device towards the coordinator (zigpy's own source route is that list
+  reversed). It answers `{ radio, devices: [{ ieee, nwk, relays: [{ nwk, ieee }] }] }` (radio: the radio library, e.g.
+  `zigpy_znp`; a relay's ieee is the device holding that address now, or null), or the error `not_supported` with
+  "reason: text" (`zha_not_loaded`, `no_gateway`, `internals_changed`, `error`). zigpy keeps no time for a record and
+  keeps it across restarts, so its age is unknown; a relay's address may be outdated after a rejoin. Verified for
+  zigpy-znp (route-record indication); other radio libraries unverified. The panel calls it once per data load.
   - A routing entry can point at an unavailable device.
 
 ### 3.2 Thread through Matter [later]
@@ -121,7 +131,7 @@ The panel and the integration call only these Home Assistant commands; `tools/gu
 | `zha/devices` | devices and tables | v1 |
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
-| `meshroute_topology_explorer/*` | own settings and observations (10) | v1 |
+| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only) | v1 |
 | `matter/network_topology`, `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
 
@@ -131,7 +141,9 @@ Anything else, in particular commands that return network keys or change a netwo
 `thread/get_dataset*`, `thread/set_*`, `matter/set_*`, `matter/commission*`, `matter/open_commissioning_window`,
 `zha/devices/permit`, every other `zha/devices/clusters/*` command, `zha/devices/bind`, `zha/devices/unbind`,
 `zha/groups/*`, `zha/configuration/*`, and ZHA's services that write attributes, issue cluster commands or bind), is
-forbidden.
+forbidden. The integration's Python reads of zigpy only each device's IEEE address, network address and relays
+(3.1); network settings, keys, their saved copies and every call that sends to the radio stay out of reach
+(`tools/guard.py` PY_DENY).
 
 ## 4. Data model [v1]
 
@@ -217,11 +229,21 @@ A view, fill or finding that needs a missing capability shows "not available for
   many devices without a routing entry, along the relay list of the device's own route record, which is its up path
   reversed; Home Assistant does not expose those records. Three stages: **off** (the down path stays unknown);
   **assume** (default): the down path is the up path reversed, marked as **assumed** wherever it shows and never drawn
-  or counted as measured; **read from zigpy** [later], shown disabled with "coming later". The assumption applies only
+  or counted as measured; **read from zigpy** (experimental; brief a4w): zigpy's route records (3.1), see below. The
+  assumption applies only
   to an available device whose measured down path is incomplete, for which the coordinator's table (present) holds no
   active route, and whose up path is complete; a direct neighbour of the coordinator so gets a one-hop return path. An
   end device for which the coordinator does hold an entry stays unknown: its gap lies elsewhere. On the sample it applies
   to 8 devices (12); every available device then has a measured or assumed down path.
+  In the stage "read from zigpy" a route record becomes the down path, drawn and counted as **measured** ("back,
+  measured (route record, age unknown)"; no line class of its own), only where all of this holds (unknown beats wrong;
+  decisions of the main session, 2026-11-01): the device is available and not the coordinator; its measured down path
+  is incomplete; the coordinator's table, if present, holds no active route towards it; its current network address
+  equals the one in the record; every relay is a known, available device that holds the recorded address now; no
+  device repeats; every hop joins a pair of the model. Every other device gets the assumption as above. A record never
+  replaces a complete measured down path; where it takes another way, Details says so in one line ("Route record
+  differs: via …"), nothing is drawn. If zigpy cannot be read, the stage assumes as "assume" does and the status line
+  says why.
 
 ### 5.2 Relay load [v1]
 Per router: routes in all available routers' tables that use it as next hop towards another destination; direct
@@ -541,7 +563,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   slide switch **Details on click** (a real switch, `role="switch"`), shown only while the left panel is closed; top
   right a button **View** and directly below it a button **Legend**; bottom right the zoom group (+, −, fit); the
   status line below the map, with the source-route stage apart on its right ("Return paths assumed for 8 devices
-  (source route)", "Source route off · 8 return paths unknown"; nothing when no device is concerned, 5.1); banners (incomplete data, connection lost, reading) between the top groups, or below
+  (source route)", "Source route off · 8 return paths unknown", "Source route from zigpy · 6 recorded, 2 assumed",
+  "zigpy not available · 8 assumed" with the reason as its description; nothing when no device is concerned, 5.1); banners (incomplete data, connection lost, reading) between the top groups, or below
   them where that leaves less than 280 px. View switch **[v1.1]** (v1 has one view). No header bar: the map fills
   the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are rounded, on the
   theme's surface with a light shadow, targets of at least 44 px.
@@ -566,7 +589,7 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
   switch on the map; what the map shows on a click follows the communication paths); **Return paths without a table
   entry (source route)** (an info button: "The return path is assumed to follow the outbound path in reverse. It has not been verified."; off: the return path stays
-  "unknown"; assume: the way up reversed, dotted; read from zigpy, "experimental", disabled with "coming later"; 5.1);
+  "unknown"; assume: the way up reversed, dotted; read from zigpy, tagged "experimental"; 5.1);
   **Node distance (density)** with an
   info button ("Spacing helps arrange the network. It does not show physical distance.")
   (dense, medium, spread; option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
@@ -608,7 +631,9 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   side panel it takes less padding and type, never an ellipsis. The sub-tab stays when the selection changes.
   - **Communication:** "Communication path with the coordinator": one line per path with every hop and the reception
     at its hearer, the value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …", an
-    assumed return path "back, assumed (source route): …" with a note, 5.1), "path unknown" where a walk stops, a goal
+    assumed return path "back, assumed (source route): …" with a note, a recorded one "back, measured (route record,
+    age unknown): …" with a note naming the radio library and that zigpy keeps no time for it, and "Route record
+    differs: via …" under a complete measured one that the record contradicts, 5.1), "path unknown" where a walk stops, a goal
     that is unavailable named so; for the coordinator in the first stage its routes ("to X", "from X"), collapsed
     above 12 lines. In the stage "all" the card **"Paths to other devices (theoretical)"** (5.7; brief
     a4k), collapsed above 12 rows: a row per other device, the shortest way there first, with the number of hops there (→) and
@@ -721,8 +746,7 @@ as `coordinator`; `heard`: boolean, the checkbox "heard only (best 3)", default 
 `#rrggbb`, anything else, `null` included, means the theme's own), labels (`labels`: `{ type, name, haName }`,
 booleans, a bad or missing value counts as its default: on, on, off), fill (`none`, `role` or `power`; anything else,
 including the former `reception`, counts as `none`), Details on click (`openDetailsOnSelect`: a boolean, else by
-width), source route (`sourceRoute`: `off` or `assume`; anything else, a later `zigpy` included, counts as `assume`,
-5.1), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
+width), source route (`sourceRoute`: `off`, `assume` or `zigpy`; anything else counts as `assume`, 5.1), pinned positions; later geo positions and map background address (empty by default). Before 2026-11-01 the
 panel stored `receptionColors` (colour by reception) and `legendOpen` (the legend pill): `receptionColors: true` without
 a valid `pathColors` reads as coloured with the theme's colours; the next save leaves both keys out. Before A4j
 (2026-11-01) it stored class switches (`links`) and the node view (`nodeView`): without a valid `paths`,
@@ -740,7 +764,7 @@ reads them again on reconnect.
 | Target | Measure |
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
-| Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
+| Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Route records from zigpy (synthetic, tests/zigpy-fake.mjs: every complete way up, 2 broken): 6 recorded, 2 assumed, still 41 of 44; 23 records differ from a complete measured down path and are only named. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
 | Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (A4l): partners per stage over the 32 routers: first stage 29 with 3 partners and 3 with none, second stage 31 with none and 1 with one; the 12 end devices none in both; Router 13 draws 2 lanes (first stage), 7 with the option, 82 in the second stage with or without it. |
 | Candidate hit rate | On the sample the cheapest way (5.7 rule 5) names the real next hop of 11 of the 37 active, non-stale router entries whose next hop is not the destination (14 of 62 with the coordinator's entries); test in tests/model-theoretical.test.mjs. Not shown in the product. |
 | Unknown hops | On the sample the complete paths to other devices (5.7) have 174 hops without a reading (87 on the ways out, 87 on the ways back), all neighbour hops on 72 lanes; on the ways out the hearer's table is full for 54, nearly full for 23, with room for 10; all show "–", none "?" (test "a hop whose hearer's table was read ..."). |
