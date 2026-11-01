@@ -3,7 +3,7 @@
 // hold that meaning today (model/, graph/links.js, graph/renderer.js); the cut moves them here step by step without
 // changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
-import { buildNetwork } from "../../model/index.js";
+import { buildNetwork, FINDING_KINDS } from "../../model/index.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderDetails } from "../../ui/details-tab.js";
 import { findingText } from "../../ui/finding-text.js";
@@ -27,8 +27,9 @@ export const zigbee = Object.freeze({
   legend: (theme, view = {}) => legendEntries(theme, view),
   /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
   status: (network, extras = {}) => statusLine(network, extras),
-  /** Words of a finding: { title, lines }. */
-  findings: Object.freeze({ text: (finding, t, name) => findingText(finding, t, name) }),
+  /** Its finding kinds in the order the Findings tab groups them (model/findings.js), and the words of a finding:
+   *  { title, lines }. */
+  findings: Object.freeze({ kinds: FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
   /** The grey line's connection of a device in the Devices list (board M3), or null. */
   connection: (network, device) => connection(network, device),
   /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow

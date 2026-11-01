@@ -7,7 +7,7 @@
 // read-merge-write per router: the same fingerprint keeps the earlier time (another panel saw it first), a different
 // one is replaced by what this panel sees now. Stored data is untrusted input and cleaned before use. No DOM.
 // Tested in Node: node --test tests/
-import { fingerprints, updateObservations, newestChange } from "../model/index.js";
+import { fingerprints, updateObservations, newestChange } from "../model/observations.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "../adapters/ws.js";
 import { isUnknownCommand, MAX_BYTES, SAVE_DELAY_MS } from "./settings.js";

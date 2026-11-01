@@ -175,6 +175,11 @@ export function tracePath(ctx, ops) {
 
 // ---- composition -----------------------------------------------------------------------------------------------
 
+/** Kinds a device can have (spec 4.2, the shared vocabulary of every network type); each has a picture. "unknown" when
+ *  the source does not tell: unknown beats wrong (spec 1). */
+export const KINDS = Object.freeze(["light", "outlet", "relay", "button", "sensor", "motion", "temperature",
+  "thermostat", "blind", "lock", "hub", "unknown"]);
+
 /** Roles the map knows (spec 4.2, the shared vocabulary of both network types); anything else is drawn as unknown. */
 export const ROLES = Object.freeze(["coordinator", "router", "end device", "border router", "unknown"]);
 

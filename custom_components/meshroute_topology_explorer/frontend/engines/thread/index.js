@@ -10,6 +10,9 @@ import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 import * as threadScene from "./scene.js";
 
+/** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
+const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
+
 /** Thread owns no settings keys today (engines cut, section 3): a stored Zigbee key under a Thread id is kept by the
  *  shell, never read and never written. */
 const SETTINGS = Object.freeze({ keys: Object.freeze([]), defaults: Object.freeze({}), sanitize: (src, out) => out });
@@ -34,8 +37,9 @@ export const thread = Object.freeze({
   legend: (theme) => legendEntries(theme),
   /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner. */
   status: (network, extras = {}) => statusLine(network, extras),
-  /** Words of a finding (offline, parent offline, parent unknown): { title, lines }. */
-  findings: Object.freeze({ text: (finding, t, name) => findingText(finding, t, name) }),
+  /** Its finding kinds in the order the Findings tab groups them (offline, parent offline, parent unknown;
+   *  model/thread.js threadFindings), and the words of a finding: { title, lines }. */
+  findings: Object.freeze({ kinds: THREAD_FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
   /** The grey line's connection of a device in the Devices list: an end device "via" its parent, else null. */
   connection: (network, device) => {
     if (device.role !== "end device" || !device.parent) return null;

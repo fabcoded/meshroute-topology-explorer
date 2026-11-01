@@ -16,7 +16,8 @@
 import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
-import { normalizeIeee, KINDS } from "./model/index.js";
+import { normalizeIeee } from "./model/parse.js";
+import { KINDS } from "./graph/symbols.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
 import { sendScan } from "./adapters/zha.js";
 import { engineFor } from "./engines/index.js";

@@ -37,7 +37,7 @@ test("interface: both engines offer exactly the same hooks, frozen, under their 
     assert.equal(engine.key, key);
     assert.deepEqual(Object.keys(engine).sort(), Object.keys(HOOKS).sort(), `${key}: no missing and no extra hook`);
     for (const [hook, type] of Object.entries(HOOKS)) assert.equal(typeof engine[hook], type, `${key}.${hook}`);
-    assert.deepEqual(Object.keys(engine.findings), ["text"], `${key}.findings`);
+    assert.deepEqual(Object.keys(engine.findings), ["kinds", "text"], `${key}.findings`);
     assert.deepEqual(Object.keys(engine.settings).sort(), ["defaults", "keys", "sanitize"], `${key}.settings`);
     assert.ok(Object.isFrozen(engine.settings) && Object.isFrozen(engine.settings.keys), `${key}.settings frozen`);
     assert.deepEqual(Object.keys(engine.settings.defaults), [...engine.settings.keys], `${key}: a default per key`);
@@ -46,6 +46,14 @@ test("interface: both engines offer exactly the same hooks, frozen, under their 
     assert.ok(["base", "contain"].includes(engine.scene.fit), `${key}.scene.fit`);
     assert.ok(Object.isFrozen(engine.scene), `${key}.scene frozen`);
   }
+});
+
+test("finding kinds: Zigbee's order as the model lists them; Thread's three, in the same relative order", () => {
+  assert.equal(zigbee.findings.kinds.length, 9);
+  assert.deepEqual(thread.findings.kinds, ["offline", "parent offline", "parent unknown"]);
+  const at = (k) => zigbee.findings.kinds.indexOf(k);
+  assert.ok(thread.findings.kinds.every((k, i, all) => i === 0 || at(all[i - 1]) < at(k)), "same order as before");
+  for (const f of threadNet.findings) assert.ok(thread.findings.kinds.includes(f.kind), f.kind);
 });
 
 test("settings (step 5): each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
