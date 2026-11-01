@@ -7,8 +7,8 @@
 // identifier the sample carries maps to the picture its model name suggests.
 // node --test tests/
 
-import { parseAddress } from "./parse.js";
-import { KINDS } from "../graph/symbols.js";
+import { parseAddress } from "../../model/parse.js";
+import { KINDS } from "../../graph/symbols.js";
 
 /** Kinds a device can have (graph/symbols.js, the shared vocabulary); the ZCL signature decides which. */
 export { KINDS };

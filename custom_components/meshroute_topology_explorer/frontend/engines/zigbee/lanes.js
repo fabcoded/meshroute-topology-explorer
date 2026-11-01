@@ -12,10 +12,10 @@
 // Pure. node --test tests/
 import { BAND, STEM, WIDTH_STEPS, WIDTHS, laneStyle } from "../../graph/links.js";
 import { receptionColor } from "../../graph/palette.js";
-import { computePairs } from "../../model/pairs.js";
-import { downPath, routePath, upPath } from "../../model/paths.js";
-import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "../../model/source-routes.js";
-import { isActive } from "../../model/normalize.js";
+import { computePairs } from "./pairs.js";
+import { downPath, routePath, upPath } from "./paths.js";
+import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "./source-routes.js";
+import { isActive } from "./from-zha.js";
 
 /** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view
  *  by owner proposal 2026-11-01, Codex 5): three views, each its own basis, none containing another: with the

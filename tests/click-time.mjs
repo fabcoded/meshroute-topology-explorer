@@ -7,7 +7,7 @@
 // cached lookups or discovery trees). Prints { worst, clicks: { label: ms } } as JSON.
 // Run alone: node --single-threaded tests/click-time.mjs
 import { sampleNetwork } from "./panel-fixture.mjs";
-import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
 
 const LABELS = ["Router 11", "Router 13", "Router 03", "End device 06"];
 const click = (network, label) => nodePaths(network, network.devices.find((d) => d.label === label).id, "all");

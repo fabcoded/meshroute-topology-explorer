@@ -4,12 +4,12 @@
 // ways into Home Assistant's own pages. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { knownValue, valueText, VALUE_MAP } from "../custom_components/meshroute_topology_explorer/frontend/ui/entity-values.js";
-import { readAttributes, READ_TIMEOUT_MS } from "../custom_components/meshroute_topology_explorer/frontend/ui/attribute-read.js";
+import { knownValue, valueText, VALUE_MAP } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/entity-values.js";
+import { readAttributes, READ_TIMEOUT_MS } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/attribute-read.js";
 import { deviceLinks, devicePagePath, zhaDevicePath, logbookPath, historyPath, entitiesPath, areaPath }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/ha-links.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
 
 const st = (state, attributes = {}) => ({ state, attributes });

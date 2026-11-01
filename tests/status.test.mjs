@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { blockingState } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
 import { statusParts, isIncomplete } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { deviceRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 
 const sample = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8"));
 

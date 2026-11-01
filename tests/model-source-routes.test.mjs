@@ -6,9 +6,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sampleNetwork } from "./panel-fixture.mjs";
-import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { assumedDownPaths, downPathWith, sourceRouteMode, sourceRouteSummary, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/source-routes.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 

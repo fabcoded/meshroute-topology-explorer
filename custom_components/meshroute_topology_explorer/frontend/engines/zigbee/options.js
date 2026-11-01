@@ -7,7 +7,7 @@
 // entry (source route: off, assume, read from zigpy with its "experimental" tag), after "On click".
 // Pure. node --test tests/
 import { PATH_STAGES } from "./lanes.js";
-import { SOURCE_ROUTE_MODES } from "../../model/source-routes.js";
+import { SOURCE_ROUTE_MODES } from "./source-routes.js";
 
 /** OptionGroup[] for the View tab from the network's settings (sanitized). Text values are i18n keys. */
 export function zigbeeOptions(network, settings) {

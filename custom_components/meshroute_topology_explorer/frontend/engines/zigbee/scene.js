@@ -10,10 +10,10 @@
 // Pure. node --test tests/
 import { BEST_HEARD, CLASSES, DEFAULT_PATHS, classifyLanes, laneClass, overviewShows, pathStage, strokeOf }
   from "./lanes.js";
-import { nodePaths, unknownEnd } from "../../model/node-paths.js";
-import { theoreticalLanes } from "../../model/theoretical.js";
-import { usableRoutes } from "../../model/paths.js";
-import { drawMode } from "../../model/source-routes.js";
+import { nodePaths, unknownEnd } from "./node-paths.js";
+import { theoreticalLanes } from "./theoretical.js";
+import { usableRoutes } from "./paths.js";
+import { drawMode } from "./source-routes.js";
 
 export { CLASSES };
 

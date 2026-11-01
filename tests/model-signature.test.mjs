@@ -7,9 +7,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 import { macCapabilities, stackRevision, frequencyBands, nodeCard, clusterTable, entityIds }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/signature.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/signature.js";
 import { clusterName, clusterAbout, clusterAttributes, readableAttributes, deviceTypeName, profileName,
-  isManufacturerSpecific, CATALOGUED, NAMED } from "../custom_components/meshroute_topology_explorer/frontend/model/zcl.js";
+  isManufacturerSpecific, CATALOGUED, NAMED } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/zcl.js";
 
 const raws = responses["zha/devices"];
 const rawOf = (label) => {

@@ -7,13 +7,13 @@
 // the listed attributes once from the device (attribute-read.js), the only radio traffic besides the scan. The map
 // stays read-only: writing, reporting and binding are left to ZHA's own device page, which the dialog links.
 // Runs in the browser.
-import { h, iconButton } from "./dom.js";
-import { formatNwk } from "../model/parse.js";
+import { h, iconButton } from "../../../ui/dom.js";
+import { formatNwk } from "../../../model/parse.js";
 import { clusterAbout, clusterAttributes, clusterName, isManufacturerSpecific, profileName, readableAttributes }
-  from "../model/zcl.js";
+  from "../zcl.js";
 import { knownValue, valueText } from "./entity-values.js";
 import { readAttributes } from "./attribute-read.js";
-import { inApp, zhaDevicePath } from "./ha-links.js";
+import { inApp, zhaDevicePath } from "../../../ui/ha-links.js";
 
 let uid = 0;
 

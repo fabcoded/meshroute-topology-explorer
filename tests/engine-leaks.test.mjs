@@ -85,9 +85,7 @@ function importsOf(rel) {
 
 /** Network-specific UI modules under ui/ that the cut moves into an engine (section 3); everything else under ui/ is
  *  a shared frame. */
-const ENGINE_UI = new Set(["ui/details.js", "ui/details-tab.js", "ui/cluster-dialog.js", "ui/attribute-read.js",
-  "ui/entity-values.js", "ui/raw-values.js", "ui/finding-text.js", "ui/thread-details.js", "ui/scan.js",
-  "ui/observations-client.js"]);
+const ENGINE_UI = new Set(["ui/thread-details.js", "ui/scan.js", "ui/observations-client.js"]);
 const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"),
   ...jsFiles("ui/").filter((f) => !ENGINE_UI.has(f))];
 
@@ -318,7 +316,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
 
 test("14: Zigbee parity: the engine builds exactly what the data model builds", async () => {
   const { zigbee } = await engines();
-  const { buildNetwork } = await mod("model/index.js");
+  const { buildNetwork } = await mod("engines/zigbee/model.js");
   const registries = { deviceRegistry: zhaResponses["config/device_registry/list"],
     areaRegistry: zhaResponses["config/area_registry/list"], configEntries: zhaResponses["config_entries/get"] };
   assert.deepEqual(zigbee.build(zhaResponses["zha/devices"], registries), buildNetwork(zhaResponses["zha/devices"], registries));

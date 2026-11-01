@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { GraphView, TAP_ZOOM_MIN_LANE } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { shortestFocusLane } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { FakeCanvas, fakeEnv, domEvent } from "./graph-fakes.mjs";

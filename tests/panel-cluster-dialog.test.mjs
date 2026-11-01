@@ -22,7 +22,7 @@ globalThis.Node = FakeNode;
 globalThis.document = { createElement: (tag) => new FakeNode(tag), createElementNS: (ns, tag) => new FakeNode(tag),
   createTextNode: (text) => ({ text }) };
 
-const { openClusterDialog } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/cluster-dialog.js");
+const { openClusterDialog } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js");
 const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
 
 function open(callWS) {

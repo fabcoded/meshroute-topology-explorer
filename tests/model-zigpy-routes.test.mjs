@@ -7,13 +7,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 import { fakeZigpyRoutes } from "./zigpy-fake.mjs";
-import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { assumedDownPaths, downPathWith, returnPaths, sourceRouteSummary, zigpyRecords }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/source-routes.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 import { parseZigpyRoutes, readZigpyRoutes } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha.js";
 import { readNetwork } from "../custom_components/meshroute_topology_explorer/frontend/ui/controller.js";
 import { classifyLanes, laneClass } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
-import { detailsOf, pathParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
+import { detailsOf, pathParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js";
 import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 

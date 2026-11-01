@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Test helpers (not a test file): a recording 2D context, a fake canvas, a fake clock and realistic label widths, so
 // the graph view runs in Node without a browser. Imported by the graph-*.test.mjs files.
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 
 /** A synthetic network as a ZHA source delivers it: stamped with the Zigbee engine and ZHA's capabilities (spec 4.6).
  *  The shared renderer has no default engine (engines cut), so a test network names its engine like a real one. */

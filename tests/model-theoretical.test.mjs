@@ -9,9 +9,9 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { sampleNetwork } from "./panel-fixture.mjs";
 import { buildNetwork, nodePaths, routePath }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { HOWS, discoveryTree, linkCost, theoreticalPath }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js";
 
 // --- Synthetic networks: [n, type, { nb: [[m, lqi, relationship]], rt: [[dest, next, status]], avail }] ----------
 const ieee = (n) => `aa:bb:cc:dd:00:00:00:${String(n).padStart(2, "0")}`;
@@ -274,7 +274,7 @@ test("a click stays well under 100 ms of model time on the sample (CPU time, fre
 
 test("on the sample the cheapest way hits the real next hop of 11 of 37 active non-direct router entries (note of brief a4o)", async () => {
   const { sampleNetwork } = await import("./panel-fixture.mjs");
-  const { discoveryTree } = await import("../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js");
+  const { discoveryTree } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js");
   const n = sampleNetwork();
   const by = new Map(n.devices.map((d) => [d.id, d]));
   let hit = 0;

@@ -11,7 +11,7 @@ import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
 import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
-import { openClusterDialog } from "../custom_components/meshroute_topology_explorer/frontend/ui/cluster-dialog.js";
+import { openClusterDialog } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";

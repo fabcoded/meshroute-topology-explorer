@@ -10,7 +10,7 @@ import {
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
 import { buildScene, drawScene, typeShown } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { asZigbee, recordingContext, labelWidth as measure } from "./graph-fakes.mjs";
 
 const cut = (name, others, max = MAX_LABEL_WIDTH) => shortenName(name, others, measure, max);

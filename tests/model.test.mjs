@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { removedTables, withoutTables } from "./derive.mjs";
 import { buildNetwork, upPath, downPath, parseAddress, parseLqi, fingerprints, updateObservations, newestChange }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
 const networkOf = (name) => {

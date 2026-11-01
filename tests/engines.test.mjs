@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ENGINES, engineFor } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
-import { buildNetwork, ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork, ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { buildThreadNetwork, THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
 import * as zigbeeLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import * as threadLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";

@@ -9,7 +9,7 @@ import { ENGINES } from "../custom_components/meshroute_topology_explorer/fronte
 
 /** Groups in the Zigbee engine's order of finding kinds (engines cut step 8: the order is the engine's). */
 const groupFindings = (findings, label) => groupBy(findings, label, ENGINES.zigbee.findings.kinds);
-import { findingText } from "../custom_components/meshroute_topology_explorer/frontend/ui/finding-text.js";
+import { findingText } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/finding-text.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork, VARIANTS } from "./panel-fixture.mjs";
 

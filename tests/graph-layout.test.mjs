@@ -13,7 +13,7 @@ import {
 import { buildQuadtree, quadtreeForce } from "../custom_components/meshroute_topology_explorer/frontend/graph/quadtree.js";
 import { displayLabels } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
 import { NODE_DIAMETER } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { syntheticNetwork } from "./synthetic-network.mjs";
 import { fidelity, spearman } from "./fidelity.mjs";
 import { labelWidth as measure } from "./graph-fakes.mjs";

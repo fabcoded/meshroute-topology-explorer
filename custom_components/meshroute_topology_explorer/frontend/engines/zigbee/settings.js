@@ -4,7 +4,7 @@
 // readings of each. The shell (ui/settings.js) sanitizes its own keys and hands the stored object here; keys of other
 // engines are kept verbatim by the shell and never read here. No DOM. node --test tests/
 import { DEFAULT_PATHS, PATH_STAGES } from "./lanes.js";
-import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "../../model/source-routes.js";
+import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "./source-routes.js";
 
 /** Defaults of the Zigbee keys (spec 11). paths: the view of "Communication paths" (PATH_STAGES: with the coordinator
  *  there and back, routing table, paths to all devices). heard: the checkbox "additional heard neighbours (best 3)",

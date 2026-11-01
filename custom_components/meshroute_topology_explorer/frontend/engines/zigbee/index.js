@@ -3,11 +3,11 @@
 // hold that meaning today (model/, graph/links.js, graph/renderer.js); the cut moves them here step by step without
 // changing behaviour, and each hook appears once a caller needs it.
 // Pure except details(), which fills the Details tab. node --test tests/
-import { buildNetwork, FINDING_KINDS } from "../../model/index.js";
+import { buildNetwork, FINDING_KINDS } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
-import { renderDetails } from "../../ui/details-tab.js";
-import { openClusterDialog } from "../../ui/cluster-dialog.js";
-import { findingText } from "../../ui/finding-text.js";
+import { renderDetails } from "./ui/details-tab.js";
+import { openClusterDialog } from "./ui/cluster-dialog.js";
+import { findingText } from "./ui/finding-text.js";
 import { connection } from "./connection.js";
 import { zigbeeOptions } from "./options.js";
 import { statusLine } from "./status.js";

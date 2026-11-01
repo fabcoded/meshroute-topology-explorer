@@ -12,7 +12,7 @@
 // Pure functions over a Network. node --test tests/
 import { downPath, upPath, activeRoute } from "./paths.js";
 import { pairEvidence } from "./pairs.js";
-import { normalizeIeee } from "./parse.js";
+import { normalizeIeee } from "../../model/parse.js";
 
 /** The stages (spec 11 `sourceRoute`); anything else counts as the default. */
 export const SOURCE_ROUTE_MODES = Object.freeze(["off", "assume", "zigpy"]);

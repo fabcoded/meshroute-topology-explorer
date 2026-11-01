@@ -5,12 +5,12 @@
 // overview of every usable entry, the heard option on top, and the Details card. Run: node --test tests/
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
-import { tableWalk, usableRoutes } from "../custom_components/meshroute_topology_explorer/frontend/model/paths.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
+import { tableWalk, usableRoutes } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { sceneTableLanes, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { detailsOf } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
+import { detailsOf } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js";
 import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";

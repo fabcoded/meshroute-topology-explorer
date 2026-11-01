@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Entry point of the data model: buildNetwork() turns the answers of Home Assistant into a Network (spec 4) with
+// The Zigbee engine's data model: buildNetwork() turns the answers of ZHA (from-zha.js) into a Network (spec 4) with
 // derived facts (5) and findings (5.6). No DOM, no Home Assistant objects. Plain objects, so a Network can be
 // serialized. Tested in Node: node --test tests/
 //
@@ -11,30 +11,22 @@
 // Reading = { reporter, subject, lqi, measured, scale, relationship, rating, pool, poolMedian }
 // Pair    = { a, b, ab, ba }, direction = { state, lqi, rating, source, reason } (pairs.js)
 // Route   = { owner, destination, nextHop, status, direct, stale }
-import { normalize } from "./normalize.js";
+import { normalize, ZHA_CAPABILITIES } from "./from-zha.js";
 import { applyRatings } from "./ratings.js";
 import { relayLoads } from "./paths.js";
 import { computePairs, pairEvidence } from "./pairs.js";
 import { computeFindings, computeStatus } from "./findings.js";
 
-export { parseAddress, parseLqi, normalizeIeee } from "./parse.js";
+export { parseAddress, parseLqi, normalizeIeee } from "../../model/parse.js";
 export { upPath, downPath, routePath } from "./paths.js";
 export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "./node-paths.js";
 export { assumedDownPaths, sourceRouteSummary, sourceRouteMode, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
   from "./source-routes.js";
-export { fingerprints, updateObservations, newestChange } from "./observations.js";
+export { fingerprints, updateObservations, newestChange } from "../../model/observations.js";
 export { pairEvidence };
 export { FINDING_KINDS } from "./findings.js";
 export { KINDS } from "./kinds.js";
-
-/** What a network read from ZHA holds (spec 4.6): routes with a next hop, parents, ratings on the LQI scale, the
- *  user-started scan, observed table changes (no measurement time), signatures and clusters, zigpy's route records and
- *  ZHA's own device page. Kept beside the ZHA schema mapping, which is what knows the payload; the views read it
- *  through the engine (owner decision 2026-11-01: one viewer engine per network type). */
-export const ZHA_CAPABILITIES = Object.freeze({
-  routes: true, parents: true, ratings: true, measurementTime: false, userRefresh: true, scan: true,
-  observations: true, clusters: true, routeRecords: true, devicePage: true, scale: "lqi",
-});
+export { ZHA_CAPABILITIES };
 
 /** Build a Network from the answer of `zha/devices` and, optionally, the registry answers and the ZHA config entry
  *  list (`config_entries/get`), which names the network. capabilities: what the source holds, ZHA's by default. */

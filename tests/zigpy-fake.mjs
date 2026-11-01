@@ -6,8 +6,8 @@
 // the devices the coordinator reaches by source route get a broken record, so the gate is visible: the first (by IEEE
 // address) with a relay has that relay unnamed (zigpy did not know the address), the next one an outdated address of
 // its own (a rejoin). Used by tests/model-source-routes.test.mjs and the dev page (sourceroute=zigpy).
-import { buildNetwork, upPath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
-import { assumedDownPaths } from "../custom_components/meshroute_topology_explorer/frontend/model/source-routes.js";
+import { buildNetwork, upPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { assumedDownPaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 
 export function fakeZigpyRoutes(rawDevices) {
   const network = buildNetwork(rawDevices);
