@@ -63,6 +63,9 @@ export const LANE_OFFSET = 3;
 /** Room between a lane's end (or its arrowhead's tip) and the symbol's contour, CSS pixels: the tip stays readable
  *  against the frame. Own choice. */
 export const LANE_GAP = 1;
+/** The selected device's up path: a band in the foreground colour under its lanes (decision 2026-10-31; kept in A4j
+ *  by the main session, 2026-11-01: in the stages "all" and "heard" it tells the way to the coordinator apart). */
+export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;
 /** Where a lane's value sits, as a share of the lane from the sender: a quarter before the hearer, the device the value
@@ -242,7 +245,7 @@ export function stemGeometry(x1, y1, x2, y2, size, offset) {
  *  M7): the classes the stage draws (all in debug mode) with their stroke samples, "RX:" at the hearer, and with
  *  colored the reception scale. Up and down share one row ("there and back with the coordinator"); the assumed return
  *  path shows while source routes are assumed; routes between devices from the stage "all", heard only from "heard"
- *  (each with its stage); the glyphs for directions without a reading where the stage draws them (heard only, debug);
+ *  (each with its stage); the band under a selected device's way up; the glyphs for directions without a reading where the stage draws them (heard only, debug);
  *  debug mode adds the lane without traffic or reading, the width steps and the unknown end. */
 export function legendEntries(theme,
   { paths = DEFAULT_PATHS, sourceRoute = "off", debug = false, colored = false } = {}) {
@@ -255,6 +258,7 @@ export function legendEntries(theme,
       ? [{ id: "assumed", kind: "lane", style: sample("down", { assumed: true }) }] : []),
     ...(debug || stage !== "coordinator" ? [{ id: "route", kind: "lane", style: sample("route"), stage: 2 }] : []),
     ...(heard ? [{ id: "heard", kind: "lane", style: sample("heard"), stage: 3 }] : []),
+    { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle(null, null, theme) },
       { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.up], color: theme.foreground }] : []),
     ...(heard ? [{ id: "not-listed", kind: "glyph", text: "\u2013", color: theme.muted },

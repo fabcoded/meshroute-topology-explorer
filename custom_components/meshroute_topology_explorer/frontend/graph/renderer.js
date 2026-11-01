@@ -4,8 +4,8 @@
 // of its own direction (links.js), optionally coloured by reception. What is drawn follows the stage of
 // "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11): the overview shows the up and down
 // lanes of all devices (stage "heard" adds each device's best heard-only partners); a selected device shows only its
-// own lanes of the stage, every hop with the reception at its hearer, unknown ends as dashed stems with "?", and dims
-// the other devices; the device under the pointer previews its lanes within the overview; debug mode draws every lane
+// own lanes of the stage, every hop with the reception at its hearer, its way up as a band, unknown ends as dashed
+// stems with "?", and dims the other devices; the device under the pointer previews its lanes within the overview; debug mode draws every lane
 // with its value. Labels as canvas text placed around obstacles: a block of the device's type above the symbol, its
 // readable name below and optionally the original Home Assistant name under that (labels.js). Also hit testing,
 // which shares the symbols' size. Pure except for the context passed in.
@@ -15,7 +15,7 @@ import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
 import {
-  BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, laneClass, laneGeometry,
+  BAND, BEST_HEARD, CLASSES, DEFAULT_PATHS, DIM, LANE_OFFSET, STEM, VALUE_AT, classifyLanes, laneClass, laneGeometry,
   laneStyle, overviewShows, pathStage, stemGeometry, textBeside, unknownGlyph,
 } from "./links.js";
 import { SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
@@ -265,6 +265,23 @@ function drawLane(ctx, lane, style) {
   ctx.fill();
 }
 
+/** The selected device's up path as a wide translucent band through its hops (spec 7.1), under its lanes. */
+function drawBand(ctx, path, sx, sy, theme) {
+  if (!path || path.length < 2) return;
+  ctx.globalAlpha = BAND.alpha;
+  ctx.setLineDash([]);
+  ctx.lineWidth = BAND.width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = theme.foreground;
+  ctx.beginPath();
+  ctx.moveTo(sx[path[0]], sy[path[0]]);
+  for (const i of path.slice(1)) ctx.lineTo(sx[i], sy[i]);
+  ctx.stroke();
+  ctx.lineJoin = "miter";
+  ctx.globalAlpha = 1;
+}
+
 /** Rectangles on a coarse grid, so each label checks only what is near it (thousands of lane values in debug mode). */
 class RectGrid {
   constructor(cell = 64) { this.cell = cell; this.cells = new Map(); }
@@ -473,6 +490,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const ends = [];
   if (route) {
     ctx.globalAlpha = 1;
+    // The selection's way up as a band under its lanes; hover previews without it.
+    if (selecting) drawBand(ctx, scene.upPaths[view.selected], sx, sy, theme);
     const items = [];
     const hops = [...pathHops].sort((p, q) => rank(p.cls) - rank(q.cls));
     for (const { s, h, dir, cls, assumed } of hops) {

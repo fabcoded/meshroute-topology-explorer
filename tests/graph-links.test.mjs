@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLASSES, DASH, DIM, LANE_GAP, STEM, VALUE_AT, laneGeometry, laneStyle, legendEntries, stemGeometry,
+  BAND, CLASSES, DASH, DIM, LANE_GAP, STEM, VALUE_AT, laneGeometry, laneStyle, legendEntries, stemGeometry,
   unknownGlyph, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
@@ -145,7 +145,7 @@ test("drawing order: lanes without class, heard only, routes, down, then up on t
   assert.deepEqual(stats.classes, { heard: 2, route: 1, down: 0, up: 2, assumed: 0, none: 2 });
 });
 
-test("selection: only its lanes, every hop with RX and the value at its hearer, the unknown way down", () => {
+test("selection: only its lanes, its way up as a band, every hop with RX at its hearer, the unknown way down", () => {
   const e1 = 4;
   const { ctx, stats } = draw({ selected: e1 });
   const calls = ctx.calls;
@@ -156,9 +156,18 @@ test("selection: only its lanes, every hop with RX and the value at its hearer, 
   assert.equal(stats.lanes, 2, "everything else is off");
   assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.drawn, v.cls]),
     [[4, 1, "90", true, "up"], [1, 0, "200", true, "up"]]);
-  // The other devices are dimmed; no band (boards Main, M7, M11 draw none).
+  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (main session, 2026-11-01: it tells the way
+  // to the coordinator apart from the other paths).
+  const bandAt = calls.findIndex((c, j) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width &&
+    calls.slice(Math.max(0, j - 3), j).some((x) => x[0] === "set" && x[1] === "globalAlpha" && x[2] === BAND.alpha));
+  assert.ok(bandAt > 0, "a band is drawn");
+  const bandPath = calls.slice(bandAt).filter((c) => c[0] === "moveTo" || c[0] === "lineTo").slice(0, 3)
+    .map((c) => [c[1], c[2]]);
+  assert.deepEqual(bandPath, [[500, 150], [500, 400], [200, 400]], "e1, r1, coordinator");
+  const firstLane = calls.findIndex((c, j) => j > bandAt && c[0] === "set" && c[1] === "lineWidth" && c[2] !== BAND.width);
+  assert.ok(firstLane > bandAt, "the lanes on top of it");
+  // The other devices are dimmed.
   assert.ok(calls.some((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM));
-  assert.ok(!calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === 7));
   const text = (t) => calls.filter((c) => c[0] === "fillText" && c[1] === t);
   assert.equal(text("RX:").length, 2, "each value under RX:");
   assert.equal(text("?").length, 1);
@@ -304,7 +313,7 @@ test("hover dims the rest and previews; debug shows every lane with its value", 
   const { ctx, stats } = draw({ hovered: 4 });
   assert.ok(ctx.calls.some((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM), "dimmed");
   assert.equal(stats.paths.hops, 2, "e1's way up");
-  assert.ok(!ctx.calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === 7), "no band");
+  assert.ok(!ctx.calls.some((c) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width), "hover: no band");
   const debug = draw({ debug: true });
   for (const v of ["200", "120", "90", "60"]) {
     assert.ok(debug.ctx.calls.some((c) => c[0] === "fillText" && c[1].startsWith(`${v} ←`)), v);
@@ -325,12 +334,14 @@ test("text beside a lane stays clear of it, on its right", () => {
 
 test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  assert.deepEqual(ids(), ["coordinator", "rx"]);
-  assert.deepEqual(ids({ sourceRoute: "assume" }), ["coordinator", "assumed", "rx"]);
-  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "rx"]);
-  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "heard", "not-listed", "no-table", "rx"]);
-  assert.deepEqual(ids({ debug: true }),
-    ["coordinator", "assumed", "route", "heard", "implied", "width", "not-listed", "no-table", "path-end", "rx"]);
+  assert.deepEqual(ids(), ["coordinator", "up-path", "rx"]);
+  assert.deepEqual(ids({ sourceRoute: "assume" }), ["coordinator", "assumed", "up-path", "rx"]);
+  assert.deepEqual(ids({ paths: "all", sourceRoute: "assume" }), ["coordinator", "assumed", "route", "up-path", "rx"]);
+  assert.deepEqual(ids({ paths: "heard" }), ["coordinator", "route", "heard", "up-path", "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "heard", "up-path", "implied", "width",
+    "not-listed", "no-table", "path-end", "rx"]);
+  const band = legendEntries(theme).find((e) => e.id === "up-path");
+  assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
   assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
   const entries = legendEntries(theme, { paths: "heard", sourceRoute: "assume", colored: true });
   assert.equal(entries.at(-1).id, "reception");

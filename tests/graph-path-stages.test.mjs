@@ -200,6 +200,7 @@ test("the three stages, their hints and the legend's words in English and German
     "view.paths_heard": "+ nur gehört (beste 3)", "view.paths_heard_hint": "dazu Geräte, die man hört, über die aber kein Weg läuft",
     "view.paths_note": "Jede Stufe enthält die vorige. Debug zeigt alles.",
     "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
+    "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
     "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.heard": "nur gehört", "legend.stage": "(Stufe {n})",
     "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
   };
@@ -210,7 +211,7 @@ test("the three stages, their hints and the legend's words in English and German
   assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
   assert.equal(STRINGS.en["view.paths_note"], "Every stage includes the previous one. Debug shows everything.");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
-    "legend.link.up", "legend.link.up-path", "legend.link.path"]) {
+    "legend.link.up", "legend.link.path"]) {
     assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
   }
 });

@@ -2,7 +2,7 @@
 // The links part of the legend (board M7), built from what the graph says it draws (GraphView.legend(),
 // graph/links.js legendEntries): the classes of the current stage of "Communication paths" (there and back with the
 // coordinator solid, an assumed return path dotted, paths to other devices dash-dot with their stage, heard only
-// dashed grey with its stage), in debug mode also the lane without traffic or reading, the width steps and the unknown
+// dashed grey with its stage), the band under a selected device's way up, in debug mode also the lane without traffic or reading, the width steps and the unknown
 // end, the glyphs "–" and "?" where the stage draws them, "RX:" at the hearer, and the scale of the reception colours
 // while paths are coloured. The samples use the entries' own stroke styles, so legend and map cannot drift apart; the
 // words come from i18n by entry id.
@@ -46,6 +46,14 @@ function widthSample(widths, color) {
   return el;
 }
 
+/** The selected device's way up: a wide translucent band. */
+function bandSample(entry) {
+  const el = svg("svg", { viewBox: "0 0 40 12", width: 40, height: 12, "aria-hidden": "true", class: "lane-sample" });
+  el.append(svg("path", { d: "M3 6H37", stroke: entry.color, "stroke-opacity": entry.alpha, "stroke-width": entry.width,
+    "stroke-linecap": "round" }));
+  return el;
+}
+
 /** An incomplete path's end: the dashed stem and its "?". */
 function stemSample(entry) {
   const el = svg("svg", { viewBox: "0 0 40 12", width: 40, height: 12, "aria-hidden": "true", class: "lane-sample" });
@@ -74,6 +82,7 @@ function sampleFor(row, t) {
   if (row.kind === "lane") return laneSample(row.style);
   if (row.kind === "width") return widthSample(row.widths, row.color);
   if (row.kind === "glyph") return h("span", { class: "glyph-sample", style: { color: row.color }, "aria-hidden": "true", text: row.text });
+  if (row.kind === "band") return bandSample(row);
   if (row.kind === "stem") return stemSample(row);
   if (row.kind === "scale") return scaleSample(row);
   if (row.kind === "rx") return rxSample(t);

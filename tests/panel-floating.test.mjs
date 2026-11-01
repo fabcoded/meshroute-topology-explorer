@@ -77,7 +77,8 @@ test("the links legend is built from the graph's entries, with words for every e
   const t = translator("de");
   const rows = linkLegendRows(legendEntries(resolveTheme({}), { paths: "heard" }), t);
   assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Weg zu einem anderen Gerät",
-    "nur gehört", t("legend.link.not-listed"), t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
+    "nur gehört", "Band: der Weg des ausgewählten Geräts zum Koordinator", t("legend.link.not-listed"),
+    t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
   assert.equal(rows[1].note, "(Stufe 2)");
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
