@@ -195,7 +195,13 @@ function currentDevices() {
   });
 }
 
-const fixture = await (await fetch("../tests/fixtures/zha-sample.json")).json();
+// capture=<name> loads a real capture from captures/<name>.json instead of the anonymized sample. captures/ is
+// git-ignored: real captures stay on the developer's machine (AGENTS.md, privacy), so the page shows real names
+// (name_by_user) without committing them. Only a plain file name is accepted.
+const captureName = q.get("capture");
+const fixtureUrl = captureName && /^[A-Za-z0-9._-]+$/.test(captureName) ? `../captures/${captureName}.json`
+  : "../tests/fixtures/zha-sample.json";
+const fixture = await (await fetch(fixtureUrl)).json();
 const responses = fixture.responses;
 let devices = responses["zha/devices"];
 const variant = q.get("variant");
