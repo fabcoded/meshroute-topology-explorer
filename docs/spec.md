@@ -426,8 +426,8 @@ the centre).
   only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
-  keep their size, "fit" and the first view fit the base layout (D = 1: dense 0.8 sits smaller in the window, medium 1.2 and
-  spread reaching past it), the selection or else the centre of the view stays in place, and the stored density
+  keep their size, "fit" and the first view fit the base layout, D = 1 (owner decision 2026-11-01, replacing "fit refers to
+  medium"): dense 0.8 sits smaller in the window, medium 1.2 reaches about 20 % and spread 1.9 about 90 % past it, the selection or else the centre of the view stays in place, and the stored density
   (11) applies when the panel loads.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
   plus L0 / 2, in the layout before D is applied); the ring and the details ("No readings") say so, the symbol does

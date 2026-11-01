@@ -245,7 +245,7 @@ test("fit and symbol sizes do not depend on the density", () => {
   const before = drawnSizes(medium.canvas, medium.view);
   medium.view.setDensity(1.9);
   assert.deepEqual(drawnSizes(medium.canvas, medium.view), before);
-  // Fit after a change still fits the medium layout: it does not undo the density.
+  // Fit after a change still fits the base layout (D = 1): it does not undo the density.
   medium.view.fit({ animate: false });
   assert.equal(medium.view.cam.k, dense.view.cam.k);
 });
