@@ -27,7 +27,7 @@ test("1.4a: the rank names the comparison basis the model used", () => {
 
 test("1.4b: no 'weakest RX' summary: the heading names hop counts and the markers, and the function is gone", async () => {
   assert.ok(!/weakest/i.test(en["details.theory_head"]), en["details.theory_head"]);
-  assert.match(en["details.theory_head"], /number of hops/);
+  assert.match(en["details.theory_head"], /^Hops: \u2192 outbound \u00B7 \u2190 return\. Expand a device for readings and missing values\.$/);
   const details = await import("../custom_components/meshroute_topology_explorer/frontend/ui/details.js");
   assert.equal("weakestHop" in details, false);
 });
@@ -73,10 +73,9 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
 });
 
 test("1.3: the legend explains RX, computed and assumed paths and missing values in place", () => {
-  assert.match(en["legend.rx"], /^Reception \(RX, LQI\) as reported by the receiver at the arrowhead/);
-  assert.match(en["legend.rx"], /different receivers may use different scales/);
-  assert.match(en["legend.link.assumed"], /follow the outbound path in reverse; not verified/);
-  assert.match(en["legend.link.discovery"], /Actual traffic may take another path/);
+  assert.equal(en["legend.rx"], "RX (LQI): reception at the arrowhead. Receiver scales may differ.");
+    assert.match(en["legend.link.assumed"], /follow the outbound path in reverse; not verified/);
+  assert.equal(en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
   for (const key of ["legend.link.not-listed", "legend.link.no-table"]) {
     assert.match(en[key], /No reception value in this direction.*does not indicate a weak link/, key);
   }
@@ -92,11 +91,11 @@ test("1.3: 'Read data again' only re-reads zha/devices: the reload path never se
 });
 
 test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbour hop is not an observed route", () => {
-  assert.match(en["legend.link.discovery"], /^A possible path computed from/);
+  assert.match(en["legend.link.discovery"], /^Computed path: a candidate/);
   assert.equal(en["legend.stage_computed"], "(computed, stage {n})");
   assert.equal(t("details.how_discovery"), "route discovery (computed)");
   assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
-  assert.match(en["details.theory_note"], /^Computed, not observed/);
+  assert.equal(en["details.theory_note"], "Possible paths from the available tables; actual traffic may differ.");
   assert.equal(en["details.paths_assumed_note"], "Return path assumed: the outbound path reversed. The actual return path is not available in these data.");
   assert.match(en["legend.link.assumed"], /assumed/);
   // No evidence levels 0-4 and no "predicted" / "calculated" synonyms in the active texts.

@@ -266,7 +266,7 @@ test("the three stages, their hints and the legend's words in English and German
     "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
   assert.equal(STRINGS.en["view.paths_heard_hint"],
     "needs a selection: adds the device's 3 best heard-only partners, in either stage");
-  assert.equal(STRINGS.en["legend.link.discovery"], "A possible path computed from the available tables (one of the cheapest by LQI). Actual traffic may take another path.");
+  assert.equal(STRINGS.en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
   assert.equal(STRINGS.en["legend.stage_computed"], "(computed, stage {n})");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
     "legend.link.up", "legend.link.path"]) {
