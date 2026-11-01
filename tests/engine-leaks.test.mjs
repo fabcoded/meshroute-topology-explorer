@@ -102,7 +102,7 @@ test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: h
     assert.deepEqual(inputs.filter(zigbeeInput).map((n) => n.name || n.attrs.id), []);
   });
 
-test("2: the Thread legend has no Zigbee rows and no stage or option notes", { todo: "step 1" }, async () => {
+test("2: the Thread legend has no Zigbee rows and no stage or option notes", async () => {
   const { thread } = await engines();
   const { resolveTheme } = await mod("graph/palette.js");
   const theme = resolveTheme({});
@@ -136,8 +136,7 @@ test("3: unknown Thread values stay unknown (never a Zigbee default)", { todo: "
   }
 });
 
-test("4a: there is no default engine: a network without a known engine or without capabilities throws",
-  { todo: "step 1" }, async () => {
+test("4a: there is no default engine: a network without a known engine or without capabilities throws", async () => {
   const { engineFor, zigbee, thread, zigbeeNet, threadNet } = await engines();
   assert.equal(engineFor(zigbeeNet), zigbee);
   assert.equal(engineFor(threadNet), thread);
@@ -170,7 +169,7 @@ test("4c: nothing is ever treated as routes: true by default (no hasRoutes in th
     }
   });
 
-test("5a: the engines do not import each other", { todo: "step 1" }, async () => {
+test("5a: the engines do not import each other", async () => {
   const zigbeeFiles = jsFiles("engines/zigbee/");
   const threadFiles = jsFiles("engines/thread/");
   assert.ok(zigbeeFiles.length && threadFiles.length, "both engines exist");
@@ -228,8 +227,7 @@ test("8: Thread settings are untouched: stored Zigbee keys come back verbatim an
     assert.deepEqual(stored.get(threadNet.id), { ...zigbeeKeys, density: "dense" });
   });
 
-test("9: Thread findings use their own kinds only, even with link quality 1 on every link", { todo: "step 1" },
-  async () => {
+test("9: Thread findings use their own kinds only, even with link quality 1 on every link", async () => {
   const { thread } = await engines();
   const pan = "00112233aabbcc01";
   const node = (id, role, extra = {}) => ({ id: String(id), kind: "matter", network_type: "thread", node_id: id, role,
@@ -247,7 +245,7 @@ test("9: Thread findings use their own kinds only, even with link quality 1 on e
   }
 });
 
-test("10a: Thread values are never on the Zigbee scale", { todo: "step 1" }, async () => {
+test("10a: Thread values are never on the Zigbee scale", async () => {
   const { thread, threadNet } = await engines();
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
   const dirs = threadNet.pairs.flatMap((p) => [p.ab, p.ba]);
@@ -296,7 +294,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
   assert.ok(texts && Object.keys(texts).length);
 });
 
-test("14: Zigbee parity: the engine builds exactly what the data model builds", { todo: "step 1" }, async () => {
+test("14: Zigbee parity: the engine builds exactly what the data model builds", async () => {
   const { zigbee } = await engines();
   const { buildNetwork } = await mod("model/index.js");
   const registries = { deviceRegistry: zhaResponses["config/device_registry/list"],
