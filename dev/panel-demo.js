@@ -412,7 +412,9 @@ async function replay() {
     log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; `
       + `left ${el._left.isOpen ? el._left.tab : "closed"}; right ${el._right.isOpen ? el._right.tab : "closed"}; `
       + `path ${location.pathname}; density ${el._settings && el._settings.settings.density}; `
-      + `openDetailsOnSelect ${el._settings && el._settings.settings.openDetailsOnSelect}`);
+      + `openDetailsOnSelect ${el._settings && el._settings.settings.openDetailsOnSelect}; `
+      + `paths ${el._settings && el._settings.settings.paths}; view ${el._view && el._view.paths}; `
+      + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");
 }

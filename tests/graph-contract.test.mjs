@@ -189,3 +189,31 @@ test("a lane keeps its strongest class on click and hover: up and down solid, co
   assert.deepEqual(tally, { "End device 06": [85, 2], "Router 13": [82, 1], "Router 11": [82, 0],
     Coordinator: [96, 0] });
 });
+
+test("a stage change redraws at once, with and without a selection (owner's report 2026-11-01)", () => {
+  const { view, env } = show();
+  const { scene } = view;
+  const r13 = scene.nodes.findIndex((n) => n.label === "Router 13");
+  const lanes = () => view.lastDraw.lanes;
+  const stages = (selected) => {
+    view.selected = selected;
+    view.setPaths("coordinator");
+    view.draw();
+    const out = [];
+    for (const stage of ["all", "heard", "coordinator", "all"]) {
+      const before = view.lastDraw;
+      view.setPaths(stage);
+      env.flush(); // the next animation frame, nothing else
+      assert.notEqual(view.lastDraw, before, `${stage}: drawn again`);
+      out.push(lanes());
+    }
+    return out;
+  };
+  // Without a selection: the backbone appears in stage 2, stays in 3 (the same overview) and goes in stage 1.
+  assert.deepEqual(stages(-1), [570, 570, 95, 570]);
+  // With Router 13 selected: its trees in 2 and 3 (3 adds its heard-only partners where no path runs), its way up and
+  // down in 1.
+  const selected = stages(r13);
+  assert.deepEqual([selected[0] > 4, selected[1] >= selected[0], selected[2], selected[3]], [true, true, 2,
+    selected[0]]);
+});
