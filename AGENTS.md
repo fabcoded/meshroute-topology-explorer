@@ -89,7 +89,8 @@ matters, but the default view stays calm: raw values, tables and scans live one 
   or freeze an explanatory sentence merely to prevent rewording. Security allow-lists and public contracts may need
   exact assertions. Do not weaken or delete meaningful tests just to get a passing run.
 - Use synthetic or anonymized fixtures, controlled clocks and deterministic seeds. No live services, credentials,
-  or arbitrary sleeps in unit tests. Separate tight performance benchmarks from ordinary correctness checks.
+  or arbitrary sleeps in unit tests. Measure CPU budgets as CPU time in a single-threaded child process
+  (`tests/layout-time.mjs`), never as wall time in the test process.
 - Keep fixtures minimal, clean up temporary state and test both success and failure for data-writing code. No focused
   tests in commits; explain any skipped test. Anonymization does not replace inspecting a fixture before sharing it.
 - Inspect UI changes in a browser. State which views, keyboard and touch interactions were exercised; screenshots

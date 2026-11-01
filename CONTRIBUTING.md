@@ -31,7 +31,7 @@ tests use fixtures, not a Home Assistant instance. Do not configure real credent
 
 ## Checks
 
-One command runs hooks, Python tests, JavaScript tests and isolated performance checks, stopping on the first failure:
+One command runs hooks, Python tests and JavaScript tests, stopping on the first failure:
 
 ```sh
 python3 tools/check.py
@@ -42,7 +42,6 @@ python3 tools/check.py
 | `pre-commit run --all-files` | File hygiene, structured files, private keys, Python/JS lint and safety guard |
 | `python3 -m unittest discover -s tests -v` | Python behavior, anonymization, persistence and HA API boundaries |
 | `npm test` | Node unit tests for models, engines, rendering contracts and UI behavior |
-| `npm run test:performance` | Existing CPU budgets, in a separate serial run without concurrent unit suites |
 | `npm run lint` | ESLint recommended correctness rules, unused bindings, equality and focused-test checks |
 | `pre-commit run ruff --all-files` | Python import/runtime mistakes and Bugbear checks (E4/E7/E9/F/B) |
 | `python3 tools/guard.py` | Project-specific API, privacy, HTML-sink and source-header checks |

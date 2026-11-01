@@ -34,7 +34,6 @@ def main() -> int:
         ["pre-commit", "run", "--all-files"],
         [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         ["npm", "test"],
-        ["npm", "run", "test:performance"],
     ):
         print(f"Running: {' '.join(command)}", flush=True)
         result = subprocess.run(command, cwd=ROOT, check=False)
