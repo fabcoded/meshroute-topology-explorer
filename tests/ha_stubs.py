@@ -82,8 +82,10 @@ class FakeConnection:
 
 
 class FakeHass:
-    def __init__(self):
+    def __init__(self, components=()):
         self.data = {}
+        # hass.config.components: the loaded integrations (zigpy_routes.py asks whether "zha" is among them).
+        self.config = types.SimpleNamespace(components=set(components))
         self.http = types.SimpleNamespace(async_register_static_paths=mock.AsyncMock())
 
 
@@ -115,7 +117,7 @@ def install():
     comps = mod("homeassistant.components")
     ws = mod("homeassistant.components.websocket_api", async_response=async_response,
              async_register_command=async_register_command, ERR_UNAUTHORIZED="unauthorized",
-             ERR_INVALID_FORMAT="invalid_format")
+             ERR_INVALID_FORMAT="invalid_format", ERR_NOT_SUPPORTED="not_supported")
     fe = mod("homeassistant.components.frontend", async_remove_panel=async_remove_panel)
     pc = mod("homeassistant.components.panel_custom", async_register_panel=async_register_panel)
     http = mod("homeassistant.components.http", StaticPathConfig=lambda url, path, cache: (url, path, cache))
