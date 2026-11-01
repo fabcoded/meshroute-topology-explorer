@@ -337,7 +337,9 @@ the centre).
   a reading of 0 or without a value (unmeasured or very weak, 3.1) is no spring (decision by Fabian Schwamborn,
   2026-10-31). A pair with two readings therefore has two springs.
 - L0 is the base length: node diameter plus the mean label width in the label font, at zoom 1. D is the density:
-  0.7 dense, 1.0 medium (default), 1.9 spread (was 1.5; owner, 2026-11-01: at least 20 to 30 % further apart). Repulsion scales with (L0 × D)², so the balance of springs and
+  0.8 dense, 1.2 medium (default), 1.9 spread (were 0.7 / 1.0 / 1.5; owner, 2026-11-01: all further apart; min
+  distance between node centres on the sample at 1280 × 800 after fit: 26.1 / 39.2 / 62.0 px, was 22.9 / 32.7 / 49.0;
+  phone 9.2 / 13.7 / 21.7 px). Repulsion scales with (L0 × D)², so the balance of springs and
   repulsion, and with it the meaning of the picture, is the same in every density: the layout is therefore computed
   once with D = 1 and drawn at D times its positions.
 - Any standard spring-electrical integrator is acceptable if it is deterministic with a fixed seed and meets the
@@ -423,8 +425,8 @@ the centre).
   only.
 - The density changes only the distances between connected devices, never the devices themselves (decision by
   Fabian Schwamborn, 2026-10-31): a change redraws the same layout at D times its positions, symbols and labels
-  keep their size, "fit" and the first view fit the medium layout (a dense map sits smaller in the window, a
-  spread one reaches past it), the selection or else the centre of the view stays in place, and the stored density
+  keep their size, "fit" and the first view fit the base layout (D = 1: dense 0.8 sits smaller in the window, medium 1.2 and
+  spread reaching past it), the selection or else the centre of the view stays in place, and the stored density
   (11) applies when the panel loads.
 - Devices without readings sit evenly on an ellipse just outside the mesh (the half-axes of the mesh's bounding box
   plus L0 / 2, in the layout before D is applied); the ring and the details ("No readings") say so, the symbol does
@@ -642,8 +644,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   pan). Long press: 500 ms without moving 8 px. Pinch zooms. Wheel: × 1.2 per notch around the pointer. Zoom range
   0.1 to 8 times the fitted view. Buttons +, −, fit.
 - Selecting a device in the list or a finding, double-clicking it or pressing Enter zooms and pans to the working
-  scale, a fixed zoom at which devices of the medium layout sit one mean label width from their nearest neighbour
-  (the density is not compensated: spread then shows 1.9, dense 0.7 label widths; never out past the overview), and
+  scale, a fixed zoom at which devices of the base layout (D = 1) sit one mean label width from their nearest neighbour
+  (the density is not compensated: spread then shows 1.9, medium 1.2, dense 0.8 label widths; never out past the overview), and
   keeps the device clear of the panels (decision by Fabian Schwamborn, 2026-10-31).
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - A value on a lane sits on the right of its lane, a quarter of the lane before the hearer, "RX:" above it, with a

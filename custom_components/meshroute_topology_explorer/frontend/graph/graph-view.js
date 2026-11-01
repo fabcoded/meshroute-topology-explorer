@@ -83,7 +83,7 @@ function cleanLabels(labels) {
 }
 
 export class GraphView extends EventTarget {
-  /** options: theme (colours, see palette.js), density (0.7 / 1 / 1.9, e.g. the stored setting), fill ("none",
+  /** options: theme (colours, see palette.js), density (0.8 / 1.2 / 1.9, e.g. the stored setting), fill ("none",
    *  "role" or "power"), paths (the stage of "Communication paths": "coordinator", "all" or "heard", links.js),
    *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
    *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
@@ -312,7 +312,7 @@ export class GraphView extends EventTarget {
 
   /** The working scale (spec 7.1, 9.3): the zoom at which, in the base layout (D = 1), the median distance from a
    *  device to its nearest neighbour equals the mean label width. It does not compensate the density: at the same
-   *  zoom a spread map shows 1.9 label widths between neighbours, a dense one 0.7. Revealing with zoom goes here. */
+   *  zoom a spread map shows 1.9 label widths between neighbours, a medium one 1.2, a dense one 0.8. Revealing with zoom goes here. */
   get workingZoom() {
     const { nearest, meanLabel } = this._scales();
     return nearest > 0 ? meanLabel / nearest : this.fitK;
@@ -479,7 +479,7 @@ export class GraphView extends EventTarget {
     this._scaleCache = null;
   }
 
-  /** The fitted view of the medium layout (D = 1), centred on the map: fit never undoes the density, so a dense map
+  /** The fitted view of the base layout (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the density, so a dense map
    *  sits smaller inside the margin and a spread one reaches past the window. */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);

@@ -10,8 +10,8 @@
 
 import { buildQuadtree, quadtreeForce } from "./quadtree.js";
 
-/** Densities of spec 7.1. Spread was 1.5 until 2026-11-01 (owner: at least 20-30 % further apart; 1.9 is +27 %). */
-export const DENSITY = Object.freeze({ dense: 0.7, medium: 1, spread: 1.9 });
+/** Densities of spec 7.1. Until 2026-11-01 these were 0.7 / 1 / 1.5; the owner then asked for all three further apart (spec 7.1). */
+export const DENSITY = Object.freeze({ dense: 0.8, medium: 1.2, spread: 1.9 });
 /** Settled: the largest move of a step is below this many layout units (spec 12). */
 export const SETTLE_MOVE = 0.5;
 
@@ -61,7 +61,7 @@ export function seededRandom(seed) {
 export class Layout {
   /** network: { devices: [{ id }], readings: [{ reporter, subject, lqi }] }; options: baseLength (L0), density (D),
    *  seed, pinned (Map or object id -> { x, y }), params (overrides of PARAMS). */
-  constructor(network, { baseLength: l0 = 100, density = DENSITY.medium, seed = 1, pinned = null, params = {} } = {}) {
+  constructor(network, { baseLength: l0 = 100, density = 1, seed = 1, pinned = null, params = {} } = {}) {
     this.params = { ...PARAMS, ...params };
     this.K = l0 * density;
     // Sorted ids: the result does not depend on the order in which the adapter lists devices.
