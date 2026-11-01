@@ -13,7 +13,7 @@ import { BEST_HEARD } from "../custom_components/meshroute_topology_explorer/fro
 import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { theoreticalLanes, theoreticalPath }
   from "../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js";
-import { FakeCanvas, fakeEnv } from "./graph-fakes.mjs";
+import { FakeCanvas, fakeEnv, labelWidth } from "./graph-fakes.mjs";
 
 const r = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
 const network = buildNetwork(r["zha/devices"], { deviceRegistry: r["config/device_registry/list"],
@@ -283,6 +283,49 @@ test("every hop of the focus carries its value on click, overlap accepted (board
     const missing = paths.values.filter((v) => !v.drawn || v.x === null);
     assert.equal(missing.length, 0, `${label} (${stage}): ${missing.length} of ${paths.values.length} values dropped`);
     assert.equal(paths.values.length, paths.hops, `${label}: one value per hop`);
+  }
+  env.flush();
+});
+
+test("no value covers the label of the selected device, its lanes and values stay (A4s, Codex review 1.6)", () => {
+  // Stage 2 on a hub put the many RX values over the name of the clicked device. Values now take the next spot on their
+  // own lane; the label (type line and name) is drawn and no value box intersects it.
+  const { view, env } = show();
+  const { scene } = view;
+  const kinds = Object.fromEntries(scene.nodes.filter((n) => n.kind).map((n) => [n.kind, `T:${n.kind}`]));
+  view.setTexts({ kinds });
+  for (const working of [false, true]) for (const [label, stage] of [["Router 13", "all"], ["End device 06", "coordinator"], ["End device 06", "all"],
+    ["Router 11", "all"], ["Coordinator", "all"]]) {
+    view.setPaths(stage);
+    const i = scene.nodes.findIndex((n) => n.label === label);
+    view.selected = i;
+    if (working) { // the type line shows from the working scale: zoom there, centred on the device
+      view.autoFit = false;
+      view.cam = { k: view.workingZoom, cx: view.pos.x[i], cy: view.pos.y[i] };
+    }
+    view.ctx.calls.length = 0;
+    view.draw();
+    const { paths } = view.lastDraw;
+    const texts = view.ctx.calls.filter((c) => c[0] === "fillText");
+    const wanted = [label, working && scene.nodes[i].kind ? kinds[scene.nodes[i].kind] : null].filter(Boolean);
+    // Text boxes of the label lines: the name sits right at the device, so find the lines nearest to its symbol.
+    const x = view.lastDraw.sx[i];
+    const y = view.lastDraw.sy[i];
+    const boxes = [];
+    for (const text of wanted) {
+      const c = texts.filter((t) => t[1] === text).sort((p, q) => Math.hypot(p[2] - x, p[3] - y) - Math.hypot(q[2] - x, q[3] - y))[0];
+      assert.ok(c, `${label} (${stage}${working ? ", working zoom" : ""}): "${text}" is drawn`);
+      const w = labelWidth(text) + 4;
+      boxes.push({ text, x: c[2] - w / 2, y: c[3] - 7, w, h: 14 });
+    }
+    for (const v of paths.values) {
+      assert.ok(v.drawn && v.x !== null, `${label} (${stage}${working ? ", working zoom" : ""}): every hop keeps its value`);
+      const r = { x: v.x - v.w / 2, y: v.y - v.height / 2, w: v.w, h: v.height };
+      for (const b of boxes) {
+        const hit = r.x < b.x + b.w && b.x < r.x + r.w && r.y < b.y + b.h && b.y < r.y + r.h;
+        assert.ok(!hit, `${label} (${stage}${working ? ", working zoom" : ""}): value ${v.s}>${v.h} covers "${b.text}"`);
+      }
+    }
   }
   env.flush();
 });

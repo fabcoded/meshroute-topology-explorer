@@ -35,7 +35,12 @@ const SMALL_SHARE = 10 / 12;
 const SMALL_LINE_HEIGHT = 12;
 /** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT,
  *  decision by Fabian Schwamborn, 2026-11-01), then a little further back, then closer to the hearer. Own choice. */
+/** Opacity of the plate under a focus device's label. */
+const PLATE_ALPHA = 0.85;
 const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
+/** Further places along its own lane for a focus value that would cover a focus device's label (A4s, Codex review 1.6,
+ *  main session decision 2026-11-01); tried after VALUE_SPOTS, still beside the lane and before the hearer. */
+const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 
 /** Hit radius at zoom k: the symbol and 4 px around it (this covers its rounded corners), at least MIN_HIT across. */
 export function hitRadius(k) {
@@ -507,9 +512,15 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (along + 8 > lane.len && !extra.path) return null;
     const half = Math.min(0.5, along / 2 / lane.len);
     const spots = [];
-    for (const share of VALUE_SPOTS) {
+    for (const share of extra.path ? [...VALUE_SPOTS, ...EXTRA_SPOTS] : VALUE_SPOTS) {
       const at = Math.max(half, Math.min(1 - half, share));
       if (!spots.some((p) => Math.abs(p.at - at) < 0.02)) spots.push({ at, xy: textBeside(lane, w + 4, h, 1, at) });
+    }
+    // Last resort for a focus value: the same places on the lane's other side, tried only if its own side would cover a
+    // focus label (A4s); a short lane running along the label has no free spot on its own side.
+    if (extra.path) {
+      const flipped = { ...lane, nx: -lane.nx, ny: -lane.ny };
+      for (const p of [...spots]) spots.push({ at: p.at, xy: textBeside(flipped, w + 4, h, 1, p.at) });
     }
     const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy),
       ...extra };
@@ -696,6 +707,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       return true;
     });
   };
+  // Label boxes of the focus devices (selected, hovered): no value may cover them (A4s). Values yield to them only.
+  const protectedRects = [];
+  const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
+    * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
   const rectOf = (b) => ({ x: b.cx - b.line.w / 2, y: b.cy - b.line.h / 2, w: b.line.w, h: b.line.h });
   const label = (i, forced) => {
     if (!onScreen(i)) return;
@@ -707,8 +722,17 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (!spot && !forced) { dropped++; return; }
     if (!spot) spot = options[0];
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
+    const isFocus = focusSet.has(i);
     for (const b of spot) {
-      placed.add(rectOf(b));
+      const r = rectOf(b);
+      placed.add(r);
+      if (isFocus) { // a light plate keeps crossing lanes from cutting through the focus label
+        protectedRects.push({ x: r.x - 1, y: r.y, w: r.w + 2, h: r.h });
+        ctx.globalAlpha = PLATE_ALPHA;
+        ctx.fillStyle = theme.background;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.globalAlpha = 1;
+      }
       const small = b.line.role === "ha";
       if (small) ctx.font = smallFont;
       haloText(ctx, b.line.text, b.cx, b.cy, theme, b.line.role === "name" ? theme.foreground : theme.muted);
@@ -721,9 +745,21 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     let rect = null;
     // The focus's values sit at their preferred place whatever is there (board M11 rule 8, owner decision 2026-11-01:
     // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
-    for (const [x, y] of t.path ? t.spots.slice(0, 1) : t.spots) {
+    // A focus value keeps off the focus labels (A4s): the next spot on its lane, else the one covering least of them.
+    let least = Infinity;
+    for (const [x, y] of t.spots) {
       const r = { x: x - t.w / 2 - 2, y: y - t.h / 2, w: t.w + 4, h: t.h };
-      if (!t.path && placed.hits(r)) continue;
+      if (t.path) {
+        const area = protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
+        if (area >= least) continue;
+        least = area;
+        rect = r;
+        t.x = x;
+        t.y = y;
+        if (area === 0) break;
+        continue;
+      }
+      if (placed.hits(r)) continue;
       rect = r;
       t.x = x;
       t.y = y;
