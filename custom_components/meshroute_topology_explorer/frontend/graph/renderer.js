@@ -422,11 +422,20 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   let pathEnds = [];
   const near = new Set(focus);
   if (route) {
-    // A lane keeps its strongest class whatever is in focus (main session, 2026-11-01): a hop of the focus's ways on
-    // someone's up or down lane is drawn as that lane, a computed or heard hop on a lane the backbone takes by a table,
-    // neighbour or parent link as a route; only the value and the highlight come from the focus's ways.
-    const backbone = stage !== "coordinator" ? sceneBackbone(scene) : null;
+    // Stage 1: a lane keeps its strongest class whatever is in focus (main session, 2026-11-01): a hop of the focus's
+    // ways on someone's up or down lane is drawn as that lane. From stage 2 on the focus's own tree decides (main
+    // session, 2026-11-01, board M11 rule 5): scenePaths already gives each hop the strongest of the selection's own
+    // ways (its up and down lanes, tables, neighbours, parent and child links, else discovery = computed); the
+    // network-wide backbone does not reach into the focus, or nearly every computed hop would look proven.
+    // Only the selection's stage-1 lanes (its up and down paths; the coordinator's routes down and up) override: they
+    // are the same lanes in both stages for a device, but the coordinator's trees come as routes in stage 2.
+    const own = stage !== "coordinator" ? scenePaths(scene, pathNode, "coordinator", sourceRoute).hops : null;
     const strongest = (hop) => {
+      if (own) {
+        const s1 = own.get(`${hop.s}>${hop.h}`);
+        return s1 && strength(s1.cls, s1.assumed) > strength(hop.cls, hop.assumed, hop.predicted)
+          ? { ...hop, cls: s1.cls, assumed: s1.assumed, predicted: false } : hop;
+      }
       const lane = scene.laneByKey.get(`${hop.s}>${hop.h}`);
       if (!lane) return hop;
       const lc = sc.cls[lane.index];
@@ -434,9 +443,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if ((lc === "up" || lc === "down") && strength(lc, la) > strength(hop.cls, hop.assumed, hop.predicted)) {
         return { ...hop, cls: lc, assumed: la, predicted: false };
       }
-      const kind = lc === "route" ? "route" : backbone ? backbone.kind[lane.index] : null;
-      if (kind && strength("route", false, kind === "predicted") > strength(hop.cls, hop.assumed, hop.predicted)) {
-        return { ...hop, cls: "route", assumed: false, predicted: kind === "predicted" };
+      if (lc === "route" && strength("route", false) > strength(hop.cls, hop.assumed, hop.predicted)) {
+        return { ...hop, cls: "route", assumed: false, predicted: false };
       }
       return hop;
     };

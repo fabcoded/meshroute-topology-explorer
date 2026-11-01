@@ -397,10 +397,13 @@ the centre).
     paths take every measured neighbour lane (rule 4). Decision by Fabian Schwamborn, 2026-11-01: the
     checkbox stays active in both stages; in the second stage an info button beside it explains this ("Stage 2
     already draws every measured neighbour as a possible direct way, so the checkbox rarely adds a partner there").
-  - A lane keeps its **strongest class** in every state (main session, 2026-11-01): up and measured down, then
-    assumed down, then a route (a route walk, or the backbone by a table, neighbour or parent link), then computed
-    only, then heard. A hop of a selected or hovered device's tree on someone's up or down lane stays solid; only its
-    value and the highlight come from the tree.
+  - A lane keeps its **strongest class** in the overview and in stage 1 (main session, 2026-11-01): up and measured
+    down, then assumed down, then a route (a route walk, or the backbone by a table, neighbour or parent link), then
+    computed only, then heard. **On a click or hover in stage 2 the selection's own tree decides** (main session,
+    2026-11-01, board M11 rule 5): each hop has the strongest class of the selection's own ways (its up and down
+    lanes, table, neighbour, parent and child, else computed); the backbone's network-wide classes do not reach into
+    the focus, or a computed hop would look proven because somebody else's lane covers it (7.1: a computed hop never
+    looks like one a table proves). Only the selection's stage-1 lanes (its up and down paths) override.
   - **Hover** previews the device under the pointer: its lanes of the stage that the overview draws anyway lie on
     top with their values, everything else is dimmed; it never adds lanes the stage hides. From stage 2 on the
     backbone carries the device's trees, so they show; heard-only partners (the option) wait for the click. **Debug mode** draws
@@ -608,7 +611,9 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
     back (←) and each way's weakest RX ("?" first, else the lowest LQI, else what implies it); a row opens to both ways,
     every hop with its RX and how it is taken ("table", "neighbour", "route discovery (computed)", "parent", "child";
     "table not read" or "entry inactive" where the holder had no entry), a discovery with its path cost, a stopped way
-    with its reason; a note says computed, not observed, and how. Then the parent (end devices: its availability, LQI at the parent, receiver when idle, possibly stale
+    with its reason; the note (computed, not observed, and how) stands at the top of the card, rows of equal hop
+    count sort by name in natural order (Router 2 before Router 10), and the cost of the whole path stands at the
+    end of its row, apart from the last hop. Then the parent (end devices: its availability, LQI at the parent, receiver when idle, possibly stale
     parents) or the children ("Children (end devices)", each with its model: not every end-device child sleeps); the
     findings with evidence only when the device has some, with "Show in Findings", nothing when it has none; "Heard by n
     · hears m": the
@@ -729,6 +734,7 @@ reads them again on reconnect.
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
+| Click classes (A4n) | Hops of a click in stage 2 drawn computed, before and after: Router 13 1 of 82 and 20 of 82; End device 06 2 of 85 and 34 of 85; Router 11 0 of 82 and 9 of 82; the coordinator 0 of 96 (its trees take no discovery). The overview keeps 95 / 570 lanes, 19 computed only. Router 13 -> Router 21 (route discovery over Router 11): Router 11 -> Router 21 is drawn computed, Router 13 -> Router 11 a proven route, as Router 13 reaches Router 11 itself as a neighbour. |
 | Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node, measured as the layout's own CPU time (process.cpuUsage, about 1.5 s alone), best of up to three runs so that a loaded machine does not decide it; 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time (CPU time with fresh caches, Node; about 10–35 ms alone, up to 65 ms beside the other suites); the backbone is computed once per network (about 20–70 ms wall on the sample). |
 | Calm default | Default view state shows only the elements listed in 9.1. |
 | Accessibility | Keyboard path to every device and value; hit areas ≥ 24 px; reduced motion honoured; 3:1 contrast of graphic elements. |
