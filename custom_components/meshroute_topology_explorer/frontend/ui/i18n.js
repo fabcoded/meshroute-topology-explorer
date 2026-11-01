@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Texts of the panel in English and German (spec 10): the language comes from the Home Assistant user's locale,
-// fallback English. Placeholders are {name}; values are inserted as text, never as HTML. No DOM.
-// tests/panel-i18n.test.mjs checks that both languages have the same keys and placeholders.
+// Texts of the panel (spec 10). Decision of the owner (Fabian Schwamborn, 2026-11-01): the panel is English only for
+// now; the German table `de` below stays in the file, dormant and no longer maintained, so German can be switched on
+// later by adding "de" to ACTIVE_LANGUAGES and translating the keys that were added since. languageOf() therefore
+// always answers "en"; translator("de") still renders the dormant table (tests and a later switch-on use it).
+// Dates and numbers are not "German texts": they keep following the user's locale (t.formatLocale), independent of
+// the text language. Placeholders are {name}; values are inserted as text, never as HTML. No DOM.
+// tests/panel-i18n.test.mjs: English is the complete reference; every key of the dormant table must exist in English
+// with the same placeholders.
 
 const en = {
   "header.sidebar": "Open sidebar",
@@ -913,23 +918,42 @@ const de = {
 
 export const STRINGS = Object.freeze({ en, de });
 
-/** The panel's language: Home Assistant's user locale (hass.locale.language, else hass.language), reduced to its
- *  primary subtag ("de-CH" -> "de"); English if we have no texts for it. */
-export function languageOf(hass) {
+/** Languages the panel selects from the user's locale. "de" is dormant (owner decision 2026-11-01). */
+export const ACTIVE_LANGUAGES = Object.freeze(["en"]);
+
+function primaryTag(hass) {
   const tag = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "en";
-  const primary = String(tag).toLowerCase().split(/[-_]/)[0];
-  return primary in STRINGS ? primary : "en";
+  return String(tag).toLowerCase().split(/[-_]/)[0];
 }
 
-/** t(key, params) for a language, with English and finally the key itself as fallbacks. Also: t.lang, t.number(n),
+/** The panel's text language: the user's locale (hass.locale.language, else hass.language) reduced to its primary
+ *  subtag, if that language is active; English otherwise, which today means always. */
+export function languageOf(hass) {
+  const primary = primaryTag(hass);
+  return ACTIVE_LANGUAGES.includes(primary) ? primary : "en";
+}
+
+/** The locale for dates and numbers: the user's primary language subtag if the browser's Intl knows it, else English.
+ *  Independent of the text language (owner decision 2026-11-01: English texts, local number and date format). */
+export function formatLocaleOf(hass) {
+  const primary = primaryTag(hass);
+  try {
+    return Intl.NumberFormat.supportedLocalesOf([primary]).length ? primary : "en";
+  } catch {
+    return "en";
+  }
+}
+
+/** t(key, params) for a language, with English and finally the key itself as fallbacks. Also: t.lang, t.formatLocale, t.number(n),
  *  t.list(items), t.time(text). */
-export function translator(lang) {
+export function translator(lang, formatLocale = null) {
   const table = STRINGS[lang] || en;
   const t = (key, params = {}) => {
     const text = table[key] ?? en[key] ?? key;
     return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
   };
   t.lang = lang in STRINGS ? lang : "en";
+  t.formatLocale = formatLocale || t.lang;
   t.has = (key) => key in table || key in en;
   /** A time the panel recorded (ISO, UTC) in the browser's local time: "14:32" today, with the date otherwise. */
   t.when = (iso, now = new Date()) => {
@@ -939,9 +963,9 @@ export function translator(lang) {
     const options = sameDay ? { hour: "2-digit", minute: "2-digit" }
       : { year: d.getFullYear() === now.getFullYear() ? undefined : "numeric", month: "numeric", day: "numeric",
         hour: "2-digit", minute: "2-digit" };
-    return new Intl.DateTimeFormat(t.lang, options).format(d);
+    return new Intl.DateTimeFormat(t.formatLocale, options).format(d);
   };
-  const numbers = new Intl.NumberFormat(t.lang);
+  const numbers = new Intl.NumberFormat(t.formatLocale);
   t.number = (n) => (typeof n === "number" && Number.isFinite(n) ? numbers.format(n) : "?");
   t.list = (items) => items.join(", ");
   /** ZHA's last_seen is local time without a zone ("2026-01-01T11:30:28"): shown as text, minutes only, never

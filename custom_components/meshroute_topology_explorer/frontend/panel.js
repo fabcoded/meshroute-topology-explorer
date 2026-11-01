@@ -23,7 +23,7 @@ import { ScanFollower, tablesDiffer } from "./ui/scan.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
-import { languageOf, translator, localize } from "./ui/i18n.js";
+import { languageOf, formatLocaleOf, translator, localize } from "./ui/i18n.js";
 import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
 import { MapButtons } from "./ui/map-buttons.js";
 import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
@@ -93,8 +93,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   set hass(value) {
     this._hass = value;
     const lang = languageOf(value);
-    if (lang !== this._t.lang) {
-      this._t = translator(lang);
+    const formatLocale = formatLocaleOf(value);
+    if (lang !== this._t.lang || formatLocale !== this._t.formatLocale) {
+      this._t = translator(lang, formatLocale);
       if (this._ui) this._retranslate();
     }
     const key = themeKey(value);

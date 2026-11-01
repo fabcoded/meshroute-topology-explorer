@@ -20,8 +20,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Variants of the menu: [group, [[label, query], ...]]. Each link reloads the page with exactly its query. */
 const VARIANTS = [
-  ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German", "lang=de"], ["Dark", "dark=1"],
-    ["German + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
+  ["Views", [["Default", ""], ["Narrow (phone)", "phone=1"], ["German locale (texts stay English)", "lang=de"], ["Dark", "dark=1"],
+    ["German locale + dark + narrow", "lang=de&dark=1&phone=1"], ["Fill role", "fill=role"], ["Fill power", "fill=power"],
     ["Debug", "debug=1"], ["Labels with HA name", "labels=type,name,ha"], ["Labels: name only", "labels=name"]]],
   ["Panels", [["Left: Devices", "left=devices"], ["Left: Findings", "left=findings"],
     ["Left: Details (Router 03)", "select=Router%2003&left=details"], ["Right: View", "right=view"],
@@ -56,11 +56,11 @@ const VARIANTS = [
   ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
     ["Connection lost (3 s, back 5 s later)", "lost=3&back=5"]]],
   ["Scan (debug mode)", [["Scan dialog", "scan=dialog"], ["Scan running", "scan=run"],
-    ["Scan running, German", "scan=run&lang=de"]]],
+    ["Scan running, German locale", "scan=run&lang=de"]]],
   ["Settings and version", [["Settings without backend", "settings=unknown"], ["Old version", "version=old"]]],
 ];
 /** Toggles keep every other key: [label, key, value]. */
-const TOGGLES = [["Narrow (phone)", "phone", "1"], ["Dark", "dark", "1"], ["German", "lang", "de"]];
+const TOGGLES = [["Narrow (phone)", "phone", "1"], ["Dark", "dark", "1"], ["German locale", "lang", "de"]];
 /** Keys that only steer this menu, never part of a variant. */
 const MENU_KEYS = ["devmenu"];
 
