@@ -358,13 +358,13 @@ dialog.cluster-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .attr-table { font-size: 14px; }
 .attr-table th { padding: 6px 8px; }
 .attr-table td { padding: 7px 8px; border-bottom: 1px solid var(--mte-divider); vertical-align: top; }
-.read-box { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--mte-track); }
-.read-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.read-actions .button { min-height: 40px; border-radius: 10px; padding: 0 14px; font-size: 14px; border-color: var(--mte-fg);
-  background: var(--mte-card); }
-.read-actions .button.dark { background: var(--mte-fg); color: var(--mte-card); white-space: nowrap; }
-.read-actions .button:disabled { border-color: var(--mte-outline); }
+.read-row { display: flex; flex-direction: column; gap: 4px; }
+.read-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.read-row .button { min-height: 32px; border-radius: 8px; padding: 0 12px; font-size: 13px; }
 .read-status { margin: 0; }
+.read-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.read-foot .button.dark { min-height: 36px; border-radius: 10px; padding: 0 14px; font-size: 14px; background: var(--mte-fg);
+  color: var(--mte-card); white-space: nowrap; }
 .attr-meta { display: none; }
 @media (max-width: 560px) {
   .dialog-body { padding: 18px 16px; gap: 12px; }
