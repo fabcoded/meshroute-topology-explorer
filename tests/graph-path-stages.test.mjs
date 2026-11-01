@@ -10,9 +10,15 @@ import { DEFAULT_PATHS, PATH_STAGES, pathStage } from "../custom_components/mesh
 import { buildScene, drawScene, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { DEFAULTS, sanitizePaths, sanitizeSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { DEFAULTS as SHELL_DEFAULTS, sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { DEFAULTS as ZIGBEE_DEFAULTS, sanitizePaths, settings as zigbeeSettings }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { FakeCanvas, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
+
+/** The shell's sanitizer and defaults with the Zigbee engine's keys (engines cut step 5). */
+const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
+const DEFAULTS = { ...SHELL_DEFAULTS, ...ZIGBEE_DEFAULTS };
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });

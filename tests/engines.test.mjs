@@ -27,7 +27,8 @@ const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx
 
 /** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
-  status: "function", findings: "object", connection: "function", details: "function", options: "function" };
+  status: "function", findings: "object", connection: "function", details: "function", options: "function",
+  settings: "object" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);
@@ -37,7 +38,25 @@ test("interface: both engines offer exactly the same hooks, frozen, under their 
     assert.deepEqual(Object.keys(engine).sort(), Object.keys(HOOKS).sort(), `${key}: no missing and no extra hook`);
     for (const [hook, type] of Object.entries(HOOKS)) assert.equal(typeof engine[hook], type, `${key}.${hook}`);
     assert.deepEqual(Object.keys(engine.findings), ["text"], `${key}.findings`);
+    assert.deepEqual(Object.keys(engine.settings).sort(), ["defaults", "keys", "sanitize"], `${key}.settings`);
+    assert.ok(Object.isFrozen(engine.settings) && Object.isFrozen(engine.settings.keys), `${key}.settings frozen`);
+    assert.deepEqual(Object.keys(engine.settings.defaults), [...engine.settings.keys], `${key}: a default per key`);
   }
+});
+
+test("settings (step 5): each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
+  const { sanitizeSettings, DEFAULTS } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
+  assert.deepEqual(zigbee.settings.keys, ["paths", "heard", "returnRoutes", "sourceRoute"]);
+  assert.deepEqual(thread.settings.keys, []);
+  for (const key of zigbee.settings.keys) assert.equal(key in DEFAULTS, false, `${key} is no shell key`);
+  const stored = { paths: "heard", nodeView: "all", links: {}, sourceRoute: "bogus", density: "spread", other: 1 };
+  const z = sanitizeSettings(stored, zigbee.settings);
+  assert.deepEqual([z.paths, z.heard, z.returnRoutes, z.sourceRoute, "links" in z, "nodeView" in z, z.other],
+    ["all", true, false, "assume", false, false, 1]);
+  const t = sanitizeSettings(stored, thread.settings);
+  for (const key of ["paths", "nodeView", "links", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
+  assert.equal(t.density, "spread");
+  assert.deepEqual(sanitizeSettings(stored), t, "no engine: shell keys only, the same as Thread's");
 });
 
 test("the builds stamp the engine and the source's capabilities (spec 4.6)", () => {

@@ -286,7 +286,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._raw = new Map((raw || []).map((d) => [normalizeIeee(d && d.ieee), d]));
     if (!this._settings || this._settings.network !== network.id) {
       if (this._settings) this._settings.dispose();
-      const client = new SettingsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
+      // The network engine sanitizes its own keys; the shell keeps everything else verbatim.
+      const client = new SettingsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id,
+        engineSettings: engineFor(network).settings });
       client.addEventListener("change", () => this._onSettings());
       this._settings = client;
       this._settingsStale = false;

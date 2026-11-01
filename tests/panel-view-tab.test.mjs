@@ -32,7 +32,7 @@ const network = sampleNetwork();
 function render(stored) {
   const patches = [];
   const container = new FakeNode("div");
-  const settings = sanitizeSettings(stored);
+  const settings = sanitizeSettings(stored, ENGINES.zigbee.settings);
   renderView(container, { t: translator("en"), settings, groups: ENGINES.zigbee.options(network, settings),
     openOnSelect: false, dark: false,
     debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", onChange: (p) => patches.push(p),

@@ -11,6 +11,7 @@ import { findingText } from "../../ui/finding-text.js";
 import { connection } from "./connection.js";
 import { zigbeeOptions } from "./options.js";
 import { statusLine } from "./status.js";
+import { settings } from "./settings.js";
 
 export const zigbee = Object.freeze({
   key: "zigbee",
@@ -35,4 +36,7 @@ export const zigbee = Object.freeze({
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
    *  paths without a table entry. */
   options: (network, settings) => zigbeeOptions(network, settings),
+  /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
+   *  (ui/settings.js) keeps every other key. */
+  settings,
 });

@@ -97,7 +97,7 @@ const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", 
 test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: hidden, not greyed)", async () => {
     const { zigbee, thread, zigbeeNet, threadNet } = await engines();
     const { sanitizeSettings } = await mod("ui/settings.js");
-    const s = sanitizeSettings({});
+    const s = sanitizeSettings({}, zigbee.settings);
     const zigbeeKeys = new Set(optionKeys(zigbee.options(zigbeeNet, s)));
     assert.ok(zigbeeKeys.has("paths") && zigbeeKeys.has("sourceRoute"), "the Zigbee groups are data");
     assert.deepEqual(optionKeys(thread.options(threadNet, s)).filter((k) => zigbeeKeys.has(k)), []);
@@ -212,23 +212,29 @@ test("7: the Thread focus is the device's own lanes: no band, no ends", { todo: 
   }
 });
 
-test("8: Thread settings are untouched: stored Zigbee keys come back verbatim and are never written",
-  { todo: "step 5" }, async () => {
-    const { threadNet } = await engines();
+// A save writes the whole sanitized object (shell defaults included, tests/panel-settings.test.mjs); what matters
+// here is that the Zigbee keys under a Thread id come back and go out exactly as stored (main session, 2026-11-01).
+test("8: Thread settings are untouched: stored Zigbee keys come back verbatim and are never rewritten", async () => {
+    const { thread, threadNet } = await engines();
     const { SettingsClient } = await mod("ui/settings.js");
-    const zigbeeKeys = { paths: "heard", sourceRoute: "bogus", heard: "yes", returnRoutes: 7 };
+    assert.deepEqual(thread.settings.keys, [], "Thread owns no settings keys");
+    const zigbeeKeys = { paths: "heard", sourceRoute: "bogus", heard: "yes", returnRoutes: 7, links: { up: true },
+      nodeView: "all" };
     const stored = new Map([[threadNet.id, { ...zigbeeKeys, density: "medium" }]]);
     const callWS = async (msg) => {
       if (msg.type.endsWith("/get")) return { settings: stored.get(msg.network) || null };
       stored.set(msg.network, msg.settings);
       return {};
     };
-    const client = new SettingsClient({ callWS, network: threadNet.id, timers: { setTimeout: () => 0, clearTimeout() {} } });
+    const client = new SettingsClient({ callWS, network: threadNet.id, engineSettings: thread.settings,
+      timers: { setTimeout: () => 0, clearTimeout() {} } });
     await client.load();
-    for (const [key, value] of Object.entries(zigbeeKeys)) assert.equal(client.settings[key], value, key);
+    for (const [key, value] of Object.entries(zigbeeKeys)) assert.deepEqual(client.settings[key], value, key);
     client.update({ density: "dense" });
     await client.flush();
-    assert.deepEqual(stored.get(threadNet.id), { ...zigbeeKeys, density: "dense" });
+    const saved = stored.get(threadNet.id);
+    for (const [key, value] of Object.entries(zigbeeKeys)) assert.deepEqual(saved[key], value, key);
+    assert.equal(saved.density, "dense");
   });
 
 test("9: Thread findings use their own kinds only, even with link quality 1 on every link", async () => {
@@ -283,7 +289,7 @@ test("11: the Thread status line has no Zigbee parts and no completeness banner"
 test("12: Thread never offers the scan: no scan button in debug mode without capabilities.scan", async () => {
     const { thread, zigbee, zigbeeNet, threadNet } = await engines();
     const { sanitizeSettings } = await mod("ui/settings.js");
-    const s = sanitizeSettings({});
+    const s = sanitizeSettings({}, zigbee.settings);
     const scanButton = (all) => all.some((n) => n.tag === "button" && n.attrs.id === "v-scan");
     assert.equal(threadNet.capabilities.scan, false);
     assert.equal(scanButton(await renderViewTab(thread.options(threadNet, s), { debug: true, routes: true,

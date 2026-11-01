@@ -57,7 +57,7 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
   const { ENGINES } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/index.js");
   const { sampleNetwork } = await import("./panel-fixture.mjs");
   const container = new Node("div");
-  const settings = sanitizeSettings({ paths: "all" });
+  const settings = sanitizeSettings({ paths: "all" }, ENGINES.zigbee.settings);
   renderView(container, { t, settings, groups: ENGINES.zigbee.options(sampleNetwork(), settings), openOnSelect: false,
     dark: false, debug: false, pinCount: 0,
     scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},

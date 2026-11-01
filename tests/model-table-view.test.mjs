@@ -10,9 +10,13 @@ import { tableWalk, usableRoutes } from "../custom_components/meshroute_topology
 import { buildScene, drawScene, sceneTableLanes, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { detailsOf } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
-import { sanitizeSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 import { recordingContext, labelWidth } from "./graph-fakes.mjs";
 import { sampleNetwork } from "./panel-fixture.mjs";
+
+/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });

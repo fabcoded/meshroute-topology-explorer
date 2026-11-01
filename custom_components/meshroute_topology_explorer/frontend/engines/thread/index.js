@@ -10,6 +10,10 @@ import { renderThreadDetails } from "../../ui/thread-details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 
+/** Thread owns no settings keys today (engines cut, section 3): a stored Zigbee key under a Thread id is kept by the
+ *  shell, never read and never written. */
+const SETTINGS = Object.freeze({ keys: Object.freeze([]), defaults: Object.freeze({}), sanitize: (src, out) => out });
+
 /** The View tab's Thread groups: one line where the paths would be, no controls (ui/view-tab.js renders a group
  *  without a legend as its note). */
 const THREAD_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
@@ -41,4 +45,6 @@ export const thread = Object.freeze({
   /** The View tab's Thread groups: none of the Zigbee path groups (owner decision 2026-11-01: hidden, not greyed;
    *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
   options: () => THREAD_OPTIONS,
+  /** Its own settings keys: none. */
+  settings: SETTINGS,
 });
