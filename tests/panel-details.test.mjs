@@ -4,8 +4,10 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detailsOf, hopValue, howText, pathLine, pathParts, stopText, theoryRows, weakestHop }
+import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, theoryRows, weakestHop }
   from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
+import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
 import { lqiText, rankText, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -138,4 +140,33 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.deepEqual(rows.map((r) => r.id), ["Router 1", "Router 2", "Router 10"]);
   assert.equal(de("details.theory_cost", { cost: 9 }), "Pfadkosten gesamt 9");
   assert.equal(en("details.theory_cost", { cost: 9 }), "Total path cost 9");
+});
+
+test("a hop whose hearer's table was read but does not list the sender shows the dash and names its basis (brief a4o)", () => {
+  const network = sampleNetwork();
+  const t = translator("de");
+  const names = new Map(network.devices.map((d) => [d.id, d.label]));
+  const name = (id) => names.get(id);
+  const hops = [];
+  for (const d of network.devices) {
+    for (const p of nodePaths(network, d.id, "all")) if (p.complete) hops.push(...p.hops);
+  }
+  const unknown = hops.filter((h) => h.state === "unknown" && h.lqi !== 0);
+  const listedNot = unknown.filter((h) => /^table (full|nearly full|has space)|^capacity unknown/.test(h.reason));
+  assert.ok(listedNot.length > 0, "the sample has such hops");
+  for (const hop of listedNot) {
+    assert.equal(hopValue(hop, t), "–", hop.reason);
+    assert.equal(laneValue(hop, { uncertain: "0", parent: "P", route: "R" }), "–", "map and Details agree");
+    assert.match(hopBasis(hop, t, name), /^Grundlage: /);
+  }
+  const full = listedNot.find((h) => /^table full/.test(h.reason) && typeof h.backLqi === "number");
+  assert.match(hopBasis(full, t, name), new RegExp(`${name(full.sender)} hört ${name(full.hearer)} mit ${full.backLqi}; Tabelle von ${name(full.hearer)} voll \\(\\d+/\\d+\\)$`));
+  const space = listedNot.find((h) => /^table has space/.test(h.reason));
+  assert.match(hopBasis(space, t, name), /hat Platz\. Link vermutlich einseitig oder gealtert$/);
+  // No table to ask: "?" on both, and no basis.
+  const noTable = { sender: "a", hearer: "b", state: "unknown", lqi: null, reason: "end device (no table)" };
+  assert.equal(hopValue(noTable, t), "?");
+  assert.equal(laneValue(noTable, { uncertain: "0" }), "?");
+  assert.equal(hopBasis(noTable, t, name), null);
+  assert.equal(hopValue({ state: "unknown", lqi: null, reason: "no evidence" }, t), "?");
 });

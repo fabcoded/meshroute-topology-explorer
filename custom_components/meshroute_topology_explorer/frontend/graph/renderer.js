@@ -50,10 +50,13 @@ export function valueText(lqi, uncertain = "0 (uncertain)") {
 }
 
 /** The value of a lane (a direction's evidence, data model 4.3): the raw LQI at the hearer, "Parent" or "Route" where
- *  only a parent link or a route implies it, "?" where nothing does (texts: the panel's words). */
+ *  only a parent link or a route implies it; without a reading the legend's glyph (unknownGlyph: "–" where the
+ *  hearer's table was read and does not list the sender, "?" where there is no table to ask; decision by the main
+ *  session, 2026-11-01). Texts: the panel's words. */
 export function laneValue(dir, texts) {
   if (dir && dir.state === "implied") return dir.source === "parent" ? texts.parent : texts.route;
-  return valueText(dir ? dir.lqi : null, texts.uncertain);
+  const text = valueText(dir ? dir.lqi : null, texts.uncertain);
+  return text === "?" ? unknownGlyph(dir && dir.reason) : text;
 }
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);

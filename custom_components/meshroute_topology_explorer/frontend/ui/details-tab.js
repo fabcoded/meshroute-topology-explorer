@@ -164,6 +164,7 @@ function pathsCard(all_, ctx, name) {
       if (i) nodes.push(" → ");
       nodes.push(s.name);
       if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
+      if (s.basis) nodes.push(h("span", { class: "how", text: ` (${s.basis})` }));
     });
     if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
     return h("div", { class: `path-line${p.assumed ? " assumed" : ""}` }, nodes);
@@ -195,7 +196,7 @@ function theoryCard(rows, ctx, name) {
       if (i) nodes.push(" → ");
       nodes.push(s.name);
       if (s.rx !== null) nodes.push(" · ", h("span", { class: "rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: s.rx })));
-      const notes = [s.how && howText(s.how, t), s.noEntry && t(`details.no_entry_${s.noEntry.replace(/ /g, "_")}`)]
+      const notes = [s.how && howText(s.how, t), s.basis, s.noEntry && t(`details.no_entry_${s.noEntry.replace(/ /g, "_")}`)]
         .filter(Boolean);
       // A middle dot, not brackets: "Routensuche (berechnet)" carries its own.
       if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));

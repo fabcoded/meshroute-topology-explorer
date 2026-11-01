@@ -6,6 +6,7 @@
 // is taken. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
 import { nodePaths, unknownEnd } from "../model/node-paths.js";
 import { lqiText } from "./format.js";
+import { unknownGlyph } from "../graph/links.js";
 
 const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -1) - (a.lqi ?? -1))
   || a.device.label.localeCompare(b.device.label);
@@ -15,7 +16,22 @@ const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -
 export function hopValue(hop, t) {
   if (hop.state === "implied") return t(hop.source === "parent" ? "lane.parent" : "lane.route");
   if (hop.state === "measured" || hop.lqi === 0) return lqiText(hop.lqi, t);
-  return "?";
+  return unknownGlyph(hop.reason);
+}
+
+/** Why a hop shows "–": the reverse reading (the sender hears the hearer with N), the hearer's table (full, nearly
+ *  full, with space) and, where the table has room, that the link is probably one-sided or aged. null for any other
+ *  hop, "?" included (no table to ask: nothing to name). name(id) gives a device's label. */
+export function hopBasis(hop, t, name) {
+  if (hop.state !== "unknown" || unknownGlyph(hop.reason) !== "–") return null;
+  const r = String(hop.reason);
+  const size = (/\(([^),]*)/.exec(r) || [])[1] || "";
+  const key = /^table full/.test(r) ? "full" : /^table nearly full/.test(r) ? "nearly" : /^table has space/.test(r) ? "space" : "capacity";
+  const parts = [];
+  if (typeof hop.backLqi === "number") parts.push(t("details.basis_heard", { sender: name(hop.sender), hearer: name(hop.hearer), lqi: hop.backLqi }));
+  parts.push(t(`details.basis_${key}`, { hearer: name(hop.hearer), size }));
+  const text = `${t("details.basis")} ${parts.join("; ")}`;
+  return key === "space" ? `${text}. ${t("details.basis_one_sided")}` : text;
 }
 
 /** One path in parts (board M4): prefix ("there", "back", "back, assumed (source route)", "to X", "from X"), the
@@ -29,7 +45,7 @@ export function pathParts(path, t, name) {
         : t(path.assumed ? "details.path_down_assumed" : "details.path_down");
   const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null, how: null },
     ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t), how: hop.how || null,
-      noEntry: hop.noEntry || null }))] : [];
+      noEntry: hop.noEntry || null, basis: hopBasis(hop, t, name) }))] : [];
   let tail = null;
   if (!path.complete) {
     if (unknownEnd(path) || !steps.length) {

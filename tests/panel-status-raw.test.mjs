@@ -50,8 +50,8 @@ test("ZHA's raw values in words, with the raw text in debug mode and as a fallba
   assert.equal(rawKey(true), "true");
   const en = translator("en");
   const de = translator("de");
-  assert.equal(rawText("power", "Mains", de), "Netz");
-  assert.equal(rawText("power", "Mains", de, { debug: true }), "Netz (Mains)");
+  assert.equal(rawText("power", "Mains", de), "Netzstrom");
+  assert.equal(rawText("power", "Mains", de, { debug: true }), "Netzstrom (Mains)");
   assert.equal(rawText("power", "Battery or Unknown", en), "Battery or unknown");
   assert.equal(rawText("power", "Battery or Unknown", en, { debug: true }), "Battery or unknown (Battery or Unknown)");
   assert.equal(rawText("relationship", "NoneOfTheAbove", de), "Keine dieser");

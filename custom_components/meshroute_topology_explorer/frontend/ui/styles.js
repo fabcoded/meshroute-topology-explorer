@@ -232,6 +232,8 @@ td.id, .id { font-size: 12px; color: var(--mte-muted); }
 .link { display: inline; min-height: 24px; padding: 2px 0; border: none; background: none; color: inherit; font: inherit;
   text-align: left; text-decoration: underline; text-decoration-color: var(--mte-muted); text-underline-offset: 2px;
   cursor: pointer; }
+/* Board M8: entity ids in a code font; .link resets font, so the class .mono needs this rule after it. */
+.link.mono { font-family: var(--ha-font-family-code, ui-monospace, Menlo, monospace); font-size: 13px; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0 0; }
 .facts dt { color: var(--mte-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
@@ -266,7 +268,7 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
   color: var(--mte-fg); background: transparent; border: 1px solid var(--mte-divider); border-radius: 10px; }
 .devices { list-style: none; margin: 4px 0 0; padding: 0; outline: none; }
 .devices:focus-visible { outline: 2px solid var(--mte-fg); outline-offset: 2px; }
-.device-row { display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: 10px 8px;
+.device-row { display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: 10px 0;
   border-bottom: 1px solid var(--mte-divider); cursor: pointer; }
 .device-row[aria-selected="true"] { background: color-mix(in srgb, var(--mte-accent) 16%, transparent);
   box-shadow: inset 3px 0 0 var(--mte-accent); }
