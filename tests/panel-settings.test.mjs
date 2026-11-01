@@ -7,6 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   SettingsClient, sanitizeSettings, sanitizePins, pinsForView, presentPins, DEFAULTS, SAVE_DELAY_MS, MAX_BYTES, PIN_LIMIT,
+  sanitizeColor, sanitizePathColors, sanitizeLabels,
 } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
@@ -106,8 +107,10 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.equal(server.sets().length, 1);
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
-  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true, legendOpen: null, links: { up: true, route: true, heard: true }, extra: 1,
-    nodeView: "coordinator", receptionColors: false, pins: { [A]: [1.235, -2] } });
+  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true,
+    links: { up: true, route: true, heard: true }, extra: 1, nodeView: "coordinator",
+    pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
+    pins: { [A]: [1.235, -2] } });
   await c.flush();
   assert.equal(server.sets().length, 1, "nothing pending, nothing sent");
   c.removePin(A);
@@ -217,44 +220,78 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
   assert.equal(server.sets().length, 0);
 });
 
-test("the legend's collapsed or expanded state is stored per network; anything but a boolean means by width", async () => {
-  assert.equal(sanitizeSettings({}).legendOpen, null);
-  assert.equal(sanitizeSettings({ legendOpen: true }).legendOpen, true);
-  assert.equal(sanitizeSettings({ legendOpen: "yes" }).legendOpen, null);
-  const server = fakeServer({ stored: { legendOpen: false, pins: { [A]: [1, 1] } } });
-  const c = client(server);
-  await c.load();
-  assert.equal(c.settings.legendOpen, false, "applied on load");
-  c.update({ legendOpen: true });
-  await c.flush();
-  assert.equal(server.stored.legendOpen, true);
-  assert.deepEqual(server.stored.pins, { [A]: [1, 1] }, "other keys untouched");
-});
-
-test("node view and reception colours are stored per network; bad values fall back to the defaults", async () => {
+test("node view and path display are stored per network; bad values fall back to the defaults", async () => {
   assert.equal(DEFAULTS.nodeView, "coordinator");
-  assert.equal(DEFAULTS.receptionColors, false, "colour is opt-in");
+  assert.deepEqual(DEFAULTS.pathColors, { mode: "grey", bad: null, medium: null, good: null }, "colour is opt-in");
   assert.equal(sanitizeSettings({ nodeView: "all" }).nodeView, "all");
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
     assert.equal(sanitizeSettings({ nodeView: bad }).nodeView, "coordinator", JSON.stringify(bad));
   }
-  assert.equal(sanitizeSettings({ receptionColors: true }).receptionColors, true);
-  for (const bad of ["true", 1, "yes", {}, null, undefined]) {
-    assert.equal(sanitizeSettings({ receptionColors: bad }).receptionColors, false, JSON.stringify(bad));
-  }
   // Round trip through the integration: what one panel saves, the next one reads.
-  const server = fakeServer({ stored: { nodeView: "bogus", receptionColors: "on" } });
-  const timers = manualTimers();
-  const c = client(server, timers);
+  const server = fakeServer({ stored: { nodeView: "bogus", pathColors: { mode: "rainbow", bad: "red" } } });
+  const c = client(server, manualTimers());
   await c.load();
   assert.equal(c.settings.nodeView, "coordinator");
-  assert.equal(c.settings.receptionColors, false);
-  c.update({ nodeView: "all", receptionColors: true });
+  assert.deepEqual(c.settings.pathColors, { mode: "grey", bad: null, medium: null, good: null });
+  c.update({ nodeView: "all", pathColors: { mode: "coloured", bad: "#0072B2", medium: null, good: "#e69f00" } });
   await c.flush();
   assert.equal(server.stored.nodeView, "all");
-  assert.equal(server.stored.receptionColors, true);
+  assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
   const again = client(server, manualTimers());
   await again.load();
   assert.equal(again.settings.nodeView, "all");
-  assert.equal(again.settings.receptionColors, true);
+  assert.deepEqual(again.settings.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
+});
+
+test("path colours: only #rrggbb is a colour; anything else is the theme's own", () => {
+  assert.equal(sanitizeColor("#A1b2C3"), "#a1b2c3");
+  for (const bad of ["#abc", "a1b2c3", "#a1b2c3d4", "red", "rgb(1,2,3)", "#gg0000", " #a1b2c3", 0xa1b2c3, null, {},
+    ["#a1b2c3"], "#a1b2c3;background:url(x)"]) {
+    assert.equal(sanitizeColor(bad), null, JSON.stringify(bad));
+  }
+  assert.deepEqual(sanitizePathColors({ mode: "coloured", bad: "#ff0000", medium: "javascript:1", good: 5, extra: 1 }),
+    { mode: "coloured", bad: "#ff0000", medium: null, good: null }, "unknown members are dropped");
+  for (const bad of [null, "coloured", [], 1, true]) {
+    assert.deepEqual(sanitizePathColors(bad), { mode: "grey", bad: null, medium: null, good: null }, JSON.stringify(bad));
+  }
+  const hostile = sanitizeSettings(JSON.parse('{"pathColors": {"__proto__": {"mode": "coloured"}, "bad": "#000000"}}'));
+  assert.equal(hostile.pathColors.mode, "grey");
+  assert.equal({}.mode, undefined, "nothing reaches Object.prototype");
+});
+
+test("the former receptionColors maps to coloured with the theme's colours, and the next save drops it", async () => {
+  assert.deepEqual(sanitizeSettings({ receptionColors: true }).pathColors, { mode: "coloured", bad: null, medium: null, good: null });
+  for (const bad of ["true", 1, "yes", {}, null, undefined, false]) {
+    assert.equal(sanitizeSettings({ receptionColors: bad }).pathColors.mode, "grey", JSON.stringify(bad));
+  }
+  assert.equal(sanitizeSettings({ receptionColors: true, pathColors: { mode: "grey" } }).pathColors.mode, "grey",
+    "a stored pathColors wins over the old key");
+  assert.equal("receptionColors" in sanitizeSettings({ receptionColors: true }), false);
+  assert.equal("legendOpen" in sanitizeSettings({ legendOpen: true }), false, "the legend pill is gone");
+  const server = fakeServer({ stored: { receptionColors: true, legendOpen: false, density: "spread" } });
+  const c = client(server, manualTimers());
+  await c.load();
+  assert.equal(c.settings.pathColors.mode, "coloured", "applied on load");
+  c.update({ fill: "role" });
+  await c.flush();
+  assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: null, medium: null, good: null }, "migrated on save");
+  assert.equal("receptionColors" in server.stored, false);
+  assert.equal("legendOpen" in server.stored, false);
+  assert.equal(server.stored.density, "spread");
+});
+
+test("label switches: a boolean per line, defaults type and name on, the Home Assistant name off", async () => {
+  assert.deepEqual(DEFAULTS.labels, { type: true, name: true, haName: false });
+  assert.deepEqual(sanitizeLabels({ type: false, name: "no", haName: true, size: 3 }), { type: false, name: true, haName: true });
+  for (const bad of [null, [], "all", 1]) assert.deepEqual(sanitizeLabels(bad), { type: true, name: true, haName: false });
+  const server = fakeServer({ stored: { labels: { type: 0, haName: true } } });
+  const c = client(server, manualTimers());
+  await c.load();
+  assert.deepEqual(c.settings.labels, { type: true, name: true, haName: true });
+  c.update({ labels: { ...c.settings.labels, type: false } });
+  await c.flush();
+  assert.deepEqual(server.stored.labels, { type: false, name: true, haName: true });
+  const again = client(server, manualTimers());
+  await again.load();
+  assert.deepEqual(again.settings.labels, { type: false, name: true, haName: true });
 });
