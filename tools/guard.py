@@ -51,7 +51,8 @@ EXCEPT_LITERAL = re.compile("|".join(q + re.escape(c) + q for c in DENY_EXCEPT f
 # Spec 3.4, v1 and "later" rows: the only commands shipped code may name (the DENY list above still applies first).
 ALLOWED_COMMANDS = {
     "config/area_registry/list", "config/device_registry/list", "config_entries/get", "zha/devices",
-    "zha/topology/update", "zha/devices/clusters/attributes/value", "matter/network_topology", "matter/subscribe_network_topology",
+    "zha/topology/update", "zha/devices/clusters/attributes/value", "matter/network_topology",
+    "matter/subscribe_network_topology",
     "thread/discover_routers", "thread/list_datasets", "mqtt/subscribe",
 }
 OWN_NAMESPACE = "meshroute_topology_explorer/"
