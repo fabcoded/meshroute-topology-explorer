@@ -60,6 +60,7 @@ const en = {
   "rank.basis_reporter": "rank among the readings of {reporter}",
   "rank.basis_vendor": "rank within the {vendor} group (fewer than ten readings of {reporter})",
   "rank.group": "group",
+  "rank.weakest_vendor": "rank {pct} %, lowest tenth within the {vendor} group (fewer than ten readings of {reporter})",
   "rank.none": "not rated",
   "reception.value": "reception rank {pct} %",
   "reception.none": "reception not rated",

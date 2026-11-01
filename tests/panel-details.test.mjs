@@ -9,7 +9,7 @@ import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, 
 import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
 import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
-import { lqiText, rankText, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
+import { lqiText, rankText, rankTooltip, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
@@ -37,6 +37,19 @@ test("an end device: parent, LQI at the parent and its findings", () => {
   assert.equal(info.parentLqi, end.parentLqi);
   assert.deepEqual(info.findings, network.findings.filter((f) => f.device === end.id));
   assert.equal(info.hears.length, 0, "end devices keep no neighbour table here");
+});
+
+test("reading tooltip: own pool names the reporter, vendor pool never claims the single reporter's weakest tenth (Codex 3.5)", () => {
+  const t = translator("en");
+  const reporter = { label: "Router 12", vendor: "IKEA" };
+  assert.equal(rankTooltip({ rating: 0.04, pool: "own", reporter }, t),
+    "rank 4 %, weakest tenth of what Router 12 hears, rank among the readings of Router 12");
+  assert.equal(rankTooltip({ rating: 0.04, pool: "vendor", reporter }, t),
+    "rank 4 %, lowest tenth within the IKEA group (fewer than ten readings of Router 12)");
+  assert.ok(!/what Router 12 hears/.test(rankTooltip({ rating: 0.04, pool: "vendor", reporter }, t)));
+  assert.equal(rankTooltip({ rating: 0.35, pool: "vendor", reporter }, t),
+    "rank 35 %, rank within the IKEA group (fewer than ten readings of Router 12)");
+  assert.equal(rankTooltip({ rating: null, pool: "own", reporter }, t), "not rated");
 });
 
 test("values as text: LQI 0 is uncertain, ranks use the reporter's name in the weakest tenth", () => {

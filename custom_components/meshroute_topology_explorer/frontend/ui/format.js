@@ -22,6 +22,19 @@ export function rankText(rating, reporterLabel, t) {
   return rating < WEAKEST ? t("rank.weakest", { pct, reporter: reporterLabel }) : t("rank.value", { pct });
 }
 
+/** Tooltip of a reading row: the rank and the comparison basis the model used (model/ratings.js applyRatings).
+ *  In a vendor pool no claim is made about the single reporter's readings (Codex review round 2, 3.5). */
+export function rankTooltip(r, t) {
+  if (typeof r.rating !== "number") return t("rank.none");
+  const pct = percent(r.rating);
+  const reporter = r.reporter.label;
+  if (r.pool === "vendor") {
+    const vendor = r.reporter.vendor || "?";
+    return r.rating < WEAKEST ? t("rank.weakest_vendor", { pct, vendor, reporter }) : `${t("rank.value", { pct })}, ${t("rank.basis_vendor", { vendor, reporter })}`;
+  }
+  return `${rankText(r.rating, reporter, t)}, ${t("rank.basis_reporter", { reporter })}`;
+}
+
 export function receptionText(rating, t) {
   return typeof rating === "number" ? t("reception.value", { pct: percent(rating) }) : t("reception.none");
 }
