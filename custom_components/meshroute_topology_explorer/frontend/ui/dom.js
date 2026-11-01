@@ -38,7 +38,8 @@ const ICONS = {
   menu: [["path", { d: "M4 6h16M4 12h16M4 18h16" }]],
   plus: [["path", { d: "M12 5v14M5 12h14" }]],
   minus: [["path", { d: "M5 12h14" }]],
-  fit: [["path", { d: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" }]],
+  // Two diagonal arrows pointing outwards (board M1, own drawing).
+  fit: [["path", { d: "M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" }]],
   close: [["path", { d: "M6 6l12 12M18 6L6 18" }]],
   up: [["path", { d: "M6 15l6-6 6 6" }]],
   down: [["path", { d: "M6 9l6 6 6-6" }]],
