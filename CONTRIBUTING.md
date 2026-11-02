@@ -29,7 +29,7 @@ CI runs the same script. Single steps:
 |---|---|
 | `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, JSON/YAML/TOML, merge markers, keys, large files |
 | `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
-| `npm test` | JavaScript: models, engines, rendering, UI behaviour, CPU budgets |
+| `npm test` | JavaScript: the regular suite (`tests/**/*.test.mjs`, concurrent), then the CPU budgets alone (`tests/**/*.budget.mjs`, concurrency 1) |
 | `node --test tests/<name>.test.mjs` | One JavaScript test file |
 
 - `tools/guard.py` enforces the ground rules: allowed Home Assistant commands, no outside URLs or HTML sinks in

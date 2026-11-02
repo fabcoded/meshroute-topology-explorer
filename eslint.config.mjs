@@ -21,7 +21,7 @@ export default [
   { files: ["custom_components/**/*.js"], rules: { "no-console": "error" } },
   { files: ["tests/**/*.mjs", "*.mjs"], languageOptions: { globals: globals.node } },
   {
-    files: ["tests/**/*.test.mjs"],
+    files: ["tests/**/*.test.mjs", "tests/**/*.budget.mjs"],
     rules: {
       "no-restricted-syntax": ["error", {
         selector: "CallExpression > MemberExpression.callee[property.name='only']",

@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Tests of the quality-view layout (spec 7.1, 12): spring curve, determinism, fidelity on the sample in every
-// density (one base layout drawn at base x D), speed on a synthetic network, the unknown ring, pinning, Barnes-Hut.
+// density (one base layout drawn at base x D), the unknown ring, pinning, Barnes-Hut.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import {
   Layout, DENSITY, SETTLE_MOVE, springFactor, baseLength, seededRandom,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
@@ -95,24 +93,6 @@ test("Spearman helper: perfect, inverse and tied ranks", () => {
 
 test("density factors are pinned: dense 0.96, medium 1.44, spread 2.28 (spec 7.1; former 0.7 / 1 / 1.5, then 0.8 / 1.2 / 1.9)", () => {
   assert.deepEqual({ ...DENSITY }, { dense: 0.96, medium: 1.44, spread: 2.28 });
-});
-
-test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
-  // The target is computing time (spec 12). Measured in a child process with V8's --single-threaded flag
-  // (tests/layout-time.mjs), as for a click: in this process the
-  // CPU time also counted the compiler's and garbage collector's helper threads, and beside the other suites on a
-  // loaded machine it once exceeded 5 s (2026-11-01). Best of three runs of the same deterministic layout.
-  const out = execFileSync(process.execPath, ["--single-threaded", fileURLToPath(new URL("./layout-time.mjs", import.meta.url))],
-    { encoding: "utf8" });
-  const r = JSON.parse(out);
-  assert.equal(r.devices, 300);
-  assert.equal(r.readings, 3000);
-  // About 0.9 to 1.2 s here alone (2026-11-01, Node 18 under WSL); the limit is spec 12's.
-  report(t, `synthetic 300/3000: settled in ${r.ms} ms CPU (${r.wallMs} ms wall), ${r.steps} steps, ` +
-    `largest last move ${r.lastMove.toFixed(3)}, fidelity ${r.fidelity.toFixed(3)}`);
-  assert.ok(r.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");
-  assert.ok(r.temperature > SETTLE_MOVE, "by balance: the cooling cap was not what stopped it");
-  assert.ok(r.ms < 5000, `${r.ms} ms CPU`);
 });
 
 test("devices without readings sit evenly on an ellipse just outside the mesh, in id order from the top", () => {
