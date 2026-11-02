@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Tests of the link rendering (spec 7.1, 8, 9.3): lanes on
 // the right of their travel in every quadrant, classes per direction by dash and weight, glyphs for directions without
-// a reading, drawing order, the selection's lanes with "RX:" values a quarter before each hearer, unknown ends, colour
+// a reading, drawing order, the selection's lanes with value pills near each hearer, unknown ends, colour
 // by reception, legend entries per stage.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, widthStep, textBeside, WIDTHS,
+  BAND, DIM, LANE_GAP, STEM, STROKES, VALUE, laneGeometry, laneStyle, pillCentre, pillDistances, pillSize, stemGeometry, widthStep, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { CLASSES, legendEntries, strokeOf, weightOf }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
@@ -189,44 +189,110 @@ test("selection: only its lanes, its way up as a band, every hop with RX at its 
   // The other devices are dimmed.
   assert.ok(calls.some((c) => c[0] === "set" && c[1] === "globalAlpha" && c[2] === DIM));
   const text = (t) => calls.filter((c) => c[0] === "fillText" && c[1] === t);
-  assert.equal(text("RX:").length, 2, "each value under RX:");
+  assert.equal(calls.filter((c) => c[0] === "fillText" && /RX/.test(c[1])).length, 0, "no RX: prefix; the legend explains");
   assert.equal(text("?").length, 1);
   assert.equal(text("path unknown").length, 1);
-  // "e1 -> r1" travels down the screen: its right is x < 500. "r1 -> c" travels left: its right is up, y < 400.
+  // "e1 -> r1" travels down the screen, "r1 -> c" to the left; the pill sits on the lane near the hearer (own test below).
   const [v90] = text("90");
   const [v200] = text("200");
-  assert.ok(v90[1] < 500 && v90[3] > 275, `90 near r1, left of the lane: ${v90[2]}, ${v90[3]}`);
-  assert.ok(v200[3] < 400 && v200[2] < 350, `200 near the coordinator, above the lane: ${v200[2]}, ${v200[3]}`);
+  assert.ok(Math.abs(v90[2] - 497) < 1 && v90[3] > 275, `90 on the lane near r1: ${v90[2]}, ${v90[3]}`);
+  assert.ok(Math.abs(v200[3] - 397) < 1 && v200[2] < 350, `200 on the lane near the coordinator: ${v200[2]}, ${v200[3]}`);
   // Lanes off its paths are not drawn at all: not 120 (r1 hears c), not "Parent" (e1 hears r1: the way down is unknown).
   assert.equal(text("120").length, 0);
   assert.equal(text("Parent").length, 0);
   assert.equal(text("60").length, 0);
 });
 
-test("a value sits a quarter of its lane before the hearer, on the right of travel, with RX: above it", () => {
-  const e1 = 4;
-  const { ctx, stats } = draw({ selected: e1 });
-  // Hop e1 -> r1, as the renderer lays it out at zoom 1 (symbols 32 px, lanes 3 px off the centre line).
+/** The pill drawn around the value `text`: the outline colour, fill colour and centre, read back from the calls. */
+function pillOf(ctx, text) {
+  const at = ctx.calls.findIndex((c) => c[0] === "fillText" && c[1] === text);
+  assert.ok(at > 0, `"${text}" is drawn`);
+  const before = ctx.calls.slice(0, at);
+  const last = (name, from = before) => from.slice().reverse().find((c) => c[0] === "set" && c[1] === name)[2];
+  const stroke = before.map((c, j) => (c[0] === "stroke" ? j : -1)).filter((j) => j >= 0).pop();
+  return { outline: last("strokeStyle"), fill: last("fillStyle", before.slice(0, stroke)), text: last("fillStyle"),
+    x: ctx.calls[at][2], y: ctx.calls[at][3] };
+}
+
+test("a value sits in its lane, min(a quarter of the lane, 4 diameters) back from the arrowhead's tip", () => {
+  const { ctx, stats } = draw({ selected: 4 });
+  // Hop e1 -> r1 at zoom 1 (symbols 32 px, lanes 3 px off the centre line): the lane is shorter than 4 x 4 diameters.
   const lane = laneGeometry(500, 150, 500, 400, 32, 32, 3);
-  const at = ctx.calls.findIndex((c) => c[0] === "fillText" && c[1] === "90");
-  const value = ctx.calls[at];
-  const rx = ctx.calls.slice(0, at).reverse().find((c) => c[0] === "fillText" && c[1] === "RX:");
-  const centre = [value[2], value[3] - 7]; // two lines of 14 px: the value is the lower one
-  const along = (centre[0] - lane.x0) * lane.ux + (centre[1] - lane.y0) * lane.uy;
-  assert.ok(Math.abs(along - VALUE_AT * lane.len) < 1e-9, `3/4 of the lane from the sender: ${along} of ${lane.len}`);
-  assert.equal(VALUE_AT, 0.75);
-  assert.ok(cross(lane.ux, lane.uy, centre[0] - lane.x0, centre[1] - lane.y0) > 0, "right of travel");
-  assert.ok(rx && rx[2] === value[2] && rx[3] === value[3] - 14, "RX: right above the value");
-  assert.equal(stats.paths.values[0].x, centre[0]);
-  // In every direction the anchor is 3/4 along and on the right, clear of the stroke.
+  const pill = pillOf(ctx, "90");
+  const back = (lane.x1 - pill.x) * lane.ux + (lane.y1 - (pill.y - 0.5)) * lane.uy;
+  assert.ok(Math.abs(back - Math.min(lane.len / 4, 4 * 32)) < 1e-9, `${back} of ${lane.len}`);
+  assert.ok(Math.abs(pill.x - lane.x1) < 1e-9, "on the lane's line, not beside it");
+  assert.equal(stats.paths.values[0].x, pill.x);
+  // A long lane: the cap of four symbol diameters keeps the value near the hearer.
+  const long = laneGeometry(0, 0, 1000, 0, 32, 32, 3);
+  assert.equal(pillDistances(long, 32, 30, 16)[0], 128);
+  assert.equal(pillDistances(long, 40, 30, 16)[0], 160, "the diameter on screen counts");
+  const mid = laneGeometry(0, 0, 300, 0, 32, 32, 3);
+  assert.equal(pillDistances(mid, 32, 30, 16)[0], mid.len / 4, "a quarter where that is less");
+  // On the right of the line's end: the centre is on the lane, d back from the tip, in any direction.
   for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [2, 1], [-3, 2]]) {
-    const l = laneGeometry(0, 0, 300 * dx, 300 * dy, 32, 32, 3);
-    const [tx, ty] = textBeside(l, 24, 28, 1, VALUE_AT);
-    const a = (tx - l.x0) * l.ux + (ty - l.y0) * l.uy;
-    assert.ok(Math.abs(a - 0.75 * l.len) < 1e-9);
-    const side = cross(l.ux, l.uy, tx - l.x0, ty - l.y0);
-    assert.ok(side > Math.abs(l.nx) * 12 + Math.abs(l.ny) * 14 - 1e-9, `clear on the right (${dx}, ${dy})`);
+    const l = laneGeometry(0, 0, 400 * dx, 400 * dy, 32, 32, 3);
+    const [px, py] = pillCentre(l, 50);
+    assert.ok(Math.abs((l.x1 - px) * l.uy - (l.y1 - py) * l.ux) < 1e-9 && Math.hypot(l.x1 - px, l.y1 - py) - 50 < 1e-9);
   }
+});
+
+test("short lanes: the pill moves to the middle under 60 px or where it would touch the arrowhead, else no value", () => {
+  const size = 32;
+  const w = pillSize(labelWidth("111")).w;
+  const at = (len) => pillDistances({ ux: 1, uy: 0, len }, size, w, VALUE.height);
+  assert.equal(VALUE.minLane, 60);
+  assert.deepEqual(at(200), [50, 100], "a quarter first, the middle as second choice");
+  const near = at(80); // 20 px from the tip: the pill (about 31 wide) would touch the arrowhead, so the middle
+  assert.deepEqual(near, [40]);
+  assert.deepEqual(at(59), [29.5], "under 60 px: the middle");
+  assert.deepEqual(at(40), [], "even the middle leaves no room: no value on the map");
+  assert.equal(pillSize(0).w, VALUE.height, "never narrower than it is high");
+  // Drawn: a distant, a short and a too-short lane (Sensor sits 40 px from Router 1).
+  const pos = { x: [-300, 0, 300, 300, 0], y: [0, 0, 0, 250, -250], pinned: [0, 0, 0, 0, 0], mesh: [1, 1, 1, 1, 1] };
+  const scene = buildScene(asZigbee(NET), labelWidth);
+  const run = (positions) => {
+    const ctx = recordingContext({ props: true });
+    const stats = drawScene(ctx, scene, positions, { cam: { k: 1, cx: 0, cy: 0 }, width: 1000, height: 800, dpr: 1,
+      labelZoom: 1, debug: true, selected: -1, hovered: -1, fps: null, fill: "none" }, theme, labelWidth);
+    return { ctx, stats };
+  };
+  const wide = run(pos);
+  assert.ok(wide.stats.values > 0);
+  const tight = run({ ...pos, x: [-300, 0, 300, 300, 36], y: [0, 0, 0, 250, 0] }); // e1 38 px from r1: no lane left
+  assert.ok(tight.stats.values < wide.stats.values, "values of lanes without room are not drawn (Details keep them)");
+});
+
+test("the pill: background fill, 1 px outline in the lane's colour, upright number; per theme and colour mode", () => {
+  const dark = resolveTheme({ background: "#111111", foreground: "#e1e1e1" });
+  const run = (t, colored) => {
+    const scene = buildScene(asZigbee(NET), labelWidth);
+    const ctx = recordingContext({ props: true });
+    drawScene(ctx, scene, POS, { cam: { k: 1, cx: 0, cy: 0 }, width: 1000, height: 800, dpr: 1, labelZoom: 1,
+      debug: false, selected: 4, hovered: -1, fps: null, fill: "none", receptionColors: colored }, t, labelWidth);
+    return ctx;
+  };
+  for (const t of [theme, dark]) {
+    const plain = pillOf(run(t, false), "90");
+    assert.equal(plain.fill, t.background, "fill = the map's background");
+    assert.equal(plain.outline, t.foreground, "default: the lane's own (foreground) colour");
+    assert.equal(plain.text, t.foreground);
+    const coloured = pillOf(run(t, true), "90");
+    assert.equal(coloured.fill, t.background);
+    assert.notEqual(coloured.outline, t.foreground, "coloured by reception");
+  }
+  const ctx = run(theme, false);
+  const widths = ctx.calls.filter((c) => c[0] === "set" && c[1] === "lineWidth");
+  assert.ok(widths.some((c) => c[2] === 1), "outline 1 px");
+});
+
+test("text values use the same pill, wider; the legend explains the number once", () => {
+  const { ctx } = draw({ selected: 1, paths: "all" });
+  const parent = pillOf(ctx, "Parent");
+  assert.ok(parent.fill === theme.background);
+  assert.ok(pillSize(labelWidth("Parent")).w > pillSize(labelWidth("90")).w);
+  const entry = legendEntries(theme).find((e) => e.id === "rx");
+  assert.equal(entry.kind, "rx");
 });
 
 test("stage 'all': paths to and from other devices join the click as routes; hover previews only what the stage draws", () => {
@@ -349,17 +415,6 @@ test("hover dims the rest and previews; debug shows every lane with its value", 
     assert.ok(debug.ctx.calls.some((c) => c[0] === "fillText" && c[1].startsWith(`${v} ←`)), v);
   }
   assert.ok(debug.ctx.calls.some((c) => c[0] === "fillText" && c[1] === "Parent"), "implied lanes carry their value");
-});
-
-test("text beside a lane stays clear of it, on its right", () => {
-  for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [2, 1]]) {
-    const lane = laneGeometry(0, 0, 300 * dx, 300 * dy, 32, 32, 3);
-    const [tx, ty] = textBeside(lane, 40, 14);
-    assert.ok(cross(lane.ux, lane.uy, tx - lane.mx, ty - lane.my) > 0);
-    // The text box does not reach the lane: its half extent along the normal is less than the distance.
-    const reach = Math.abs(lane.nx) * 20 + Math.abs(lane.ny) * 7;
-    assert.ok(Math.hypot(tx - lane.mx, ty - lane.my) > reach);
-  }
 });
 
 test("legend entries: one row per evidence with its views, the role, RX, the scale while coloured; debug all (spec 9.1)", () => {

@@ -492,12 +492,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._settings) this._settings.update({ openDetailsOnSelect: Boolean(on) });
   }
 
-  /** Words the map draws itself: LQI 0, the values of implied lanes, "RX:" above a value, an unknown path's end, and
+  /** Words the map draws itself: LQI 0, the values of implied lanes, an unknown path's end, and
    *  the device types above the symbols. */
   _graphTexts() {
     const t = this._t;
     const kinds = Object.fromEntries(KINDS.filter((k) => k !== "unknown").map((k) => [k, t(`kind_short.${k}`)]));
-    return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route"), rx: t("lane.rx"),
+    return { uncertain: t("lqi.uncertain"), parent: t("lane.parent"), route: t("lane.route"),
       pathUnknown: t("lane.path_unknown"), kinds };
   }
 

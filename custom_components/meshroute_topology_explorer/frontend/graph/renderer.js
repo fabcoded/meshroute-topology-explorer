@@ -15,7 +15,8 @@
 import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";
 import { toScreen } from "./camera.js";
-import { BAND, DIM, LANE_OFFSET, STEM, VALUE_AT, laneGeometry, laneStyle, stemGeometry, textBeside } from "./links.js";
+import { BAND, DIM, LANE_OFFSET, STEM, VALUE, laneGeometry, laneStyle, pillCentre, pillDistances, pillSize,
+  stemGeometry } from "./links.js";
 import { engineFor } from "../engines/index.js";
 import { ROLES, SYMBOL_SIZE, drawSymbol, symbolLayers, symbolParts, symbolSize } from "./symbols.js";
 
@@ -28,12 +29,8 @@ const LINE_HEIGHT = 14;
  *  label font, scaled by this share; its line is a little lower too. Own choice. */
 const SMALL_SHARE = 10 / 12;
 const SMALL_LINE_HEIGHT = 12;
-/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT), then a little further back, then closer to the hearer. Own choice. */
 /** Opacity of the plate under a focus device's label. */
 const PLATE_ALPHA = 0.85;
-const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
-/** Further places along its own lane for a focus value that would cover a focus device's label; tried after VALUE_SPOTS, still beside the lane and before the hearer. */
-const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 
 /** Screen length (CSS px) of the shortest focus lane of device `index` at camera `cam`, as drawn by drawScene: the
  *  hops of the engine's focus with `index` selected (engines/<type>/scene.js focus; view: the graph view, whose
@@ -167,6 +164,18 @@ function haloText(ctx, text, x, y, theme, color = theme.foreground) {
   ctx.fillText(text, x, y);
 }
 
+/** Path of an upright pill (rounded ends) centred at (x, y). */
+function pillPath(ctx, x, y, w, h) {
+  const r = Math.min(h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2 + r, y - h / 2);
+  ctx.lineTo(x + w / 2 - r, y - h / 2);
+  ctx.arc(x + w / 2 - r, y, r, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(x - w / 2 + r, y + h / 2);
+  ctx.arc(x - w / 2 + r, y, r, Math.PI / 2, (3 * Math.PI) / 2);
+  ctx.closePath();
+}
+
 /** One lane (links.js laneGeometry) with the current stroke style; with a head, the stroke stops at the head's base
  *  and a filled triangle points at the hearer. */
 function drawLane(ctx, lane, style) {
@@ -266,7 +275,7 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
  *  fps (number or null), fill ("none" | "role" | "power", palette.js FILLS), receptionColors (lanes coloured by their
  *  rating), labels ({ type, name, haName }: lines of a label block), typeZoom (the zoom from which the type line is
- *  drawn: the working scale, so the overview stays calm; none: always), texts ({ uncertain, parent, route, rx,
+ *  drawn: the working scale, so the overview stays calm; none: always), texts ({ uncertain, parent, route,
  *  pathUnknown, kinds }, words drawn on the map), and the engine's own view settings (Zigbee: paths, heard,
  *  returnRoutes, sourceRoute), which only the engine reads }; pos: { x, y, pinned, mesh } arrays by node index;
  *  measure(text) for the label font.
@@ -274,7 +283,7 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  classes (lanes drawn per class of the engine, assumed and computed ("predicted") lanes also apart, lanes without
  *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
  *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
- *  predicted }] }) }. */
+ *  predicted, places (spots the lane offered: 1 = only its middle) }] }) }. */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -325,7 +334,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const colored = Boolean(view.receptionColors);
   const dimming = focus.length > 0;
   const alpha = dimming ? DIM : 1;
-  const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
+  const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", pathUnknown: "path unknown",
     ...(view.texts || {}) };
   const laneTexts = [];
   const glyphs = [];
@@ -335,34 +344,27 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const pairsDrawn = new Set();
   let lanes = 0;
   ctx.font = theme.font;
-  // A lane's value: "RX:" over the value at the hearer, beside the lane on its right, a quarter of the lane before
-  // the hearer (VALUE_AT); on a short lane it moves back just enough to stay beside its own lane. If that spot is
-  // taken, it tries a little further back and a little closer to the hearer, always beside its own lane. No room:
-  // the details list it (spec 9.3). Values of the focus's lanes (extra.path) do not yield: see value() below.
+  // A lane's value: an upright number in a pill that interrupts the lane (spec 7.1), at the hearer's end: min(a quarter
+  // of the lane, 4 symbol diameters) back from the arrowhead's tip. Where that does not fit (lane under 60 px, or the
+  // pill would touch a symbol) it moves to the lane's middle; no room even there: no value, the details list it
+  // (spec 9.3). Both kinds slide along their own lane for a free place; values of the focus's lanes (extra.path) are
+  // never dropped (spec 7.1): they fall back to the middle whatever is there. See value() below.
   const addValue = (lane, text, extra) => {
-    const w = Math.max(measure(texts.rx), measure(text));
-    const h = 2 * LINE_HEIGHT;
+    const { w, h } = pillSize(measure(text));
+    let dists = pillDistances(lane, size, w, h);
+    // Then every place along the lane clear of the arrowhead and the start, nearest the first choice first: a value
+    // dodges a label or a symbol by sliding along its own lane.
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
-    // A focus lane's value is never dropped (spec 7.1): on a short lane it sits at its
-    // middle, beside the lane, where the lane is long enough for nothing else. Other values yield (spec 9.3).
-    if (along + 8 > lane.len && !extra.path) return null;
-    const half = Math.min(0.5, along / 2 / lane.len);
-    const spots = [];
-    for (const share of extra.path ? [...VALUE_SPOTS, ...EXTRA_SPOTS] : VALUE_SPOTS) {
-      const at = Math.max(half, Math.min(1 - half, share));
-      if (!spots.some((p) => Math.abs(p.at - at) < 0.02)) spots.push({ at, xy: textBeside(lane, w + 4, h, 1, at) });
+    const first = dists.length ? dists[0] : lane.len * VALUE.share;
+    const slide = [];
+    for (let d = VALUE.tip + along / 2; d <= lane.len - VALUE.end - along / 2; d += 4) slide.push(d);
+    dists = [...dists, ...slide.sort((p, q) => Math.abs(p - first) - Math.abs(q - first))];
+    if (!dists.length) {
+      if (!extra.path) return null;
+      dists = [lane.len / 2]; // never dropped: the middle, overlap accepted
     }
-    // Last resort for a focus value: the same places on the lane's other side, tried only if its own side would cover a
-    // focus label; a short lane running along the label has no free spot on its own side.
-    if (extra.path) {
-      const flipped = { ...lane, nx: -lane.nx, ny: -lane.ny };
-      for (const p of [...spots]) spots.push({ at: p.at, xy: textBeside(flipped, w + 4, h, 1, p.at) });
-      // Still no free place (a short lane running along the label of a hub): past either end of the lane, still beside its
-      // line (with wider density factors the test sample hit this on Coordinator 0 > 7).
-      for (const at of [1.25, 1.6, -0.25, -0.6]) for (const l of [lane, flipped]) spots.push({ at, xy: textBeside(l, w + 4, h, 1, at) });
-    }
-    const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy),
-      ...extra };
+    const spots = dists.filter((d, i) => dists.findIndex((e) => Math.abs(e - d) < 1) === i).map((d) => pillCentre(lane, d));
+    const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
     return t;
   };
@@ -399,7 +401,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!debug) continue; // values beside every lane in debug mode; otherwise only on the focus's lanes
       let text = engine.laneValue(dir, texts);
       if (state === "measured") text += ` \u2190 ${scene.nodes[lane.h].label}`;
-      addValue(geo, text, { path: false, alpha });
+      addValue(geo, text, { path: false, alpha, color: style.color });
     }
     ctx.globalAlpha = alpha;
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
@@ -470,7 +472,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       count(hop);
       let text = engine.laneValue(dir, texts);
       if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1 });
+      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
@@ -595,22 +597,43 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.globalAlpha = 1;
     shown++;
   };
+  const valueFont = theme.font.replace(/(\d+(?:\.\d+)?)px/, `${VALUE.font}px`);
+  // The pill: the lane stops 2 px before it (a background plate, opaque so a dimmed lane vanishes behind it too), thin
+  // outline in the lane's colour, the number upright inside (spec 7.1).
   const drawValue = (t) => {
-    ctx.globalAlpha = t.alpha;
-    haloText(ctx, t.lines[0], t.x, t.y - LINE_HEIGHT / 2, theme, theme.muted);
-    haloText(ctx, t.lines[1], t.x, t.y + LINE_HEIGHT / 2, theme);
     ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.background;
+    pillPath(ctx, t.x, t.y, t.w + 4, t.h + 4);
+    ctx.fill();
+    ctx.globalAlpha = t.alpha;
+    pillPath(ctx, t.x, t.y, t.w, t.h);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = t.color;
+    ctx.stroke();
+    ctx.fillStyle = theme.foreground;
+    ctx.font = valueFont;
+    ctx.fillText(t.text, t.x, t.y + 0.5);
+    ctx.font = theme.font;
+    ctx.globalAlpha = 1;
+  };
+  // Area of a rectangle covered by device symbols (a pill never covers one where a lane has another place).
+  const symbolArea = (r) => {
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      if (onScreen(i)) sum += overlapArea(r, { x: sx[i] - half, y: sy[i] - half, w: size, h: size });
+    }
+    return sum;
   };
   const value = (t) => {
     let rect = null;
-    // The focus's values sit at their preferred place whatever is there (spec 7.1,
-    // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
-    // A focus value keeps off the focus labels: the next spot on its lane, else the one covering least of them.
+    // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
+    // place on the lane, else the one covering least); they are never dropped. Only the debug overview's values need
+    // a free spot and may be dropped.
     let least = Infinity;
     for (const [x, y] of t.spots) {
-      const r = { x: x - t.w / 2 - 2, y: y - t.h / 2, w: t.w + 4, h: t.h };
+      const r = { x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 };
       if (t.path) {
-        const area = protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
+        const area = protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
         if (area >= least) continue;
         least = area;
         rect = r;
@@ -653,6 +676,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   // The engine's anchors are always labelled (Zigbee: the coordinator; Thread: the leader and the border routers).
   const always = engine ? engine.scene.anchors(scene).filter((i) => !focusSet.has(i)) : [];
+  // The focus's pills first claim their first places, so the focus labels choose places clear of them (a label on a
+  // hub would otherwise lie on a short lane's only place); the values themselves still yield to the labels below.
+  for (const t of laneTexts) if (t.path) placed.add({ x: t.x - t.w / 2 - 2, y: t.y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
   for (const i of [...focus, ...always]) label(i, true);
   // Values of the strongest hops claim their places first (the engine's rank; Zigbee: the way up and down, then
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
@@ -683,7 +709,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const paths = route ? { hops: pathHops.length, ends: ends.length,
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
-      drawn: shownValue })) } : null;
+      drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;
   return { sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }

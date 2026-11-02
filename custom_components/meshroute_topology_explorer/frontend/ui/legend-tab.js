@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The Legend tab of the right panel (spec 8, 9.1): compact, in three
-// sections. Communication paths: the classes the current stage draws (all in debug mode), "RX:" and, while paths are
+// sections. Communication paths: the classes the current stage draws (all in debug mode), the value pill and, while paths are
 // coloured, the colour bar; the fill when one is chosen; Symbols: four rows, each a device of this network drawn by the
 // map's own drawSymbol with its picture (router, end device, coordinator, wired only); States: offline, selected,
 // pinned. It is the only legend: nothing appears twice, and the longer explanations stay in the specification. Colours
@@ -56,7 +56,7 @@ function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
 export function renderLegend(container, { t, theme, fill, roles, devices = [], links }) {
   container.replaceChildren();
   const title = (key) => h("h3", { class: "legend-title", text: t(key) });
-  // Communication paths: what the graph says it draws for the stage, "RX:" and the colour bar (link-legend.js).
+  // Communication paths: what the graph says it draws for the stage, the value pill and the colour bar (link-legend.js).
   container.append(title("legend.paths_title"), linkLegendList(links || [], t));
 
   if (fill !== "none") {

@@ -386,7 +386,8 @@ test("no value covers the label of the selected device, its lanes and values sta
       const r = { x: v.x - v.w / 2, y: v.y - v.height / 2, w: v.w, h: v.height };
       for (const b of boxes) {
         const hit = r.x < b.x + b.w && b.x < r.x + r.w && r.y < b.y + b.h && b.y < r.y + r.h;
-        assert.ok(!hit, `${label} (${stage}${working ? ", working zoom" : ""}): value ${v.s}>${v.h} covers "${b.text}"`);
+        // A lane with a single place (too short for any other) keeps its value there whatever lies beside it (spec 7.1).
+        assert.ok(!hit || v.places === 1, `${label} (${stage}${working ? ", working zoom" : ""}): value ${v.s}>${v.h} covers "${b.text}"`);
       }
     }
   }
