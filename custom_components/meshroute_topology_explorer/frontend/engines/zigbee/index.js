@@ -23,23 +23,23 @@ export const zigbee = Object.freeze({
   /** Network from the answer of `zha/devices` and the registries (model/index.js buildNetwork). */
   build: (payload, options = {}) => buildNetwork(payload, options),
   /** The value under "RX:" of a direction: the raw LQI, "Parent" or "Route" where only they imply it, else a glyph. */
-  laneValue: (dir, texts) => laneValue(dir, texts),
+  laneValue,
   /** "–" where the hearer's table was read and does not list the sender, "?" where there is no table to ask. */
   unknownGlyph,
   /** A reading's quality 0..1 for the layout's springs (LQI / 255), or null for no spring. */
-  springQuality: (reading) => springQuality(reading),
+  springQuality,
   /** The link rows of the legend (board M7): every path class with the stage or option that draws it. */
   legend: (theme, view = {}) => legendEntries(theme, view),
   /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Its finding kinds in the order the Findings tab groups them (findings.js), and the words of a finding:
    *  { title, lines }. */
-  findings: Object.freeze({ kinds: FINDING_KINDS, text: (finding, t, name) => findingText(finding, t, name) }),
+  findings: Object.freeze({ kinds: FINDING_KINDS, text: findingText }),
   /** What a user may type to find a device by its network address (Devices search): "0x1234 4660", or none. */
   addresses: (device) => (typeof device.nwk === "number"
     ? [`0x${device.nwk.toString(16).padStart(4, "0")} ${device.nwk}`] : []),
   /** The grey line's connection of a device in the Devices list (board M3), or null. */
-  connection: (network, device) => connection(network, device),
+  connection,
   /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow
    *  this engine's own settings (paths, returnRoutes, sourceRoute); a cluster's details open as a dialog through the
    *  panel's ctx.openDialog(open(host)). */
@@ -54,7 +54,7 @@ export const zigbee = Object.freeze({
     } }),
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
    *  paths without a table entry. */
-  options: (network, settings) => zigbeeOptions(network, settings),
+  options: zigbeeOptions,
   /** What its map draws (graph/renderer.js): lanes and classify once per scene, then per view the overview's look
    *  of every lane and the focus of a selected or hovered device (scene.js). classes: the counters of the drawn
    *  lanes; anchors: always labelled (the coordinator); labelRank: label order; fit: how the fitted view frames the
