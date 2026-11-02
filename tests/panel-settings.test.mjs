@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   SettingsClient, sanitizeSettings, sanitizePins, pinsForView, presentPins, DEFAULTS, SAVE_DELAY_MS, MAX_BYTES, PIN_LIMIT,
-  sanitizeColor, sanitizePathColors, sanitizeLabels,
+  sanitizeColor, sanitizePathColors, sanitizeLabels, spreadStep, densityFactor, formatFactor, SPREAD_MIN, SPREAD_MAX,
 } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
 import { settings as ZIGBEE } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
@@ -110,7 +110,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.equal(server.sets().length, 1);
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
-  assert.deepEqual(server.stored, { density: "dense", fill: "role", openDetailsOnSelect: true,
+  assert.deepEqual(server.stored, { density: "dense", densityFactor: 1.44, fill: "role", openDetailsOnSelect: true,
     extra: 1, paths: "coordinator", heard: false, returnRoutes: false,
     pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
     sourceRoute: "assume", pins: { [A]: [1.235, -2] } });
@@ -252,4 +252,37 @@ test("label switches: a boolean per line, defaults type and name on, the Home As
   const again = client(server, manualTimers());
   await again.load();
   assert.deepEqual(again.settings.labels, { type: false, name: true, haName: true });
+});
+
+test("custom node distance: a step starts from the active preset, multiplies by 1.25 and clamps to 0.6 to 8", () => {
+  const s = (o) => sanitizeSettings(o);
+  assert.deepEqual(spreadStep(s({}), 1), { density: "custom", densityFactor: 1.8 }, "medium 1.44 x 1.25");
+  assert.deepEqual(spreadStep(s({ density: "dense" }), -1), { density: "custom", densityFactor: 0.768 });
+  assert.equal(spreadStep(s({ density: "custom", densityFactor: 2.4 }), 1).densityFactor, 3);
+  assert.equal(spreadStep(s({ density: "custom", densityFactor: 7 }), 1).densityFactor, SPREAD_MAX);
+  assert.equal(spreadStep(s({ density: "custom", densityFactor: 0.65 }), -1).densityFactor, SPREAD_MIN);
+});
+
+test("custom node distance: stored factor is cleaned, 'spread' still means 2.28, display has one decimal", () => {
+  assert.equal(densityFactor(sanitizeSettings({ density: "spread" })), 2.28, "a 0.1.0 value keeps its factor");
+  assert.equal(sanitizeSettings({ density: "custom", densityFactor: 99 }).densityFactor, SPREAD_MAX);
+  assert.equal(sanitizeSettings({ density: "custom", densityFactor: 0.01 }).densityFactor, SPREAD_MIN);
+  for (const bad of ["3", NaN, null, Infinity]) {
+    assert.equal(sanitizeSettings({ density: "custom", densityFactor: bad }).densityFactor, 1.44, String(bad));
+  }
+  assert.equal(sanitizeSettings({ density: "custom", densityFactor: 2.123456 }).densityFactor, 2.123);
+  assert.deepEqual([2.85, 3.3, 0.96, 8, 0.6].map(formatFactor), ["×2.9", "×3.3", "×1.0", "×8.0", "×0.6"]);
+});
+
+test("custom node distance is stored per network and restored on load", async () => {
+  const server = fakeServer({ stored: {} });
+  const c = client(server, manualTimers());
+  await c.load();
+  c.update(spreadStep(c.settings, 1));
+  c.update(spreadStep(c.settings, 1));
+  assert.equal(c.settings.densityFactor, 2.25);
+  const timers = manualTimers();
+  const c2 = client(fakeServer({ stored: { density: "custom", densityFactor: 2.25 } }), timers);
+  await c2.load();
+  assert.deepEqual([c2.settings.density, c2.settings.densityFactor], ["custom", 2.25]);
 });

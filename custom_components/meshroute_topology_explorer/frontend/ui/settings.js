@@ -25,9 +25,39 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
 /** Defaults of the shell's keys (spec 11). openDetailsOnSelect null means "by screen width": details open on a click on
  *  wide panels and not on narrow ones (spec 9.2). pathColors is shared in storage, whichever engine offers it. The
  *  engines' own keys have their defaults in their settings part. */
-export const DEFAULTS = Object.freeze({ density: "medium", fill: "none", openDetailsOnSelect: null,
+export const DEFAULTS = Object.freeze({ density: "medium", densityFactor: DENSITY.medium, fill: "none", openDetailsOnSelect: null,
   pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, pins: Object.freeze({}) });
-export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
+// dense, medium, spread (shown as "Wide"; the stored name stays so 0.1.0 settings read unchanged), custom
+export const DENSITY_NAMES = Object.freeze([...Object.keys(DENSITY), "custom"]);
+/** Custom node distance (spec 7.1): each step multiplies or divides by this, within the range. Own choice. */
+export const SPREAD_STEP = 1.25;
+export const SPREAD_MIN = 0.6;
+export const SPREAD_MAX = 8;
+const FACTOR_DECIMALS = 3;
+
+/** A stored custom factor: a finite number clamped to the range, rounded; anything else is the default. */
+export function sanitizeFactor(v) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return DEFAULTS.densityFactor;
+  const f = Math.min(SPREAD_MAX, Math.max(SPREAD_MIN, v));
+  return Math.round(f * 10 ** FACTOR_DECIMALS) / 10 ** FACTOR_DECIMALS;
+}
+
+/** The density factor D a settings object draws with. */
+export function densityFactor(settings) {
+  return settings.density === "custom" ? settings.densityFactor : DENSITY[settings.density];
+}
+
+/** The patch for one step (dir +1 more space, -1 less) from the active density: it switches to Custom and starts
+ *  from the active preset's factor. */
+export function spreadStep(settings, dir) {
+  const next = densityFactor(settings) * (dir > 0 ? SPREAD_STEP : 1 / SPREAD_STEP);
+  return { density: "custom", densityFactor: sanitizeFactor(next) };
+}
+
+/** A factor as the stepper shows it: "×" and one decimal (the range 0.6 to 8 needs no more). */
+export function formatFactor(f) {
+  return `×${(Math.round(f * 10) / 10).toFixed(1)}`;
+}
 /** Pins are stored in base lengths (graph-view.js) rounded to this many decimals: a thousandth of a base length is
  *  far below a pixel, and short numbers keep the stored object small. */
 const PIN_DECIMALS = 3;
@@ -81,6 +111,7 @@ export function sanitizeSettings(input, engineSettings = null) {
   const src = isPlainObject(input) ? input : {};
   const out = { ...src };
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
+  out.densityFactor = sanitizeFactor(src.densityFactor);
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   if (engineSettings) engineSettings.sanitize(src, out);

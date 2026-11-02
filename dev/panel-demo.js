@@ -237,6 +237,7 @@ const byLabel = (label) => {
 const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
+if (q.get("factor")) initial.densityFactor = Number(q.get("factor")); // with density=custom
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
 if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all
 if (q.get("heard")) initial.heard = q.get("heard") === "1";

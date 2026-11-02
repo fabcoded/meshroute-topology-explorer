@@ -10,7 +10,7 @@
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";
-import { DENSITY_NAMES, PATH_STOPS } from "./settings.js";
+import { DENSITY_NAMES, PATH_STOPS, SPREAD_MAX, SPREAD_MIN, densityFactor, formatFactor, spreadStep } from "./settings.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
 
 /** Fill `container`. ctx: { t, settings (sanitized), groups (the engine's OptionGroups: engine.options(network,
@@ -140,13 +140,24 @@ export function renderView(container, ctx) {
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
   for (const g of groups.filter((x) => x.after === "click")) container.append(engineGroup(g));
 
+  // The stepper of the custom node distance "− ×3.3 +": a step switches to Custom from the active factor (spec 7.1).
+  const spreadStepper = () => {
+    const f = densityFactor(settings);
+    const step = (dir, label, text, at) => h("button", { type: "button", class: "step-button", "aria-label": label,
+      title: label, disabled: at, on: { click: () => ctx.onChange(spreadStep(settings, dir)) } }, text);
+    return h("div", { class: "spread-stepper", role: "group", "aria-label": t("density.custom") },
+      step(-1, t("spread.less"), "\u2212", f <= SPREAD_MIN), h("span", { class: "spread-value", text: formatFactor(f) }),
+      step(1, t("spread.more"), "+", f >= SPREAD_MAX));
+  };
+
   // Node distance (density), with a note behind an info button.
   const densityInfo = infoNote("density", t("view.density_info_label"), t("view.density_info"));
   container.append(h("fieldset", { class: "view-group" },
     h("legend", { class: "with-info" }, h("span", { text: t("view.density") }), densityInfo.button),
     densityInfo.note,
     h("div", { class: "radio-line" }, DENSITY_NAMES.map((v) => radio("density", v, t(`density.${v}`), settings.density === v,
-      () => ctx.onChange({ density: v }))))));
+      () => ctx.onChange({ density: v })))),
+    spreadStepper()));
 
   container.append(group(t("view.fill"), h("div", { class: "radio-line" },
     FILLS.map((v) => radio("fill", v, t(`fill.${v}`), settings.fill === v, () => ctx.onChange({ fill: v }))))));

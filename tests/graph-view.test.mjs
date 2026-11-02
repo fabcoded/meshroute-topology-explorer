@@ -63,6 +63,15 @@ test("the canvas is sized for the device pixel ratio and focusable, gestures sta
   assert.equal(view.layout.ringIds().join(), "u", "a device without readings is on the ring");
 });
 
+test("the keys [ and ] ask for less and more space between devices", () => {
+  const { canvas, view } = setup();
+  const steps = [];
+  view.addEventListener("spread-step", (e) => steps.push(e.detail.dir));
+  canvas.dispatchEvent(domEvent("keydown", { key: "]", timeStamp: 1 }));
+  canvas.dispatchEvent(domEvent("keydown", { key: "[", timeStamp: 2 }));
+  assert.deepEqual(steps, [1, -1]);
+});
+
 test("tap selects a device, tap on the background and Esc clear the selection", () => {
   const { canvas, view, events, at, tap } = setup();
   tap(...at("r1"));
