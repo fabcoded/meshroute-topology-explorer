@@ -17,13 +17,15 @@ import { drawMode } from "./source-routes.js";
 
 export { CLASSES };
 
-/** Pairs and lanes from the network (shared renderer, buildScene), each lane with what it carries: up, downMeasured,
- *  downAssumed and route (lanes.js classifyLanes); extra: every device's up path and the cleaned network its paths
- *  are walked on, for classify(). */
+/** Pairs and lanes from the network (shared renderer, buildScene), each lane with everything it carries: up,
+ *  downMeasured, downAssumed, downRecorded, downZigpyAssumed and route (lanes.js classifyLanes; until the engines cut's
+ *  fix the two zigpy flags were left out, so the "zigpy" overview missed those return lanes); extra: every device's
+ *  up path and the cleaned network its paths are walked on, for classify(). */
 export function lanes(network) {
   const c = classifyLanes(network);
-  return { pairs: c.pairs, lanes: c.lanes.map(({ pair, sender, hearer, dir, up, downMeasured, downAssumed, route }) =>
-    ({ pair, sender, hearer, dir, meaning: { up, downMeasured, downAssumed, route } })),
+  return { pairs: c.pairs, lanes: c.lanes.map(({ pair, sender, hearer, dir, up, downMeasured, downAssumed, downRecorded,
+    downZigpyAssumed, route }) => ({ pair, sender, hearer, dir,
+    meaning: { up, downMeasured, downAssumed, downRecorded, downZigpyAssumed, route } })),
   extra: { upPaths: c.upPaths, pathNet: c.network } };
 }
 

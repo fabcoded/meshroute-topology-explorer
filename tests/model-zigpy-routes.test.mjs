@@ -225,3 +225,33 @@ test("one call per data load: readNetwork attaches zigpy's answer, and a failure
   const lost = await readNetwork(fakeHass(() => { throw { code: 3 }; }));
   assert.equal(lost.phase, "disconnected");
 });
+
+// Found by eng2 (engines cut, 2026-11-01) and fixed after step 10 by main session decision: buildScene copied only
+// up, downMeasured, downAssumed and route onto the scene's lanes, so under "zigpy" the overview never drew a recorded
+// return lane or a zigpy-assumed one as down, while the click's walks did. The one intended Zigbee parity difference
+// of the cut, in the zigpy stage only.
+test("zigpy stage: the overview draws the recorded and the zigpy-assumed return lanes as down, as the walks do", async () => {
+  const { buildScene } = await import("../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js");
+  const { sceneClasses } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js");
+  const n = withZigpy();
+  const { lanes } = classifyLanes(n);
+  const scene = buildScene(n, (s) => s.length * 6);
+  const zigpy = sceneClasses(scene, "zigpy");
+  const key = (l) => `${scene.index.get(l.sender)}>${scene.index.get(l.hearer)}`;
+  const recorded = lanes.filter((l) => l.downRecorded || l.downZigpyAssumed);
+  assert.ok(recorded.some((l) => !l.up && !l.downMeasured && !l.route), "some lanes only zigpy's stage carries");
+  for (const l of recorded) {
+    const lane = scene.laneByKey.get(key(l));
+    assert.equal(zigpy.cls[lane.index], laneClass(l, "zigpy"), key(l));
+    assert.equal(zigpy.cls[lane.index], "down", key(l));
+  }
+  // Assumed only where the stage assumes: a recorded lane is drawn as measured.
+  for (const l of lanes.filter((x) => x.downRecorded && !x.downMeasured)) {
+    assert.equal(zigpy.assumed[scene.laneByKey.get(key(l)).index], false, key(l));
+  }
+  // The other stages are unchanged by the zigpy flags.
+  for (const stage of ["off", "assume"]) {
+    const sc = sceneClasses(scene, stage);
+    for (const l of lanes) assert.equal(sc.cls[scene.laneByKey.get(key(l)).index], laneClass(l, stage), `${stage} ${key(l)}`);
+  }
+});
