@@ -50,8 +50,9 @@ Security issues: [SECURITY.md](SECURITY.md).
 ## Release checklist
 
 1. Set the version in three places, which `tests/test_integration_files.py` requires to be equal: `"version"` in
-   `custom_components/meshroute_topology_explorer/manifest.json`, `VERSION` in `.../const.py` (the static path
-   `STATIC_URL_BASE` derives from it) and `VERSION` in `.../frontend/panel.js`.
+   `custom_components/meshroute_topology_explorer/manifest.json`, `VERSION` in `.../const.py` and `VERSION` in
+   `.../frontend/panel.js`. The panel's files are served under a hash of their content, so browsers pick up a new
+   release without a forced reload.
 2. Run `python3 tools/check.py`.
 3. Commit with sign-off (`git commit -s`, see AGENTS.md).
 4. Tag `vX.Y.Z` on that commit and push the tag.
