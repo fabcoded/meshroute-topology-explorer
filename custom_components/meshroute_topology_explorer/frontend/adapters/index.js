@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The data sources the panel reads, one adapter each (spec 3; engines cut, section 3): ZHA for Zigbee and the
+// The data sources the panel reads, one adapter each (spec 3): ZHA for Zigbee and the
 // Matter topology for Thread, in the order the network switch lists them and the first load prefers. The shell reaches
 // an adapter only through this registry: by its key (the stored choice of the network switch, ui/network-switch.js) or
 // by a network (adapterFor: the adapter whose key is the network's source). An adapter's capabilities travel on its

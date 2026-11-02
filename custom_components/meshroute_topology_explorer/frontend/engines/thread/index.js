@@ -15,7 +15,7 @@ import { TEXTS } from "./texts.js";
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
 
-/** Thread owns no settings keys today (engines cut, section 3): a stored Zigbee key under a Thread id is kept by the
+/** Thread owns no settings keys today: a stored Zigbee key under a Thread id is kept by the
  *  shell, never read and never written. */
 const SETTINGS = Object.freeze({ keys: Object.freeze([]), defaults: Object.freeze({}), sanitize: (src, out) => out });
 

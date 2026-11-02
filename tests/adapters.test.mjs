@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The adapter registry (adapters/index.js; engines cut step 9): one adapter per data source, in menu order, each with
+// The adapter registry (adapters/index.js): one adapter per data source, in menu order, each with
 // the same shape; a network finds its adapter by its source and nothing falls back to ZHA; the stored choices of the
 // network switch stay "zha" and "thread" (spec 11).
 // npm test

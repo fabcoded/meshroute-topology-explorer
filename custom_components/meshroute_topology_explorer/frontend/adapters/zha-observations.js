@@ -12,7 +12,7 @@ import { normalizeIeee } from "../model/parse.js";
 import { MAX_BYTES, SAVE_DELAY_MS, StoreClient, setStored } from "../ui/store-client.js";
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-/** The model's fingerprint: 16 lower-case hex digits (observations.js, hash()). */
+/** The model's fingerprint: 16 lower-case hex digits (zha-fingerprints.js). */
 const FINGERPRINT = /^[0-9a-f]{16}$/;
 /** A time as the panel writes it (Date.prototype.toISOString); anything else is dropped. */
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;

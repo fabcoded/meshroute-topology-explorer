@@ -200,7 +200,7 @@ function pathsCard(all_, ctx, name, record = null) {
 function theoryCard(rows, ctx, name) {
   const t = ctx.t;
   // Per direction the hop count only: a "weakest RX" would mix a missing value with a low one and compare receivers
-  // on different scales (review 1.4b); the values are in the opened row, hop by hop.
+  // on different scales; the values are in the opened row, hop by hop.
   const way = (p, arrow) => h("span", { class: "theory-way", text: p ? `${arrow} ${p.complete ? p.hops.length : "?"}` : "" });
   const line = (p, label) => {
     const { steps, tail } = pathParts(p, t, name);

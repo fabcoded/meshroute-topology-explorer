@@ -155,7 +155,7 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
       powerSource: isBorderRouter ? "Mains" : null,
       kind: isBorderRouter ? "hub" : "unknown", sleepy: isBorderRouter ? false : mapped ? mapped.sleepy : null,
       // Battery or not is unknown (no power source in the snapshot), and so are relay load and rating (no routes, no
-      // Zigbee LQI scale): null, never a Zigbee default (engines cut, step 7).
+      // Zigbee LQI scale): null, never a Zigbee default.
       battery: null, wired: isBorderRouter,
       // available null (border routers: seen by mDNS, not by Matter) is not "offline": drawn as available, and the
       // details say the snapshot does not report it.

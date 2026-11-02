@@ -5,7 +5,7 @@
 // stem of an unknown end, the band under a selection's way, the dimming of what is out of focus. Line styles are
 // looks (solid, dotted, dash-dot, dashed, faint) and carry no colour of their own; width follows the lane's own
 // rating; opt-in, rated lanes are coloured by reception, red to green. What a lane means, and which look it gets, is
-// the network engine's (engines/<type>/lanes.js and scene.js; engines cut, section 3).
+// the network engine's (engines/<type>/lanes.js and scene.js).
 // Pure functions: geometry and stroke styles.
 // npm test
 
@@ -30,7 +30,7 @@ export const VALUE_AT = 0.75;
 export const STEM = Object.freeze({ length: 30, share: 0.45, width: 1.5, dash: Object.freeze([3, 3]) });
 /** Rating limits of the three lane widths. */
 export const WIDTH_STEPS = Object.freeze([1 / 3, 2 / 3]);
-/** Stroke looks of a lane (engines cut, section 2): a look, not a meaning; each engine maps its own lane classes to
+/** Stroke looks of a lane: a look, not a meaning; each engine maps its own lane classes to
  *  them (board M11 for Zigbee): solid, dotted (sparse round dots), dash-dot, dash-dot in the lighter grey, dashed, and
  *  the faint dotted grey of a lane without traffic or reading. */
 export const STROKES = Object.freeze(["solid", "dotted", "dashdot", "dashdot-muted", "dashed", "faint"]);

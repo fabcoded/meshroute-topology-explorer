@@ -27,7 +27,7 @@ const zigbeeNet = zigbee.build(zha["zha/devices"], registries);
 const threadNet = thread.build(topology, {});
 const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
 
-/** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
+/** The interface of every engine. */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
   status: "function", findings: "object", connection: "function", details: "function", options: "function",
   settings: "object", scene: "object", springQuality: "function", addresses: "function", texts: "object" };
@@ -58,7 +58,7 @@ test("finding kinds: Zigbee's order as the model lists them; Thread's three, in 
   for (const f of threadNet.findings) assert.ok(thread.findings.kinds.includes(f.kind), f.kind);
 });
 
-test("settings (step 5): each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
+test("settings: each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
   const { sanitizeSettings, DEFAULTS } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
   assert.deepEqual(zigbee.settings.keys, ["paths", "heard", "returnRoutes", "sourceRoute"]);
   assert.deepEqual(thread.settings.keys, []);
@@ -174,7 +174,7 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
   assert.equal(t(threadGroups[0].note), "Thread data names neighbours and parents, not routes; there are no path views.");
 });
 
-test("texts (step 9): engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
+test("texts: engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
   const { STRINGS, SHARED, mergeTexts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
   for (const engine of Object.values(ENGINES)) {
     assert.ok(Object.isFrozen(engine.texts) && Object.keys(engine.texts).length > 0, engine.key);

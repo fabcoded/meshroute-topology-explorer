@@ -194,7 +194,7 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** The network engine's own view settings (engines cut, section 2; Zigbee: paths, heard, returnRoutes, sourceRoute),
+  /** The network engine's own view settings (Zigbee: paths, heard, returnRoutes, sourceRoute),
    *  merged into what it has: the shell passes them on and never reads them, the engine's overview and focus do.
    *  Drawing only: the layout and the positions stay. */
   setEngineView(patch) {

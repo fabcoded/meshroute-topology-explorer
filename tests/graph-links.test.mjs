@@ -18,7 +18,7 @@ import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColo
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
-/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle (engines cut step 6a). */
+/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle. */
 const classStyle = (cls, rating, t, opts = {}) => laneStyle(strokeOf(cls, opts), rating, t, opts);
 const theme = resolveTheme({});
 

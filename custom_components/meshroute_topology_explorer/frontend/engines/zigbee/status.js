@@ -47,7 +47,7 @@ export function sourceRoutePart(summary, compact = false, paths = "coordinator")
 }
 
 /** Parts of the status line as [key, params] for the translator, in order (board M1): source, "Router tables: x/y"
- *  (available routers with a table; the coordinator is not counted; no percentage, review 1.4c), "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
+ *  (available routers with a table; the coordinator is not counted), "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
  *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
  *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again". compact (narrow screens): short forms in at most two lines, without the source; each part
  *  then carries a third element, the key of its long form, which the panel offers as the part's description. The

@@ -228,10 +228,10 @@ test("one call per data load: readNetwork attaches zigpy's answer, and a failure
   assert.equal(lost.phase, "disconnected");
 });
 
-// Found after the engines cut and fixed after step 10: buildScene copied only
+// Regression: buildScene once copied only
 // up, downMeasured, downAssumed and route onto the scene's lanes, so under "zigpy" the overview never drew a recorded
 // return lane or a zigpy-assumed one as down, while the click's walks did. The one intended Zigbee parity difference
-// of the cut, in the zigpy stage only.
+// in the zigpy stage only.
 test("zigpy stage: the overview draws the recorded and the zigpy-assumed return lanes as down, as the walks do", async () => {
   const { buildScene } = await import("../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js");
   const { sceneClasses } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js");

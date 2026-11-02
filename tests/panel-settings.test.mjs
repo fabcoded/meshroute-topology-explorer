@@ -49,7 +49,7 @@ function fakeServer({ stored = null, unknown = false } = {}) {
   return server;
 }
 
-// A ZHA network's client: the shell's keys and the Zigbee engine's (engines cut step 5).
+// A ZHA network's client: the shell's keys and the Zigbee engine's.
 const client = (server, timers = manualTimers()) => new SettingsClient({ callWS: server.callWS, network: "entry_01",
   engineSettings: ZIGBEE, timers });
 

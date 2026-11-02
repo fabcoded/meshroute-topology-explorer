@@ -34,7 +34,7 @@ test("status line parts on the sample and a network below 90 %", () => {
   const network = buildNetwork(sample.responses["zha/devices"]);
   const parts = statusParts(network);
   assert.deepEqual(parts.map(([key]) => key),
-    ["status.source", "status.tables"], "source and router tables; no completeness percentage (review 1.4c)");
+    ["status.source", "status.tables"], "source and router tables; no completeness percentage");
   assert.deepEqual(parts[1][1], { x: 29, y: 29 });
   assert.equal(isIncomplete(network.status), false);
   const low = { ...network.status, completeness: 26 / 29 };

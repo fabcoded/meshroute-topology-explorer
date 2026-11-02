@@ -16,7 +16,7 @@ import { settings as zigbeeSettings } from "../custom_components/meshroute_topol
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
-/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 
 const theme = resolveTheme({});

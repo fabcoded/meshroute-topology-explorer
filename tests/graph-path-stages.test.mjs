@@ -17,7 +17,7 @@ import { DEFAULTS as ZIGBEE_DEFAULTS, sanitizePaths, settings as zigbeeSettings 
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { FakeCanvas, asZigbee, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
-/** The shell's sanitizer and defaults with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer and defaults with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 const DEFAULTS = { ...SHELL_DEFAULTS, ...ZIGBEE_DEFAULTS };
 
@@ -195,7 +195,7 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   assert.deepEqual(PATH_STAGES, ["coordinator", "table", "all"]);
   assert.equal(DEFAULT_PATHS, "coordinator");
   for (const bad of [null, undefined, "", "ALL", 3, {}]) assert.equal(pathStage(bad), "coordinator");
-  // The map passes the engine's view settings on (GraphView.setEngineView, engines cut step 6b); the Zigbee engine
+  // The map passes the engine's view settings on (GraphView.setEngineView); the Zigbee engine
   // reads a junk stage as the default, so it draws what the default draws.
   const canvas = new FakeCanvas(800, 600);
   const env = fakeEnv();

@@ -5,7 +5,7 @@
 // Model: one spring per reading with rest length L = L0 × D × f(q), repulsion between all devices of the mesh scaled
 // with (L0 × D)², a pull to the centre (Eades 1984; Fruchterman and Reingold 1991: displacement capped by a cooling
 // temperature). Devices without readings sit on a ring just outside the mesh. Pinned devices do not move. q is the
-// reading's quality from 0 to 1 as the network's engine reads it (engine.springQuality; engines cut, section 2): the
+// reading's quality from 0 to 1 as the network's engine reads it (engine.springQuality): the
 // layout knows no reading scale.
 // Usage: const layout = new Layout(network, { baseLength, density, seed, quality }); layout.run(); layout.position(id)
 // npm test

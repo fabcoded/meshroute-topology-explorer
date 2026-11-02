@@ -6,7 +6,7 @@
 // integration cannot be read the settings live in memory and the View tab says so; after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
 // use. The shell sanitizes its own keys; a network engine's keys go through that engine's settings part
 // (engines/<type>/settings.js: { keys, defaults, sanitize }), and keys no one owns are kept verbatim, so a Thread
-// object holding Zigbee keys keeps them unread (engines cut, section 3). No DOM. Tested in Node: npm test
+// object holding Zigbee keys keeps them unread. No DOM. Tested in Node: npm test
 import { DENSITY } from "../graph/layout.js";
 import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";

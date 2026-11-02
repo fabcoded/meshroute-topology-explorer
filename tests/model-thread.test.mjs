@@ -37,7 +37,7 @@ test("the sample: five nodes, their roles, the border router as a node, collecti
   assert.equal(br.available, true, "availability null is not offline");
   assert.equal(br.availabilityKnown, false);
   assert.equal(br.tableRead, false, "a border router is no Matter node: no table");
-  assert.equal("hasTable" in br, false, "no Zigbee table fields (engines cut step 7)");
+  assert.equal("hasTable" in br, false, "no Zigbee table fields ");
   assert.equal(sample.collectedAt, "2026-01-01T12:00:00.000Z");
   assert.match(sample.id, /^thread-[A-Za-z0-9]{1,32}$/);
   assert.equal(sample.status.links, 5);
@@ -185,7 +185,7 @@ test("parsers: extended addresses, link quality, RSSI, times", () => {
 });
 
 test("lanes: parent links are drawn as traffic, other readings as neighbours, no up path band", () => {
-  // The Thread engine's own lane meaning (engines cut step 6b): toParent / fromParent instead of Zigbee's up and down;
+  // The Thread engine's own lane meaning: toParent / fromParent instead of Zigbee's up and down;
   // no up paths at all, so no band (tests/engine-leaks.test.mjs 7).
   const { lanes } = classifyLanes(sample);
   const id = (k) => byNode(sample, k).id;

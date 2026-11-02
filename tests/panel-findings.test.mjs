@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { badgeCount, groupFindings as groupBy, missingTables, isMissingTable, HINT_KINDS } from "../custom_components/meshroute_topology_explorer/frontend/ui/findings.js";
 import { ENGINES } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 
-/** Groups in the Zigbee engine's order of finding kinds (engines cut step 8: the order is the engine's). */
+/** Groups in the Zigbee engine's order of finding kinds (the order is the engine's). */
 const groupFindings = (findings, label) => groupBy(findings, label, ENGINES.zigbee.findings.kinds);
 import { findingText } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/finding-text.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";

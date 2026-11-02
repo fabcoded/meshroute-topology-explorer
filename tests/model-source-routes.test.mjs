@@ -14,7 +14,7 @@ import { assumedDownPaths, downPathWith, sourceRouteMode, sourceRouteSummary, SO
 import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 
-/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
