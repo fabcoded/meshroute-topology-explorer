@@ -374,6 +374,28 @@ show whether two devices really talk. At each holder H of the frame, in this ord
 - The way back D to S is walked separately from D: tables differ per direction.
 - The **backbone** (7.1) is every lane the theoretical paths between available devices use (sample numbers in 12).
 
+### 5.8 Path history of a pair [v1.1]
+
+Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input is the reception history (10.2).
+
+- **Snapshot:** one record; a time-only record repeats the previous one. The network at a snapshot is the live input
+  with every device's neighbour and routing tables replaced by the snapshot's (`buildNetwork`). A device only the
+  snapshot knows is a placeholder (role unknown, no address); a live device without tables there is "table not read";
+  a device holding tables there counts as available. The record has no neighbour relationship: "Child" listings come
+  from the live input, and an end device whose live parent is not in the snapshot takes the strongest router listing it.
+- **Walk:** `tableWalk` there and back (5.1), each hop with RX at its receiver (`pathHops`); the rank is the panel's
+  "rank N %" (5.4), computed within that snapshot's readings of the receiver. A walk that stops is incomplete with its
+  reason; nothing is guessed.
+- **Weakest hop** per direction: the lowest rank at the receiver, ties to the first hop. A hop without a rank (parent
+  or route link without a reading, LQI 0, too few readings) is never the weakest; never chosen by raw LQI.
+- **Span:** consecutive records with identical there and back hop lists (for a stopped walk, with its reason). A span
+  carries min, mean and max rank per hop; its weakest hop is the one with the lowest mean.
+- **Lane series:** per direction `[t, lqi(, rssi)]`, `[t, null]` where a record lacks the entry; a window centred on a
+  record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
+- **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
+- **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
+  a direct delivery; an address change since the record is not seen.
+
 ## 6. Data status and the scan [v1]
 
 - **Status pill**, always visible (9.1): the pill's name is the network ("Zigbee (ZHA)"); its second line is the data
@@ -729,7 +751,8 @@ One place per thing; nothing appears twice.
     - In stage 2, **"Paths to other devices (theoretical)"** (5.7), collapsed above 12 rows; its note (computed, not
       observed, and how) at the top. A row per other device: hops there (→) and back (←), shortest first, equal counts
       by name in natural order (Router 2 before Router 10), the whole path's cost at the row's end. No "weakest RX"
-      summary: it would mix a missing value with a low one and compare receivers on different scales. A row opens to
+      summary in this list: it would mix a missing value with a low one and compare receivers on different scales
+      (the path history, 5.8, names a weakest hop by rank, never by raw LQI, and leaves out hops without a reading). A row opens to
       both ways, every hop with its RX and how it is taken ("routing table entry", "direct to a neighbour (no table
       entry needed)", "route discovery (computed)", "parent", "child"; "table not read" or "entry inactive" where
       the holder had none), a discovery with its path cost, a stopped way with its reason. A "–" hop names its basis

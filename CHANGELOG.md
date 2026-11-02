@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Path history (data layer):** routes of a device pair over the recorded history (walks there and back per record, weakest hop by rank, route spans, lane series; Thread lane values only); no window yet.
 - **Options:** "Configure" on the integration (administrators) offers: show in the sidebar, allow radio actions (off hides
   the scan control and the attribute read in the panel; a panel switch, not a lock), and a reception history. Saving
   reloads the integration, not Home Assistant.
