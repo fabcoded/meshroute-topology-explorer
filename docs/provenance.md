@@ -106,3 +106,12 @@ from the release commit 0.1.0 on (AGENTS.md).
 | Thread sample: 5 nodes (leader, router, two sleepy end devices, one border router), 5 links, 3 with both directions, 8 of 10 directions measured | 3.2, 6 | anonymized capture of the author's network (2026-11-01); `tests/model-thread.test.mjs` |
 | Thread fit "contain": half the widest label + 8 px at the sides, 56 px above and below | 7.1 | choice: the base fit put 2–3 of the 5 sample devices outside the window at medium density |
 | Thread reception bands −80 / −90 dBm, constant −100 dBm | 3.2, [thread-quality-model.md](thread-quality-model.md) | OpenThread sources and documentation (S1–S15 there) |
+
+## Structure comparison before a release
+
+- The owner's main session runs it, agents never read the comparison sources: in a fresh temp dir outside the repo,
+  `npm pack <pkg>@<exact version>` for each comparison package and unpack; run `python3 tools/structure_compare.py
+  --theirs <dir>` (usage in the tool's docstring); look only at our line ranges at or above the threshold; delete the
+  temp dir.
+- Record one line per run here: date, tool revision, package versions, maximum pair share and longest run. Results
+  are not part of this procedure.
