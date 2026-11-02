@@ -48,7 +48,7 @@ export class ScanFollower extends EventTarget {
     this._timers = timers;
     this._now = now;
     this._times = readTimes(schedule);
-    this.state = { status: "idle", startedAt: null, reads: 0, failedReads: 0, changed: 0, total: 0, message: null };
+    this.state = { status: "idle", startedAt: null, failedReads: 0, changed: 0, total: 0, message: null };
     this._timer = null;
     this._token = 0;
   }
@@ -64,11 +64,11 @@ export class ScanFollower extends EventTarget {
     try {
       this._send();
     } catch (err) {
-      this._set({ status: "not-sent", startedAt: null, reads: 0, failedReads: 0, changed: 0, total,
+      this._set({ status: "not-sent", startedAt: null, failedReads: 0, changed: 0, total,
         message: String((err && (err.message || (err.error && err.error.message))) || err) });
       return;
     }
-    this._set({ status: "running", startedAt: this._now(), reads: 0, failedReads: 0, changed: 0, total, message: null });
+    this._set({ status: "running", startedAt: this._now(), failedReads: 0, changed: 0, total, message: null });
     this._next(token, 0);
   }
 
@@ -83,7 +83,7 @@ export class ScanFollower extends EventTarget {
   /** Forget a stopped or ended scan (its line leaves the status line). */
   clear() {
     if (this.running) return;
-    this._set({ status: "idle", startedAt: null, reads: 0, failedReads: 0, changed: 0, total: 0, message: null });
+    this._set({ status: "idle", startedAt: null, failedReads: 0, changed: 0, total: 0, message: null });
   }
 
   _next(token, index) {
@@ -102,11 +102,11 @@ export class ScanFollower extends EventTarget {
     if (token !== this._token) return; // stopped meanwhile
     if (network) {
       const { changed, total } = changedTables(this._baseline, network);
-      this._set({ reads: this.state.reads + 1, changed, total });
+      this._set({ changed, total });
       this.dispatchEvent(Object.assign(new Event("read"), { detail: { network } }));
     } else {
       // A failed read (connection lost, ZHA busy) is skipped; the schedule goes on.
-      this._set({ reads: this.state.reads + 1, failedReads: this.state.failedReads + 1 });
+      this._set({ failedReads: this.state.failedReads + 1 });
     }
     this._next(token, index + 1);
   }
