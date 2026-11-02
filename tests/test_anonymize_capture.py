@@ -193,7 +193,9 @@ class AnonymizeThreadTest(unittest.TestCase):
     def test_committed_matter_sample_passes_the_allow_list_unchanged(self):
         path = Path(__file__).resolve().parent / "fixtures" / "matter-sample.json"
         fixture = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(anon.allow_list(fixture["responses"]), fixture["responses"])
+        # The sample's synthetic entities are written by hand (the anonymizer does not carry entities, which hold names).
+        responses = {k: v for k, v in fixture["responses"].items() if k not in ("config/entity_registry/list", "get_states")}
+        self.assertEqual(anon.allow_list(responses), responses)
 
 
 if __name__ == "__main__":

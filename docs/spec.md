@@ -116,6 +116,11 @@ The panel reads through Home Assistant's websocket API and requires an administr
   - Parent: the router the end device's own table lists (a Thread child holds only its parent); if it reported
     nothing, the router-role node with the best reading. Other routers listing it are possibly stale (a REED's or
     FED's further routers are real links). None: "parent unknown", the device stays listed.
+  - Kind (picture): the snapshot has no device signature, so it comes from the device's Home Assistant entities
+    (`hass.entities`, `hass.states`, already in the panel; `engines/thread/kinds.js`): light, switch (outlet; relay
+    for device class `switch`), cover, lock, climate, motion / occupancy / presence, temperature and humidity only,
+    other sensors, event or button only, in that priority; config and diagnostic entities and helpers do not count.
+    Nothing matches, or no `hass.entities` (older Home Assistant): unknown.
   - No Zigbee field gets a default: no network address (the RLOC16 has its own field, searchable in Devices), no
     router-table counts or capacity, no relay load or rating, no "router tables x/y" or completeness; what the
     snapshot does not name is null.

@@ -21,13 +21,13 @@ function unknownReason(hearer, r) {
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
- *  registries (names, areas). Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
+ *  registries (names, areas) and entities and states (the kind, kinds.js). Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
  *  extPanId, capabilities, collectedAt, devices, readings, staleReadings, routes (empty), links, pairs, status,
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
  *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot). */
-export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, capabilities = THREAD_CAPABILITIES } = {}) {
-  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry });
+export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, capabilities = THREAD_CAPABILITIES } = {}) {
+  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states });
   if (!mapped) return null;
   const { pan, devices, readings, stale, links, unresolved, collectedAt } = mapped;
 
