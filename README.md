@@ -1,19 +1,82 @@
 # Meshroute Topology Explorer
 
-An interactive map of the Zigbee and Thread networks that Home Assistant manages: radio links and their quality, the
-paths the available tables support, and how fresh and complete the data is. Built for finding problems in real
-networks, quiet by default. Read only: it never controls devices and causes radio traffic only on a button you press
-(a topology scan, reading one cluster's values).
+A map of the Zigbee and Thread networks in your Home Assistant: which device hears which and how well, the paths the
+available data supports, and how complete that data is.
 
-**Status:** early development, nothing to install yet.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/map-dark.png">
+  <img src="docs/images/map-light.png" alt="The network map: 45 devices around the coordinator, links coloured from green to red by how well the receiving device hears the sender.">
+</picture>
+<sub>The anonymized sample network from this repository: a coordinator, 32 routers, 12 end devices. Links are coloured
+by reception, green strong, red weak.</sub>
 
-- Sources: Home Assistant's ZHA integration; Thread through Home Assistant's Matter integration as a preview.
-- No build step and no outside requests, except map tiles from an address you configure. Behaviour:
-  [docs/spec.md](docs/spec.md).
-- Zigbee and Matter are trademarks of the Connectivity Standards Alliance, Thread is a trademark of the Thread Group.
-  This project is not affiliated with or endorsed by them, the Home Assistant project or the Open Home Foundation.
+> [!NOTE]
+> Early development, nothing to install yet. The screenshots show the development page with the sample network.
 
-## Capturing your network for a bug report
+## Why
+
+You open a network map when something has stopped working: a lamp in the garden drops out, a motion sensor reports
+late, a button needs a second press. The map should help you find the cause and should not invent one.
+
+Zigbee routers report their neighbours and routes in tables, and Home Assistant reads those tables at different times,
+some of them never. Meshroute is built so that missing data stays visible as missing:
+
+- **Data status first.** The status line says how many router tables were read and when. A device without data is
+  grey and marked unknown, never weak.
+- **Both directions.** Select a device to see its path to the coordinator and the path back, hop by hop, as far as the
+  tables support them, with the reception at each hop.
+- **Reception relative to the receiver.** Radios report LQI on different scales. Each reading is ranked among
+  everything the receiving device reports, so a low rank means low for that device.
+- **Findings with evidence.** Offline devices, routes into an offline device, end devices without a known parent:
+  each finding names the table entries it rests on and the tables that are missing.
+- **Mouse, touch and keyboard**, a phone layout, light and dark theme.
+
+Home Assistant has its own ZHA and Matter network maps. Meshroute adds the data status, paths in both directions and
+findings with their evidence.
+
+## A closer look
+
+![Router 16 selected: the rest of the network is faded; the Details panel lists the path to the coordinator and back with the reception at each hop.](docs/images/path-router16.png)
+
+In the routing tables of the sample, Router 16 reaches the coordinator directly, while the path back runs over three
+other lamps. Selecting a device fades the rest of the network. The Details panel lists every hop with the reception
+(RX) at the receiving device and ranks what the device hears from its neighbours.
+
+<p>
+  <img src="docs/images/phone-map.png" width="32%" alt="Phone, dark theme: the whole network.">
+  <img src="docs/images/phone-findings.png" width="32%" alt="Phone, dark theme: the Findings panel with offline devices and routes into them.">
+  <img src="docs/images/phone-details.png" width="32%" alt="Phone, dark theme: Details of Router 16 with its path there and back.">
+</p>
+
+On a phone the panels open from the bottom: the overview, the findings, the details of one device.
+
+## What it does not do
+
+- **It changes nothing.** No device control, no writes to the network. The only radio traffic it causes is a
+  topology scan you start and confirm, and reading one cluster's values when you press the button for it.
+- **Nothing leaves your house.** No telemetry, no requests to outside services; map tiles only from an address you
+  configure yourself.
+- **Nothing to build.** The JavaScript in this repository is exactly what Home Assistant serves to your browser.
+
+## Status
+
+| Source | State |
+|---|---|
+| Zigbee through ZHA | first release (v1), in development |
+| Thread through the Matter integration | preview |
+| Zigbee through Zigbee2MQTT | later |
+
+Once released, installation will go through HACS as a custom repository and needs Home Assistant 2026.9 or newer.
+After adding the integration, a "Meshroute" entry appears in the sidebar.
+
+## Contributing
+
+Bug reports with a capture of the network are the easiest to reproduce: what to include is in
+[CONTRIBUTING.md](CONTRIBUTING.md#bug-reports), the capture tool below. Contributions from people and AI agents are
+welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md). Behaviour: [docs/spec.md](docs/spec.md).
+Security issues: [SECURITY.md](SECURITY.md).
+
+### Capturing your network for a bug report
 
 `tools/capture.py` reads what the panel reads (areas, devices, config entries, ZHA devices with their neighbour and
 route tables) and writes an anonymized file to attach to an issue. Python 3.10 or newer, no installation.
@@ -39,7 +102,7 @@ unset HASS_TOKEN
 - Exit codes: 0 ok, 1 usage, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout, 6 anonymizer
   refused.
 
-## How the code is organized
+### How the code is organized
 
 The panel lives in `custom_components/meshroute_topology_explorer/frontend/`, plain JavaScript. One viewer engine per
 network type, one adapter per data source, and a shared shell that knows neither (spec 4.6):
@@ -57,5 +120,8 @@ network type, one adapter per data source, and a shared shell that knows neither
 `tests/engine-leaks.test.mjs` keeps the boundaries: no engine imports another, and shared code reaches the engines
 only through `engines/index.js` and names no network or source.
 
-Contributions from people and AI agents are welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
-Security issues: [SECURITY.md](SECURITY.md). License: [MIT](LICENSE).
+## License and trademarks
+
+[MIT](LICENSE). Zigbee and Matter are trademarks of the Connectivity Standards Alliance, Thread is a trademark of the
+Thread Group. This project is not affiliated with or endorsed by them, the Home Assistant project or the Open Home
+Foundation.
