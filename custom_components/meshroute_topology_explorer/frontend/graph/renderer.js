@@ -374,7 +374,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       }
       const geo = laneGeometry(sx[lane.s], sy[lane.s], sx[lane.h], sy[lane.h], size, size, offset);
       if (!geo) continue;
-      const style = laneStyle(o.stroke, dir.rating, theme, { colored, state });
+      const style = laneStyle(o.stroke, dir.rating, theme, { colored, state, weight: o.weight });
       items.push({ lane: geo, style, key: styleKey(style), rank: o.rank });
       count(o);
       pairsDrawn.add(lane.pair);
@@ -403,7 +403,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state });
+      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
       items.push({ lane, style, key: styleKey(style), rank: hop.rank });
       count(hop);
       let text = engine.laneValue(dir, texts);

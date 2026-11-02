@@ -8,7 +8,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_PATHS, PATH_STAGES, pathStage } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
+import { overview, sceneBackbone, sceneClasses, scenePaths }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { DEFAULTS as SHELL_DEFAULTS, sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
@@ -112,6 +113,35 @@ test("overview: up and down lanes in every stage; from 'all' the backbone of all
   }
   const off = draw({ sourceRoute: "off" }).stats;
   assert.deepEqual(off.classes, { heard: 0, route: 0, down: 4, up: 5, assumed: 0, predicted: 0, none: 0 }, "no assumed return path");
+});
+
+test("overview looks: solid where a table or a parent link names the lane, the way to the coordinator strong (spec 7.1)", () => {
+  const scene = buildScene(NET, labelWidth);
+  const looks = (paths) => {
+    const o = overview(scene, { paths, sourceRoute: "assume" });
+    return Object.fromEntries(scene.lanes.filter((l) => o[l.index])
+      .map((l) => [`${scene.nodes[l.s].id}>${scene.nodes[l.h].id}`, `${o[l.index].stroke} ${o[l.index].weight}`]));
+  };
+  const read = "solid strong";
+  // Stage 1: every way up and down is read (entries, the parent link of e1), except r3's assumed return: no table
+  // names r3 as next hop.
+  assert.deepEqual(looks("coordinator"), { "r1>c": read, "c>r1": read, "r3>c": read, "c>r3": "dashdot strong",
+    "r4>c": read, "c>r4": read, "r1>e1": read, "e1>r1": read, "r2>r1": read, "r1>r2": read });
+  // The routing table view: every entry's owner -> next hop, solid; strong where it is someone's way up or down.
+  assert.deepEqual(looks("table"), { "r1>c": read, "c>r1": read, "r3>c": read, "r4>c": read, "c>r4": read,
+    "r2>r1": read, "r1>r2": read, "r1>r4": "solid regular" });
+  // Stage 2 adds routes: r1 -> r4 by r1's entry (solid), r2 -> r3 directly to a neighbour without an entry (dash-dot).
+  const all = looks("all");
+  assert.deepEqual([all["r1>r4"], all["r2>r3"], all["c>r3"]], ["solid regular", "dashdot regular", "dashdot strong"]);
+  // A backbone lane only discoveries take is computed, unless a table names it: the overview has no one path to decide.
+  const fresh = buildScene(NET, labelWidth);
+  overview(fresh, { paths: "coordinator" }); // classifies the scene
+  const bb = sceneBackbone(fresh);
+  for (const k of ["r1>r4", "r2>r3"]) bb.kind[fresh.laneByKey.get(`${at(k.split(">")[0])}>${at(k.split(">")[1])}`).index] = "predicted";
+  const o = overview(fresh, { paths: "all", sourceRoute: "assume" });
+  const of = (a, b) => o[fresh.laneByKey.get(`${at(a)}>${at(b)}`).index];
+  assert.deepEqual([of("r1", "r4").stroke, of("r1", "r4").predicted], ["solid", false]);
+  assert.deepEqual([of("r2", "r3").stroke, of("r2", "r3").predicted], ["dashdot-muted", true]);
 });
 
 test("click: everything else off; stage 1 the way up and down, stage 2 adds routes, the routing table view the checkbox's heard partners", () => {
@@ -226,7 +256,7 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   assert.ok(!view.legend().some((e) => e.id === "not-listed"));
   view.setEngineView({ sourceRoute: "off" });
   assert.deepEqual(view.legend().filter((e) => e.kind === "lane").map((e) => e.id),
-    ["coordinator", "assumed", "route", "discovery", "heard"]);
+    ["read", "derived", "discovery", "heard"]);
 });
 
 test("the stored stage: valid stages kept, anything else is the default", () => {

@@ -88,7 +88,7 @@ function importsOf(rel) {
 const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"), ...jsFiles("ui/")];
 
 // Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
-const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "no-table", "path-end"];
+const ZIGBEE_LEGEND = ["read", "derived", "discovery", "heard", "role", "up-path", "no-table", "path-end"];
 
 test("1: the Thread View tab has no Zigbee options (hidden, not greyed)", async () => {
     const { zigbee, thread, zigbeeNet, threadNet } = await engines();

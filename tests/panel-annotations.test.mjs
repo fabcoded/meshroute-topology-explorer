@@ -73,7 +73,7 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
 
 test("1.3: the legend explains RX, computed and assumed paths and missing values in place", () => {
   assert.match(en["legend.rx"], /reception at the arrowhead/);
-  assert.match(en["legend.link.assumed"], /not verified/);
+  assert.match(en["legend.link.derived"], /assumed.*not verified/);
   assert.match(en["legend.link.discovery"], /a candidate, not observed traffic/);
   for (const key of ["legend.link.not-listed", "legend.link.no-table"]) {
     assert.match(en[key], /No reception value in this direction.*does not indicate a weak link/, key);
@@ -101,7 +101,7 @@ test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbo
   assert.match(en["legend.link.discovery"], /^Computed path: a candidate/);
   assert.equal(t("details.how_discovery"), "route discovery (computed)");
   assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
-  assert.match(en["legend.link.assumed"], /assumed/);
+  assert.match(en["legend.link.derived"], /^Assumed or derived/);
   // No evidence levels 0-4 and no "predicted" / "calculated" synonyms in the active texts.
   for (const [key, text] of Object.entries(en)) {
     if (!/^(legend|details|view)\./.test(key)) continue;

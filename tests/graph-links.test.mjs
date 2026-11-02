@@ -7,9 +7,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BAND, DASH, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, widthStep, textBeside, WIDTHS,
+  BAND, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { CLASSES, legendEntries, strokeOf }
+import { CLASSES, legendEntries, strokeOf, weightOf }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
@@ -18,8 +18,10 @@ import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColo
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
-/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle. */
-const classStyle = (cls, rating, t, opts = {}) => laneStyle(strokeOf(cls, opts), rating, t, opts);
+/** A Zigbee lane's style: the stroke of its evidence (strokeOf) and the weight of its role (weightOf) through the
+ *  shared laneStyle; read: a routing table or a parent link names the direction (spec 7.1). */
+const classStyle = (cls, rating, t, opts = {}) =>
+  laneStyle(strokeOf(cls, opts), rating, t, { ...opts, weight: weightOf(cls, opts.axis) });
 const theme = resolveTheme({});
 
 /** Signed distance of a point (relative to a symbol's centre) to the symbol's rounded-square contour. */
@@ -53,34 +55,43 @@ test("a lane lies on the right of its direction of travel in all four quadrants,
   assert.equal(laneGeometry(0, 0, 33, 0, 32, 32, 3), null, "touching symbols leave no lane");
 });
 
-test("classes are told apart by dash and weight, not colour; widths follow the lane's rating in three steps", () => {
+test("the dash says the evidence, the width the role and the rating; never colour alone (spec 7.1)", () => {
   assert.deepEqual([0, 0.2, 0.34, 0.5, 0.67, 1, null].map(widthStep), [0, 0, 1, 1, 2, 2, 0]);
-  const up = classStyle("up", 0.9, theme);
-  const down = classStyle("down", 0.9, theme);
-  const assumed = classStyle("down", 0.9, theme, { assumed: true });
-  const route = classStyle("route", 0.9, theme);
+  const up = classStyle("up", 0.9, theme, { read: true });
+  const down = classStyle("down", 0.9, theme, { read: true });
+  const assumed = classStyle("down", 0.9, theme, { read: false });
+  const route = classStyle("route", 0.9, theme, { read: true });
+  const neighbour = classStyle("route", 0.9, theme, { read: false });
+  const computed = classStyle("route", 0.9, theme, { read: true, predicted: true });
   const heard = classStyle("heard", 0.9, theme);
   const none = classStyle(null, null, theme);
-  assert.deepEqual(up.dash, [], "up and down solid (board M11)");
-  assert.deepEqual(down, up);
-  assert.equal(assumed.cap, "round");
-  assert.ok(assumed.dash[0] < 0.1 && assumed.dash[1] > assumed.width + 3, "sparse round dots");
-  assert.deepEqual(route.dash, [6, 3, 1.5, 3], "dash-dot");
+  // Evidence: read solid, assumed or derived dash-dot, computed dash-dot in grey, heard only dashed in grey.
+  for (const s of [up, down, route]) assert.deepEqual(s.dash, [], "read: solid");
+  for (const s of [assumed, neighbour]) assert.deepEqual(s.dash, [6, 3, 1.5, 3], "assumed or derived: dash-dot");
+  assert.deepEqual(computed.dash, [6, 3, 1.5, 3]);
   assert.deepEqual(heard.dash, [6, 3], "dashed");
-  assert.deepEqual(DASH.dashdot, [6, 3, 1.5, 3]);
-  for (const s of [up, assumed, route]) assert.equal(s.color, theme.foreground);
-  assert.equal(heard.color, theme.muted);
-  assert.ok(up.width > route.width && route.width > heard.width, "up and down strongest, heard only thinnest");
-  for (const s of [up, assumed, route, heard]) assert.equal(s.head, true, "arrowhead at the hearer");
+  for (const s of [up, assumed, route, neighbour]) assert.equal(s.color, theme.foreground);
+  for (const s of [computed, heard]) assert.equal(s.color, theme.muted);
+  // Role: the way to the coordinator and back strong, other routes regular, heard only thin, whatever the evidence.
+  assert.deepEqual(down, up);
+  assert.equal(assumed.width, up.width);
+  assert.equal(neighbour.width, route.width);
+  assert.equal(computed.width, route.width);
+  assert.ok(up.width > route.width && route.width > heard.width, "the way to the coordinator strongest, heard thinnest");
+  assert.equal(classStyle("route", 0.9, theme, { read: true, axis: true }).width, up.width, "the selection's way, drawn as a route");
+  for (const s of [up, assumed, route, computed, heard]) assert.equal(s.head, true, "arrowhead at the hearer");
   assert.equal(none.head, false);
   assert.equal(none.color, theme.muted);
-  // A path hop nothing proves keeps its class's dash, in grey at the thinnest width.
+  // A path hop nothing proves keeps its stroke's dash, in grey at its weight's thinnest width.
   const unknown = classStyle("route", null, theme, { state: "unknown" });
-  assert.deepEqual(unknown.dash, route.dash);
+  assert.deepEqual(unknown.dash, neighbour.dash);
   assert.equal(unknown.color, theme.muted);
-  assert.equal(unknown.width, WIDTHS.dashdot[0]);
-  for (const look of STROKES.filter((k) => k in WIDTHS && k !== "faint")) assert.ok(WIDTHS[look][0] < WIDTHS[look][2]);
-  assert.deepEqual(CLASSES.map((c) => strokeOf(c)), ["dashed", "dashdot", "solid", "solid"]);
+  assert.equal(unknown.width, WIDTHS.regular[0]);
+  for (const w of ["strong", "regular", "thin"]) assert.ok(WIDTHS[w][0] < WIDTHS[w][2]);
+  assert.deepEqual(STROKES, ["solid", "dashdot", "dashdot-muted", "dashed", "faint"]);
+  assert.deepEqual(CLASSES.map((c) => strokeOf(c, { read: true })), ["dashed", "solid", "solid", "solid"]);
+  assert.deepEqual(CLASSES.map((c) => strokeOf(c)), ["dashed", "dashdot", "dashdot", "dashdot"]);
+  assert.deepEqual(CLASSES.map((c) => weightOf(c)), ["thin", "regular", "strong", "strong"]);
 });
 
 import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/unknown-reason.js";
@@ -292,7 +303,10 @@ test("colour by reception: rated lanes red to green by their hearer's rating, da
     assert.equal(classStyle("up", 1, t).color, t.foreground, "colour-free unless switched on");
     assert.equal(classStyle(null, null, t, { colored: true }).color, t.muted, "no reading, no colour");
     assert.equal(classStyle("up", null, t, { colored: true }).color, t.foreground, "no rating, no colour");
-    assert.equal(classStyle("down", 1, t, { colored: true, assumed: true }).color, t.foreground, "assumed stays uncoloured");
+    assert.equal(classStyle("down", 1, t, { colored: true }).color, receptionColor(1, t),
+      "an assumed hop's reading is a reading: coloured, its dash says assumed");
+    assert.equal(classStyle("route", 1, t, { colored: true, read: true, predicted: true }).color, t.muted,
+      "computed stays grey");
   }
   // On the map: the selection's measured hops take the colour, the numbers stay.
   const { ctx } = draw({ selected: 4, receptionColors: true });
@@ -348,33 +362,33 @@ test("text beside a lane stays clear of it, on its right", () => {
   }
 });
 
-test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
+test("legend entries: one row per evidence with its views, the role, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  // Every class whatever the stage; the glyph rows with the heard option under the routing table.
-  const classes = ["coordinator", "assumed", "route", "discovery", "heard", "up-path"];
-  assert.deepEqual(ids(), [...classes, "rx"]);
-  assert.deepEqual(ids({ paths: "all" }), [...classes, "rx"]);
-  assert.deepEqual(ids({ heard: true, paths: "table" }), [...classes, "not-listed", "no-table", "rx"]);
-  assert.deepEqual(ids({ heard: true }), [...classes, "rx"], "a stored heard = true draws no glyphs outside that view");
-  assert.deepEqual(ids({ heard: true, paths: "all" }), [...classes, "rx"]);
-  assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "implied",
-    "width", "not-listed", "no-table", "path-end", "rx"]);
+  // Every kind of evidence whatever the view; the glyph rows with the heard option under the routing table.
+  const rows = ["read", "derived", "discovery", "heard", "role", "up-path"];
+  assert.deepEqual(ids(), [...rows, "rx"]);
+  assert.deepEqual(ids({ paths: "all" }), [...rows, "rx"]);
+  assert.deepEqual(ids({ heard: true, paths: "table" }), [...rows, "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ heard: true }), [...rows, "rx"], "a stored heard = true draws no glyphs outside that view");
+  assert.deepEqual(ids({ heard: true, paths: "all" }), [...rows, "rx"]);
+  assert.deepEqual(ids({ debug: true }), [...rows, "implied", "width", "not-listed", "no-table", "path-end", "rx"]);
   const band = legendEntries(theme).find((e) => e.id === "up-path");
   assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
   assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
   const entries = legendEntries(theme, { heard: true, paths: "table", sourceRoute: "assume", colored: true });
+  const row = (id) => entries.find((e) => e.id === id);
   assert.equal(entries.at(-1).id, "reception");
   assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
-  assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);
-  assert.deepEqual(entries.find((e) => e.id === "route").stage, [2, 3], "routes: the views routing table and all");
-  assert.deepEqual(entries.find((e) => e.id === "coordinator").stage, [1, 3], "up and down: not in the routing table");
-  // A hop only a computed route discovery takes: the same dash-dot in the lighter grey, never in a reception colour.
-  const discovery = entries.find((e) => e.id === "discovery");
-  assert.deepEqual([discovery.style.dash, discovery.style.color, discovery.stage], [[6, 3, 1.5, 3], theme.muted, 3]);
-  assert.notEqual(entries.find((e) => e.id === "route").style.color, theme.muted);
-  assert.equal(classStyle("route", 0.1, theme, { colored: true, predicted: true }).color, theme.muted);
-  assert.equal(entries.find((e) => e.id === "heard").option, "heard");
-  const assumed = entries.find((e) => e.id === "assumed").style;
-  assert.ok(assumed.dash.length && assumed.head, "dotted, with an arrowhead");
+  // Read: solid in the foreground, in every view (no note); assumed or derived: dash-dot, views 1 and 3.
+  assert.deepEqual([row("read").style.dash, row("read").style.color, row("read").stage], [[], theme.foreground, undefined]);
+  assert.deepEqual([row("derived").style.dash, row("derived").style.color, row("derived").stage],
+    [[6, 3, 1.5, 3], theme.foreground, [1, 3]]);
+  // Computed: the same dash-dot in the lighter grey, view 3, never in a reception colour.
+  assert.deepEqual([row("discovery").style.dash, row("discovery").style.color, row("discovery").stage, row("discovery").computed],
+    [[6, 3, 1.5, 3], theme.muted, 3, true]);
+  assert.deepEqual([row("heard").style.dash, row("heard").style.color, row("heard").option], [[6, 3], theme.muted, "heard"]);
+  for (const id of ["read", "derived", "discovery", "heard"]) assert.ok(row(id).style.head, `${id}: arrowhead`);
+  // The role: the way to the coordinator wider than other paths at the same rating.
+  assert.deepEqual([row("role").kind, row("role").widths], ["width", [WIDTHS.regular[2], WIDTHS.strong[2]]]);
   assert.equal(entries.find((e) => e.id === "not-listed").text, "–");
 });

@@ -38,8 +38,8 @@ export function laneValue(dir, texts) {
  *  click shows, RX with an RSSI sample; no stage or option notes. */
 export function legendEntries(theme) {
   return [
-    { id: "parent", kind: "lane", style: laneStyle("solid", 1, theme) },
-    { id: "neighbour", kind: "lane", style: laneStyle("dashed", 1, theme) },
+    { id: "parent", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "strong" }) },
+    { id: "neighbour", kind: "lane", style: laneStyle("dashed", 1, theme, { weight: "thin" }) },
     { id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
     { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
     { id: "rx-thread", kind: "rx", sample: "−75 dBm" },

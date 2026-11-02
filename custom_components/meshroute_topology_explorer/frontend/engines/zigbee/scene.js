@@ -4,11 +4,12 @@
 // of all devices and, on click, only the device's way up and down; "table" every usable routing entry and, on click,
 // the device's own entries walked hop by hop; "all" the backbone of every lane a theoretical path uses and, on click,
 // the device's paths to and from every other device; the option "heard only" adds, on click, the device's 3 best
-// heard-only partners. Hover previews within the view; debug mode draws every lane. The shared renderer
-// (graph/renderer.js) strokes what overview() and focus() return; the scene keeps this engine's fields (lane flags
-// from lanes.js classifyLanes, upPaths, coordinator, pathNet, caches).
+// heard-only partners. Hover previews within the view; debug mode draws every lane. Each look carries the stroke of
+// its evidence, read from the lane alone so that a lane looks the same in every view (sceneRead), and the weight of
+// its role. The shared renderer (graph/renderer.js) strokes what overview() and focus() return; the scene keeps this
+// engine's fields (lane flags from lanes.js classifyLanes, upPaths, coordinator, pathNet, caches).
 // Pure. npm test
-import { BEST_HEARD, CLASSES, DEFAULT_PATHS, classifyLanes, laneClass, overviewShows, pathStage, strokeOf }
+import { BEST_HEARD, CLASSES, DEFAULT_PATHS, classifyLanes, laneClass, overviewShows, pathStage, strokeOf, weightOf }
   from "./lanes.js";
 import { nodePaths, unknownEnd } from "./node-paths.js";
 import { theoreticalLanes } from "./theoretical.js";
@@ -43,6 +44,7 @@ export function classify(scene, extra = null) {
   scene.lookCache = new Map();
   scene.backbone = null;
   scene.tableLanes = null;
+  scene.readCache = new Map();
   return scene;
 }
 
@@ -82,6 +84,30 @@ export function sceneTableLanes(scene) {
   }
   scene.tableLanes = { table, count };
   return scene.tableLanes;
+}
+
+/** The directions "s>h" (node indices) a map draws as read (solid, spec 7.1) under a source-route stage, cached per
+ *  scene: the owner -> next hop of every usable routing entry (paths.js usableRoutes), both directions between an end
+ *  device and its parent (the parent's neighbour table lists the child), and under "zigpy" the hops of a recorded
+ *  return path (drawn as measured, 5.1). A property of the direction, not of one path, so a lane keeps its stroke in
+ *  every view; a hop that a path takes only by route discovery is still drawn computed (focus). */
+export function sceneRead(scene, sourceRoute = "off") {
+  const mode = drawMode(sourceRoute);
+  if (scene.readCache.has(mode)) return scene.readCache.get(mode);
+  const read = new Set();
+  const key = (a, b) => `${scene.index.get(a)}>${scene.index.get(b)}`;
+  const known = (id) => scene.index.has(id);
+  for (const r of scene.pathNet ? usableRoutes(scene.pathNet) : []) {
+    if (known(r.owner) && known(r.nextHop)) read.add(key(r.owner, r.nextHop));
+  }
+  for (const d of scene.pathNet ? scene.pathNet.devices : []) {
+    if (d.role !== "end device" || !d.parent || !known(d.id) || !known(d.parent)) continue;
+    read.add(key(d.id, d.parent));
+    read.add(key(d.parent, d.id));
+  }
+  if (mode === "zigpy") for (const lane of scene.lanes) if (lane.downRecorded) read.add(lane.key);
+  scene.readCache.set(mode, read);
+  return read;
 }
 
 /** Classes of the scene's lanes under a source-route stage ("off", "assume" or "zigpy"), cached per scene: { cls (per
@@ -198,9 +224,11 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
  *  route discovery takes sits just below the routes a table proves. */
 const rankOf = (cls, predicted) => (cls ? CLASSES.indexOf(cls) + 1 : 0) - (predicted ? 0.5 : 0);
 
-/** The look of a lane of class cls: { cls, stroke, rank, assumed, predicted }. */
-function look(cls, assumed = false, predicted = false) {
-  return { cls, stroke: strokeOf(cls, { assumed, predicted }), rank: rankOf(cls, predicted), assumed, predicted };
+/** The look of a lane of class cls: { cls, stroke (its evidence: read, else derived, computed or heard), weight (its
+ *  role; axis: on the selection's own way there and back), rank, assumed, predicted }. */
+function look(cls, { assumed = false, predicted = false, read = false, axis = false } = {}) {
+  return { cls, stroke: strokeOf(cls, { read, predicted }), weight: weightOf(cls, axis), rank: rankOf(cls, predicted),
+    assumed, predicted };
 }
 
 /** Devices always labelled (spec 8): the coordinator, the anchor of every Zigbee path. */
@@ -225,10 +253,11 @@ export function viewKey(view) {
   return `${pathStage(view.paths)}|${drawMode(view.sourceRoute)}|${view.debug ? 1 : 0}`;
 }
 
-/** Per lane its look in the overview, or null where the view leaves it out: up and down lanes; from "all" on the backbone of theoretical paths as routes, lanes only a computed
- *  discovery takes lighter; in "table" the lane of every usable routing entry, as a route, and nothing else (its basis
- *  is the tables, not the ways to the coordinator); never heard-only lanes (the option adds partners on click); every
- *  lane in its own class in debug mode. Cached per viewKey. */
+/** Per lane its look in the overview, or null where the view leaves it out: up and down lanes; from "all" on the
+ *  backbone of theoretical paths as routes, lanes only a computed discovery takes lighter unless a table names them; in
+ *  "table" the lane of every usable routing entry, as a route, and nothing else (its basis is the tables, not the ways
+ *  to the coordinator); never heard-only lanes (the option adds partners on click); every lane in its own class in
+ *  debug mode. Cached per viewKey. */
 export function overview(scene, view) {
   classify(scene);
   const key = viewKey(view);
@@ -238,6 +267,7 @@ export function overview(scene, view) {
   const sc = sceneClasses(scene, drawMode(view.sourceRoute));
   const bb = stage === "all" && !debug ? sceneBackbone(scene) : null;
   const tl = stage === "table" && !debug ? sceneTableLanes(scene) : null;
+  const read = sceneRead(scene, view.sourceRoute);
   const looks = scene.lanes.map((lane) => {
     const cls = sc.cls[lane.index];
     let o = null;
@@ -248,7 +278,11 @@ export function overview(scene, view) {
       const shows = kind && overviewShows("route", stage, { backbone: true });
       if (shows) o = { cls: "route", predicted: kind === "predicted" };
     }
-    return o && look(o.cls, o.cls === "down" && sc.assumed[lane.index], o.predicted);
+    // A table entry that is someone's way up or down keeps its weight in the routing table view. The overview has no
+    // one path to decide a hop: a lane a table names is read, even where only discoveries take it in the backbone.
+    const isRead = read.has(lane.key);
+    return o && look(o.cls, { assumed: o.cls === "down" && sc.assumed[lane.index], predicted: o.predicted && !isRead,
+      read: isRead, axis: cls === "up" || cls === "down" });
   });
   scene.lookCache.set(key, looks);
   return looks;
@@ -259,8 +293,8 @@ export function overview(scene, view) {
  *  the band (none in "table"). view: the drawn view (paths, sourceRoute, heard, returnRoutes, debug, selected): a
  *  selection (view.selected === i) shows the view's paths on click; otherwise i is under the pointer and previews only
  *  what the overview draws, in a class it draws (heard-only partners wait for the click).
- *  { hops: [{ s, h, dir, cls, stroke, rank, assumed, predicted }], ends: [{ at, toward, cls }], glyphs: [{ s, h, dir }],
- *  nodes: Set, band: node indices or null }. */
+ *  { hops: [{ s, h, dir, cls, stroke, weight, rank, assumed, predicted }], ends: [{ at, toward, cls }],
+ *  glyphs: [{ s, h, dir }], nodes: Set, band: node indices or null }. */
 export function focus(scene, i, view) {
   classify(scene);
   const stage = pathStage(view.paths);
@@ -278,7 +312,8 @@ export function focus(scene, i, view) {
   // are the same lanes in both stages for a device, but the coordinator's trees come as routes in stage 2.
   // The view "routing table" draws its walks as they are (a route each, heard lanes of the option): no other class
   // overrides them, as up and down are another basis.
-  const own = stage === "all" ? scenePaths(scene, i, "coordinator", sourceRoute).hops : null;
+  // The selection's own way there and back also sets the weight of a hop in the views that draw it as a route.
+  const own = stage !== "coordinator" ? scenePaths(scene, i, "coordinator", sourceRoute).hops : null;
   const strongest = (hop) => {
     if (stage === "table") return hop;
     if (own) {
@@ -311,8 +346,14 @@ export function focus(scene, i, view) {
     });
     ends = ends.filter((end) => previewed(end.cls));
   }
+  const read = sceneRead(scene, sourceRoute);
+  const axis = (key) => Boolean(own && own.has(key)); // the stage-1 paths are all up or down
   return {
-    hops: hops.map((hop) => ({ s: hop.s, h: hop.h, dir: hop.dir, ...look(hop.cls, hop.assumed, hop.predicted) })),
+    hops: hops.map((hop) => {
+      const key = `${hop.s}>${hop.h}`;
+      return { s: hop.s, h: hop.h, dir: hop.dir,
+        ...look(hop.cls, { assumed: hop.assumed, predicted: hop.predicted, read: read.has(key), axis: axis(key) }) };
+    }),
     ends,
     glyphs: route.glyphs,
     nodes: route.nodes,
