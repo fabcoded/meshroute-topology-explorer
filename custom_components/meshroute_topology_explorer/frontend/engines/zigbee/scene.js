@@ -88,22 +88,15 @@ export function sceneTableLanes(scene) {
 
 /** Classes of the scene's lanes under a source-route stage ("off", "assume" or "zigpy"), cached per scene: { cls (per
  *  lane, one of CLASSES or null), assumed (per lane: drawn as an assumed down lane; a lane of a recorded return path
- *  is drawn as measured), heardOnly (per pair: a reading in some
- *  direction and no up, down or route lane in either), rank (per pair: its best heard lane's reception, the rating
- *  at that lane's hearer, for ranking partners), counts (lanes per class, assumed counted apart as well) }. */
+ *  is drawn as measured), counts (lanes per class, assumed counted apart as well) }. */
 export function sceneClasses(scene, sourceRoute = "off") {
   const mode = drawMode(sourceRoute);
   if (scene.classCache.has(mode)) return scene.classCache.get(mode);
   const cls = scene.lanes.map((l) => laneClass(l, mode));
   const assumed = scene.lanes.map((l, i) => cls[i] === "down" && !l.downMeasured && !(mode === "zigpy" && l.downRecorded));
-  const heardOnly = scene.pairs.map((p) => p.lanes.some((i) => cls[i] === "heard")
-    && p.lanes.every((i) => cls[i] === "heard" || cls[i] === null));
-  // A heard-only pair ranks by its best heard lane: the rating is relative to that lane's hearer (spec 5.4).
-  const rank = scene.pairs.map((p) => p.lanes.filter((i) => cls[i] === "heard").map((i) => scene.lanes[i].dir)
-    .sort(better)[0] || {});
   const counts = Object.fromEntries([...CLASSES, "assumed"].map((c) => [c, 0]));
   cls.forEach((c, i) => { if (c) counts[c]++; if (assumed[i]) counts.assumed++; });
-  const result = { cls, assumed, heardOnly, rank, counts };
+  const result = { cls, assumed, counts };
   scene.classCache.set(mode, result);
   return result;
 }
@@ -117,21 +110,15 @@ const strength = (cls, assumed, predicted = false) => (cls === "route" ? (predic
 /** Whether a lane carries a reading (a measured direction): what "additional heard neighbours" draws. */
 const measured = (lane) => Boolean(lane.dir && lane.dir.state === "measured");
 
-/** The partners of device i for the option "additional heard neighbours (best 3)" (the one place to change the rule):
- *  pairs with a reading and no lane drawn between the two in the active view. "coordinator" and "all": pairs with a
- *  heard lane and no up, down or route lane (sc.heardOnly), in "all" also none of whose lanes the device's own
- *  theoretical paths (`hops`, keys "s>h") take. "table" (owner proposal 2026-11-01): pairs with a reading in either
- *  direction none of whose lanes the view's walks take; up and down lanes are not drawn there, so they do not count.
- *  The best BEST_HEARD by the reading's rating at its hearer. */
-function heardPartners(scene, i, sc, hops, stage) {
-  const taken = (pair) => stage !== "coordinator" && pair.lanes.some((li) => hops.has(scene.lanes[li].key));
-  if (stage === "table") {
-    const best = (p) => p.lanes.map((li) => scene.lanes[li]).filter(measured).map((l) => l.dir).sort(better)[0];
-    return scene.pairs.filter((p) => (p.a === i || p.b === i) && p.lanes.some((li) => measured(scene.lanes[li]))
-      && !taken(p)).sort((x, y) => better(best(x), best(y)) || x.index - y.index).slice(0, BEST_HEARD);
-  }
-  return scene.pairs.filter((p) => (p.a === i || p.b === i) && sc.heardOnly[p.index] && !taken(p))
-    .sort((x, y) => better(sc.rank[x.index], sc.rank[y.index]) || x.index - y.index).slice(0, BEST_HEARD);
+/** The partners of device i for the option "additional heard neighbours (best 3)", which exists in the view
+ *  "table" only (owner decision 2026-11-02): pairs with a reading in either direction none of whose lanes the view's
+ *  walks (`hops`) take; up and down lanes are not drawn there, so they do not count. The best BEST_HEARD by the
+ *  reading's rating at its hearer. */
+function heardPartners(scene, i, hops) {
+  const best = (p) => p.lanes.map((li) => scene.lanes[li]).filter(measured).map((l) => l.dir).sort(better)[0];
+  return scene.pairs.filter((p) => (p.a === i || p.b === i) && p.lanes.some((li) => measured(scene.lanes[li]))
+    && !p.lanes.some((li) => hops.has(scene.lanes[li].key)))
+    .sort((x, y) => better(best(x), best(y)) || x.index - y.index).slice(0, BEST_HEARD);
 }
 
 /** The lanes of node i in a stage of "Communication paths" (lanes.js PATH_STAGES), cached per scene: { hops: Map
@@ -141,14 +128,15 @@ function heardPartners(scene, i, sc, hops, stage) {
  *  the heard-only partners), nodes: Set of every device on a path, named as a goal or a partner, paths (the model's,
  *  for tests) }. "coordinator": the device's way up and down (node-paths.js); "all" adds its theoretical way to
  *  and from every other device as routes, the out tree and the in tree (spec 5.7); `heard` adds its best heard-only
- *  partners in both directions (all stages). A path to or from the coordinator is up or down (the coordinator's own view lists its
+ *  partners in both directions (the view "table" only; ignored elsewhere). A path to or from the coordinator is up or down (the coordinator's own view lists its
  *  routes). sourceRoute: "assume" draws assumed return paths (source-routes.js), "zigpy" recorded ones as
  *  measured and assumed ones for the rest, "off" leaves them unknown. */
 export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off", heard = false, returns = false) {
   const mode = pathStage(stage);
   const sr = drawMode(sourceRoute);
   const back = mode === "table" && returns; // "Include return routes" belongs to the view "table" only
-  const key = `${i}|${mode}|${sr}|${heard ? 1 : 0}|${back ? 1 : 0}`;
+  const withHeard = mode === "table" && heard; // so does "additional heard neighbours" (2026-11-02)
+  const key = `${i}|${mode}|${sr}|${withHeard ? 1 : 0}|${back ? 1 : 0}`;
   if (scene.pathCache.has(key)) return scene.pathCache.get(key);
   const hops = new Map();
   const ends = [];
@@ -187,19 +175,15 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
     ends.push({ at: at(end.at), toward: at(end.toward), cls });
     nodes.add(at(end.toward)); // the goal is named, so the stem points at something the user can read
   }
-  if (heard) {
-    // The checkbox "heard only (best 3)" (decision by Fabian Schwamborn, 2026-11-01): the 3 best partners of device i with
-    // a reading and no lane drawn between the two in this stage: no up, down or route lane (heardOnly) and, from the
-    // stage "all" on, no hop of the device's own theoretical paths (decision of the main session, same day).
-    const sc = sceneClasses(scene, sr);
-    const partners = heardPartners(scene, i, sc, hops, mode);
-    for (const pair of partners) {
+  if (withHeard) {
+    // The checkbox "heard only (best 3)" (decision by Fabian Schwamborn, 2026-11-02: under "Routing table" only): the
+    // 3 best partners of device i with a reading and no lane in the device's walks.
+    for (const pair of heardPartners(scene, i, hops)) {
       nodes.add(pair.a);
       nodes.add(pair.b);
       for (const li of pair.lanes) {
         const lane = scene.lanes[li];
-        // In "table" a measured lane of the pair is drawn as the reading it is, whatever else it carries elsewhere.
-        if (mode === "table" ? measured(lane) : sc.cls[li] === "heard") {
+        if (measured(lane)) {
           hops.set(lane.key, { s: lane.s, h: lane.h, dir: lane.dir, cls: "heard", assumed: false, predicted: false });
         } else if (!lane.dir || lane.dir.state === "unknown") {
           glyphs.push({ s: lane.s, h: lane.h, dir: lane.dir }); // a path hop on this lane shows its "?" itself

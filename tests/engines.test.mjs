@@ -159,8 +159,14 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
   const returns = groups[0].controls[0].options.find((o) => o.value === "table").children[0];
   assert.deepEqual([returns.key, returns.disabled], ["returnRoutes", false], "enabled under the routing table");
   assert.equal(zigbee.options(zigbeeNet, { ...settings, paths: "all" })[0].controls[0].options[1].children[0].disabled, true);
-  assert.equal(groups[0].controls[1].info, null, "the heard note only in the third view");
-  assert.equal(zigbee.options(zigbeeNet, { ...settings, paths: "all" })[0].controls[1].info.key, "heard");
+  // The heard checkbox sits under the routing table too, after the return routes, enabled there and greyed elsewhere.
+  const tableChildren = groups[0].controls[0].options.find((o) => o.value === "table").children;
+  assert.deepEqual(tableChildren.map((c) => [c.key, c.sub, c.disabled]), [["returnRoutes", true, false], ["heard", true, false]]);
+  assert.equal(groups[0].controls.length, 1, "no checkbox of its own beside the radios");
+  for (const paths of ["coordinator", "all"]) {
+    const kids = zigbee.options(zigbeeNet, { ...settings, paths })[0].controls[0].options[1].children;
+    assert.deepEqual(kids.map((c) => c.disabled), [true, true], `${paths}: both sub-options greyed`);
+  }
   const t = translator("en");
   const threadGroups = thread.options(threadNet, settings);
   assert.deepEqual(threadGroups.map((g) => [g.legend, g.controls.length]), [[null, 0]]);

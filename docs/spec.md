@@ -5,7 +5,7 @@ It fixes behaviour, data rules and measurable acceptance, not code structure: ho
 the implementation. Terms in **bold** are defined where they first appear. Release tags: **[v1]** first usable
 version (ZHA only), **[v1.1]** route view, **[later]** further sources and views. Status: reviewed draft, 2026-10-31; node view and colour by reception 2026-11-01; menu and labels 2026-11-01;
 details in three sub-tabs, cluster details with a user-started attribute read, source routes 2026-11-01; communication
-paths per direction in two stages and a heard-only option, compact legend, status line as on the boards 2026-11-01; theoretical paths to every
+paths per direction in views and a heard-only option under the routing table, compact legend, status line as on the boards 2026-11-01; theoretical paths to every
 device and the backbone overview 2026-11-01; source routes read from zigpy 2026-11-01.
 
 ## 1. Purpose and principles [v1]
@@ -461,7 +461,7 @@ the centre).
   nudged to 3:1 against the background (8).
 - **Communication paths** (decision by Fabian Schwamborn, 2026-11-01, boards M2, M11; View tab 9.1, stored 11): three
   views, each its own basis (none contains another, so no "+" in their names; owner proposal 2026-11-01 via feedback
-  contribution 5, Codex recommendation 5, brief a4z), and two options decide what is drawn; they only filter the
+  contribution 5, Codex recommendation 5, brief a4z), and options decide what is drawn; they only filter the
   drawing, springs, positions and fitting stay. The heard option was a third stage until A4l (decision by Fabian
   Schwamborn, 2026-11-01: checkbox instead of a third stage). "Stage 1/2" below means the views 1 and 3.
   - **With the coordinator, there and back** (default): the overview draws the up and down lanes of all devices, each
@@ -480,26 +480,16 @@ the centre).
     included, as a route where it is not up or down and lighter where only a computed route discovery takes it; it is
     computed once per network, not per frame. A click shows the device's trees, its theoretical way to every other
     device and back (5.1), and turns the rest off as in the first stage. "Theoretical": computed, not observed.
-  - **Option "additional heard neighbours (best 3)"** (checkbox, works in every view, default off; "heard only (best
-    3)" until A4z): without a selection it changes nothing; a click adds the device's 3 best partners, both
-    directions, as measurement lines with values and the glyph of a direction without a reading, never as routes and
-    never as destinations. A **partner** is a device that has a reading with the selected device and
-    no lane drawn between the two in either direction in the active view (decision of the main session, 2026-11-01):
-    in the first view no up, down or route lane (route walks, classes above); in the third view additionally no lane
-    of the selection's theoretical paths (5.7); in the routing table no lane of its table walks (up and down lanes are
-    not drawn there, so a pair carrying one can be a partner, its measured lanes drawn as heard). Ranked by the best rating at the hearer of the pair's heard lanes,
-    then LQI. A partner is a whole pair, not a single lane without traffic: counted per lane, the best would mostly be
-    the ways back of up hops. On the sample the second stage leaves almost no partner (12), because the theoretical
-    paths take every measured neighbour lane (rule 4). Decision by Fabian Schwamborn, 2026-11-01: the
-    checkbox stays active in every view; in the third an info button beside it explains this ("This view already
-    draws every measured neighbour as a possible direct way, so the checkbox rarely adds a partner here").
-  - A lane keeps its **strongest class** in the overview and in stage 1 (main session, 2026-11-01): up and measured
-    down, then assumed down, then a route (a route walk, or the backbone by a table, neighbour or parent link), then
-    computed only, then heard. **On a click or hover in stage 2 the selection's own tree decides** (main session,
-    2026-11-01, board M11 rule 5): each hop has the strongest class of the selection's own ways (its up and down
-    lanes, table, neighbour, parent and child, else computed); the backbone's network-wide classes do not reach into
-    the focus, or a computed hop would look proven because somebody else's lane covers it (7.1: a computed hop never
-    looks like one a table proves). Only the selection's stage-1 lanes (its up and down paths) override.
+  - **Option "additional heard neighbours (best 3)"** (checkbox under "Routing table", after "Include return routes",
+    default off; "heard only (best 3)" until A4z): it takes effect in that view only. In the coordinator view and in
+    "paths to all devices" it draws nothing, even if the stored setting is true; the stored value is kept (no
+    migration), so switching back to "Routing table" restores the choice. Decision by Fabian Schwamborn, 2026-11-02;
+    before, it worked in every view (2026-11-01). Without a selection it changes nothing; a click adds the device's 3
+    best partners, both directions, as measurement lines with values and the glyph of a direction without a reading,
+    never as routes and never as destinations. A **partner** is a device that has a reading with the selected device
+    and none of whose lanes the table walks of the selection take; up and down lanes are not drawn in this view, so a
+    pair carrying one can be a partner, its measured lanes drawn as heard. Ranked by the best rating at the hearer of
+    the pair's measured lanes, then LQI. A partner is a whole pair, not a single lane.
   - **Hover** previews the device under the pointer: its lanes of the stage that the overview draws anyway lie on
     top with their values, everything else is dimmed; it never adds lanes the stage hides. From stage 2 on the
     backbone carries the device's trees, so they show; heard-only partners (the option) wait for the click. **Debug mode** draws
@@ -675,9 +665,9 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   with a one-line hint; the routing table's hint "Each router's table names the next hop to a destination. This view
   follows those entries until the destination or a gap." (Codex 6.2), under it, indented, the checkbox "include return
   routes" with "Follow each destination's route back, using the routing table at every hop.", greyed in the other
-  views; below the group the checkbox "additional heard neighbours (best 3)" with its hint "needs a selection: adds the
-  device's 3 best partners with a reading and no drawn lane, in any view" (in the third view with an info button for
-  the note above), then "Each view has its own basis. Debug shows everything."); **Path
+  views, and after it, likewise indented and greyed, the checkbox "additional heard neighbours (best 3)" with its hint
+  "needs a selection: adds the device's 3 best partners with a reading and no drawn lane" (no info button); below the
+  group "Each view has its own basis. Debug shows everything."); **Path
   display** (grey or coloured by reception, with an info button: "Colour shows the relative reception rank, not connection reliability."; under it three colour pickers lower, middle, higher reception rank, prefilled with the
   theme's red, yellow and green, freely choosable, dimmed and inert while grey is chosen (board M2), and while coloured
   a way back to the defaults; 7.1, 8); **On click on a device** (checkbox "Open details", the same setting as the
@@ -698,8 +688,8 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   glyphs "–" and "?", and "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
 - **Legend** tab (board M7), compact, in sections: **Communication paths**: every path class whatever the stage
   (decision by Fabian Schwamborn, 2026-11-01): there and back with the coordinator, the assumed return path, paths to
-  other devices "(views 2 and 3)", there and back and the assumed return path "(views 1 and 3)" (A4z), the computed path, "a possible path computed from the available tables (one of the cheapest by LQI)", that actual traffic may take another path, "(computed, view 3)", heard only "(option "additional heard neighbours", needs a selection)"; the
-  band, the glyphs "–" and "?" where the option draws them (option on, and debug)
+  other devices "(views 2 and 3)", there and back and the assumed return path "(views 1 and 3)" (A4z), the computed path, "a possible path computed from the available tables (one of the cheapest by LQI)", that actual traffic may take another path, "(computed, view 3)", heard only "(option under "Routing table", needs a selection)"; the
+  band, the glyphs "–" and "?" where the option draws them (option on in the routing table view, and debug)
   (an addition to M7: the legend explains every glyph the map can show), in debug mode also the lane without traffic,
   the width steps and the unknown end, "RX:" (the reception as reported by the receiver at the arrowhead, a quarter of the lane before it; values of different receivers may use different scales) and the
   colour bar while paths are coloured; the fill while one is chosen; **Symbols**: one row per sign, each drawn at
@@ -855,7 +845,7 @@ id). The chosen network (`network`: `zha` or `thread`) is stored under the reser
 the first load shows Zigbee (brief a7).
 
 View, direction (v1.1), density, communication paths (`paths`: `coordinator`, `table` or `all`; anything else counts
-as `coordinator`; `heard`: boolean, the checkbox "additional heard neighbours (best 3)", default false; `returnRoutes`:
+as `coordinator`; `heard`: boolean, the checkbox "additional heard neighbours (best 3)", default false, kept in every view but drawn in `table` only; `returnRoutes`:
 boolean, "include return routes" of the view `table`, default false, absent in older stores; a stored `paths: "heard"`
 of A4j/A4k reads as `paths: "all"` with `heard: true`; 7.1), path display
 (`pathColors`: `{ mode, bad, medium, good }`; `mode` `grey` or `coloured`, anything else `grey`; each colour only as
@@ -881,7 +871,7 @@ reads them again on reconnect.
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Route records from zigpy (synthetic, tests/zigpy-fake.mjs: every complete way up, 2 broken): 6 recorded, 2 assumed, still 41 of 44; 23 records differ from a complete measured down path and are only named. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
-| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (A4l): partners per stage over the 32 routers: first stage 29 with 3 partners and 3 with none, second stage 31 with none and 1 with one; the 12 end devices none in both; Router 13 draws 2 lanes (first stage), 7 with the option, 82 in the second stage with or without it. Routing table (A4z): 129 entries, 127 usable, overview 99 lanes (101 distinct owner -> next hop, 2 towards an unavailable device have none); Router 13: 5 destinations, all walks complete (Router 24 over Router 17, End device 06 delivered by its parent Router 17); its return routes: the coordinator's complete, the other four stop ("no entry" at Router 14, 24, 26 and at Router 17 after End device 06's parent hop); the coordinator: 30 destinations, 30 return routes complete; an end device: none. |
+| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (works under the routing table only, 2026-11-02): Router 13 draws 2 lanes in the coordinator view and 82 in the second view whatever the option says, 6 lanes in the routing table view and 11 with the option. Routing table (A4z): 129 entries, 127 usable, overview 99 lanes (101 distinct owner -> next hop, 2 towards an unavailable device have none); Router 13: 5 destinations, all walks complete (Router 24 over Router 17, End device 06 delivered by its parent Router 17); its return routes: the coordinator's complete, the other four stop ("no entry" at Router 14, 24, 26 and at Router 17 after End device 06's parent hop); the coordinator: 30 destinations, 30 return routes complete; an end device: none. |
 | Candidate hit rate | On the sample the cheapest way (5.7 rule 5) names the real next hop of 11 of the 37 active, non-stale router entries whose next hop is not the destination (14 of 62 with the coordinator's entries); test in tests/model-theoretical.test.mjs. Not shown in the product. |
 | Unknown hops | On the sample the complete paths to other devices (5.7) have 174 hops without a reading (87 on the ways out, 87 on the ways back), all neighbour hops on 72 lanes; on the ways out the hearer's table is full for 54, nearly full for 23, with room for 10; all show "–", none "?" (test "a hop whose hearer's table was read ..."). |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |

@@ -347,17 +347,19 @@ test("text beside a lane stays clear of it, on its right", () => {
 
 test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows with the heard option.
+  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows with the heard option under the routing table.
   const classes = ["coordinator", "assumed", "route", "discovery", "heard", "up-path"];
   assert.deepEqual(ids(), [...classes, "rx"]);
   assert.deepEqual(ids({ paths: "all" }), [...classes, "rx"]);
-  assert.deepEqual(ids({ heard: true }), [...classes, "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ heard: true, paths: "table" }), [...classes, "not-listed", "no-table", "rx"]);
+  assert.deepEqual(ids({ heard: true }), [...classes, "rx"], "a stored heard = true draws no glyphs outside that view");
+  assert.deepEqual(ids({ heard: true, paths: "all" }), [...classes, "rx"]);
   assert.deepEqual(ids({ debug: true }), ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "implied",
     "width", "not-listed", "no-table", "path-end", "rx"]);
   const band = legendEntries(theme).find((e) => e.id === "up-path");
   assert.deepEqual([band.kind, band.alpha, band.width], ["band", BAND.alpha, BAND.width]);
   assert.deepEqual(ids({ paths: "junk" }), ids(), "an unknown stage is the default");
-  const entries = legendEntries(theme, { heard: true, sourceRoute: "assume", colored: true });
+  const entries = legendEntries(theme, { heard: true, paths: "table", sourceRoute: "assume", colored: true });
   assert.equal(entries.at(-1).id, "reception");
   assert.deepEqual(entries.at(-1).colors, [0, 0.25, 0.5, 0.75, 1].map((r) => receptionColor(r, theme)));
   assert.deepEqual(entries.find((e) => e.id === "route").style.dash, [6, 3, 1.5, 3]);

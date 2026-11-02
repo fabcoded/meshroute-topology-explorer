@@ -20,7 +20,7 @@ import { isActive } from "./from-zha.js";
 /** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view
  *  by owner proposal 2026-11-01, Codex 5): three views, each its own basis, none containing another: with the
  *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
- *  a separate option (checkbox) on top of any of them. */
+ *  an option (checkbox) under the routing table. */
 export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);
 export const DEFAULT_PATHS = "coordinator";
 
@@ -179,13 +179,13 @@ export function laneValue(dir, texts) {
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
  *  M7): every path class whatever the view (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
  *  there and back with the coordinator (up and down share one row) and the assumed return path (views 1 and 3), paths
- *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option,
+ *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option under the routing table,
  *  needs a selection); the band under a selected device's way up; the glyphs for directions without a reading where
  *  the option draws them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and
  *  the unknown end; "RX:" at the hearer with a sample value, and with colored the reception scale. */
-export function legendEntries(theme, { debug = false, colored = false, heard = false } = {}) {
+export function legendEntries(theme, { debug = false, colored = false, heard = false, paths = DEFAULT_PATHS } = {}) {
   const sample = (stroke) => laneStyle(stroke, 1, theme);
-  const glyphs = debug || heard;
+  const glyphs = debug || (heard && paths === "table");
   return [
     // The views that draw each class (owner proposal 2026-11-01): up and down in 1 and 3, routes in 2 and 3.
     { id: "coordinator", kind: "lane", style: sample("solid"), stage: [1, 3] },

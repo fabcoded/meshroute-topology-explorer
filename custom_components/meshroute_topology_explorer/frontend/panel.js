@@ -70,7 +70,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._debug = false; // never stored (spec 9.1)
     this._wide = true;
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
-    this._info = { density: false, reload: false, heard: false, colors: false, assumed: false }; // which info notes the View tab shows
+    this._info = { density: false, reload: false, colors: false, assumed: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
     this._dialog = null; // the dialog an engine's Details opened (Zigbee: a cluster's details), if any
     this._dirty = new Set();

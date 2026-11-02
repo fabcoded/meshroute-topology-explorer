@@ -49,13 +49,12 @@ const VARIANTS = [
     ["Route record from zigpy: Router 02", "select=Router%2002&left=details&sourceroute=zigpy"],
     ["Route record differs: Router 16", "select=Router%2016&left=details&sourceroute=zigpy"],
     ["zigpy not available", "sourceroute=zigpy&zigpy=unsupported&right=view"]]],
-  ["Communication paths", [["Stage 2 overview", "paths=all"], ["Heard-only checkbox, no selection", "heard=1"],
+  ["Communication paths", [["Stage 2 overview", "paths=all"], ["Heard-only checkbox, no selection", "paths=table&heard=1"],
     ["Click with panels closed: End device 06", "select=End%20device%2006&open=off"],
     ["Click, Details on click: End device 06", "select=End%20device%2006&collapsed=1"],
     ["Stage 1 click: Router 11", "select=Router%2011&open=off"],
     ["Stage 2 click: Router 11", "select=Router%2011&open=off&paths=all"],
-    ["Stage 1 + heard: Router 11", "select=Router%2011&open=off&heard=1"],
-    ["Stage 2 + heard: Router 11", "select=Router%2011&open=off&paths=all&heard=1"],
+    ["Stage 1, heard stored (draws nothing): Router 11", "select=Router%2011&open=off&heard=1"],
     ["Routing table overview", "paths=table"], ["Routing table click: Router 13", "select=Router%2013&paths=table&left=details"],
     ["Routing table with return routes: Router 13", "select=Router%2013&paths=table&returns=1&left=details"],
     ["Routing table + heard: Router 13", "select=Router%2013&paths=table&returns=1&heard=1"],
@@ -405,7 +404,7 @@ async function drive() {
   // info=1|reload|all: the density note, the note beside "Read data again", or every View info note shown.
   if (q.get("info")) {
     const all = q.get("info") === "all";
-    el._info = { density: all || !["reload"].includes(q.get("info")), reload: all || q.get("info") === "reload", heard: all,
+    el._info = { density: all || !["reload"].includes(q.get("info")), reload: all || q.get("info") === "reload",
       colors: all, assumed: all };
   }
   // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).

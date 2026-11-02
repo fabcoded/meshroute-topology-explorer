@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // The Zigbee groups of the View tab (spec 9.1, 11; board M2, M11), as data the shared View tab renders
 // (ui/view-tab.js renderView). Communication paths: three views, each its own basis, with "Include return routes"
-// under the routing table (greyed in the other views, which already hold both directions) and the checkbox
-// "additional heard neighbours" with its info note in the third view only (decision by Fabian Schwamborn,
-// 2026-11-01); path display, grey or coloured by reception (the shared key pathColors); return paths without a table
+// under the routing table (greyed in the other views, which already hold both directions) and, after it, the
+// checkbox "additional heard neighbours", which also works in that view only (decision by Fabian Schwamborn,
+// 2026-11-02); path display, grey or coloured by reception (the shared key pathColors); return paths without a table
 // entry (source route: off, assume, read from zigpy with its "experimental" tag), after "On click".
 // Pure. npm test
 import { PATH_STAGES } from "./lanes.js";
@@ -14,15 +14,12 @@ export function zigbeeOptions(network, settings) {
   const tableOn = settings.paths === "table";
   const returns = { kind: "checkbox", key: "returnRoutes", id: "paths-returns", label: "view.paths_returns",
     hint: "view.paths_returns_hint", sub: true, disabled: !tableOn };
+  const heard = { kind: "checkbox", key: "heard", id: "paths-heard", label: "view.paths_heard",
+    hint: "view.paths_heard_hint", sub: true, disabled: !tableOn };
   return [
     { id: "paths", legend: "view.paths", className: "paths-group", note: "view.paths_note", controls: [
       { kind: "radio", key: "paths", layout: "rows", options: PATH_STAGES.map((v) => ({ value: v,
-        label: `view.paths_${v}`, hint: `view.paths_${v}_hint`, children: v === "table" ? [returns] : [] })) },
-      // In the third view every measured neighbour is already a possible direct way: the note says the option rarely
-      // adds a partner there (decision by Fabian Schwamborn, 2026-11-01), and shows in that view only.
-      { kind: "checkbox", key: "heard", id: "paths-heard", label: "view.paths_heard", hint: "view.paths_heard_hint",
-        info: settings.paths === "all" ? { key: "heard", label: "view.heard_info_label", text: "view.heard_info" }
-          : null },
+        label: `view.paths_${v}`, hint: `view.paths_${v}_hint`, children: v === "table" ? [returns, heard] : [] })) },
     ] },
     { id: "display", legend: "view.path_display", controls: [{ kind: "pathColors" }],
       info: { key: "colors", label: "view.colors_info_label", text: "view.colors_info" } },
