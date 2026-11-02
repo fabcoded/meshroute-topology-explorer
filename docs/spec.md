@@ -20,7 +20,8 @@ a lamp that drops out, a sensor that reports late, a corner of the garden that h
   the user presses in a cluster's details, one read of that cluster's attribute values (9.2; decision by Fabian
   Schwamborn, 2026-11-01). Never automatic, never a write, no reporting, no binding.
 - **Unknown beats wrong.** The explorer judges only through **findings** (5.6), and every finding names its
-  evidence. Missing data never turns into a verdict.
+  evidence. Missing data never turns into a verdict. (Origin: a first attempt on 2026-10-30 judged garden lamps
+  "weak" and five sensors "without parent" on incomplete tables.)
 - **Nothing leaves the house.** No telemetry, no third-party requests. Optional map tiles come only from an address
   the user configured.
 - **Ship what you read.** No build step; Home Assistant serves the repository files as they are.
@@ -60,7 +61,8 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   On the sample every device has a kind and the 12 end devices sleep.
 - Names and areas: `config/area_registry/list`, `config/device_registry/list`; ZHA loaded: `config_entries/get`.
 - `zha/topology/update` starts a **scan**: the coordinator asks every router for its tables, one after another,
-  about a second per table page; on the sample network a scan takes minutes. The command never answers: send it
+  about a second per table page; on the sample network a scan takes minutes (on the author's network 21 of 32 router
+  tables after 2 minutes, 30 of 32 after about 2.5 hours; the two missing routers were offline). The command never answers: send it
   without waiting. A new scan cancels a running one. ZHA also scans by itself, by default every 4 hours (the period
   is configurable and can be switched off).
 - Tables are stored by ZHA and survive restarts. During a scan each router's table is replaced when it answers;
@@ -136,7 +138,8 @@ not. Each source is an **adapter** with a declared **capability set** (4.6).
   device and its label at the active density (9.3).
 - Limits: the snapshot is what the Matter server last read; it may list removed routers or miss end devices, and
   border routers vanish when Thread diagnostics are off. The explorer reads only `matter/network_topology` and does not
-  reconcile it with OTBR data (`otbr/*` returns keys and is forbidden, 3.4).
+  reconcile it with OTBR data (`otbr/*` returns keys and is forbidden, 3.4). A node without an extended address gets
+  the id `thread:<node>`; pins for it are dropped, because pins are stored under EUI-64 keys only.
 - Nodes carry a kind (`matter`, `border_router`, `thread_unknown`, `wifi_ap`), role, extended
   address, RLOC16, extended PAN id, vendor, model, last seen, availability; links carry a strength
   (strong / medium / weak / none / unknown; unknown is not drawn as a dead link), LQI and RSSI per direction, whether
@@ -894,5 +897,7 @@ reads them again on reconnect.
 
 Controlling devices; writing attributes, reporting configuration, binding (ZHA's device page does those); any radio
 traffic other than a user-started topology request or a user-started read of a cluster's attribute values; installing
-anything into other add-ons; a history database; anything sent outside Home Assistant; claims of compatibility or certification.
+anything into other add-ons; a history database; anything sent outside Home Assistant; claims of compatibility or certification;
+a Wi-Fi or Ethernet viewer and a Matter relationship view (Matter is an application layer; a Thread topology delivered
+through Matter goes to the Thread engine, 3.2).
 Later and small: one previous snapshot to show "since the last scan: links lost, parent changed".
