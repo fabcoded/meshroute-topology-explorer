@@ -7,8 +7,14 @@
  *  of the server with { code, message }; both forms are accepted, as its own isConnectionLost() does. */
 const ERR_CONNECTION_LOST = 3;
 
+/** Code of a websocket error in either form ({ code, message } or { error: { code, message } }), else undefined. */
+export function errorCode(err) {
+  const e = err && (err.error || err);
+  return e ? e.code : undefined;
+}
+
 export function isConnectionLost(err) {
-  return Boolean(err) && (err.code === ERR_CONNECTION_LOST || (err.error && err.error.code === ERR_CONNECTION_LOST));
+  return errorCode(err) === ERR_CONNECTION_LOST;
 }
 
 /** Readable text of a websocket error ({ code, message }, { error: { ... } }, Error or anything else). */

@@ -4,7 +4,7 @@
 // with the debounced save, the classification of a failed read and the pending-change bookkeeping. The settings
 // (ui/settings.js) and the observations (adapters/zha-observations.js) extend it; the chosen network
 // (ui/network-switch.js) uses the two command helpers. No DOM. npm test
-import { errorText, isConnectionLost } from "../adapters/ws.js";
+import { errorCode, errorText, isConnectionLost } from "../adapters/ws.js";
 
 /** The integration rejects larger payloads (spec 10); checked by the clients so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -65,7 +65,7 @@ export class StoreClient extends EventTarget {
   /** Fall back to memory after a failed read and say why. */
   _unreadable(err) {
     this.mode = "memory";
-    this.reason = err && err.code === "unauthorized" ? "unauthorized" : isConnectionLost(err) ? "offline" : "unreadable";
+    this.reason = errorCode(err) === "unauthorized" ? "unauthorized" : isConnectionLost(err) ? "offline" : "unreadable";
     this.error = this.reason === "unreadable" ? { kind: "error", message: errorText(err) } : null;
   }
 

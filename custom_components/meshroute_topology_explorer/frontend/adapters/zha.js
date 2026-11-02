@@ -7,7 +7,7 @@
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
-import { isConnectionLost } from "./ws.js";
+import { errorCode, errorText, isConnectionLost } from "./ws.js";
 import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
 import { TEXTS } from "./zha-texts.js";
@@ -72,9 +72,9 @@ export async function readZigpyRoutes(hass) {
     return parseZigpyRoutes(await hass.callWS({ type: "meshroute_topology_explorer/zigpy_routes" }));
   } catch (err) {
     if (isConnectionLost(err)) throw err;
-    const e = (err && err.error) || err || {};
-    const message = String(e.message || e.code || e);
-    const reason = e.code === "not_supported" ? String(e.message || "").split(":")[0] || "not_supported" : String(e.code || "error");
+    const code = errorCode(err);
+    const message = errorText(err);
+    const reason = code === "not_supported" ? message.split(":")[0] || "not_supported" : String(code || "error");
     return { status: "not_supported", reason, message };
   }
 }

@@ -5,6 +5,7 @@
 // and a table that did not change may have been answered too. No DOM; timers and clock injectable.
 // Tested in Node: npm test
 import { fingerprints } from "./zha-fingerprints.js";
+import { errorText } from "./ws.js";
 
 /** Re-read schedule of spec 6, in ms after the start. */
 export const SCAN_SCHEDULE = Object.freeze({ fastEvery: 15000, fastUntil: 120000, slowEvery: 60000, stopAt: 900000 });
@@ -65,7 +66,7 @@ export class ScanFollower extends EventTarget {
       this._send();
     } catch (err) {
       this._set({ status: "not-sent", startedAt: null, failedReads: 0, changed: 0, total,
-        message: String((err && (err.message || (err.error && err.error.message))) || err) });
+        message: errorText(err) });
       return;
     }
     this._set({ status: "running", startedAt: this._now(), failedReads: 0, changed: 0, total, message: null });

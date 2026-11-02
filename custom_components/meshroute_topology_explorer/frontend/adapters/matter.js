@@ -3,7 +3,7 @@
 // topology to the Thread engine (engines/index.js), which builds the model. Read only: the server's cached snapshot.
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
-import { errorText, isConnectionLost } from "./ws.js";
+import { errorCode, errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
@@ -27,7 +27,7 @@ export async function readThread(hass, registries = {}) {
     topology = await hass.callWS({ type: "matter/network_topology", refresh: false });
   } catch (err) {
     if (isConnectionLost(err)) throw err;
-    const code = String((err && (err.code || (err.error && err.error.code))) || "");
+    const code = errorCode(err);
     if (code === "not_supported" || code === "unknown_command") return { status: "not_supported" };
     return { status: "error", message: errorText(err) };
   }
