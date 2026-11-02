@@ -13,7 +13,7 @@ const en = {
   "scan.confirm": "Start scan",
   "scan.cancel": "Cancel",
   "ha.zha": "Zigbee info (ZHA)",
-  "view.reload_info": "Reloads the tables currently held by ZHA. It does not start a radio scan. ZHA reads the tables by itself, every 4 hours by default.",
+  "view.zha_reload_info": "Reloads the tables currently held by ZHA. It does not start a radio scan. ZHA reads the tables by itself, every 4 hours by default.",
   "source.zha": "Zigbee (ZHA)",
 };
 
@@ -27,7 +27,7 @@ const de = {
   "scan.confirm": "Scan starten",
   "scan.cancel": "Abbrechen",
   "ha.zha": "Zigbee-Infos (ZHA)",
-  "view.reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
+  "view.zha_reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
 };
 
 /** { en, de }: the tables, frozen. */

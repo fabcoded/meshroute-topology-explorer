@@ -105,7 +105,8 @@ export async function readSource(hass, { registries }) {
 
 /** The ZHA adapter as the shell sees it (adapters/index.js): key (the source its networks carry and the stored choice
  *  of the network switch), the read, the phase of a blocked source, ZHA's device page, the scan (send, follow,
- *  compare tables) and the observations client. A ZHA network that cannot be read is never offered greyed. */
+ *  compare tables), the observations client and the reload note (a text key: ZHA's held tables, no scan). A ZHA
+ *  network that cannot be read is never offered greyed. */
 export const adapter = Object.freeze({
   key: "zha",
   read: readSource,
@@ -115,5 +116,6 @@ export const adapter = Object.freeze({
   devicePage: (device, tab = "signature") => ({ key: "zha", path: zhaDevicePath(device.id, tab) }),
   scan: Object.freeze({ send: sendScan, Follower: ScanFollower, differ: tablesDiffer }),
   Observations: ObservationsClient,
+  reloadInfo: "view.zha_reload_info",
   texts: TEXTS,
 });

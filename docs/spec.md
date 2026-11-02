@@ -685,8 +685,10 @@ One place per thing (design by Fabian Schwamborn, 2026-11-01): nothing appears t
   info button ("Spacing helps arrange the network. It does not show physical distance.")
   (dense, medium, spread; option words in lower case as on the board; 7.1); **Symbol fill** (none, role, power
   source); **Labels on the map** (device type above the symbol, readable name below, original Home Assistant name;
-  8). Below a line: debug mode, "Read data again" with an info button ("ZHA reads the tables by itself, every 4 hours
-  by default", and that it reloads the tables ZHA holds and starts no radio scan, 6), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
+  8). Below a line: debug mode, "Read data again" with an info button whose note the network's adapter supplies (ZHA:
+  it reloads the tables ZHA holds, starts no radio scan, and ZHA reads the tables by itself every 4 hours by default,
+  6; Matter: it reloads the topology the Matter server has cached and starts no radio scan, refresh false, 3.2; brief
+  qa1, 2026-11-02), "Release all pins (n)", in debug mode the scan (6), and a note on where the settings are kept only
   when they are not kept in Home Assistant (11). Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a
   coarse one.
 - **Legend** for Thread (brief a7): parent link, neighbour (measured, from the neighbour table; no route data), the

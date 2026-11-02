@@ -161,7 +161,7 @@ test("legend, View and Details texts of the A4j boards (M2, M7) in German, with 
     "legend.symbol_wired": "nur Stecker, keine Bögen: Kabelgerät",
     "legend.state_offline": "offline: ohne Füllung", "legend.state_selected": "ausgewählt: dicker Rahmen",
     "legend.state_pinned": "angepinnt: Nadel", "legend.symbols_title": "Symbole", "legend.states_title": "Zustände",
-    "view.reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
+    "view.zha_reload_info": "ZHA liest die Tabellen selbst, standardmäßig alle 4 Stunden.",
     "details.children_title": "Kinder (End-Devices)",
   };
   for (const [key, text] of Object.entries(words)) {

@@ -47,7 +47,8 @@ export async function readSource(hass, { registries }) {
 }
 
 /** The Matter adapter as the shell sees it (adapters/index.js): key (the source its networks carry, "thread", and the
- *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why. */
+ *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why, and
+ *  the reload note (a text key: the server's cached topology, refresh false, no radio traffic). */
 export const adapter = Object.freeze({
   key: "thread",
   read: readSource,
@@ -61,5 +62,6 @@ export const adapter = Object.freeze({
   devicePage: null,
   scan: null,
   Observations: null,
+  reloadInfo: "view.thread_reload_info",
   texts: TEXTS,
 });

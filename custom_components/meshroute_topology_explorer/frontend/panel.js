@@ -549,6 +549,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",
           observations: this._debug ? this._observations : null, info: this._info,
+          reloadInfo: adapterFor(this._network).reloadInfo,
           onChange: (patch) => this._settings.update(patch), onOpenDetails: (on) => this._setOpenOnSelect(on),
           onDebug: (on) => this._setDebug(on), onReload: () => this._controller.reload(),
           onReleaseAll: () => this._release(null), onScan: (button) => this._startScan(button),

@@ -103,3 +103,34 @@ test("View tab: three source-route stages, 'Read from zigpy' enabled with its ta
   assert.deepEqual(patches, [{ sourceRoute: "zigpy" }]);
   assert.equal(sr({ sourceRoute: "zigpy" }).radios.find((r) => r.checked).value, "zigpy");
 });
+
+test("View tab: the reload note comes from the network's adapter; a Thread tab never shows the ZHA note", async () => {
+  // The shared tab once read ZHA's note on every network, so Thread said "the tables currently held by ZHA" (engines
+  // cut report, brief qa1). Each adapter now names its note; the tab has no text of its own.
+  const { readFileSync } = await import("node:fs");
+  const { adapterFor } = await import("../custom_components/meshroute_topology_explorer/frontend/adapters/index.js");
+  const { buildThreadNetwork } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js");
+  const topology = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8"))
+    .responses["matter/network_topology"];
+  const t = translator("en");
+  const tab = (net, engine) => {
+    const container = new FakeNode("div");
+    const settings = sanitizeSettings({}, engine.settings);
+    renderView(container, { t, settings, groups: engine.options(net, settings), openOnSelect: false, dark: false,
+      debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", info: { reload: true },
+      reloadInfo: adapterFor(net).reloadInfo, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
+      onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
+    const all = container.walk();
+    return { all, note: all.find((n) => n.attrs.id === "v-reload-note"), button: all.find((n) => n.attrs.id === "v-reload-info") };
+  };
+  const thread = tab(buildThreadNetwork(topology), ENGINES.thread);
+  assert.equal(thread.note.textContent, t("view.thread_reload_info"));
+  assert.equal(thread.button.title, thread.note.textContent);
+  assert.match(thread.note.textContent, /Matter server/);
+  assert.match(thread.note.textContent, /does not start a radio scan/, "refresh false: no radio traffic");
+  const words = thread.all.flatMap((n) => [n.textContent, n.title]).filter((s) => typeof s === "string");
+  assert.ok(!words.some((s) => s.includes("ZHA")), words.filter((s) => s.includes("ZHA")).join(" | "));
+  assert.equal(tab(network, ENGINES.zigbee).note.textContent, t("view.zha_reload_info"));
+  // Without a note from the caller there is no info button, never a borrowed text.
+  assert.ok(!render({}).all.some((n) => n.attrs.id === "v-reload-info" || n.attrs.id === "v-reload-note"));
+});
