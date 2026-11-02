@@ -5,7 +5,7 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { floatingLayout, drawerGeometry, combinedInsets, FLOAT_GAP, BAND_MIN, SHEET_COLLAPSED } from "../custom_components/meshroute_topology_explorer/frontend/ui/geometry.js";
+import { floatingLayout, drawerGeometry, combinedInsets, FLOAT_GAP, BAND_MIN, SHEET_COLLAPSED, ZOOM_HEIGHT } from "../custom_components/meshroute_topology_explorer/frontend/ui/geometry.js";
 import { linkLegendRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/link-legend.js";
 import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
@@ -94,4 +94,17 @@ test("the panel takes the viewport's height: Home Assistant's custom-panel conta
   const host = STYLES.slice(STYLES.indexOf(":host {"), STYLES.indexOf("}", STYLES.indexOf(":host {")));
   assert.match(host, /height:\s*100dvh/);
   assert.doesNotMatch(host, /height:\s*100%/);
+});
+
+test("the Spread group sits on the zoom group; with a tall sheet open it is dropped, the zoom group stays", () => {
+  const right = { width: 110, height: 100 };
+  const open = floatingLayout({ width: 1400, height: 800, right });
+  assert.equal(open.spread.bottom, FLOAT_GAP + ZOOM_HEIGHT + FLOAT_GAP);
+  assert.equal(open.spread.right, open.zoom.right);
+  const sheet = drawerGeometry({ width: 390, height: 772, open: true, expanded: true, side: "right" });
+  const tall = floatingLayout({ width: 390, height: 772, insets: sheet.insets, left: { width: 180, height: 100 }, right });
+  assert.equal(tall.spread, null, "no room between the Legend button and the sheet");
+  assert.equal(tall.zoom.bottom, sheet.size + FLOAT_GAP, "the zoom group is kept");
+  const low = drawerGeometry({ width: 390, height: 772, open: true, expanded: false, side: "right" });
+  assert.ok(floatingLayout({ width: 390, height: 772, insets: low.insets, right }).spread, "a collapsed sheet leaves room");
 });

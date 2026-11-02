@@ -50,6 +50,10 @@ export const FLOAT_GAP = 12;
  *  the "incomplete" banner's two short sentences in two lines. */
 export const BAND_MIN = 280;
 
+/** Heights of the zoom group (3 buttons of 48 px and 2 dividers) and of the Spread group above it (2 buttons). */
+export const ZOOM_HEIGHT = 146;
+export const SPREAD_HEIGHT = 97;
+
 /** Where things float on a map of width × height with the panels' insets: the left group ("Devices" and the switch
  *  "Details on click") top left, the right group ("View", "Legend") top right, the zoom group bottom right, and the
  *  band for banners. left, right: the measured { width, height } of the two groups ({ 0, 0 } while hidden, as when
@@ -69,6 +73,10 @@ export function floatingLayout({ width, height, insets = {}, left = { width: 0, 
     left: { left: edgeLeft, top: g },
     right: { right: edgeRight, top: g },
     zoom: { right: edgeRight, bottom: ins.bottom + g },
+    // The Spread group sits on the zoom group; where that leaves no room below the right top group (a phone's open
+    // sheet) it is dropped, never the zoom group.
+    spread: ins.bottom + g + ZOOM_HEIGHT + g + SPREAD_HEIGHT <= height - (right.height ? g + right.height + g : 0)
+      ? { right: edgeRight, bottom: ins.bottom + g + ZOOM_HEIGHT + g } : null,
     band: between ? { top: g, left: betweenLeft, right: betweenRight, maxHeight: height - ins.bottom - 2 * g }
       : { top: below, left: edgeLeft, right: edgeRight, maxHeight: height - ins.bottom - below - g },
   };
