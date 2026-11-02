@@ -14,4 +14,5 @@ export const TEXTS = Object.freeze({
   "ha.zha": "Zigbee info (ZHA)",
   "view.zha_reload_info": "Reloads the tables currently held by ZHA. It does not start a radio scan. ZHA reads the tables by itself, every 4 hours by default.",
   "source.zha": "Zigbee (ZHA)",
+  "source_short.zha": "Zigbee",
 });

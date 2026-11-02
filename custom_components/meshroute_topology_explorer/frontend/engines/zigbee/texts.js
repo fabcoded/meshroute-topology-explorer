@@ -99,7 +99,7 @@ export const TEXTS = Object.freeze({
   "status.scan_ended": "scan followed for 15 minutes: tables changed since the scan started: {changed} of {total}",
   "status.scan_stopped": "scan no longer followed: tables changed since the scan started: {changed} of {total}",
   "status.scan_not_sent": "scan not sent: {message}",
-  "status.short_tables": "Router tables {x}/{y}",
+  "status.short_tables": "{x}/{y} router tables",
   "status.short_scan_over": "last scan: {changed}/{total} tables changed",
   "status.short_scan_not_sent": "scan not sent",
   "details.observed": "Table observed unchanged since {time}",

@@ -15,6 +15,7 @@ export const STYLES = `
   --mte-divider: var(--divider-color, rgba(0, 0, 0, 0.12));
   --mte-accent: var(--primary-color, #03a9f4);
   --mte-on-accent: var(--text-primary-color, #ffffff);
+  --mte-ok: var(--success-color, #43a047);
   --mte-warn: var(--warning-color, #ffa600);
   --mte-error: var(--error-color, #db4437);
   --mte-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
@@ -393,25 +394,49 @@ dialog.cluster-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .storage { padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, var(--mte-fg) 5%, transparent); }
 .storage.warn { box-shadow: inset 3px 0 0 var(--mte-warn); }
 
-/* Status line: always visible, wraps on narrow screens */
-.status { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 28px;
-  padding: 4px 12px; font-size: 12px; color: var(--mte-muted); background: var(--mte-bg);
-  border-top: 1px solid var(--mte-divider); }
-.status.compact { min-height: 0; padding: 3px 12px; line-height: 1.35; }
-.status .part.sep::after { content: "\\00B7"; margin-left: 4px; }
-.status .part.right { margin-left: auto; padding-left: 12px; }
-.status { position: relative; }
-.network-switch { position: relative; display: inline-flex; align-items: center; }
-.network-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 8px; font: inherit;
-  color: inherit; background: transparent; border: 1px solid var(--mte-divider); border-radius: 12px;
-  cursor: pointer; }
-.network-chip .caret { font-size: 10px; }
-.network-menu { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column;
-  min-width: 220px; padding: 4px 0; color: var(--mte-fg); background: var(--mte-card); border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
-.network-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 36px; padding: 6px 12px;
-  font: inherit; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
-.network-item[aria-checked="true"] { font-weight: 600; }
-.network-item[aria-disabled="true"] { opacity: 0.55; cursor: default; }
-.network-item:hover:not([aria-disabled="true"]), .network-item:focus-visible { background: var(--secondary-background-color, #eee); }
+/* Status pill (spec 9.1): bottom centre of the map, between the panels' insets, with room left and right for the zoom
+   group; the menu opens upwards. Dot and second line carry the state: ok, warn or error. */
+.map { container-type: inline-size; }
+.status-pill { position: absolute; z-index: 6; bottom: calc(var(--inset-bottom) + 12px);
+  left: calc(var(--inset-left) + (100% - var(--inset-left) - var(--inset-right)) / 2); transform: translateX(-50%);
+  max-width: calc(100% - var(--inset-left) - var(--inset-right) - 144px); }
+.status-pill-button { display: flex; align-items: center; gap: 10px; width: 100%; height: 48px; padding: 0 16px 0 9px;
+  border: none; border-radius: 14px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-float-shadow);
+  font: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
+.status-pill-button:hover { box-shadow: 0 0 0 2px var(--mte-outline), var(--mte-float-shadow); }
+.pill-arrow { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px;
+  border-radius: 50%; background: color-mix(in srgb, var(--mte-fg) 8%, var(--mte-card)); }
+.status-pill-button:hover .pill-arrow { background: color-mix(in srgb, var(--mte-fg) 18%, var(--mte-card)); }
+.pill-text { display: flex; flex-direction: column; min-width: 0; line-height: 17px; }
+.pill-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.pill-short { display: none; }
+.pill-line { font-size: 12px; color: var(--mte-muted); overflow: hidden; text-overflow: ellipsis; }
+.pill-dot { flex: none; width: 11px; height: 11px; border-radius: 50%; margin-left: 4px; background: var(--mte-ok); }
+.level-warn .pill-dot { background: var(--mte-warn); }
+.level-warn .pill-line { color: var(--mte-warn-text); }
+.level-error .pill-dot { background: var(--mte-error); }
+.level-error .pill-line { color: color-mix(in srgb, var(--mte-error) 70%, var(--mte-fg)); }
+/* Phone width of the map: the second line goes, the name is the network's short one; the dot keeps the state. */
+@container (max-width: 600px) {
+  .pill-line, .pill-full { display: none; }
+  .pill-short { display: inline; }
+  .status-pill-button { height: 44px; padding-right: 14px; }
+}
+.pill-menu { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); display: flex;
+  flex-direction: column; width: min(300px, calc(100vw - 32px)); padding: 6px 0; color: var(--mte-fg);
+  background: var(--mte-card); border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); outline: none; }
+.menu-title { padding: 6px 14px 2px; font-size: 12px; color: var(--mte-muted); }
+.menu-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 14px; font: inherit;
+  color: inherit; text-align: left; text-decoration: none; background: transparent; border: 0; cursor: pointer; }
+button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; justify-content: center; }
+.menu-row[aria-checked="true"] { font-weight: 600; }
+.menu-row[role="menuitemradio"] { position: relative; padding-left: 36px; }
+.menu-row[role="menuitemradio"][aria-checked="true"]::before { content: "✓"; position: absolute; left: 14px; top: 10px; }
+.menu-row[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.menu-row:hover:not([aria-disabled="true"]), .menu-row:focus-visible { background: var(--secondary-background-color, #eee); }
+.menu-sep { border-top: 1px solid var(--mte-divider); margin: 4px 0; }
+.menu-state { display: flex; flex-direction: column; gap: 4px; padding: 6px 14px; font-size: 13px; color: var(--mte-muted); }
+.menu-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.view-settings { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid var(--mte-divider); }
+.view-settings a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; color: inherit; }
 `;

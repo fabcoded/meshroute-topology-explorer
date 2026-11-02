@@ -19,8 +19,21 @@ export function threadParts(network, { collected = null, compact = false } = {})
   return parts;
 }
 
-/** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null }. extras:
- *  { compact, collected } (the collection time and its age, formatted by the panel). */
-export function statusLine(network, { compact = false, collected = null } = {}) {
-  return { parts: threadParts(network, { collected, compact }), right: null, incomplete: null };
+/** Older than this a snapshot counts as old for the pill's dot: the interval at which ZHA scans by default (spec 6),
+ *  reused so both networks follow one rule. */
+export const OLD_AFTER_MS = 4 * 3600 * 1000;
+
+/** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, a border router is listed and the
+ *  snapshot is younger than OLD_AFTER_MS; else "warn". */
+export function healthLevel(network, now = Date.now()) {
+  const s = network.status;
+  const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
+  return s.linksBoth < s.links || !s.borderRouters || age >= OLD_AFTER_MS ? "warn" : "ok";
+}
+
+/** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:
+ *  { compact, collected, now } (the collection time and its age, formatted by the panel). */
+export function statusLine(network, { compact = false, collected = null, now = Date.now() } = {}) {
+  return { parts: threadParts(network, { collected, compact }), right: null, incomplete: null,
+    level: healthLevel(network, now) };
 }

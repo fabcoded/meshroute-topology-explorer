@@ -33,7 +33,7 @@ test("1.4c: the status line gives exact router-table counts, not a completeness 
   const network = sampleNetwork();
   for (const compact of [false, true]) {
     const text = statusParts(network, { compact }).map(([key, params]) => t(key, params)).join(" · ");
-    assert.match(text, /Router tables:? 29\/29/);
+    assert.match(text, /Router tables: 29\/29|29\/29 router tables/);
     assert.ok(!/%|complete/i.test(text), text);
   }
   assert.ok(!("status.complete" in en) && !("status.short_complete" in en));

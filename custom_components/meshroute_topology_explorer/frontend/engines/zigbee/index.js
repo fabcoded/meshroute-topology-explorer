@@ -30,7 +30,7 @@ export const zigbee = Object.freeze({
   springQuality,
   /** The link rows of the legend (spec 9.1): every path class with the stage or option that draws it. */
   legend: (theme, view = {}) => legendEntries(theme, view),
-  /** The status line (spec 6): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
+  /** The status line (spec 6): { parts, right (the source-route stage), incomplete ({ x, y } or null), level ("ok" or "warn": the pill's dot) }. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Its finding kinds in the order the Findings tab groups them (findings.js), and the words of a finding:
    *  { title, lines }. */

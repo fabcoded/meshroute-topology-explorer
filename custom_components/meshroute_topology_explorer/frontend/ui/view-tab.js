@@ -10,10 +10,12 @@
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";
+import { INTEGRATION_PATH } from "./ha-links.js";
+import { settingsLink } from "./status-pill.js";
 import { DENSITY_NAMES, PATH_STOPS, SPREAD_MAX, SPREAD_MIN, densityFactor, formatFactor, spreadStep } from "./settings.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
 
-/** Fill `container`. ctx: { t, settings (sanitized), groups (the engine's OptionGroups: engine.options(network,
+/** Fill `container`. ctx: { t, canSettings (administrator: the link to the integration's page), settings (sanitized), groups (the engine's OptionGroups: engine.options(network,
  *  settings)), canScan (the source has a user-started scan: capabilities.scan), openOnSelect (effective "Details on
  *  click"), dark (the map's theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running }
  *  or null), client (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only),
@@ -201,6 +203,12 @@ export function renderView(container, ctx) {
     tools.append(h("p", { class: "muted small", text: obs.dropped ? `${text} ${t("observations.dropped", { count: obs.dropped })}` : text }));
   }
   container.append(tools);
+  // Home Assistant's page of this integration (spec 9.1), administrators only like the panel itself.
+  if (ctx.canSettings) {
+    container.append(h("div", { class: "view-settings" },
+      settingsLink(INTEGRATION_PATH, t("status.settings_ha"), { id: `${id}-settings` }),
+      h("p", { class: "muted small", text: t("status.settings_note") })));
+  }
 }
 
 /** Where the settings live, in words (the fallback must be said). */

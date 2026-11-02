@@ -80,7 +80,7 @@ test("Zigbee: the fit stays at density factor 1 (medium reaches past the window)
     const { view } = show(zigbeeNet, size, density);
     const box = bounds(view.pos.x, view.pos.y);
     const base = { minX: box.minX / density, minY: box.minY / density, maxX: box.maxX / density, maxY: box.maxY / density };
-    const fit = fitCamera(base, size[0], size[1], 56);
+    const fit = fitCamera(base, size[0], size[1], 56, 28);
     assert.deepEqual(view.cam, { k: fit.k, cx: fit.cx * density, cy: fit.cy * density }, `${size} ${density}`);
   }
   const { view } = show(zigbeeNet, SIZES[0], DENSITY.medium);
@@ -98,7 +98,7 @@ test("custom factors at the range ends: Thread still contains the map, Zigbee ke
     const { view } = show(zigbeeNet, size, density);
     const box = bounds(view.pos.x, view.pos.y);
     const base = { minX: box.minX / density, minY: box.minY / density, maxX: box.maxX / density, maxY: box.maxY / density };
-    const fit = fitCamera(base, size[0], size[1], 56);
+    const fit = fitCamera(base, size[0], size[1], 56, 28);
     assert.equal(view.cam.k, fit.k, `zigbee ${size} ${density}`);
   }
 });

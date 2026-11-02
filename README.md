@@ -18,7 +18,7 @@ late, a button needs a second press. The map should help you find the cause and 
 Zigbee routers report their neighbours and routes in tables, and Home Assistant reads those tables at different times,
 some of them never. Meshroute is built so that missing data stays visible as missing:
 
-- **Data status first.** The status line says how many router tables were read and when. A device without data is
+- **Data status first.** The status pill at the bottom of the map says how many router tables were read and when. A device without data is
   grey and marked unknown, never weak.
 - **Both directions.** Select a device to see its path to the coordinator and the path back, hop by hop, as far as the
   tables support them, with the reception at each hop.
@@ -130,7 +130,7 @@ network type, one adapter per data source, and a shared shell that knows neither
 | `engines/thread/` | Thread read through Matter: Matter mapping (`from-matter.js`), parents, pairs, status and findings (`model.js`), parent and neighbour lanes (`lanes.js`, `scene.js`), status, Details, texts; `quality.js` (reception model, under review, not wired). |
 | `adapters/` | Data sources: `zha.js` (scan, observations, fingerprints) and `matter.js`, each with its texts; `index.js` lists them for the shell. |
 | `graph/` | Shared drawing: layout (springs from the engine's quality), camera, gestures, symbols, palette, labels, lane geometry and stroke looks, the renderer of the engine's scene. |
-| `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status line frame, shared texts (`i18n.js`). |
+| `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status pill, shared texts (`i18n.js`). |
 | `panel.js` | The custom element that wires shell, engines and adapters together. |
 
 `tests/engine-leaks.test.mjs` keeps the boundaries: no engine imports another, and shared code reaches the engines

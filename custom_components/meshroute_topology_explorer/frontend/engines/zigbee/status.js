@@ -75,7 +75,13 @@ export function statusParts(network, { unchangedSince = null, scan = null, compa
   return parts;
 }
 
-/** The whole status line of the engine (engines/index.js): { parts, right, incomplete }. extras: { unchangedSince,
+/** The pill's dot (spec 6): "ok" when every available router's table was read, else "warn". ZHA gives no scan time and
+ *  "unchanged since" can be days old for a quiet network, so the data's age plays no part here. */
+export function healthLevel(status) {
+  return status.routersWithTable < status.routersAvailable ? "warn" : "ok";
+}
+
+/** The whole status line of the engine (engines/index.js): { parts, right, incomplete, level }. extras: { unchangedSince,
  *  scan, compact, settings } (settings: the network's, for the source-route stage and the view; without them no
  *  right part). incomplete: { x, y } for the banner "Router tables: x/y", or null. */
 export function statusLine(network, { unchangedSince = null, scan = null, compact = false, settings = null } = {}) {
@@ -84,6 +90,7 @@ export function statusLine(network, { unchangedSince = null, scan = null, compac
     parts: statusParts(network, { unchangedSince, scan, compact }),
     // Not in the view "routing table" (sourceRoutePart).
     right: settings ? sourceRoutePart(sourceRouteSummary(network, settings.sourceRoute), compact, settings.paths) : null,
+    level: healthLevel(s),
     incomplete: isIncomplete(s) ? { x: s.routersWithTable, y: s.routersAvailable } : null,
   };
 }
