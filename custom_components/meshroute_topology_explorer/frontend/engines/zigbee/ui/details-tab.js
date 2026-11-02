@@ -403,7 +403,7 @@ function clusters(panel, d, raw, ctx) {
   const body = h("tbody");
   for (const ep of table) {
     const profile = profileName(ep.profile);
-    const type = ep.profile !== null && ep.deviceType !== null ? deviceTypeName(ep.profile, ep.deviceType, t.lang) : null;
+    const type = ep.profile !== null && ep.deviceType !== null ? deviceTypeName(ep.profile, ep.deviceType) : null;
     const head = [t("cluster.endpoint", { n: ep.endpoint }),
       ep.profile !== null ? `${profile || t("cluster.profile_unknown")} ${formatNwk(ep.profile)}` : null,
       ep.deviceType !== null ? `${type || t("cluster.type_unknown")} ${formatNwk(ep.deviceType)}` : null]
@@ -411,7 +411,7 @@ function clusters(panel, d, raw, ctx) {
     body.append(h("tr", { class: "ep-row" }, h("th", { colSpan: 3, scope: "colgroup", text: head })));
     for (const c of ep.clusters) {
       const open = (opener) => ctx.onCluster({ endpoint: ep.endpoint, profile: ep.profile, cluster: c.id, direction: c.direction }, opener);
-      const label = c.manufacturerSpecific ? (d.vendor || t("cluster.vendor_unknown")) : clusterName(c.id, t.lang) || t("cluster.unknown");
+      const label = c.manufacturerSpecific ? (d.vendor || t("cluster.vendor_unknown")) : clusterName(c.id) || t("cluster.unknown");
       const button = h("button", { type: "button", class: "row-button", on: { click: (e) => { e.stopPropagation(); open(e.currentTarget); } } },
         label, c.manufacturerSpecific ? h("span", { class: "tag", text: t("cluster.manufacturer") }) : null);
       body.append(h("tr", { class: "cluster-row", on: { click: () => open(button) } },

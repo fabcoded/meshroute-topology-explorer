@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The node card and the cluster table from a device's signature (spec 9.2 Entity and Cluster): MAC capability flags,
 // stack compliance revision from the server mask, frequency bands, manufacturer code, buffers, quirk, firmware; the
-// cluster table per endpoint; names of profiles, device types and clusters in English and German; the shape of the
+// cluster table per endpoint; names of profiles, device types and clusters; the shape of the
 // ZCL attribute catalogue. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -85,30 +85,25 @@ test("the cluster table: endpoints in order, input clusters first, manufacturer-
   assert.deepEqual(entityIds({ entities: [{ entity_id: "light.a" }, {}, { entity_id: " " }, null] }), ["light.a"]);
 });
 
-test("names in English and German: every cluster, device type and profile on the sample has one", () => {
+test("names: every cluster, device type and profile on the sample has one", () => {
   for (const d of raws) {
     for (const ep of Object.values(d.signature.endpoints || {})) {
       const profile = parseInt(ep.profile_id, 16);
       assert.ok(profileName(profile), `profile ${ep.profile_id}`);
-      assert.ok(deviceTypeName(profile, parseInt(ep.device_type, 16), "en"), `${ep.profile_id}/${ep.device_type}`);
+      assert.ok(deviceTypeName(profile, parseInt(ep.device_type, 16)), `${ep.profile_id}/${ep.device_type}`);
       for (const c of [...ep.input_clusters, ...ep.output_clusters].map((x) => parseInt(x, 16))) {
-        assert.ok(isManufacturerSpecific(c) || clusterName(c, "en"), `cluster 0x${c.toString(16)}`);
+        assert.ok(isManufacturerSpecific(c) || clusterName(c), `cluster 0x${c.toString(16)}`);
       }
     }
   }
-  assert.equal(clusterName(0x0006, "en"), "On/Off");
-  assert.equal(clusterName(0x0006, "de"), "Ein/Aus", "the board's word");
-  assert.equal(clusterName(0x0008, "de"), "Helligkeit");
-  assert.equal(clusterName(0x0019, "de"), "OTA-Update");
-  assert.equal(deviceTypeName(0x0104, 0x010c, "de"), "Farbtemperatur-Lampe");
-  assert.equal(deviceTypeName(0xa1e0, 0x0061, "en"), "Proxy Basic");
+  assert.equal(clusterName(0x0006), "On/Off");
+  assert.equal(deviceTypeName(0x0104, 0x010c), "Color Temperature Light");
+  assert.equal(deviceTypeName(0xa1e0, 0x0061), "Proxy Basic");
   assert.equal(profileName(0x0104), "Home Automation");
-  assert.equal(clusterName(0xfc7c, "en"), null);
+  assert.equal(clusterName(0xfc7c), null);
   for (const id of NAMED) {
-    for (const lang of ["en", "de"]) {
-      assert.ok(clusterName(id, lang) && !clusterName(id, lang).includes("|"), `${id} ${lang}`);
-      assert.ok(clusterAbout(id, lang), `about ${id} ${lang}`);
-    }
+    assert.ok(clusterName(id), `${id}`);
+    assert.ok(clusterAbout(id), `about ${id}`);
   }
 });
 
@@ -120,18 +115,16 @@ test("the attribute catalogue: the common clusters, well-formed entries from the
     "map8", "map16", "map32", "string", "octstr", "EUI64"]);
   for (const id of CATALOGUED) {
     const list = clusterAttributes(id);
-    assert.ok(clusterName(id, "en"), `catalogued cluster ${id} has a name`);
+    assert.ok(clusterName(id), `catalogued cluster ${id} has a name`);
     assert.equal(new Set(list.map((a) => a.id)).size, list.length, `unique ids in ${id}`);
     for (const a of list) {
       assert.ok(Number.isInteger(a.id) && a.id >= 0 && a.id <= 0xffff);
       assert.match(a.name, /^[A-Za-z][A-Za-z0-9_-]*$/);
       assert.ok(types.has(a.type), `${a.name}: ${a.type}`);
       assert.ok(a.side === "server" || a.side === "client");
-      assert.ok(a.gloss === null || typeof a.gloss.de === "string");
     }
   }
   assert.deepEqual(clusterAttributes(0x0006).map((a) => a.name), ["OnOff", "GlobalSceneControl", "OnTime", "OffWaitTime", "StartUpOnOff"]);
-  assert.equal(clusterAttributes(0x0006)[0].gloss.de, "an / aus");
   assert.deepEqual(clusterAttributes(0x1000), [], "Touchlink: commands only");
   assert.equal(clusterAttributes(0xfc7c), null, "unknown: no list");
   // What a read asks for: a server (input) cluster holds the server attributes, a client (output) cluster the client ones.

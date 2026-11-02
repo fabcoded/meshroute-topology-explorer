@@ -343,7 +343,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
   const { resolveTheme } = await mod("graph/palette.js");
   // The shared tables, the Thread engine's and the Matter adapter's: no Zigbee and no ZHA table.
   const matter = ADAPTERS.find((a) => a.key === "thread");
-  const base = translator("en", null, mergeTexts([SHARED, thread.texts, matter.texts]));
+  const base = translator("en", mergeTexts([SHARED, thread.texts, matter.texts]));
   const used = new Set();
   const t = Object.assign((key, params) => { used.add(key); return base(key, params); }, base,
     { has: (key) => { used.add(key); return base.has(key); } });
@@ -378,7 +378,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
   assert.ok(used.size > 30, `${used.size} keys`);
   assert.deepEqual([...used].filter((key) => !base.has(key)), [], "keys only the Zigbee or ZHA tables hold");
   // And the Thread table holds nothing the Zigbee engine owns: the two engines' tables share only role words.
-  const shared = Object.keys(thread.texts.en).filter((key) => key in ENGINES.zigbee.texts.en);
+  const shared = Object.keys(thread.texts).filter((key) => key in ENGINES.zigbee.texts);
   assert.deepEqual(shared.sort(), ["legend.symbol_end", "legend.symbol_end_sleepy", "role.end device"]);
 });
 

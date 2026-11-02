@@ -26,7 +26,6 @@ const FOCUSABLE = "button:not([disabled]), a[href], input:not([disabled]), [tabi
 export function openClusterDialog(ctx) {
   const { t, device, cluster, direction } = ctx;
   const id = `mte-cluster-${++uid}`;
-  const lang = t.lang;
   const known = clusterAttributes(cluster);
   const readable = readableAttributes(cluster, direction);
   const results = new Map(); // attribute id -> read result
@@ -35,11 +34,11 @@ export function openClusterDialog(ctx) {
   let status = "";
 
   const vendorSpecific = isManufacturerSpecific(cluster);
-  const title = vendorSpecific ? (device.vendor || t("cluster.vendor_unknown")) : clusterName(cluster, lang) || t("cluster.unknown");
+  const title = vendorSpecific ? (device.vendor || t("cluster.vendor_unknown")) : clusterName(cluster) || t("cluster.unknown");
   const side = t(direction === "out" ? "cluster.out_client" : "cluster.in_server");
   const profile = profileName(ctx.profile);
   const subtitle = [device.label, t("cluster.endpoint", { n: ctx.endpoint }), side, profile].filter(Boolean).join(" · ");
-  const about = vendorSpecific ? t("cluster.about_vendor") : clusterAbout(cluster, lang) || t("cluster.about_unknown");
+  const about = vendorSpecific ? t("cluster.about_vendor") : clusterAbout(cluster) || t("cluster.about_unknown");
   const sentence = `${about} ${t(direction === "out" ? "cluster.out_means" : "cluster.in_means")}`;
 
   const close = () => finish();
@@ -85,7 +84,6 @@ export function openClusterDialog(ctx) {
     if (!known || !known.length || vendorSpecific) return;
     const states = typeof ctx.states === "function" ? ctx.states() : null;
     rows.replaceChildren(...known.map((a) => {
-      const gloss = a.gloss && a.gloss[lang] ? ` · ${a.gloss[lang]}` : "";
       const own = a.side === (direction === "out" ? "client" : "server");
       const value = [];
       const r = results.get(a.id);
@@ -97,7 +95,7 @@ export function openClusterDialog(ctx) {
       // On a narrow screen type and side move under the name (styles.js), so the value keeps its column.
       return h("tr", {},
         h("td", { class: "mono id", text: formatNwk(a.id) }),
-        h("td", {}, a.name + gloss, h("span", { class: "attr-meta small muted", text: `${a.type} \u00B7 ${sideText}` })),
+        h("td", {}, a.name, h("span", { class: "attr-meta small muted", text: `${a.type} \u00B7 ${sideText}` })),
         h("td", { class: "muted col_type", text: a.type }),
         h("td", { class: "muted col_side", text: sideText }),
         h("td", {}, value));

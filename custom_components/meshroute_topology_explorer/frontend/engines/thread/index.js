@@ -62,7 +62,7 @@ export const thread = Object.freeze({
   scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
     overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
     anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
-  /** Its own words, { en, de } (texts.js), merged into the panel's tables by ui/i18n.js. */
+  /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys: none. */
   settings: SETTINGS,

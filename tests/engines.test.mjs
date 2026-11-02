@@ -176,10 +176,10 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
 test("texts (step 9): engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
   const { STRINGS, SHARED, mergeTexts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
   for (const engine of Object.values(ENGINES)) {
-    assert.ok(Object.isFrozen(engine.texts.en) && Object.keys(engine.texts.en).length > 0, engine.key);
-    for (const key of Object.keys(engine.texts.en)) assert.equal(STRINGS.en[key], engine.texts.en[key], key);
-    for (const key of Object.keys(engine.texts.en)) assert.equal(key in SHARED.en, false, `${engine.key}: ${key} also shared`);
+    assert.ok(Object.isFrozen(engine.texts) && Object.keys(engine.texts).length > 0, engine.key);
+    for (const key of Object.keys(engine.texts)) assert.equal(STRINGS[key], engine.texts[key], key);
+    for (const key of Object.keys(engine.texts)) assert.equal(key in SHARED, false, `${engine.key}: ${key} also shared`);
   }
-  assert.throws(() => mergeTexts([{ en: { a: "x" } }, { en: { a: "y" } }]), /differs/);
-  assert.deepEqual(mergeTexts([{ en: { a: "x" } }, { en: { a: "x" } }]).en, { a: "x" });
+  assert.throws(() => mergeTexts([{ a: "x" }, { a: "y" }]), /differs/);
+  assert.deepEqual(mergeTexts([{ a: "x" }, { a: "x" }]), { a: "x" });
 });

@@ -255,45 +255,10 @@ test("the stored stage: valid stages kept, the old node view migrates, the old k
   assert.deepEqual([again.paths, again.heard], ["all", true]);
 });
 
-test("the three stages, their hints and the legend's words in English and German (boards M2, M7)", () => {
-  const de = {
-    "view.paths": "Kommunikationspfade", "view.paths_coordinator": "mit dem Koordinator, hin und zurück",
-    "view.paths_coordinator_hint": "ohne Auswahl alle Geräte; bei Klick nur die Wege des Geräts, mit RX",
-    "view.paths_all": "Wege zu allen Geräten (theoretisch)",
-    "view.paths_all_hint":
-      "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
-    "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
-    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu",
-    "view.paths_note": "Jede Ansicht hat ihre eigene Grundlage. Debug zeigt alles.",
-    "legend.option_heard": "(Option unter \"Routing table\", braucht eine Auswahl)",
-    "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
-    "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
-    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
-    "legend.link.heard": "nur gehört", "legend.stage": "(Ansicht {n})", "legend.stage_computed": "(berechnet, Ansicht {n})",
-    "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
-  };
-  for (const [key, text] of Object.entries(de)) {
-    assert.equal(STRINGS.de[key], text, key);
-    assert.ok(STRINGS.en[key] && STRINGS.en[key] !== text, `en ${key}`);
-  }
-  assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
-  assert.equal(STRINGS.en["view.paths_note"], "Each view has its own basis. Debug shows everything.");
-  // The routing-table view: its hint and the return-route checkbox.
-  assert.equal(STRINGS.en["view.paths_table"], "routing table");
-  assert.equal(STRINGS.en["view.paths_table_hint"],
-    "Each router's table names the next hop to a destination. This view follows those entries until the destination or a gap.");
-  assert.equal(STRINGS.en["view.paths_returns_hint"],
-    "Follow each destination's route back, using the routing table at every hop.");
-  assert.equal(STRINGS.en["view.paths_heard"], "additional heard neighbours (best 3)");
-  // Texts (on the stage-2 overview and the stage-3 click).
-  assert.equal(STRINGS.en["view.paths_all_hint"],
-    "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
-  assert.equal(STRINGS.en["view.paths_heard_hint"],
-    "needs a selection: adds the device's 3 best partners with a reading and no drawn lane");
-  assert.equal(STRINGS.en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
-  assert.equal(STRINGS.en["legend.stage_computed"], "(computed, view {n})");
-  for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
-    "legend.link.up", "legend.link.path"]) {
-    assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
-  }
+test("the path views carry the owner's terms (boards M2, M7, M11)", () => {
+  assert.equal(STRINGS["view.paths_coordinator"], "with the coordinator, there and back");
+  assert.equal(STRINGS["view.paths_all"], "paths to all devices (theoretical)");
+  assert.equal(STRINGS["view.paths_heard"], "additional heard neighbours (best 3)");
+  assert.equal(STRINGS["view.paths_table"], "routing table");
+  assert.equal(STRINGS["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
 });

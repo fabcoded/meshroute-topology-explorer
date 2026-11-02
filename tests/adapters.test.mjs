@@ -19,7 +19,7 @@ test("every adapter has the same shape, frozen; the keys are the stored network 
     assert.ok(Object.isFrozen(a), a.key);
     assert.deepEqual(Object.keys(a).sort(), SHAPE, a.key);
     assert.equal(typeof a.read, "function");
-    assert.ok(a.texts.en[a.reloadInfo], `${a.key}: its reload note is one of its own texts`);
+    assert.ok(a.texts[a.reloadInfo], `${a.key}: its reload note is one of its own texts`);
   }
   // Only ZHA blocks the panel, has a device page, a scan and observations.
   assert.equal(adapterByKey("zha").blocking, "zha_not_loaded");

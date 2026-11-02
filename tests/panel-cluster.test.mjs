@@ -28,8 +28,8 @@ test("known values: the one obvious entity's state, else nothing", () => {
     { entityId: "light.lamp", kind: "number", value: 180, unit: null, from: "brightness" });
   assert.equal(knownValue(0x0300, 0x0007, "in", ids, states).value, 2700);
   assert.deepEqual(knownValue(0x0b04, 0x050b, "in", ids, states), { entityId: "sensor.lamp_power", kind: "number", value: "4.2", unit: "W" });
-  const t = translator("de");
-  assert.equal(valueText(knownValue(0x0006, 0x0000, "in", ids, states), t), "an");
+  const t = translator("en");
+  assert.equal(valueText(knownValue(0x0006, 0x0000, "in", ids, states), t), "on");
   assert.equal(valueText(knownValue(0x0300, 0x0007, "in", ids, states), t), "2700 K");
   assert.equal(valueText(knownValue(0x0b04, 0x050b, "in", ids, states), t), "4.2 W");
   // Not obvious, or no value: nothing.

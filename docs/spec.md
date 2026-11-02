@@ -780,9 +780,8 @@ again when the connection is back.
 - The panel defines its custom element only if the name is free, compares its version with the integration's and asks
   for a reload when they differ, does not reload data when Home Assistant pushes a new state object, and unsubscribes
   and stops drawing when hidden.
-- Texts in English only. The German table stays in `ui/i18n.js`, dormant and unmaintained; it returns by adding German
-  to `ACTIVE_LANGUAGES` and translating the keys added since. Dates and numbers follow the user's Home Assistant
-  locale.
+- Texts in English only: one flat table per part, merged in `ui/i18n.js`. Dates and numbers follow the user's Home
+  Assistant locale.
 
 ## 11. Settings per network [v1]
 

@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { STRINGS, translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 
-const en = STRINGS.en;
+const en = STRINGS;
 const t = translator("en");
 
 test("1.4a: relative ranks never read as reliability: no bad / medium / good in the active English texts", () => {

@@ -121,15 +121,12 @@ test("the setting: off, assume and zigpy, anything else counts as assume", () =>
   assert.equal(sanitizeSettings(null).sourceRoute, "assume");
 });
 
-test("the status line names the stage on the right, in both languages, and says nothing when no device is concerned", () => {
+test("the status line names the stage on the right, and says nothing when no device is concerned", () => {
   const en = translator("en");
-  const de = translator("de");
   const on = sourceRoutePart({ mode: "assume", count: 7 });
   const off = sourceRoutePart({ mode: "off", count: 7 });
   assert.equal(en(on[0], on[1]), "Return paths assumed for 7 devices (source route)");
-  assert.equal(de(on[0], on[1]), "Rückwege für 7 Geräte angenommen (Source Route)");
   assert.equal(en(off[0], off[1]), "Source route off · 7 return paths unknown");
-  assert.equal(de(off[0], off[1]), "Source Route aus · 7 Rückwege unbekannt");
   const short = sourceRoutePart({ mode: "assume", count: 7 }, true);
   assert.equal(en(short[0], short[1]), "7 return paths assumed");
   assert.equal(short[2], "status.sr_assumed", "the long form is the short part's description");

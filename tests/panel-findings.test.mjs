@@ -81,16 +81,16 @@ test("an unhedged no parent stays a finding of its own and counts as one", () =>
   assert.deepEqual(grouped.groups[0].byTable.map((g) => [g.table, g.findings.length]), [["r1", 2], ["r2", 1]]);
 });
 
-test("every finding of every variant has a title and evidence without open placeholders, in English and German", () => {
-  for (const lang of ["en", "de"]) {
-    const t = translator(lang);
+test("every finding of every variant has a title and evidence without open placeholders, ", () => {
+  {
+    const t = translator("en");
     for (const variant of VARIANTS) {
       const network = sampleNetwork(variant);
       for (const f of network.findings) {
         const { title, lines } = findingText(f, t, labeller(network));
-        assert.ok(title && !title.startsWith("kind."), `${lang} ${f.kind}`);
-        assert.ok(lines.length > 0, `${lang} ${f.kind} has evidence`);
-        for (const line of lines) assert.ok(!/\{\w+\}|undefined|NaN/.test(line), `${lang} ${variant} ${f.kind}: ${line}`);
+        assert.ok(title && !title.startsWith("kind."), f.kind);
+        assert.ok(lines.length > 0, `${f.kind} has evidence`);
+        for (const line of lines) assert.ok(!/\{\w+\}|undefined|NaN/.test(line), `${variant} ${f.kind}: ${line}`);
       }
     }
   }
