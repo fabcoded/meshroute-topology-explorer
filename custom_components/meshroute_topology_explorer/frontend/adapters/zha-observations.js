@@ -9,8 +9,7 @@
 // Tested in Node: npm test
 import { fingerprints, updateObservations, newestChange } from "./zha-fingerprints.js";
 import { normalizeIeee } from "../model/parse.js";
-import { errorText, isConnectionLost } from "./ws.js";
-import { MAX_BYTES, SAVE_DELAY_MS } from "../ui/settings.js";
+import { MAX_BYTES, SAVE_DELAY_MS, StoreClient, setStored } from "../ui/store-client.js";
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 /** The model's fingerprint: 16 lower-case hex digits (observations.js, hash()). */
@@ -64,26 +63,18 @@ export function fitObservations(object, maxBytes = MAX_BYTES) {
   return { object: out, dropped };
 }
 
-export class ObservationsClient extends EventTarget {
+/** The observed table fingerprints of one network in Home Assistant (storage modes: ui/store-client.js). */
+export class ObservationsClient extends StoreClient {
   /** callWS: hass.callWS bound; network: network id; timers: { setTimeout, clearTimeout }; now(): ISO time;
    *  maxBytes: the size limit (spec 10), injectable for tests. */
   constructor({ callWS, network, timers = globalThis, delay = SAVE_DELAY_MS, now = () => new Date().toISOString(),
     maxBytes = MAX_BYTES } = {}) {
-    super();
-    this._callWS = callWS;
-    this.network = network;
-    this._timers = timers;
-    this._delay = delay;
+    super({ kind: "observations", callWS, network, timers, delay });
     this._now = now;
     this._maxBytes = maxBytes;
     this.routers = Object.create(null);
-    this.mode = "loading";
-    this.reason = null;
-    this.error = null;
     this.dropped = 0; // routers dropped at the last save to stay under the size limit (shown in debug mode)
     this._changed = new Map(); // router id -> entry this panel recorded and has not saved yet
-    this._timer = null;
-    this._saving = null;
   }
 
   /** Read what is stored and lay this panel's unsaved observations over it. Never throws. */
@@ -93,20 +84,14 @@ export class ObservationsClient extends EventTarget {
       const routers = stored.routers;
       for (const [id, entry] of this._changed) routers[id] = mergeEntry(routers[id], entry);
       this.routers = routers;
-      this.mode = "stored";
-      this.reason = null;
-      this.error = null;
+      this._stored();
       if (this._changed.size) this._schedule();
     } catch (err) {
-      this.mode = "memory";
-      this.reason = err && err.code === "unauthorized" ? "unauthorized" : isConnectionLost(err) ? "offline" : "unreadable";
-      this.error = this.reason === "unreadable" ? { kind: "error", message: errorText(err) } : null;
+      this._unreadable(err);
     }
     this._emit();
     return this.routers;
   }
-
-  get retryable() { return this.mode === "memory" && this.reason === "offline"; }
 
   /** Record the tables of a freshly read network: new or changed fingerprints get the time now. Returns the ids
    *  whose tables changed (or were seen for the first time). */
@@ -134,30 +119,8 @@ export class ObservationsClient extends EventTarget {
     return entry ? entry.firstSeen : null;
   }
 
-  async flush() {
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = null;
-    if (!this._changed.size || this.mode !== "stored") return;
-    if (this._saving) await this._saving;
-    if (!this._changed.size || this.mode !== "stored") return;
-    this._saving = this._save().finally(() => { this._saving = null; });
-    await this._saving;
-  }
-
-  dispose() {
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = null;
-  }
-
-  async _get() {
-    const answer = await this._callWS({ type: "meshroute_topology_explorer/observations/get", network: this.network });
-    return answer && answer.observations;
-  }
-
-  _schedule() {
-    if (this.mode !== "stored") return;
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = this._timers.setTimeout(() => { this._timer = null; this.flush(); }, this._delay);
+  _pending() {
+    return this._changed.size > 0;
   }
 
   /** Read, merge per router, fit to the size limit, write. */
@@ -170,7 +133,7 @@ export class ObservationsClient extends EventTarget {
       for (const [id, entry] of mine) stored.routers[id] = mergeEntry(stored.routers[id], entry);
       const { object, dropped } = fitObservations({ ...stored, routers: { ...stored.routers } }, this._maxBytes);
       this.dropped = dropped;
-      await this._callWS({ type: "meshroute_topology_explorer/observations/set", network: this.network, observations: object });
+      await setStored(this._callWS, "observations", this.network, object);
       // Adopt earlier times other panels recorded for the same tables, and routers this panel has not seen; a
       // different fingerprint stored by another panel is not taken over (this panel's view of its network decides).
       for (const [id, entry] of Object.entries(object.routers)) {
@@ -180,12 +143,8 @@ export class ObservationsClient extends EventTarget {
       this.error = null;
     } catch (err) {
       restore();
-      this.error = { kind: "error", message: errorText(err), connection: isConnectionLost(err) };
+      this._saveFailed(err);
     }
     this._emit();
-  }
-
-  _emit() {
-    this.dispatchEvent(new Event("change"));
   }
 }

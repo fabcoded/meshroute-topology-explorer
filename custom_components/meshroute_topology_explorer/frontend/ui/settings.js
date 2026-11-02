@@ -11,7 +11,9 @@ import { DENSITY } from "../graph/layout.js";
 import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";
 import { normalizeIeee } from "../model/parse.js";
-import { errorText, isConnectionLost } from "../adapters/ws.js";
+import { MAX_BYTES, SAVE_DELAY_MS, StoreClient, setStored } from "./store-client.js";
+
+export { MAX_BYTES, SAVE_DELAY_MS };
 
 /** Path display (spec 7.1, 8): lanes "grey" (no colour, default) or
  *  "coloured" by reception; bad, medium and good are the user's own colours ("#rrggbb", e.g. for colour blindness) or
@@ -26,11 +28,6 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
   pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
-/** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
-export const MAX_BYTES = 256 * 1024;
-/** Saves wait for this long after the last change, so a burst of changes (dragging pins, trying densities) becomes
- *  one write. Own choice. */
-export const SAVE_DELAY_MS = 1000;
 /** Pins are stored in base lengths (graph-view.js) rounded to this many decimals: a thousandth of a base length is
  *  far below a pixel, and short numbers keep the stored object small. */
 const PIN_DECIMALS = 3;
@@ -106,24 +103,14 @@ export function presentPins(pins, network) {
   return Object.keys(pins || {}).filter((id) => ids.has(id)).sort();
 }
 
-/** Storage modes: "loading"; "stored" (in Home Assistant); "memory" with reason "unauthorized", "offline" (the connection was lost: read again on reconnect) or "unreadable"
- *  (reading failed, so saving would overwrite what is stored). */
-export class SettingsClient extends EventTarget {
+/** The settings of one network in Home Assistant (storage modes: store-client.js). */
+export class SettingsClient extends StoreClient {
   /** callWS: hass.callWS bound; network: network id; engineSettings: the network engine's settings part (its own
    *  keys; null: shell keys only); timers: { setTimeout, clearTimeout } (injectable). */
   constructor({ callWS, network, engineSettings = null, timers = globalThis, delay = SAVE_DELAY_MS } = {}) {
-    super();
-    this._callWS = callWS;
-    this.network = network;
+    super({ kind: "settings", callWS, network, timers, delay });
     this._engine = engineSettings;
-    this._timers = timers;
-    this._delay = delay;
     this.settings = sanitizeSettings(null, this._engine);
-    this.mode = "loading";
-    this.reason = null;
-    this.error = null; // last save problem: { kind: "error" | "too-large", message, bytes, connection }
-    this._timer = null;
-    this._saving = null;
     // What this panel changed since its last successful save: top-level keys, and pins per device (null = released).
     this._keys = new Set();
     this._pins = new Map();
@@ -135,21 +122,14 @@ export class SettingsClient extends EventTarget {
     try {
       const answer = await this._get();
       this.settings = this._merge(answer);
-      this.mode = "stored";
-      this.reason = null;
-      this.error = null;
+      this._stored();
       if (this._pending()) this._schedule();
     } catch (err) {
-      this.mode = "memory";
-      this.reason = err && err.code === "unauthorized" ? "unauthorized" : isConnectionLost(err) ? "offline" : "unreadable";
-      this.error = this.reason === "unreadable" ? { kind: "error", message: errorText(err) } : null;
+      this._unreadable(err);
     }
-    this._changed();
+    this._emit();
     return this.settings;
   }
-
-  /** Whether reading again may help: the first read met a lost connection. */
-  get retryable() { return this.mode === "memory" && this.reason === "offline"; }
 
   /** Merge a patch of top-level keys (not pins) into the settings and schedule a save. */
   update(patch) {
@@ -157,7 +137,7 @@ export class SettingsClient extends EventTarget {
     const { pins, ...rest } = patch; // pins only through setPin / removePin, so they merge per device
     this.settings = sanitizeSettings({ ...this.settings, ...rest, pins: this.settings.pins }, this._engine);
     this._schedule();
-    this._changed();
+    this._emit();
   }
 
   setPin(id, x, y) {
@@ -167,7 +147,7 @@ export class SettingsClient extends EventTarget {
     this._pins.set(key, value);
     this.settings.pins[key] = value; // a map without prototype (sanitizePins), so any key is plain data
     this._schedule();
-    this._changed();
+    this._emit();
   }
 
   removePin(id) {
@@ -188,33 +168,11 @@ export class SettingsClient extends EventTarget {
     if (!any) return;
     this.settings.pins = pins;
     this._schedule();
-    this._changed();
-  }
-
-  /** Save now if anything is pending (the panel is hidden, the page goes away). */
-  async flush() {
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = null;
-    if (!this._pending() || this.mode !== "stored") return;
-    if (this._saving) await this._saving;
-    if (!this._pending() || this.mode !== "stored") return;
-    this._saving = this._save().finally(() => { this._saving = null; });
-    await this._saving;
-  }
-
-  /** Stop the timer without saving (the panel is torn down for good). */
-  dispose() {
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = null;
+    this._emit();
   }
 
   _pending() {
     return this._keys.size > 0 || this._pins.size > 0;
-  }
-
-  async _get() {
-    const answer = await this._callWS({ type: "meshroute_topology_explorer/settings/get", network: this.network });
-    return answer && answer.settings;
   }
 
   /** The stored object with this panel's unsaved changes laid over it: last write wins per key, pins per device. */
@@ -225,12 +183,6 @@ export class SettingsClient extends EventTarget {
     for (const [id, value] of pins) { if (value) merged[id] = value; else delete merged[id]; }
     out.pins = merged;
     return sanitizeSettings(out, this._engine);
-  }
-
-  _schedule() {
-    if (this.mode !== "stored") return; // changes are still tracked and go out after a successful read
-    if (this._timer !== null) this._timers.clearTimeout(this._timer);
-    this._timer = this._timers.setTimeout(() => { this._timer = null; this.flush(); }, this._delay);
   }
 
   /** Read, merge, write. Changes made while the write is under way stay pending for the next save. */
@@ -250,20 +202,15 @@ export class SettingsClient extends EventTarget {
         // Not sent: saving again would fail the same way. The changes stay pending; the next change tries again.
         restore();
         this.error = { kind: "too-large", bytes };
-        this._changed();
+        this._emit();
         return;
       }
-      await this._callWS({ type: "meshroute_topology_explorer/settings/set", network: this.network, settings: merged });
+      await setStored(this._callWS, "settings", this.network, merged);
       this.error = null;
     } catch (err) {
       restore();
-      // Pending changes go out with the next change, the next flush or after a reconnect.
-      this.error = { kind: "error", message: errorText(err), connection: isConnectionLost(err) };
+      this._saveFailed(err);
     }
-    this._changed();
-  }
-
-  _changed() {
-    this.dispatchEvent(new Event("change"));
+    this._emit();
   }
 }

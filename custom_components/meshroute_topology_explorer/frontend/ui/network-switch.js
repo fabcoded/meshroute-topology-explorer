@@ -8,6 +8,7 @@
 // pure and tested in Node: npm test
 import { h } from "./dom.js";
 import { ADAPTERS, adapterByKey } from "../adapters/index.js";
+import { getStored, setStored } from "./store-client.js";
 
 /** Networks the panel can show, in menu order: one per adapter (adapters/index.js); the keys are stored values. */
 export const NETWORK_KEYS = Object.freeze(ADAPTERS.map((a) => a.key));
@@ -42,8 +43,8 @@ export function activeNetwork(choices, wanted) {
 /** The stored choice (one of NETWORK_KEYS), or null when none is stored or the store cannot be read. */
 export async function loadNetworkChoice(callWS) {
   try {
-    const result = await callWS({ type: "meshroute_topology_explorer/settings/get", network: PANEL_STORE });
-    const value = result && result.settings && result.settings.network;
+    const stored = await getStored(callWS, "settings", PANEL_STORE);
+    const value = stored && stored.network;
     return NETWORK_KEYS.includes(value) ? value : null;
   } catch {
     return null;
@@ -53,10 +54,8 @@ export async function loadNetworkChoice(callWS) {
 /** Store the choice by read-merge-write (keys the panel does not know are kept); failures leave it in memory. */
 export async function saveNetworkChoice(callWS, key) {
   try {
-    const result = await callWS({ type: "meshroute_topology_explorer/settings/get", network: PANEL_STORE });
-    const stored = result && result.settings && typeof result.settings === "object" ? result.settings : {};
-    await callWS({ type: "meshroute_topology_explorer/settings/set", network: PANEL_STORE,
-      settings: { ...stored, network: key } });
+    const stored = await getStored(callWS, "settings", PANEL_STORE);
+    await setStored(callWS, "settings", PANEL_STORE, { ...(stored && typeof stored === "object" ? stored : {}), network: key });
     return true;
   } catch {
     return false;
