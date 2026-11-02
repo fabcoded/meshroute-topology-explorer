@@ -66,8 +66,7 @@ export function parseZigpyRoutes(answer) {
 
 /** Read the route records once; never throws except for a lost connection (the caller's load then counts as
  *  disconnected). Without them: { status: "not_supported", reason, message }, reason the key before the colon of the
- *  integration's answer (zha_not_loaded, no_gateway, internals_changed, error) or the error code (an older
- *  integration answers unknown_command). */
+ *  integration's answer (zha_not_loaded, no_gateway, internals_changed, error) or the error code. */
 export async function readZigpyRoutes(hass) {
   try {
     return parseZigpyRoutes(await hass.callWS({ type: "meshroute_topology_explorer/zigpy_routes" }));

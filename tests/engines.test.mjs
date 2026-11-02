@@ -61,12 +61,12 @@ test("settings (step 5): each engine sanitizes its own keys; the shell keeps the
   assert.deepEqual(zigbee.settings.keys, ["paths", "heard", "returnRoutes", "sourceRoute"]);
   assert.deepEqual(thread.settings.keys, []);
   for (const key of zigbee.settings.keys) assert.equal(key in DEFAULTS, false, `${key} is no shell key`);
-  const stored = { paths: "heard", nodeView: "all", links: {}, sourceRoute: "bogus", density: "spread", other: 1 };
+  const stored = { paths: "bogus", heard: true, sourceRoute: "bogus", density: "spread", other: 1 };
   const z = sanitizeSettings(stored, zigbee.settings);
-  assert.deepEqual([z.paths, z.heard, z.returnRoutes, z.sourceRoute, "links" in z, "nodeView" in z, z.other],
-    ["all", true, false, "assume", false, false, 1]);
+  assert.deepEqual([z.paths, z.heard, z.returnRoutes, z.sourceRoute, z.other],
+    ["coordinator", true, false, "assume", 1]);
   const t = sanitizeSettings(stored, thread.settings);
-  for (const key of ["paths", "nodeView", "links", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
+  for (const key of ["paths", "heard", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
   assert.equal(t.density, "spread");
   assert.deepEqual(sanitizeSettings(stored), t, "no engine: shell keys only, the same as Thread's");
 });

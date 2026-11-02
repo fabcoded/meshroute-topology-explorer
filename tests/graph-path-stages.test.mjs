@@ -229,29 +229,17 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
     ["coordinator", "assumed", "route", "discovery", "heard"]);
 });
 
-test("the stored stage: valid stages kept, the old node view migrates, the old keys go on the next save", () => {
+test("the stored stage: valid stages kept, anything else is the default", () => {
   assert.equal(DEFAULTS.paths, "coordinator");
-  assert.ok(!("links" in DEFAULTS) && !("nodeView" in DEFAULTS));
   for (const v of PATH_STAGES) assert.equal(sanitizeSettings({ paths: v }).paths, v);
-  assert.equal(sanitizePaths(undefined, "all"), "all", "nodeView all reads as stage 2");
-  assert.equal(sanitizePaths(undefined, "coordinator"), "coordinator");
-  assert.equal(sanitizePaths("all", "coordinator"), "all", "a valid stage wins over the old key");
-  assert.equal(sanitizePaths("heard", undefined), "all", "the former third stage reads as stage 2");
-  for (const bad of [null, 5, "bogus", ["all"]]) assert.equal(sanitizePaths(bad, bad), "coordinator", JSON.stringify(bad));
-  const migrated = sanitizeSettings({ links: { up: true, route: false, heard: true }, nodeView: "all", extra: 1 });
-  assert.equal(migrated.paths, "all");
-  assert.ok(!("links" in migrated) && !("nodeView" in migrated), "dropped");
-  assert.equal(migrated.extra, 1, "unknown keys are kept");
-  assert.equal(sanitizeSettings({ links: { heard: false } }).paths, "coordinator");
-  // The third stage became a checkbox on top of stage 2.
-  const legacy = sanitizeSettings({ paths: "heard", nodeView: "coordinator" });
-  assert.deepEqual([legacy.paths, legacy.heard], ["all", true], "paths 'heard' -> all + heard");
-  assert.deepEqual([migrated.heard, sanitizeSettings({}).heard, DEFAULTS.heard], [false, false, false], "calm default");
+  for (const bad of [undefined, null, 5, "bogus", "heard", ["all"]]) assert.equal(sanitizePaths(bad), "coordinator", JSON.stringify(bad));
+  assert.equal(sanitizeSettings({ extra: 1 }).extra, 1, "unknown keys are kept");
+  assert.deepEqual([sanitizeSettings({}).heard, DEFAULTS.heard], [false, false], "calm default");
   for (const bad of [1, "yes", null, "true"]) assert.equal(sanitizeSettings({ paths: "all", heard: bad }).heard, false);
   assert.deepEqual(sanitizeSettings({ paths: "coordinator", heard: true }).paths, "coordinator", "a stored heard = true does not move the view");
   assert.equal(sanitizeSettings({ paths: "coordinator", heard: true }).heard, true, "the stored choice is kept in any view (it takes effect under the routing table only)");
-  // A round trip through JSON, as the integration stores it: the migrated shape is stable.
-  const again = sanitizeSettings(JSON.parse(JSON.stringify(legacy)));
+  // A round trip through JSON, as the integration stores it: the shape is stable.
+  const again = sanitizeSettings(JSON.parse(JSON.stringify(sanitizeSettings({ paths: "all", heard: true }))));
   assert.deepEqual([again.paths, again.heard], ["all", true]);
 });
 

@@ -19,9 +19,8 @@ const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", 
 const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_scan_over", stopped: "status.short_scan_over",
   "not-sent": "status.short_scan_not_sent" };
 
-/** Reasons the integration gives when zigpy cannot be read (zigpy_routes.py), and the error code of an older
- *  integration; anything else is shown as it came. */
-const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "error", "unknown_command"];
+/** Reasons the integration gives when zigpy cannot be read (zigpy_routes.py); anything else is shown as it came. */
+const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "error"];
 
 /** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
  *  (source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned, and

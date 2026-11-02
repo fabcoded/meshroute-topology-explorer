@@ -198,7 +198,7 @@ export function storageText(client, t) {
   if (client.mode === "loading") return t("storage.loading");
   if (client.mode === "memory") {
     return client.reason === "unreadable" ? t("storage.unreadable", { message: client.error ? client.error.message : "?" })
-      : t(`storage.${client.reason || "unsupported"}`);
+      : t(`storage.${client.reason}`);
   }
   if (client.error) return t("storage.error", { message: client.error.message });
   return t("storage.stored");

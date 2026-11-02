@@ -65,9 +65,9 @@ test("View tab: 'include return routes' sits under the routing table and works o
   assert.equal(render({ paths: "all", returnRoutes: true }).returns.disabled, true, "kept, but greyed in another view");
 });
 
-test("View tab: the checkbox follows the settings in every view (kept, greyed outside the routing table) and migrates", () => {
+test("View tab: the checkbox follows the settings in every view (kept, greyed outside the routing table)", () => {
   for (const [stored, stage, heard] of [[{ paths: "all", heard: true }, "all", true],
-    [{ paths: "coordinator", heard: true }, "coordinator", true], [{ paths: "heard" }, "all", true]]) {
+    [{ paths: "coordinator", heard: true }, "coordinator", true]]) {
     const { radios, box } = render(stored);
     assert.equal(radios.find((r) => r.checked).value, stage, JSON.stringify(stored));
     assert.equal(box.checked, heard, JSON.stringify(stored));

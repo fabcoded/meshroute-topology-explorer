@@ -44,7 +44,6 @@ export const TEXTS = Object.freeze({
   "status.zigpy_reason_no_gateway": "ZHA has no running gateway; return paths are assumed.",
   "status.zigpy_reason_internals_changed": "ZHA or zigpy has changed internally; return paths are assumed.",
   "status.zigpy_reason_error": "zigpy's route records could not be read (unexpected error); return paths are assumed.",
-  "status.zigpy_reason_unknown_command": "The integration is older than the panel; return paths are assumed.",
   "view.paths_coordinator": "with the coordinator, there and back",
   "view.paths_coordinator_hint": "without a selection all devices; on click only the device's paths, with RX",
   "view.paths_all": "paths to all devices (theoretical)",

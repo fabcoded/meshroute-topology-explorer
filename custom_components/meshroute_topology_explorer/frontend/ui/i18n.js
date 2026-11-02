@@ -95,7 +95,6 @@ export const SHARED = Object.freeze({
   "fill.power": "Power source",
   "storage.loading": "Reading the stored settings …",
   "storage.stored": "Saved in Home Assistant for this network, shared by all administrators.",
-  "storage.unsupported": "Kept only until this page is closed: the installed integration offers no storage. Update it to keep settings.",
   "storage.unauthorized": "Kept only until this page is closed: saving needs an administrator.",
   "storage.unreadable": "Kept only until this page is closed: the stored settings could not be read ({message}).",
   "storage.offline": "Kept here until the connection is back; then the stored settings are read and your changes saved.",

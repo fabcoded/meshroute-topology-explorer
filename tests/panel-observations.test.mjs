@@ -106,13 +106,13 @@ test("two panels merge per router: the same table keeps the earlier time, a diff
   assert.equal(second.firstSeen(ids[0]), T1, "the second panel adopts the earlier time");
 });
 
-test("without the commands the observations live in memory; a lost connection is retried", async () => {
+test("an unreadable store keeps the observations in memory; a lost connection is retried", async () => {
   const network = sampleNetwork();
   const old = fakeServer({ unknown: true });
   const memory = client(old, { value: T1 });
   await memory.load();
   assert.equal(memory.mode, "memory");
-  assert.equal(memory.reason, "unsupported");
+  assert.equal(memory.reason, "unreadable");
   memory.observe(network);
   assert.equal(memory.newest(network), T1, "still observed in this session");
   await memory.flush();

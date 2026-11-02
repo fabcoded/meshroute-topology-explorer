@@ -166,22 +166,7 @@ test("a first read that meets a lost connection is retried; changes made meanwhi
   assert.equal(server.stored.fill, "role");
 });
 
-test("an integration without the commands: settings stay in memory, nothing is sent again", async () => {
-  const server = fakeServer({ unknown: true });
-  const timers = manualTimers();
-  const c = client(server, timers);
-  await c.load();
-  assert.equal(c.mode, "memory");
-  assert.equal(c.reason, "unsupported");
-  assert.equal(c.retryable, false);
-  c.update({ fill: "power" });
-  assert.equal(c.settings.fill, "power", "the change applies in memory");
-  assert.equal(timers.count, 0, "no save is scheduled");
-  await c.flush();
-  assert.equal(server.calls.length, 1, "only the first read");
-});
-
-test("a failed save keeps the changes pending; an unknown command switches to memory", async () => {
+test("a failed save keeps the changes pending", async () => {
   const server = fakeServer();
   const c = client(server);
   await c.load();
@@ -193,14 +178,6 @@ test("a failed save keeps the changes pending; an unknown command switches to me
   await c.flush();
   assert.deepEqual(server.stored.pins, { [A]: [1, 1] }, "the pending change goes out on the next flush");
   assert.equal(c.error, null);
-
-  const old = fakeServer();
-  const d = client(old);
-  await d.load();
-  d.update({ fill: "role" });
-  old.failSet = { code: "unknown_command", message: "Unknown command." };
-  await d.flush();
-  assert.equal(d.mode, "memory");
 });
 
 test("unreadable settings are not overwritten; oversized ones are not sent", async () => {
@@ -223,26 +200,19 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
   assert.equal(server.sets().length, 0);
 });
 
-test("communication paths and path display are stored per network; old keys migrate; bad values fall back", async () => {
+test("communication paths and path display are stored per network;  bad values fall back", async () => {
   assert.equal(ZIGBEE.defaults.paths, "coordinator");
   assert.deepEqual(DEFAULTS.pathColors, { mode: "grey", bad: null, medium: null, good: null }, "colour is opt-in");
-  assert.deepEqual(sanitizeSettings({ paths: "heard" }, ZIGBEE).paths, "all", "the former third stage");
-  assert.equal(sanitizeSettings({ paths: "heard" }, ZIGBEE).heard, true);
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
     assert.equal(sanitizeSettings({ paths: bad }, ZIGBEE).paths, "coordinator", JSON.stringify(bad));
   }
-  // Round trip through the integration: an earlier panel stored the class switches and the node view "all";
-  // the next save writes the stage and leaves both old keys out.
-  const server = fakeServer({ stored: { nodeView: "all", links: { up: true, route: false, heard: true },
-    pathColors: { mode: "rainbow", bad: "red" } } });
+  // Round trip through the integration: bad stored values fall back, a saved choice comes back.
+  const server = fakeServer({ stored: { pathColors: { mode: "rainbow", bad: "red" } } });
   const c = client(server, manualTimers());
   await c.load();
-  assert.equal(c.settings.paths, "all", "nodeView all reads as stage 2");
   assert.deepEqual(c.settings.pathColors, { mode: "grey", bad: null, medium: null, good: null });
   c.update({ pathColors: { mode: "coloured", bad: "#0072B2", medium: null, good: "#e69f00" } });
   await c.flush();
-  assert.equal(server.stored.paths, "all");
-  assert.ok(!("nodeView" in server.stored) && !("links" in server.stored), "the old keys are gone");
   assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: "#0072b2", medium: null, good: "#e69f00" });
   c.update({ paths: "coordinator", heard: true });
   await c.flush();
@@ -266,27 +236,6 @@ test("path colours: only #rrggbb is a colour; anything else is the theme's own",
   const hostile = sanitizeSettings(JSON.parse('{"pathColors": {"__proto__": {"mode": "coloured"}, "bad": "#000000"}}'));
   assert.equal(hostile.pathColors.mode, "grey");
   assert.equal({}.mode, undefined, "nothing reaches Object.prototype");
-});
-
-test("the former receptionColors maps to coloured with the theme's colours, and the next save drops it", async () => {
-  assert.deepEqual(sanitizeSettings({ receptionColors: true }).pathColors, { mode: "coloured", bad: null, medium: null, good: null });
-  for (const bad of ["true", 1, "yes", {}, null, undefined, false]) {
-    assert.equal(sanitizeSettings({ receptionColors: bad }).pathColors.mode, "grey", JSON.stringify(bad));
-  }
-  assert.equal(sanitizeSettings({ receptionColors: true, pathColors: { mode: "grey" } }).pathColors.mode, "grey",
-    "a stored pathColors wins over the old key");
-  assert.equal("receptionColors" in sanitizeSettings({ receptionColors: true }), false);
-  assert.equal("legendOpen" in sanitizeSettings({ legendOpen: true }), false, "the legend pill is gone");
-  const server = fakeServer({ stored: { receptionColors: true, legendOpen: false, density: "spread" } });
-  const c = client(server, manualTimers());
-  await c.load();
-  assert.equal(c.settings.pathColors.mode, "coloured", "applied on load");
-  c.update({ fill: "role" });
-  await c.flush();
-  assert.deepEqual(server.stored.pathColors, { mode: "coloured", bad: null, medium: null, good: null }, "migrated on save");
-  assert.equal("receptionColors" in server.stored, false);
-  assert.equal("legendOpen" in server.stored, false);
-  assert.equal(server.stored.density, "spread");
 });
 
 test("label switches: a boolean per line, defaults type and name on, the Home Assistant name off", async () => {

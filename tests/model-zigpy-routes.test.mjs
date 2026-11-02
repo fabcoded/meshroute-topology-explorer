@@ -169,7 +169,7 @@ test("status line: recorded and assumed counts, and why zigpy could not be read"
   const compact = sourceRoutePart({ mode: "zigpy", count: 8, zigpy: { status: "missing" } }, true);
   assert.equal(en(compact[0], compact[1]), "zigpy not available");
   assert.equal(sourceRoutePart({ mode: "zigpy", count: 0, recorded: 0, zigpy: { status: "ok" } }), null);
-  for (const key of ["zha_not_loaded", "no_gateway", "internals_changed", "error", "unknown_command"]) {
+  for (const key of ["zha_not_loaded", "no_gateway", "internals_changed", "error"]) {
     assert.notEqual(en(`status.zigpy_reason_${key}`), `status.zigpy_reason_${key}`, key);
   }
 });
@@ -200,7 +200,7 @@ test("reading: one command, its errors become a reason, a lost connection is pas
   const fail = (err) => readZigpyRoutes({ callWS: async () => { throw err; } });
   assert.deepEqual(await fail({ code: "not_supported", message: "internals_changed: the gateway has no application_controller" }),
     { status: "not_supported", reason: "internals_changed", message: "internals_changed: the gateway has no application_controller" });
-  assert.equal((await fail({ code: "unknown_command", message: "Unknown command." })).reason, "unknown_command");
+  assert.equal((await fail({ code: "unknown_command", message: "Unknown command." })).reason, "unknown_command", "any other code is shown as it came");
   assert.equal((await fail(new Error("boom"))).reason, "error");
   await assert.rejects(fail({ type: "result", success: false, error: { code: 3 } }));
 });

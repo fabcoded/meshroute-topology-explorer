@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Loader of dev/panel.html (not shipped): a fake `hass` for the real panel element. callWS answers from the anonymized
-// sample, keeps the integration's settings and observations in memory (or answers "unknown_command"), and can lose
+// sample, keeps the integration's settings and observations in memory, and can lose
 // the connection on a timer. A scan (zha/topology/update) is acted out: afterwards the routers' tables change one after
 // another, two seconds apart, and every fifth stays as it was. Reading a cluster's attributes answers with synthetic
 // values after a short delay (a sleepy device fails, as one that does not wake up would), and `hass.states` and
@@ -59,9 +59,8 @@ const VARIANTS = [
     ["Routing table with return routes: Router 13", "select=Router%2013&paths=table&returns=1&left=details"],
     ["Routing table + heard: Router 13", "select=Router%2013&paths=table&returns=1&heard=1"],
     ["Routing table, end device: End device 06", "select=End%20device%2006&paths=table&left=details"],
-    ["Stored stage \"heard\" (migration)", "select=Router%2011&open=off&paths=heard"], ["Hover: Router 11", "hover=Router%2011"],
+    ["Hover: Router 11", "hover=Router%2011"],
     ["Up and down differ: Router 16", "select=Router%2016"], ["Way down unknown: End device 08", "select=End%20device%2008"],
-    ["Stage 2 from a stored node view", "select=Router%2011&nodeview=all"],
     ["Coloured by reception", "select=Router%2016&colors=1"],
     ["Coloured by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
@@ -70,7 +69,7 @@ const VARIANTS = [
     ["Connection lost (3 s, back 5 s later)", "lost=3&back=5"]]],
   ["Scan (debug mode)", [["Scan dialog", "scan=dialog"], ["Scan running", "scan=run"],
     ["Scan running, German locale", "scan=run&lang=de"]]],
-  ["Settings and version", [["Settings without backend", "settings=unknown"], ["Old version", "version=old"]]],
+  ["Settings and version", [["Old version", "version=old"]]],
 ];
 /** Toggles keep every other key: [label, key, value]. */
 const TOGGLES = [["Narrow (phone)", "phone", "1"], ["Dark", "dark", "1"], ["German locale", "lang", "de"]];
@@ -239,10 +238,9 @@ const initial = {};
 if (q.get("fill")) initial.fill = q.get("fill");
 if (q.get("density")) initial.density = q.get("density");
 if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
-if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all|heard (heard: legacy)
+if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all
 if (q.get("heard")) initial.heard = q.get("heard") === "1";
 if (q.get("returns")) initial.returnRoutes = q.get("returns") === "1"; // "include return routes" of the view "table"
-if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored by an earlier version (migration)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {
   const hex = (key) => (q.get(key) ? `#${q.get(key)}` : null);
@@ -252,7 +250,6 @@ if (q.has("labels")) { // labels=type,name,ha: the lines that are on
   const on = q.get("labels").split(",");
   initial.labels = { type: on.includes("type"), name: on.includes("name"), haName: on.includes("ha") };
 }
-if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as an earlier version stored it (migration)
 if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume | zigpy
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };
@@ -283,23 +280,18 @@ async function callWS(msg) {
     case "config/area_registry/list": return responses["config/area_registry/list"];
     case "zha/devices/clusters/attributes/value": return readAttribute(msg);
     case "meshroute_topology_explorer/settings/get":
-      if (q.get("settings") === "unknown") throw unknown;
       return { settings: store.settings.has(msg.network) ? store.settings.get(msg.network) : (Object.keys(initial).length ? initial : null) };
     case "meshroute_topology_explorer/settings/set":
-      if (q.get("settings") === "unknown") throw unknown;
       store.settings.set(msg.network, msg.settings);
       console.log("settings saved", JSON.stringify(msg.settings));
       return {};
     case "meshroute_topology_explorer/observations/get":
-      if (q.get("settings") === "unknown") throw unknown;
       return { observations: store.observations.get(msg.network) || null };
     case "meshroute_topology_explorer/zigpy_routes":
       // Synthetic route records (tests/zigpy-fake.mjs): every complete way up, two of them broken on purpose.
-      if (q.get("settings") === "unknown") throw unknown;
       if (q.get("zigpy") === "unsupported") throw { code: "not_supported", message: "zha_not_loaded: ZHA is not loaded" };
       return fakeZigpyRoutes(currentDevices());
     case "meshroute_topology_explorer/observations/set":
-      if (q.get("settings") === "unknown") throw unknown;
       store.observations.set(msg.network, msg.observations);
       return {};
     default:

@@ -800,14 +800,11 @@ Keys:
 - Details on click: `openDetailsOnSelect` (boolean, else by width).
 - Source route: `sourceRoute` `off`, `assume` or `zigpy` (else `assume`, 5.1).
 - Pinned positions; later geo positions and map background address (empty by default).
-- Older keys: `paths: "heard"` reads as `all` with `heard: true`; without a valid `paths`, `nodeView: "all"` reads as
-  `all`, else `coordinator`; `receptionColors: true` without a valid `pathColors` reads as coloured with theme colours.
-  The next save leaves `nodeView`, `links`, `receptionColors` and `legendOpen` out.
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
 reads the stored object and writes back only what it changed (last write wins per key, pins merge per device, unknown
 keys are kept). Stored settings are untrusted: pins only under device addresses, coordinates within ±1000 base
-lengths. If the commands are missing or the stored object cannot be read, settings live in memory, the View tab says
+lengths. If the stored object cannot be read, settings live in memory, the View tab says
 so, and nothing stored is overwritten. After a lost connection they are read again.
 
 ## 12. Acceptance [v1]

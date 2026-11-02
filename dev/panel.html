@@ -13,18 +13,16 @@
        error=1         zha/devices fails with a server error
        lost=<s>        connection lost after s seconds, back after back=<s> more (default 4; back=0 stays lost)
        downfirst=1     the connection is down from the start (comes back after back=<s>)
-       settings=unknown   the integration does not know the settings commands (older version)
        variant=minus1|minus3|without-coordinator|coordinator-only   sample with tables removed (spec 12)
        capture=<name>  a real capture from captures/<name>.json (git-ignored, never committed) instead of the sample
                        (a Matter capture, {"responses": {"matter/network_topology": ...}}, shows its Thread network; ZHA from the sample)
        matter=1        the Matter integration loaded, Thread from tests/fixtures/matter-sample.json (the status line's source
                        becomes the network switch);  matter=notsupported  its topology answers not_supported
        network=thread  start on the Thread network (as a stored choice; implies matter=1)
-       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), paths=coordinator|table|all|heard (heard = the
-       stage of an earlier version, migrates to all + heard=1), heard=1 (the checkbox "additional heard neighbours", drawn under paths=table only),
-       returns=1 ("include return routes" of the view "table"), nodeview=all (as stored by an earlier version), colors=1 (paths coloured by reception), bad=,
-       medium=, good= (own colours as hex without #, e.g. bad=0072b2), labels=type,name,ha (the label lines on),
-       receptioncolors=1 (a setting as stored by an earlier version)   stored settings to start from
+       fill=role|power, density=dense|medium|spread, open=on|off ("Details on click"), paths=coordinator|table|all,
+       heard=1 (the checkbox "additional heard neighbours", drawn under paths=table only),
+       returns=1 ("include return routes" of the view "table"), colors=1 (paths coloured by reception), bad=,
+       medium=, good= (own colours as hex without #, e.g. bad=0072b2), labels=type,name,ha (the label lines on)   stored settings to start from
        select=<label>  select a device (as from a finding: no panel opens)
        collapsed=1     with select: as a tap on the map ("Details on click" decides; sheet collapsed on narrow screens)
        left=devices|findings|details, right=view|legend   open a panel on a tab (as its button on the map would)

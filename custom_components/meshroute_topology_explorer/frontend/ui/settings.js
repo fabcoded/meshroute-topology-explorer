@@ -3,8 +3,7 @@
 // (spec 10): meshroute_topology_explorer/settings/get answers { settings: object | null }, /settings/set takes the
 // whole object and answers {}. Saves are debounced and read-merge-write: the client reads what is stored and writes
 // back only the keys it changed, pins per device, so two panels open at once do not wipe each other's pins. If the
-// integration does not know the commands (an older version) the settings live in memory and the View tab says so;
-// after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
+// integration cannot be read the settings live in memory and the View tab says so; after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
 // use. The shell sanitizes its own keys; a network engine's keys go through that engine's settings part
 // (engines/<type>/settings.js: { keys, defaults, sanitize }), and keys no one owns are kept verbatim, so a Thread
 // object holding Zigbee keys keeps them unread (engines cut, section 3). No DOM. Tested in Node: npm test
@@ -62,10 +61,9 @@ export function sanitizeColor(v) {
   return typeof v === "string" && HEX.test(v) ? v.toLowerCase() : null;
 }
 
-/** Path display { mode, bad, medium, good }. Before it existed the panel stored `receptionColors: true` for colour by
- *  reception: without a valid pathColors object that still means "coloured" with the theme's own colours. */
-export function sanitizePathColors(input, legacy) {
-  if (!isPlainObject(input)) return { ...DEFAULT_PATH_COLORS, mode: legacy === true ? "coloured" : "grey" };
+/** Path display { mode, bad, medium, good }. */
+export function sanitizePathColors(input) {
+  if (!isPlainObject(input)) return { ...DEFAULT_PATH_COLORS };
   const out = { mode: PATH_MODES.includes(input.mode) ? input.mode : DEFAULT_PATH_COLORS.mode };
   for (const key of PATH_STOPS) out[key] = sanitizeColor(input[key]);
   return out;
@@ -90,10 +88,7 @@ export function sanitizeSettings(input, engineSettings = null) {
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   if (engineSettings) engineSettings.sanitize(src, out);
-  out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
-  // Replaced by pathColors, and the legend pill is gone: the next save leaves both out.
-  delete out.receptionColors;
-  delete out.legendOpen;
+  out.pathColors = sanitizePathColors(src.pathColors);
   out.labels = sanitizeLabels(src.labels);
   out.pins = sanitizePins(src.pins);
   return out;
@@ -111,14 +106,7 @@ export function presentPins(pins, network) {
   return Object.keys(pins || {}).filter((id) => ids.has(id)).sort();
 }
 
-/** Whether the server said it does not know the command (Home Assistant's websocket error "unknown_command"). */
-export function isUnknownCommand(err) {
-  const e = err && (err.error || err);
-  return Boolean(e) && e.code === "unknown_command";
-}
-
-/** Storage modes: "loading"; "stored" (in Home Assistant); "memory" with reason "unsupported" (the integration lacks
- *  the commands), "unauthorized", "offline" (the connection was lost: read again on reconnect) or "unreadable"
+/** Storage modes: "loading"; "stored" (in Home Assistant); "memory" with reason "unauthorized", "offline" (the connection was lost: read again on reconnect) or "unreadable"
  *  (reading failed, so saving would overwrite what is stored). */
 export class SettingsClient extends EventTarget {
   /** callWS: hass.callWS bound; network: network id; engineSettings: the network engine's settings part (its own
@@ -153,8 +141,7 @@ export class SettingsClient extends EventTarget {
       if (this._pending()) this._schedule();
     } catch (err) {
       this.mode = "memory";
-      this.reason = isUnknownCommand(err) ? "unsupported" : err && err.code === "unauthorized" ? "unauthorized"
-        : isConnectionLost(err) ? "offline" : "unreadable";
+      this.reason = err && err.code === "unauthorized" ? "unauthorized" : isConnectionLost(err) ? "offline" : "unreadable";
       this.error = this.reason === "unreadable" ? { kind: "error", message: errorText(err) } : null;
     }
     this._changed();
@@ -270,14 +257,8 @@ export class SettingsClient extends EventTarget {
       this.error = null;
     } catch (err) {
       restore();
-      if (isUnknownCommand(err)) {
-        this.mode = "memory";
-        this.reason = "unsupported";
-        this.error = null;
-      } else {
-        // Pending changes go out with the next change, the next flush or after a reconnect.
-        this.error = { kind: "error", message: errorText(err), connection: isConnectionLost(err) };
-      }
+      // Pending changes go out with the next change, the next flush or after a reconnect.
+      this.error = { kind: "error", message: errorText(err), connection: isConnectionLost(err) };
     }
     this._changed();
   }
