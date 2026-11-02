@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
+import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { widthStep } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
 import { BANDS, BAND_LEVEL, NOMINAL_NOISE_FLOOR_DBM, QUALITY_FINDINGS, QUALITY_HINTS, RSSI_HIGH_ABOVE_DBM,
   RSSI_LOW_AT_OR_BELOW_DBM, directionBand, laneLook, lqBand, nodeQualityFindings, qualityFindings, rssiBand }

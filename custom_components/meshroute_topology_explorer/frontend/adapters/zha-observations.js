@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Observations (spec 6): ZHA publishes no scan time, so the panel keeps per router a fingerprint of its tables and
-// the time a panel first saw it (model/observations.js), and stores them through the integration's commands
+// the time a panel first saw it (zha-fingerprints.js), and stores them through the integration's commands
 // meshroute_topology_explorer/observations/get and /set (spec 10; same contract as the settings: whole object,
 // at most 256 KiB, "unknown_command" means memory only). "Observed unchanged since" is the newest of these times.
 // Stored object: { routers: { <ieee>: { fingerprint, firstSeen } }, ...unknown keys kept }. Saves are debounced and
 // read-merge-write per router: the same fingerprint keeps the earlier time (another panel saw it first), a different
 // one is replaced by what this panel sees now. Stored data is untrusted input and cleaned before use. No DOM.
 // Tested in Node: node --test tests/
-import { fingerprints, updateObservations, newestChange } from "../model/index.js";
+import { fingerprints, updateObservations, newestChange } from "./zha-fingerprints.js";
 import { normalizeIeee } from "../model/parse.js";
-import { errorText, isConnectionLost } from "../adapters/ws.js";
-import { isUnknownCommand, MAX_BYTES, SAVE_DELAY_MS } from "./settings.js";
+import { errorText, isConnectionLost } from "./ws.js";
+import { isUnknownCommand, MAX_BYTES, SAVE_DELAY_MS } from "../ui/settings.js";
 
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 /** The model's fingerprint: 16 lower-case hex digits (observations.js, hash()). */

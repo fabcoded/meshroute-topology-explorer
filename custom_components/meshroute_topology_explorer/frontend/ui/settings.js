@@ -5,12 +5,12 @@
 // back only the keys it changed, pins per device, so two panels open at once do not wipe each other's pins. If the
 // integration does not know the commands (an older version) the settings live in memory and the View tab says so;
 // after a lost connection the client reads again on reconnect. Stored data is untrusted input: it is cleaned before
-// use. No DOM. Tested in Node: node --test tests/
+// use. The shell sanitizes its own keys; a network engine's keys go through that engine's settings part
+// (engines/<type>/settings.js: { keys, defaults, sanitize }), and keys no one owns are kept verbatim, so a Thread
+// object holding Zigbee keys keeps them unread (engines cut, section 3). No DOM. Tested in Node: node --test tests/
 import { DENSITY } from "../graph/layout.js";
-import { DEFAULT_PATHS, PATH_STAGES } from "../graph/links.js";
 import { FILLS } from "../graph/palette.js";
 import { DEFAULT_LABELS } from "../graph/labels.js";
-import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "../model/source-routes.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "../adapters/ws.js";
 
@@ -21,15 +21,11 @@ export const PATH_MODES = Object.freeze(["grey", "coloured"]);
 export const PATH_STOPS = Object.freeze(["bad", "medium", "good"]);
 export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medium: null, good: null });
 
-/** Defaults of spec 11. openDetailsOnSelect null means "by screen width": details open on a click on wide panels and
- *  not on narrow ones (spec 9.2). paths: the view of "Communication paths" (graph/links.js PATH_STAGES: with the
- *  coordinator there and back, routing table, paths to all devices). heard: the checkbox "additional heard neighbours
- *  (best 3)", on top of any view (default off). returnRoutes: the checkbox "Include return routes" of the view "routing
- *  table" (default off). sourceRoute: return paths without a table entry
- *  are "assume"d (the way up reversed), "off" (unknown) or read from "zigpy" (route records, else assumed). */
+/** Defaults of the shell's keys (spec 11). openDetailsOnSelect null means "by screen width": details open on a click on
+ *  wide panels and not on narrow ones (spec 9.2). pathColors is shared in storage, whichever engine offers it. The
+ *  engines' own keys have their defaults in their settings part. */
 export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
-  paths: DEFAULT_PATHS, heard: false, returnRoutes: false, pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, sourceRoute: DEFAULT_SOURCE_ROUTE,
-  pins: Object.freeze({}) });
+  pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** The integration rejects larger payloads (spec 10); checked here so the user learns why nothing is saved. */
 export const MAX_BYTES = 256 * 1024;
@@ -60,15 +56,6 @@ export function sanitizePins(input) {
   return pins;
 }
 
-/** The stage of "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11). Before it, the panel
- *  stored class switches (`links`) and the node view (`nodeView`: "coordinator" or "all"); without a valid `paths`
- *  the node view decides: "all" reads as the stage "all", anything else as the default. */
-export function sanitizePaths(input, legacyNodeView) {
-  if (PATH_STAGES.includes(input)) return input;
-  if (input === "heard") return "all"; // the former third stage (settings.heard becomes true, sanitizeSettings)
-  return legacyNodeView === "all" ? "all" : DEFAULT_PATHS;
-}
-
 const HEX = /^#[0-9a-f]{6}$/i;
 /** A colour as the native colour picker gives it ("#rrggbb", lower case); anything else is null (the theme's own). */
 export function sanitizeColor(v) {
@@ -91,31 +78,23 @@ export function sanitizeLabels(input) {
   return Object.fromEntries(Object.keys(DEFAULT_LABELS).map((k) => [k, typeof src[k] === "boolean" ? src[k] : DEFAULT_LABELS[k]]));
 }
 
-/** A valid settings object from whatever was stored: known keys with wrong values fall back to the defaults, broken
- *  pins are dropped, unknown keys are kept as they are (a newer version may have written them). */
-export function sanitizeSettings(input) {
+/** A valid settings object from whatever was stored: the shell's keys with wrong values fall back to their defaults,
+ *  broken pins are dropped, the engine's keys go through `engineSettings` (the network engine's settings part, or
+ *  null: shell keys only), and every other key is kept as it is (a newer version or another engine may have written
+ *  it). */
+export function sanitizeSettings(input, engineSettings = null) {
   const src = isPlainObject(input) ? input : {};
   const out = { ...src };
   out.view = src.view === "quality" ? "quality" : DEFAULTS.view; // the only view of v1; the route view comes in v1.1
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
-  out.paths = sanitizePaths(src.paths, src.nodeView);
-  // Until A4l "heard" was a third stage (A4j/A4k): it now reads as the stage "all" with the checkbox on.
-  out.heard = src.paths === "heard" ? true : src.heard === true;
-  if (src.paths === "heard") out.paths = "all";
-  // New in A4z; older stores have no key and read as off.
-  out.returnRoutes = src.returnRoutes === true;
-  // Replaced by paths (A4j): the next save leaves the class switches and the node view out.
-  delete out.links;
-  delete out.nodeView;
+  if (engineSettings) engineSettings.sanitize(src, out);
   out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
   // Replaced by pathColors, and the legend pill is gone (A4h): the next save leaves both out.
   delete out.receptionColors;
   delete out.legendOpen;
   out.labels = sanitizeLabels(src.labels);
-  // off, assume or zigpy (read the route records, brief a4w); anything else counts as "assume".
-  out.sourceRoute = sourceRouteMode(src.sourceRoute);
   out.pins = sanitizePins(src.pins);
   return out;
 }
@@ -142,14 +121,16 @@ export function isUnknownCommand(err) {
  *  the commands), "unauthorized", "offline" (the connection was lost: read again on reconnect) or "unreadable"
  *  (reading failed, so saving would overwrite what is stored). */
 export class SettingsClient extends EventTarget {
-  /** callWS: hass.callWS bound; network: network id; timers: { setTimeout, clearTimeout } (injectable). */
-  constructor({ callWS, network, timers = globalThis, delay = SAVE_DELAY_MS } = {}) {
+  /** callWS: hass.callWS bound; network: network id; engineSettings: the network engine's settings part (its own
+   *  keys; null: shell keys only); timers: { setTimeout, clearTimeout } (injectable). */
+  constructor({ callWS, network, engineSettings = null, timers = globalThis, delay = SAVE_DELAY_MS } = {}) {
     super();
     this._callWS = callWS;
     this.network = network;
+    this._engine = engineSettings;
     this._timers = timers;
     this._delay = delay;
-    this.settings = sanitizeSettings(null);
+    this.settings = sanitizeSettings(null, this._engine);
     this.mode = "loading";
     this.reason = null;
     this.error = null; // last save problem: { kind: "error" | "too-large", message, bytes, connection }
@@ -187,7 +168,7 @@ export class SettingsClient extends EventTarget {
   update(patch) {
     for (const key of Object.keys(patch)) if (key !== "pins") this._keys.add(key);
     const { pins, ...rest } = patch; // pins only through setPin / removePin, so they merge per device
-    this.settings = sanitizeSettings({ ...this.settings, ...rest, pins: this.settings.pins });
+    this.settings = sanitizeSettings({ ...this.settings, ...rest, pins: this.settings.pins }, this._engine);
     this._schedule();
     this._changed();
   }
@@ -251,12 +232,12 @@ export class SettingsClient extends EventTarget {
 
   /** The stored object with this panel's unsaved changes laid over it: last write wins per key, pins per device. */
   _merge(stored, keys = this._keys, pins = this._pins) {
-    const out = sanitizeSettings(stored);
+    const out = sanitizeSettings(stored, this._engine);
     for (const key of keys) out[key] = this.settings[key];
     const merged = sanitizePins(out.pins);
     for (const [id, value] of pins) { if (value) merged[id] = value; else delete merged[id]; }
     out.pins = merged;
-    return sanitizeSettings(out);
+    return sanitizeSettings(out, this._engine);
   }
 
   _schedule() {

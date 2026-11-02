@@ -4,10 +4,10 @@
 // neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its receiver),
 // parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows) and tested in Node.
-import { h } from "./dom.js";
-import { findingText } from "../engines/thread/findings.js";
-import { roleText } from "./format.js";
-import { unknownGlyph } from "../graph/links.js";
+import { h } from "../../ui/dom.js";
+import { findingText } from "./findings.js";
+import { roleText } from "../../ui/format.js";
+import { unknownGlyph } from "./lanes.js";
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 export function threadReception(dir) {

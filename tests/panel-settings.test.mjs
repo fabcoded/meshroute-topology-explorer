@@ -10,6 +10,7 @@ import {
   sanitizeColor, sanitizePathColors, sanitizeLabels,
 } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { sampleNetwork } from "./panel-fixture.mjs";
+import { settings as ZIGBEE } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 
 const A = "aa:bb:cc:dd:00:00:00:02";
 const B = "aa:bb:cc:dd:00:00:00:03";
@@ -48,7 +49,9 @@ function fakeServer({ stored = null, unknown = false } = {}) {
   return server;
 }
 
-const client = (server, timers = manualTimers()) => new SettingsClient({ callWS: server.callWS, network: "entry_01", timers });
+// A ZHA network's client: the shell's keys and the Zigbee engine's (engines cut step 5).
+const client = (server, timers = manualTimers()) => new SettingsClient({ callWS: server.callWS, network: "entry_01",
+  engineSettings: ZIGBEE, timers });
 
 test("stored settings are applied on load and cleaned; unknown keys survive", async () => {
   const server = fakeServer({ stored: { density: "spread", fill: "power", openDetailsOnSelect: false,
@@ -221,12 +224,12 @@ test("unreadable settings are not overwritten; oversized ones are not sent", asy
 });
 
 test("communication paths and path display are stored per network; old keys migrate; bad values fall back", async () => {
-  assert.equal(DEFAULTS.paths, "coordinator");
+  assert.equal(ZIGBEE.defaults.paths, "coordinator");
   assert.deepEqual(DEFAULTS.pathColors, { mode: "grey", bad: null, medium: null, good: null }, "colour is opt-in");
-  assert.deepEqual(sanitizeSettings({ paths: "heard" }).paths, "all", "the former third stage");
-  assert.equal(sanitizeSettings({ paths: "heard" }).heard, true);
+  assert.deepEqual(sanitizeSettings({ paths: "heard" }, ZIGBEE).paths, "all", "the former third stage");
+  assert.equal(sanitizeSettings({ paths: "heard" }, ZIGBEE).heard, true);
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
-    assert.equal(sanitizeSettings({ paths: bad }).paths, "coordinator", JSON.stringify(bad));
+    assert.equal(sanitizeSettings({ paths: bad }, ZIGBEE).paths, "coordinator", JSON.stringify(bad));
   }
   // Round trip through the integration: a panel from before A4j stored the class switches and the node view "all";
   // the next save writes the stage and leaves both old keys out.

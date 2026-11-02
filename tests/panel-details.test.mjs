@@ -5,10 +5,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { detailsOf, hopBasis, hopValue, howText, pathLine, pathParts, stopText, theoryRows }
-  from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
-import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
-import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
+import { laneValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
+import { pathHops, routePath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { lqiText, rankText, rankTooltip, receptionText } from "../custom_components/meshroute_topology_explorer/frontend/ui/format.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { sampleNetwork } from "./panel-fixture.mjs";

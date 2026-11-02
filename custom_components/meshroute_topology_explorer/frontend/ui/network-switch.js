@@ -8,24 +8,28 @@
 // commands (spec 10, 11); settings of each network stay under its own id. Runs in the browser; the choice logic is
 // pure and tested in Node: node --test tests/
 import { h } from "./dom.js";
+import { ADAPTERS, adapterByKey } from "../adapters/index.js";
 
-/** Networks the panel can show, in menu order. */
-export const NETWORK_KEYS = Object.freeze(["zha", "thread"]);
-/** The first load shows Zigbee (board Variant A). */
-export const DEFAULT_NETWORK = "zha";
+/** Networks the panel can show, in menu order: one per adapter (adapters/index.js); the keys are stored values. */
+export const NETWORK_KEYS = Object.freeze(ADAPTERS.map((a) => a.key));
+/** The first load shows the first adapter's network, Zigbee (board Variant A). */
+export const DEFAULT_NETWORK = NETWORK_KEYS[0];
 /** Reserved network id for settings of the panel itself (the chosen network); valid under spec 10's id rule. */
 export const PANEL_STORE = "panel";
 
-/** Menu entries from the controller state: [{ key, available, reason?, message? }]. ZHA is listed when it was read;
- *  Thread when the Matter integration is loaded, greyed with its reason when its topology could not be used. */
+/** Menu entries from the controller state: [{ key, available, reason?, message? }], in the adapters' order. A network
+ *  is listed when it was read; a source that could not be used is listed greyed with its reason where its adapter
+ *  says so (the Matter topology: not supported, empty or an error; never ZHA). */
 export function networkChoices(state) {
   const networks = (state && state.networks) || {};
-  const thread = (state && state.thread) || null;
+  const reads = (state && state.reads) || {};
   const out = [];
-  if (networks.zha) out.push({ key: "zha", available: true });
-  if (networks.thread) out.push({ key: "thread", available: true });
-  else if (thread && thread.status && !["not_loaded", "ok", "skipped"].includes(thread.status)) {
-    out.push({ key: "thread", available: false, reason: thread.status, message: thread.message || null });
+  for (const adapter of ADAPTERS) {
+    const read = reads[adapter.key] || null;
+    if (networks[adapter.key]) out.push({ key: adapter.key, available: true });
+    else if (adapter.unavailable(read)) {
+      out.push({ key: adapter.key, available: false, reason: read.status, message: read.message || null });
+    }
   }
   return out;
 }
@@ -36,7 +40,7 @@ export function activeNetwork(choices, wanted) {
   return (usable.find((c) => c.key === wanted) || usable.find((c) => c.key === DEFAULT_NETWORK) || usable[0] || {}).key || null;
 }
 
-/** The stored choice ("zha" | "thread"), or null when none is stored or the store cannot be read. */
+/** The stored choice (one of NETWORK_KEYS), or null when none is stored or the store cannot be read. */
 export async function loadNetworkChoice(callWS) {
   try {
     const result = await callWS({ type: "meshroute_topology_explorer/settings/get", network: PANEL_STORE });
@@ -60,11 +64,9 @@ export async function saveNetworkChoice(callWS, key) {
   }
 }
 
-/** Why a network cannot be shown, as a text key and its parameters. */
+/** Why a network cannot be shown, in its adapter's words. */
 function reasonText(choice, t) {
-  if (choice.reason === "not_supported") return t("status.thread_not_supported");
-  if (choice.reason === "empty") return t("status.thread_empty");
-  return t("status.thread_error", { message: choice.message || "?" });
+  return adapterByKey(choice.key).reasonText(choice, t);
 }
 
 /** The status line's source part (the one place that builds the switch). ctx: { t, choices, active, open (menu

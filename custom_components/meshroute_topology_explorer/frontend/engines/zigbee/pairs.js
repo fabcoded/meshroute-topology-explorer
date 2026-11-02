@@ -4,7 +4,7 @@
 // device's memory, full tables of one model all stop at the same size), end devices have no table at all, and an
 // active route or a parent link proves a link that was two-way when it was set up (Zigbee r22, 3.6.3.5.2 and
 // 3.6.3.3). Pure functions over a Network.
-import { isActive } from "./normalize.js";
+import { isActive } from "./from-zha.js";
 
 const NEARLY_FULL = 2; // "nearly full" = capacity minus this or more
 

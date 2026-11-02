@@ -11,6 +11,7 @@ import { Layout, baseLength } from "../custom_components/meshroute_topology_expl
 import { displayLabels } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
 import { NODE_DIAMETER } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { syntheticNetwork } from "./synthetic-network.mjs";
+import { springQuality as quality } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { fidelity } from "./fidelity.mjs";
 import { labelWidth as measure } from "./graph-fakes.mjs";
 
@@ -18,7 +19,7 @@ const net = syntheticNetwork({ devices: 300, readings: 3000, seed: 7 });
 const l0 = baseLength(displayLabels(net.devices, measure), measure, NODE_DIAMETER);
 let best = null;
 for (let run = 0; run < 3; run++) {
-  const layout = new Layout(net, { baseLength: l0, seed: 1 });
+  const layout = new Layout(net, { quality, baseLength: l0, seed: 1 });
   const wall = performance.now();
   const cpu = process.cpuUsage();
   layout.run();

@@ -6,13 +6,20 @@
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PATHS, PATH_STAGES, pathStage } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { buildScene, drawScene, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { DEFAULT_PATHS, PATH_STAGES, pathStage } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
+import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { DEFAULTS, sanitizePaths, sanitizeSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { DEFAULTS as SHELL_DEFAULTS, sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { DEFAULTS as ZIGBEE_DEFAULTS, sanitizePaths, settings as zigbeeSettings }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { FakeCanvas, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
+import { FakeCanvas, asZigbee, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
+
+/** The shell's sanitizer and defaults with the Zigbee engine's keys (engines cut step 5). */
+const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
+const DEFAULTS = { ...SHELL_DEFAULTS, ...ZIGBEE_DEFAULTS };
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });
@@ -22,7 +29,7 @@ const route = (owner, destination, nextHop) => ({ owner, destination, nextHop, s
 // c -> r4, c -> r1 -> e1 (parent link). r3 has no entry at the coordinator: its way back is assumed (c -> r3).
 // A route between devices: r2 -> r4 via r1 (r2 -> r1 is also r2's way up, so it stays up; r1 -> r4 is a route).
 // Heard only: r3 hears r2 (r2 does not list r3: table full), r3 and r4 hear each other.
-const NET = {
+const NET = asZigbee({
   devices: [
     { id: "c", role: "coordinator", label: "Coordinator", available: true, hasTable: true },
     { id: "e1", role: "end device", label: "Sensor", available: true, parent: "r1" },
@@ -47,7 +54,7 @@ const NET = {
     { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: "table full (16/16)" } },
     { a: "r3", b: "r4", ab: m(40, 0.2), ba: m(30, 0.1) },
   ],
-};
+});
 const ID = ["c", "e1", "r1", "r2", "r3", "r4"];
 const at = (id) => ID.indexOf(id);
 // Far apart on a grid, so every lane and value has room.
@@ -187,27 +194,34 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   assert.deepEqual(PATH_STAGES, ["coordinator", "table", "all"]);
   assert.equal(DEFAULT_PATHS, "coordinator");
   for (const bad of [null, undefined, "", "ALL", 3, {}]) assert.equal(pathStage(bad), "coordinator");
+  // The map passes the engine's view settings on (GraphView.setEngineView, engines cut step 6b); the Zigbee engine
+  // reads a junk stage as the default, so it draws what the default draws.
   const canvas = new FakeCanvas(800, 600);
   const env = fakeEnv();
-  const view = new GraphView(canvas, { env, paths: "junk" });
-  assert.equal(view.paths, "coordinator");
+  const view = new GraphView(canvas, { env, engineView: { paths: "junk" } });
   view.setNetwork(NET);
   env.flush();
-  const before = JSON.stringify([...view.pos.x, ...view.pos.y]);
-  view.setPaths("heard"); // the former third stage is no stage any more
-  assert.equal(view.paths, "coordinator");
-  view.setHeard(true);
+  const drawn = () => JSON.stringify(view.lastDraw.classes);
+  const junk = drawn();
+  view.setEngineView({ paths: "coordinator" });
   env.flush();
-  assert.equal(view.heard, true);
+  assert.equal(drawn(), junk, "junk draws as the default stage");
+  const before = JSON.stringify([...view.pos.x, ...view.pos.y]);
+  view.setEngineView({ paths: "heard" }); // the former third stage is no stage any more
+  env.flush();
+  assert.equal(drawn(), junk);
+  view.setEngineView({ heard: true });
+  env.flush();
+  assert.equal(view.engineView.heard, true);
   assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before);
   // The legend lists every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); only the glyph rows
   // follow it.
   assert.ok(view.legend().some((e) => e.id === "not-listed"), "glyph rows with the checkbox");
-  view.setHeard(false);
-  view.setPaths("everything");
-  assert.equal(view.paths, "coordinator");
+  view.setEngineView({ heard: false, paths: "everything" });
+  env.flush();
+  assert.equal(drawn(), junk);
   assert.ok(!view.legend().some((e) => e.id === "not-listed"));
-  view.setSourceRoute("off");
+  view.setEngineView({ sourceRoute: "off" });
   assert.deepEqual(view.legend().filter((e) => e.kind === "lane").map((e) => e.id),
     ["coordinator", "assumed", "route", "discovery", "heard"]);
 });

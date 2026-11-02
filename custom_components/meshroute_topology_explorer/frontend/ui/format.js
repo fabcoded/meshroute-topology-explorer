@@ -22,7 +22,7 @@ export function rankText(rating, reporterLabel, t) {
   return rating < WEAKEST ? t("rank.weakest", { pct, reporter: reporterLabel }) : t("rank.value", { pct });
 }
 
-/** Tooltip of a reading row: the rank and the comparison basis the model used (model/ratings.js applyRatings).
+/** Tooltip of a reading row: the rank and the comparison basis the model used (engines/zigbee/ratings.js applyRatings).
  *  In a vendor pool no claim is made about the single reporter's readings (Codex review round 2, 3.5). */
 export function rankTooltip(r, t) {
   if (typeof r.rating !== "number") return t("rank.none");

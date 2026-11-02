@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The links part of the legend (board M7), built from what the graph says it draws (GraphView.legend(),
-// graph/links.js legendEntries): every path class whatever the stage (there and back with the coordinator solid, an
+// The links part of the legend (board M7), built from what the network's engine says its map draws (GraphView.legend(),
+// engines/*/lanes.js legendEntries): every path class whatever the stage (there and back with the coordinator solid, an
 // assumed return path dotted, paths to other devices dash-dot and the computed route discovery dash-dot in grey with
 // their stage, heard only dashed grey with its stage), the band under a selected device's way up, in debug mode also
 // the lane without traffic or reading, the width steps and the unknown
@@ -15,7 +15,8 @@ import { h, svg } from "./dom.js";
  *  nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t) {
   return entries.map((e) => {
-    const key = e.kind === "rx" ? (e.id === "rx-thread" ? "legend.rx_thread" : "legend.rx") : `legend.link.${e.id}`;
+    // "RX:" rows are keyed by their id ("rx" -> legend.rx), every other row under legend.link.
+    const key = e.kind === "rx" ? `legend.${e.id.replaceAll("-", "_")}` : `legend.link.${e.id}`;
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
     // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
     if (e.option) row.note = t(`legend.option_${e.option}`);
@@ -75,8 +76,8 @@ function scaleSample(entry) {
     style: { background: `linear-gradient(90deg, ${entry.colors.join(", ")})` } });
 }
 
-/** "RX:" over a value, as the map writes it beside a lane. */
-function rxSample(t, value = "103") {
+/** "RX:" over a value, as the map writes it beside a lane (the row's own sample value). */
+function rxSample(t, value) {
   return h("span", { class: "rx-sample", "aria-hidden": "true" }, h("span", { class: "muted", text: t("lane.rx") }),
     h("strong", { text: value }));
 }
@@ -89,7 +90,7 @@ function sampleFor(row, t) {
   if (row.kind === "band") return bandSample(row);
   if (row.kind === "stem") return stemSample(row);
   if (row.kind === "scale") return scaleSample(row);
-  if (row.kind === "rx") return rxSample(t, row.id === "rx-thread" ? "\u221275 dBm" : "103"); // Thread: RSSI
+  if (row.kind === "rx") return rxSample(t, row.sample);
   return h("span", { class: "glyph-sample" });
 }
 

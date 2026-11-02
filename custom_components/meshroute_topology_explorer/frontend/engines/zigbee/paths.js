@@ -5,7 +5,7 @@
 // guessed, not even for the coordinator's direct neighbours (which have no routing entry at the coordinator).
 // Routes taken from the table of an unavailable device are stale and never followed (decision 2026-10-31): the walk
 // of an unavailable router is incomplete, and the walk stops at the first unavailable device.
-import { isActive } from "./normalize.js";
+import { isActive } from "./from-zha.js";
 
 const cache = new WeakMap(); // network -> lookup maps, so repeated path queries do not re-index the routes
 

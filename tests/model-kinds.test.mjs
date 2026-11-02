@@ -6,8 +6,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deviceKind, receiverOffWhenIdle, KINDS }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/kinds.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/kinds.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { sampleNetwork, responses } from "./panel-fixture.mjs";
 
 const ep = (profile, type, input = [], output = []) => ({ profile_id: profile, device_type: type,

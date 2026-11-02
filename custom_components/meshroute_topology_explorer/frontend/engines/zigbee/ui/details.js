@@ -4,10 +4,10 @@
 // its findings, and its paths in the node view as text lines, so every value the map draws at a hop also exists as
 // text (spec 9.3); in the view "all" its theoretical paths per other device (spec 5.7) with how each hop is taken; in
 // the view "table" its routing-table walks per destination (spec 7.1), optionally with the walks back. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
-import { nodePaths, unknownEnd } from "../model/node-paths.js";
-import { zigpyRecords } from "../model/source-routes.js";
-import { lqiText } from "./format.js";
-import { unknownGlyph } from "../graph/links.js";
+import { nodePaths, unknownEnd } from "../node-paths.js";
+import { zigpyRecords } from "../source-routes.js";
+import { lqiText } from "../../../ui/format.js";
+import { unknownGlyph } from "../lanes.js";
 
 const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -1) - (a.lqi ?? -1))
   || a.device.label.localeCompare(b.device.label);
@@ -64,7 +64,7 @@ export function howText(how, t) {
   return t(`details.how_${how}`);
 }
 
-/** Why a theoretical path stopped (model/theoretical.js reasons), in words. */
+/** Why a theoretical path stopped (../theoretical.js reasons), in words. */
 export function stopText(reason, t) {
   return t(`details.stop_${String(reason || "unknown").replace(/ /g, "_")}`);
 }
@@ -115,10 +115,10 @@ export function tableRows(network, id, returns, name) {
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", model/node-paths.js; the view "table" lists the way with the coordinator here
+ *  `nodeView` ("coordinator" or "all", ../node-paths.js; the view "table" lists the way with the coordinator here
  *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
  *  then empty, main session 2026-11-01), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
- *  model/source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
+ *  ../source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */
 export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRoutes = false } = {}) {

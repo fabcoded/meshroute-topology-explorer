@@ -9,7 +9,7 @@ import {
   GRID, OUTER, OUTER_RADIUS, FRAME_WIDTH, SELECTED_WIDTH, SYMBOL_SIZE, SYMBOL_GROWTH, SYMBOL_MIN, PICTURES,
   contourExit, drawSymbol, elementPath, parsePath, symbolLayers, symbolParts, symbolSize,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
-import { KINDS } from "../custom_components/meshroute_topology_explorer/frontend/model/kinds.js";
+import { KINDS } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/kinds.js";
 import { NODE_DIAMETER } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { drawnSymbols, recordingContext } from "./graph-fakes.mjs";
 import { sampleNetwork } from "./panel-fixture.mjs";

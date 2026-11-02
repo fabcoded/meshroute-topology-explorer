@@ -5,8 +5,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { removedTables, withoutTables } from "./derive.mjs";
-import { buildNetwork, upPath, downPath, parseAddress, parseLqi, fingerprints, updateObservations, newestChange }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork, upPath, downPath, parseAddress, parseLqi }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { fingerprints, updateObservations, newestChange } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha-fingerprints.js";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
 const networkOf = (name) => {

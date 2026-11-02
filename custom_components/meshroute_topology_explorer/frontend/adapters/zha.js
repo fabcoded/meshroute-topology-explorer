@@ -3,11 +3,27 @@
 // Zigbee engine (engines/index.js), which builds the model. Read only: `zha/devices` returns what ZHA holds; the
 // scan is started elsewhere, by the user (panel.js). Also zigpy's route records for the source-route stage "read from
 // zigpy" (spec 5.1; brief a4w): one call of the integration's own command per data load, attached to the network as
-// `network.zigpy` and read by model/source-routes.js; it reads what zigpy holds in memory and causes no radio traffic.
+// `network.zigpy` and read by engines/zigbee/source-routes.js; it reads what zigpy holds in memory and causes no radio traffic.
 // No DOM. node --test tests/
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
 import { isConnectionLost } from "./ws.js";
+import { ScanFollower, tablesDiffer } from "./zha-scan.js";
+import { ObservationsClient } from "./zha-observations.js";
+import { TEXTS } from "./zha-texts.js";
+
+/** Decide which empty/error state applies before any data is shown (spec 9.4): not an administrator, or ZHA not
+ *  loaded (its config entries name none in state "loaded"). Returns a phase key or null. */
+export function blockingState({ isAdmin, configEntries }) {
+  if (!isAdmin) return "not_admin";
+  const loaded = Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
+  return loaded ? null : "zha_not_loaded";
+}
+
+/** ZHA's own page of a device, on one of its tabs ("signature" is the Zigbee info, "clusters" the management). The
+ *  IEEE goes in with its colons, as the frontend writes it: the page reads the path segment as it is, so an encoded
+ *  colon would name no device. The model's ids are validated EUI-64s (model/parse.js), nothing else reaches here. */
+export const zhaDevicePath = (ieee, tab = "signature") => `/config/zha/device/${ieee}/${tab}`;
 
 /** ZHA's config entries (`config_entries/get`): whether ZHA is loaded, and the entry id that names the network. */
 export function readZhaEntries(hass) {
@@ -75,3 +91,29 @@ export function sendScan(hass) {
     hass.callWS({ type: "zha/topology/update" }).catch(() => {});
   }
 }
+
+/** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty" or "not_loaded"),
+ *  network, raw, blocking (the phase to show when no source has a network: "zha_not_loaded"), unavailable: false }.
+ *  registries(): the shared device and area registries, read once on first need. Errors are thrown to the caller. */
+export async function readSource(hass, { registries }) {
+  const configEntries = await readZhaEntries(hass);
+  const blocked = blockingState({ isAdmin: true, configEntries });
+  if (blocked) return { status: "not_loaded", network: null, raw: null, blocking: blocked };
+  const { raw, network } = await readZha(hass, { configEntries, registries });
+  return { status: network ? "ok" : "empty", network, raw, blocking: null };
+}
+
+/** The ZHA adapter as the shell sees it (adapters/index.js): key (the source its networks carry and the stored choice
+ *  of the network switch), the read, the phase of a blocked source, ZHA's device page, the scan (send, follow,
+ *  compare tables) and the observations client. A ZHA network that cannot be read is never offered greyed. */
+export const adapter = Object.freeze({
+  key: "zha",
+  read: readSource,
+  blocking: "zha_not_loaded",
+  unavailable: () => false,
+  reasonText: () => "",
+  devicePage: (device, tab = "signature") => ({ key: "zha", path: zhaDevicePath(device.id, tab) }),
+  scan: Object.freeze({ send: sendScan, Follower: ScanFollower, differ: tablesDiffer }),
+  Observations: ObservationsClient,
+  texts: TEXTS,
+});

@@ -5,14 +5,19 @@
 // overview of every usable entry, the heard option on top, and the Details card. Run: node --test tests/
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/model/node-paths.js";
-import { tableWalk, usableRoutes } from "../custom_components/meshroute_topology_explorer/frontend/model/paths.js";
-import { buildScene, drawScene, sceneTableLanes, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
+import { tableWalk, usableRoutes } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { sceneTableLanes, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { detailsOf } from "../custom_components/meshroute_topology_explorer/frontend/ui/details.js";
-import { sanitizeSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
-import { recordingContext, labelWidth } from "./graph-fakes.mjs";
+import { detailsOf } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js";
+import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
+import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
+import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 import { sampleNetwork } from "./panel-fixture.mjs";
+
+/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });
@@ -24,7 +29,7 @@ const router = (id) => ({ id, role: "router", label: id.toUpperCase(), available
 // its parent D) and the coordinator Z, and one inactive entry (to F) that is no destination. Back: C names F for A and
 // F names A (a return route over another router than the way out); D's entry for A is inactive (a gap, and E's way
 // back runs into it through its parent); Z names B and B names A. A measures H1-H4 and C, none of them on a walk.
-const NET = {
+const NET = asZigbee({
   devices: [
     { id: "z", role: "coordinator", label: "Coordinator", available: true, hasTable: true, children: [] },
     router("a"), router("b"), router("c"), router("d"), router("f"), router("h1"), router("h2"), router("h3"), router("h4"),
@@ -51,7 +56,7 @@ const NET = {
     { a: "a", b: "h3", ab: m(160, 0.75), ba: none },
     { a: "a", b: "h4", ab: m(150, 0.65), ba: none },
   ],
-};
+});
 const ids = (paths, kind) => paths.filter((p) => p.kind === kind).map((p) => p.ids.join(">"));
 
 test("table walks: the device's own usable entries, each followed by every holder's entry for the same destination", () => {

@@ -3,35 +3,39 @@
 // Practices, listbox pattern). It is the keyboard path to every device (spec 9.3): arrows move, Enter selects.
 // No DOM; the Devices tab renders it. Tested in Node: node --test tests/
 import { engineFor } from "../engines/index.js";
+import { sleeps } from "../graph/symbols.js";
 
 /** Keys that move the active row, as steps; Home/End go to the ends. PageUp/PageDown step by this many. */
 const PAGE = 10;
 
-/** Rows for the list from a Network: one per device, the coordinator first (board M3), then by label and address.
- *  The search text holds what a user may type: label, ZHA name, vendor, model, area, IEEE and network address (as
- *  0x1234 and decimal). */
+/** Rows for the list from a Network: one per device, the device that is the network first (board M3: the Zigbee
+ *  coordinator; engine.connection kind "network"), then by label and address.
+ *  The search text holds what a user may type: label, Home Assistant name, vendor, model, area, the device key (IEEE or
+ *  extended address) and the network address as the engine writes it (engine.addresses: Zigbee 0x1234 and decimal;
+ *  Thread the RLOC16 alike). */
 export function deviceRows(network) {
   const engine = engineFor(network);
   return network.devices.map((d) => ({
     id: d.id, label: d.label, role: d.role, area: d.area, available: d.available, rating: d.rating, kind: d.kind || null,
-    sleepy: d.sleepy === true, connection: engine.connection(network, d),
-    search: [d.label, d.name, d.vendor, d.model, d.area, d.id,
-      typeof d.nwk === "number" ? `0x${d.nwk.toString(16).padStart(4, "0")} ${d.nwk}` : ""]
+    sleepy: d.sleepy === true, sleeps: sleeps(d), connection: engine.connection(network, d),
+    search: [d.label, d.name, d.vendor, d.model, d.area, d.id, ...engine.addresses(d)]
       .filter(Boolean).join(" ").toLowerCase(),
-  })).sort((a, b) => (b.role === "coordinator") - (a.role === "coordinator") || a.label.localeCompare(b.label)
-    || a.id.localeCompare(b.id));
+  })).sort((a, b) => isNetwork(b) - isNetwork(a) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }
+
+/** Whether a row's device is the network itself (its engine's connection says so: the Zigbee coordinator). */
+const isNetwork = (row) => Boolean(row.connection && row.connection.kind === "network");
 
 /** The grey line under a row's name (board M3): "Light · Router · direct to the coordinator", "Button · sleeps · via
  *  Router 03", "Coordinator · Network"; then the area and, when it is down, "unavailable". The reception rank lives in
  *  Details. t: the translator. */
 export function rowMeta(row, t) {
   const parts = [];
-  if (row.role === "coordinator") {
-    parts.push(t("role.coordinator"), t("devices.network"));
+  if (isNetwork(row)) {
+    parts.push(t(`role.${row.role}`), t("devices.network"));
   } else {
     if (row.kind && row.kind !== "unknown") parts.push(t(`kind_short.${row.kind}`));
-    parts.push(row.role === "end device" && row.sleepy ? t("devices.sleeps") : t(`role.${row.role}`));
+    parts.push(row.sleeps ? t("devices.sleeps") : t(`role.${row.role}`));
     const c = row.connection;
     if (c && c.kind === "direct") parts.push(t("devices.direct"));
     if (c && c.kind === "via") parts.push(t("devices.via", { name: c.label }));

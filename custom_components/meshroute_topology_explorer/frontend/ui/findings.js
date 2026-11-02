@@ -5,12 +5,10 @@
 //   look at, even if twenty devices are affected (decision 2026-10-31, calm default). They are named by "data
 //   incomplete" and by the hedged "parent unknown (tables of … missing)", which is a consequence of missing tables,
 //   not a verdict (decision 2026-10-31). The unhedged "no parent" stays a finding of its own.
-// - Groups follow the order of FINDING_KINDS; hints form their own group, shown collapsed.
+// - Groups follow the order of the network engine's finding kinds; hints form their own group, shown collapsed.
 // - The missing-table group lists both kinds by the table they name, so the list says which router to look at. A
 //   finding that lacks several tables appears under each of them.
 // Tested in Node: node --test tests/
-import { FINDING_KINDS } from "../model/index.js";
-
 export const HINT_KINDS = Object.freeze(["very low reading"]);
 export const isHint = (finding) => HINT_KINDS.includes(finding.kind);
 
@@ -42,16 +40,17 @@ export function badgeCount(findings) {
 /** { count, groups: [{ kind, findings, byTable?, devices? }], hints: [{ kind, findings }] }. The missing-table group
  *  (kind "data incomplete") holds "data incomplete" and hedged "parent unknown" findings, byTable [{ table, findings }]
  *  largest first, then by the label of the table's owner, and devices (distinct devices affected). label(id) names a
- *  device. count is the badge's number (badgeCount). */
-export function groupFindings(findings, label = (id) => id) {
+ *  device; kindOrder: the order of the groups (the network engine's findings.kinds; other kinds follow). count is the
+ *  badge's number (badgeCount). */
+export function groupFindings(findings, label = (id) => id, kindOrder = []) {
   const byKind = new Map();
   for (const f of findings) {
     const kind = isMissingTable(f) ? MISSING_KIND : f.kind;
     if (!byKind.has(kind)) byKind.set(kind, []);
     byKind.get(kind).push(f);
   }
-  const kinds = [...FINDING_KINDS, ...[...byKind.keys()].filter((k) => !FINDING_KINDS.includes(k))];
-  const order = (f) => FINDING_KINDS.indexOf(f.kind);
+  const kinds = [...kindOrder, ...[...byKind.keys()].filter((k) => !kindOrder.includes(k))];
+  const order = (f) => kindOrder.indexOf(f.kind);
   const groups = [];
   const hints = [];
   for (const kind of kinds) {

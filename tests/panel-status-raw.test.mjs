@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { statusParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { rawKey, rawText, RAW_COLUMNS } from "../custom_components/meshroute_topology_explorer/frontend/ui/raw-values.js";
+import { rawKey, rawText, RAW_COLUMNS } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/raw-values.js";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 
 test("status line (board M1): source, router tables, observed unchanged since, then the scan; both languages", () => {

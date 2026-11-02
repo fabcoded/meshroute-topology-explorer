@@ -2,7 +2,7 @@
 // Ways into Home Assistant's own pages for one device (spec 9.2 "Entity"; design by Fabian Schwamborn, 2026-11-01).
 // Paths follow Home Assistant's public frontend routes (home-assistant/frontend, read for the route contracts only):
 // - device page: src/panels/config/devices/ha-config-devices.ts, route "device" reads the registry id from the path;
-// - ZHA's own device page: src/panels/config/integrations/integration-panels/zha/zha-config-dashboard-router.ts,
+// - ZHA's own device page (the path is built by adapters/zha.js): src/panels/config/integrations/integration-panels/zha/zha-config-dashboard-router.ts,
 //   route "device" with the IEEE as first path segment, and zha-device-page.ts with the tabs "clusters" (manage:
 //   attributes, commands), "bindings", "signature" (Zigbee info) and, for routers, "neighbors"; the device page's own
 //   ZHA actions link to /config/zha/device/<ieee>/clusters (src/panels/config/devices/device-detail/integration-
@@ -18,11 +18,6 @@
 /** Home Assistant's device page. */
 export const devicePagePath = (registryId) => `/config/devices/device/${encodeURIComponent(registryId)}`;
 
-/** ZHA's own page of a device, on one of its tabs ("signature" is the Zigbee info, "clusters" the management). The
- *  IEEE goes in with its colons, as the frontend writes it: the page reads the path segment as it is, so an encoded
- *  colon would name no device. The model's ids are validated EUI-64s (model/parse.js), nothing else reaches here. */
-export const zhaDevicePath = (ieee, tab = "signature") => `/config/zha/device/${ieee}/${tab}`;
-
 export const areaPath = (areaId) => `/config/areas/area/${encodeURIComponent(areaId)}`;
 
 const withEntities = (base, entityIds) => `${base}?${new URLSearchParams({ entity_id: entityIds.join(",") })}`;
@@ -34,13 +29,13 @@ export const historyPath = (entityIds) => withEntities("/history", entityIds);
 export const entitiesPath = (registryId) => `/config/entities?${new URLSearchParams({ device: registryId })}`;
 
 /** The links of the Entity tab for a device: [{ key, path }] in the board's order; a link whose target is unknown
- *  (no registry entry, no area, no entities) is left out. capabilities: the network's (spec 4.6); `devicePage` says
- *  the source has its own device page (ZHA's). */
-export function deviceLinks(device, capabilities) {
+ *  (no registry entry, no area, no entities) is left out. sourcePage: the source's own page of the device, { key,
+ *  path }, from its adapter (ZHA's; adapters/index.js devicePage), or null. */
+export function deviceLinks(device, sourcePage = null) {
   const ids = Array.isArray(device.entities) ? device.entities : [];
   const out = [];
   if (device.registryId) out.push({ key: "device", path: devicePagePath(device.registryId) });
-  if (capabilities && capabilities.devicePage) out.push({ key: "zha", path: zhaDevicePath(device.id, "signature") });
+  if (sourcePage) out.push(sourcePage);
   if (device.areaId) out.push({ key: "area", path: areaPath(device.areaId) });
   if (ids.length) out.push({ key: "logbook", path: logbookPath(ids) }, { key: "history", path: historyPath(ids) });
   if (device.registryId) out.push({ key: "entities", path: entitiesPath(device.registryId) });

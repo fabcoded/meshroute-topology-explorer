@@ -22,14 +22,15 @@ globalThis.Node = FakeNode;
 globalThis.document = { createElement: (tag) => new FakeNode(tag), createElementNS: (ns, tag) => new FakeNode(tag),
   createTextNode: (text) => ({ text }) };
 
-const { openClusterDialog } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/cluster-dialog.js");
+const { openClusterDialog } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js");
 const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
 
 function open(callWS) {
   const root = new FakeNode("div");
   const t = translator("en");
   const dlg = openClusterDialog({ root, t, device: { id: "aa:bb:cc:dd:00:00:00:08", label: "Router 03", entities: [] },
-    endpoint: 1, profile: 0x0104, cluster: 0x0006, direction: "in", states: () => ({}), callWS, opener: null });
+    endpoint: 1, profile: 0x0104, cluster: 0x0006, direction: "in", states: () => ({}), callWS, opener: null,
+    devicePage: (d, tab) => ({ key: "zha", path: `/config/zha/device/${d.id}/${tab}` }) });
   return { all: dlg.el.walk(), t };
 }
 

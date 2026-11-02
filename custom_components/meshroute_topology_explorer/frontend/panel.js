@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Entry module of the Meshroute Topology Explorer panel: the quality view of a ZHA network (spec 6-11). Home
+// Entry module of the Meshroute Topology Explorer panel: the quality view of a Zigbee or Thread network (spec 6-11). Home
 // Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
 // Layout (spec 9.1; design by Fabian Schwamborn, 2026-11-01, "one place per thing"): no header bar; the map fills the
 // panel. On the map only: top left "Devices" with the findings count and below it the slide switch "Details on click"
@@ -7,21 +7,21 @@
 // the status line. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide
 // screens and bottom sheets on narrow ones (one sheet at a time).
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
-// Data: ui/controller.js (load, errors, reconnect); settings: ui/settings.js; observations ("observed unchanged
-// since", spec 6): ui/observations-client.js; the scan in debug mode: ui/scan.js; map: graph/graph-view.js.
+// Data: ui/controller.js (load, errors, reconnect) over the adapters (adapters/index.js); settings: ui/settings.js;
+// the meaning of the network: its engine (engines/index.js); observations ("observed unchanged since", spec 6) and the
+// scan in debug mode: the source's adapter, where it has them; map: graph/graph-view.js.
 // Only the websocket commands of spec 3.4 are used: read-only ones, the user-started scan and the user-started reading
-// of a cluster's attributes (ui/cluster-dialog.js). Entity states and area names come from the hass object Home
+// of a cluster's attributes (the Zigbee engine's cluster dialog). Entity states and area names come from the hass object Home
 // Assistant hands every panel (hass.states, hass.areas). Names are always set as text, never as HTML.
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";
 import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
-import { normalizeIeee, KINDS } from "./model/index.js";
+import { normalizeIeee } from "./model/parse.js";
+import { KINDS } from "./graph/symbols.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
-import { sendScan } from "./adapters/zha.js";
+import { ADAPTERS, adapterFor } from "./adapters/index.js";
 import { engineFor } from "./engines/index.js";
-import { ObservationsClient } from "./ui/observations-client.js";
-import { ScanFollower, tablesDiffer } from "./ui/scan.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
@@ -37,7 +37,6 @@ import { badgeCount } from "./ui/findings.js";
 import { ageParts } from "./ui/status.js";
 import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
   from "./ui/network-switch.js";
-import { openClusterDialog } from "./ui/cluster-dialog.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
 import { h, iconButton } from "./ui/dom.js";
@@ -60,7 +59,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._ui = null;
     this._view = null;
     this._settings = null;
-    this._networkKey = null; // the network the user chose ("zha" | "thread"; ui/network-switch.js), null: default
+    this._networkKey = null; // the network the user chose (an adapter's key; ui/network-switch.js), null: default
     this._networkMenu = false; // the status line's network menu is open
     this._choice = "unread"; // the stored choice: "unread", "reading", "read"
     this._source = null; // the model's network as loaded
@@ -73,7 +72,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
     this._info = { density: false, reload: false, heard: false, colors: false, assumed: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
-    this._cluster = null; // the open cluster dialog, if any
+    this._dialog = null; // the dialog an engine's Details opened (Zigbee: a cluster's details), if any
     this._dirty = new Set();
     this._connection = "ok";
     this._controller = new PanelController();
@@ -110,8 +109,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       if (this._ui) requestAnimationFrame(() => this._applyTheme());
     }
     this._controller.setHass(value);
-    // An open cluster dialog shows entity states as current values: they follow the house.
-    if (this._cluster) this._cluster.refresh();
+    // An open dialog (a cluster's details) shows entity states as current values: they follow the house.
+    if (this._dialog) this._dialog.refresh();
   }
   get hass() { return this._hass; }
 
@@ -254,13 +253,15 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     const net = this._chosen(st);
     if (!this._versionMismatch() && st.phase === "ready" && this._choice !== "reading" && net && net !== this._source) {
-      this._useNetwork(net, net === (st.networks ? st.networks.zha : st.network) ? st.raw : []);
+      // The raw answer belongs to the first network read (the controller's `network`).
+      this._useNetwork(net, net === st.network ? st.raw : []);
       return; // _useNetwork renders when the settings are in
     }
     this._render();
   }
 
-  /** The network to show from the controller's state: the chosen one, if it can be shown, else ZHA, else Thread. */
+  /** The network to show from the controller's state: the chosen one, if it can be shown, else the first adapter's
+   *  (ZHA), else the next (Thread). */
   _chosen(st) {
     if (!st.networks) return st.network;
     const key = activeNetwork(networkChoices(st), this._networkKey || DEFAULT_NETWORK);
@@ -270,7 +271,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   /** Switch the network (board Variant A): clears the selection, keeps the panels on their tab, stores the choice. */
   _chooseNetwork(key) {
     this._networkMenu = false;
-    if (key === this._networkKey && this._source && this._source.source === key) { this._render(); return; }
+    if (key === this._networkKey && this._source && adapterFor(this._source).key === key) { this._render(); return; }
     this._networkKey = key;
     if (this._hass) saveNetworkChoice((msg) => this._hass.callWS(msg), key);
     this._select(null, "devices");
@@ -286,7 +287,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._raw = new Map((raw || []).map((d) => [normalizeIeee(d && d.ieee), d]));
     if (!this._settings || this._settings.network !== network.id) {
       if (this._settings) this._settings.dispose();
-      const client = new SettingsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
+      // The network engine sanitizes its own keys; the shell keeps everything else verbatim.
+      const client = new SettingsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id,
+        engineSettings: engineFor(network).settings });
       client.addEventListener("change", () => this._onSettings());
       this._settings = client;
       this._settingsStale = false;
@@ -304,6 +307,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._network = localize(network, this._t, this._areas());
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
     this._ensureView();
+    // The new network's engine reads its own keys of the new settings (another engine's stay unread).
+    this._view.setEngineView(this._engineView());
     this._view.setNetwork(this._network, { pinned: pinsForView(this._settings.settings.pins) });
     this._devicesTab.setNetwork(this._network, this._t);
     this._devicesTab.setSelected(this._selected);
@@ -317,7 +322,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     let client = this._observations;
     if (!client || client.network !== network.id) {
       if (client) client.dispose();
-      client = new ObservationsClient({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
+      client = new (adapterFor(network).Observations)({ callWS: (msg) => this._hass.callWS(msg), network: network.id });
       client.addEventListener("change", () => { this._dirty.add("details").add("view"); });
       this._observations = client;
       this._observationsStale = false;
@@ -333,8 +338,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) return;
     const s = this._settings.settings;
     const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
-      debug: this._debug, paths: s.paths, heard: s.heard, returnRoutes: s.returnRoutes, sourceRoute: s.sourceRoute,
-      receptionColors: s.pathColors.mode === "coloured",
+      debug: this._debug, engineView: this._engineView(), receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
@@ -353,10 +357,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) {
       this._view.setDensity(DENSITY[s.density]);
       this._view.setFill(s.fill);
-      this._view.setPaths(s.paths);
-      this._view.setHeard(s.heard);
-      this._view.setReturnRoutes(s.returnRoutes);
-      this._view.setSourceRoute(s.sourceRoute);
+      if (this._network) this._view.setEngineView(this._engineView());
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
       this._view.setReceptionStops(stopsOf(s.pathColors));
       this._view.setLabels(s.labels);
@@ -422,7 +423,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const sr = status.right;
     // The source part is the network switch when there is more than one network (ui/network-switch.js).
     const choices = networkChoices(this._controller.state);
-    const source = sourcePart({ t, choices, active: net.source, open: this._networkMenu, compact,
+    const source = sourcePart({ t, choices, active: adapterFor(net).key, open: this._networkMenu, compact,
       onToggle: (open) => {
         this._networkMenu = open;
         this._renderStatus();
@@ -465,6 +466,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       leftOpen: this._left.isOpen });
   }
 
+  /** The network engine's own settings, for the map (GraphView.setEngineView): the keys it owns, as stored. */
+  _engineView() {
+    const s = this._settings.settings;
+    return Object.fromEntries(engineFor(this._network).settings.keys.map((key) => [key, s[key]]));
+  }
+
   /** "Details on click": as stored, else by width (spec 9.2). */
   _openOnSelect() {
     return openOnSelect(this._settings ? this._settings.settings.openDetailsOnSelect : null, this._wide);
@@ -486,8 +493,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _renderMessage(phase, detail) {
     const ui = this._ui;
     const t = this._t;
-    const kind = { not_admin: "warn", zha_not_loaded: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
-    const retry = ["zha_not_loaded", "no_devices", "error"].includes(phase);
+    // A source the panel cannot read yet (its adapter's blocking phase, e.g. its integration not loaded) is a warning
+    // with a retry, like no devices.
+    const blocked = ADAPTERS.some((a) => a.blocking === phase);
+    const kind = blocked ? "warn"
+      : { not_admin: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
+    const retry = blocked || ["no_devices", "error"].includes(phase);
     const reload = phase === "version";
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
@@ -520,7 +531,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
-          onCluster: (spec, opener) => this._openCluster(spec, opener),
+          devicePage: adapterFor(this._network).devicePage,
+          openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
       } else if (d.tab === "findings") {
@@ -672,14 +684,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
   }
 
-  /** The details of one cluster of the selected device (spec 9.2, board M10), a modal dialog. */
-  _openCluster(spec, opener) {
-    const device = this._device(this._selected);
-    if (!device || !this._hass) return;
-    if (this._cluster) this._cluster.close();
-    this._cluster = openClusterDialog({ root: this._ui.app, t: this._t, device, ...spec, opener,
-      states: () => this._hass && this._hass.states, callWS: (msg) => this._hass.callWS(msg),
-      onClose: () => { this._cluster = null; } });
+  /** A modal dialog an engine's Details open (Zigbee: one cluster's details, spec 9.2, board M10): open(host) builds it
+   *  in the panel's root with Home Assistant's states and websocket and returns { close, refresh }. One at a time. */
+  _openDialog(open) {
+    if (!this._hass) return;
+    if (this._dialog) this._dialog.close();
+    this._dialog = open({ root: this._ui.app, states: () => this._hass && this._hass.states,
+      callWS: (msg) => this._hass.callWS(msg), onClose: () => { this._dialog = null; } });
   }
 
   /** Area names from the hass object (hass.areas: id -> { name }), where Home Assistant provides it. */
@@ -704,11 +715,14 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       confirm: t("scan.confirm"), cancel: t("scan.cancel"), opener });
     if (!ok || !this._source) return;
     if (!this._scan) {
+      // The scan is the source's own (capabilities.scan; adapters/index.js scan: send, follow, compare tables).
+      const adapter = adapterFor(this._source);
       const raws = new WeakMap();
-      this._scan = new ScanFollower({
-        send: () => sendScan(this._hass),
+      this._scan = new adapter.scan.Follower({
+        send: () => adapter.scan.send(this._hass),
         read: async () => {
-          const result = await readNetwork(this._hass, { matter: false }); // the scan follows ZHA only
+          // The scan follows its own source only: no other source is read every 15 seconds.
+          const result = await readNetwork(this._hass, { keys: [adapter.key] });
           if (result.phase !== "ready") return null;
           raws.set(result.network, result.raw);
           return result.network;
@@ -717,7 +731,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._scan.addEventListener("read", (e) => {
         // Only a re-read whose tables differ reaches the map: no new layout every 15 seconds for nothing.
         const network = e.detail.network;
-        if (tablesDiffer(this._source, network)) this._controller.adopt(network, raws.get(network));
+        if (adapter.scan.differ(this._source, network)) this._controller.adopt(network, raws.get(network));
       });
       this._scan.addEventListener("change", () => {
         const status = this._scan.state.status;
