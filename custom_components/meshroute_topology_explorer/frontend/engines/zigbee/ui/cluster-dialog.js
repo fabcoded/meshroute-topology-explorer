@@ -21,7 +21,7 @@ const FOCUSABLE = "button:not([disabled]), a[href], input:not([disabled]), [tabi
 
 /** Open the dialog. ctx: { root (element to attach to, inside the shadow root), t, device (model Device), endpoint,
  *  profile, cluster, direction ("in" | "out"), states() (hass.states now), callWS, opener (focused afterwards),
- *  onClose(), timers, timeoutMs, devicePage(device, tab) (the source's own page of the device, its adapter's; none:
+ *  onClose(), timers, timeoutMs, radioActions (false hides the read row), devicePage(device, tab) (the source's own page of the device, its adapter's; none:
  *  no "Manage" link) }. Returns { el, refresh() (entity states changed), close(), read() (as the button) }. */
 export function openClusterDialog(ctx) {
   const { t, device, cluster, direction } = ctx;
@@ -73,7 +73,8 @@ export function openClusterDialog(ctx) {
     h("p", { id: `${id}-about`, class: "about", text: sentence }),
     h("div", { class: "attr-block" }, h("h3", { class: "card-title", text: t("attr.title") }),
       // The read row sits directly above the table so that nobody has to scroll to see that values can be read.
-      h("div", { class: "read-row" },
+      // The option "Allow radio actions" off (ctx.radioActions false, spec 10.1) leaves out the read row.
+      ctx.radioActions === false ? null : h("div", { class: "read-row" },
         h("div", { class: "read-line" }, readButton, live),
         h("span", { class: "small muted", text: t("read.note") }),
         device.sleepy === true ? h("span", { class: "small warn-text", text: t("read.sleepy") }) : null),
@@ -111,7 +112,7 @@ export function openClusterDialog(ctx) {
 
   /** Read the attributes of the device's side once (the user pressed the button). */
   async function read() {
-    if (reading || closed || !readable.length || vendorSpecific) return;
+    if (reading || closed || ctx.radioActions === false || !readable.length || vendorSpecific) return;
     reading = true;
     results.clear();
     let done = 0;

@@ -47,13 +47,17 @@ class IntegrationFilesTest(unittest.TestCase):
         for required in ("version", "documentation", "issue_tracker", "codeowners"):
             self.assertIn(required, keys)
 
-    def test_translations_have_same_keys(self):
-        def keys(d, prefix=""):
-            return {f"{prefix}{k}" for k, v in d.items() if not isinstance(v, dict)} | {
-                key for k, v in d.items() if isinstance(v, dict) for key in keys(v, f"{prefix}{k}.")}
-        en, de = (keys(load(COMP / "translations" / f"{x}.json")) for x in ("en", "de"))
-        self.assertEqual(en, de)
-        self.assertIn("config.step.user.title", en)
+    def test_translations_are_english_and_name_every_option_and_error(self):
+        """English only (owner decision 2026-11-02). Every form field and error code of the options flow has a text."""
+        folder = COMP / "translations"
+        self.assertEqual([p.name for p in folder.iterdir()], ["en.json"])
+        en = load(folder / "en.json")
+        self.assertIn("title", en["config"]["step"]["user"])
+        init = en["options"]["step"]["init"]
+        self.assertEqual(set(init["data"]), {"sidebar", "radio_actions"})
+        self.assertEqual(set(init["sections"]["history"]["data"]),
+                         {"record", "record_hours", "keep_days", "confirm_short", "delete_history"})
+        self.assertEqual(set(en["options"]["error"]), {"hours_range", "days_range", "hours_short"})
 
     def test_hacs_json(self):
         h = load(ROOT / "hacs.json")

@@ -153,7 +153,7 @@ The panel and the integration call only these commands; `tools/guard.py` enforce
 | `zha/devices` | devices and tables | v1 |
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
-| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only) | v1 |
+| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), reception history (10.2, read only) | v1 |
 | `matter/network_topology` with `refresh: false` | Thread topology, cached snapshot (3.2) | v1.1 preview |
 | `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
@@ -164,7 +164,8 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 `thread/get_dataset*`, `thread/set_*`, `matter/set_*`, `matter/commission*`, `matter/open_commissioning_window`,
 `zha/devices/permit`, other `zha/devices/clusters/*` commands, `zha/devices/bind`, `zha/devices/unbind`,
 `zha/groups/*`, `zha/configuration/*`, and ZHA services that write attributes, issue cluster commands or bind. The
-integration's Python reads from zigpy only IEEE address, network address and relays per device; network settings,
+integration's Python reads from zigpy only IEEE address, network address and relays per device, and, for the reception
+history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other; network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
 
 ## 4. Data model [v1]
@@ -840,6 +841,51 @@ again when the connection is back.
   and stops drawing when hidden.
 - Texts in English only: one flat table per part, merged in `ui/i18n.js`. Dates and numbers follow the user's Home
   Assistant locale.
+
+### 10.1 Options [v1]
+
+"Configure" on the integration (Settings > Devices & services; administrators only) opens one form; saving reloads the
+config entry, never Home Assistant. Stored in the entry's options (defaults apply to missing keys).
+
+| Option | Default | Effect |
+|---|---|---|
+| Show in the sidebar (administrators) | on | Off: the panel is not registered (removed on reload); the websocket commands stay. |
+| Allow radio actions (scan, attribute reads) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
+| Record reception values | on | Off stops recording; records stay until they expire. |
+| Record every (hours) | 3 | 1 to 24, else refused with the range. Under 3: the form comes back with a field error (ZHA reads its tables only every 4 h by default, so most records repeat the last values; finer needs a shorter ZHA scan period = more radio traffic) and a box "Record more often than every 3 hours anyway"; only a ticked resubmit saves. |
+| Keep for (days) | 30 | 1 to 90, else refused with the range. |
+| Delete the recorded history | off | Acts on Submit (when the form is valid), not stored. |
+
+### 10.2 Reception history [v1]
+
+Records the reception values over time (board M33/M34 option A), in the integration's own files, never in the recorder
+or statistics. Every interval (first one 60 s after setup) it takes what ZHA and the Matter server already hold and never
+starts a scan or writes to a network: the registered handlers of `zha/devices` and `matter/network_topology`
+(`refresh: false`) are called in-process (`hass.data["websocket_api"][command]`, exactly these two). Zigbee adds zigpy's
+route records (`zigpy_routes.read_routes`, in memory). Fragile parts: that registry layout and handler calling convention
+(core-internal) and the zigpy reader; any mismatch is logged once per change, shown as `last_error` by `history/info`, and
+writes nothing for that source (a failed route-record read still writes the rest). Unavailable devices' tables are skipped
+(stale). A network without table entries and routes is not recorded.
+
+- **Files:** `/config/.storage/meshroute_topology_explorer_history/<network id, URL-quoted>.<UTC day>.jsonl`, append only,
+  one file per network and day; writing and reading run in the executor. Lines: `{"k":[keys]}` extends the file's key
+  table; `{"t":epoch,"e":[[receiver,sender,lqi(,rssi)]],"r":[[holder,destination,next hop,status]],"l":[[device,[relays]]]}`
+  is a record (`r`, `l` left out when empty); `{"t":epoch}` alone repeats the previous record. The first record of a file is
+  full. Keys: IEEE (Zigbee), the Thread adapter's key (extended address, else `thread:<node id>`); a network address no
+  device holds stays text (`0x2B82`). Receiver = the device whose table reports the value (it hears the sender). Status =
+  ZHA's route status text.
+- **Dedupe:** the whole record (neighbours, routes, relays) is compared with the previous one, kept in memory per network
+  (restored from today's file after a restart).
+- **Retention:** day files that ended more than "Keep for" days ago are deleted (also while recording is off). Removing the
+  integration deletes the folder; turning recording off does not.
+- **Size:** the owner's Zigbee network (47 devices, 649 neighbour entries, 153 routing entries) is about 10 KB per full
+  record (about 7 KB for the neighbour entries), so at most about 2.4 MB for 30 days at 3 h with every record changed;
+  unchanged records cost a line.
+- **Commands (administrators):** `meshroute_topology_explorer/history/series` (`network`, `sender`, `receiver`, `since`
+  epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table
+  value for the sender, and the reverse; a record without the entry gives no point); `history/records` (`network`, `since`,
+  optional `until`) returns `{k, records}` in the file format with one key table over the range, the first record full;
+  `history/info` returns `{records, first, last, bytes, last_error}`. No UI yet.
 
 ## 11. Settings per network [v1]
 

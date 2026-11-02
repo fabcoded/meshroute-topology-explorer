@@ -25,7 +25,8 @@ class CommandsTest(unittest.TestCase):
         self.addCleanup(sys.path.remove, root)
         self.comp = ha_stubs.load()
         self.hass = ha_stubs.FakeHass()
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
+        self.entry = ha_stubs.FakeEntry()
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
         self.n = 0
 
     def call(self, command, admin=True, **fields):
@@ -161,7 +162,7 @@ class CommandsTest(unittest.TestCase):
 
     def test_commands_survive_unload(self):
         self.call("settings/set", network="a", settings={"s": 1})
-        ha_stubs.run(self.comp.async_unload_entry(self.hass, None))
+        ha_stubs.run(self.comp.async_unload_entry(self.hass, self.entry))
         self.assertEqual(self.call("settings/get", network="a")[0][0][1], {"settings": {"s": 1}})
         self.assertEqual(len(ha_stubs.FakeStore.instances), 1)
 

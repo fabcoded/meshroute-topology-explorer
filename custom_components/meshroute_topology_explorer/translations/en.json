@@ -6,5 +6,45 @@
         "description": "Adds a read-only map of your Zigbee network to the sidebar. Nothing needs to be configured."
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Meshroute Topology Explorer Options",
+        "description": "Changes take effect when you save; Home Assistant itself is not restarted.",
+        "data": {
+          "sidebar": "Show in the sidebar (administrators)",
+          "radio_actions": "Allow radio actions (scan, attribute reads)"
+        },
+        "data_description": {
+          "sidebar": "Off removes the panel from the sidebar and from the address /meshroute-topology.",
+          "radio_actions": "Off hides the scan button and the attribute read in the panel. It is a switch of this panel, not a lock: ZHA's own pages still offer both."
+        },
+        "sections": {
+          "history": {
+            "name": "Reception history",
+            "description": "Records the reception values of the neighbour tables that ZHA and the Matter server already hold. It never starts a scan. ZHA reads its tables only every 4 hours by default.",
+            "data": {
+              "record": "Record reception values",
+              "record_hours": "Record every (hours)",
+              "keep_days": "Keep for (days)",
+              "confirm_short": "Record more often than every {recommended} hours anyway",
+              "delete_history": "Delete the recorded history"
+            },
+            "data_description": {
+              "record_hours": "{hours_range} hours.",
+              "keep_days": "{days_range} days; older records are deleted.",
+              "confirm_short": "Only needed for an interval under {recommended} hours.",
+              "delete_history": "Deletes all records when you save. Not kept as a setting."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "hours_range": "The interval must be {hours_range} hours.",
+      "days_range": "The retention must be {days_range} days.",
+      "hours_short": "More often than every {recommended} hours: ZHA reads its tables only every 4 hours by default, so most records repeat the last values. A finer history needs a shorter scan period in ZHA, and every scan asks each router for its tables: more radio traffic in the whole network. Tick the box to record every {hours} hours anyway."
+    }
   }
 }

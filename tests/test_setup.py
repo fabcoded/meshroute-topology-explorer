@@ -22,22 +22,24 @@ class SetupTest(unittest.TestCase):
         self.addCleanup(sys.path.remove, self.root)
         self.comp = ha_stubs.load()
         self.hass = ha_stubs.FakeHass()
+        self.entry = ha_stubs.FakeEntry()
 
     def test_first_setup_registers_everything(self):
-        self.assertTrue(ha_stubs.run(self.comp.async_setup_entry(self.hass, None)))
+        self.assertTrue(ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry)))
         self.hass.http.async_register_static_paths.assert_awaited_once()
         self.assertEqual(len(self.rec.panels), 1)
         panel = self.rec.panels[0]
         self.assertEqual(panel["frontend_url_path"], "meshroute-topology")
         self.assertTrue(panel["require_admin"])
-        self.assertEqual(panel["config"], {"version": ha_stubs.load(".const").VERSION})
+        self.assertEqual(panel["config"], {"version": ha_stubs.load(".const").VERSION, "radio_actions": True})
         self.assertEqual(sorted(self.rec.commands), [
+            "meshroute_topology_explorer/history/info", "meshroute_topology_explorer/history/records", "meshroute_topology_explorer/history/series",
             "meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set",
             "meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set",
             "meshroute_topology_explorer/zigpy_routes"])
 
     def test_panel_and_static_path_details(self):
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
         url, path, cache = self.hass.http.async_register_static_paths.await_args.args[0][0]
         # the content hash of the frontend folder is the last path segment, so caching is safe
         self.assertEqual(url, "/meshroute_topology_explorer/" + self.comp.frontend_hash(Path(path)))
@@ -48,18 +50,18 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(panel["module_url"], f"{url}/panel.js")
 
     def test_unload_removes_panel_only(self):
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
-        self.assertTrue(ha_stubs.run(self.comp.async_unload_entry(self.hass, None)))
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
+        self.assertTrue(ha_stubs.run(self.comp.async_unload_entry(self.hass, self.entry)))
         self.assertEqual(self.rec.removed, ["meshroute-topology"])
 
     def test_reload_registers_panel_again_but_static_path_and_commands_once(self):
         for _ in range(2):
-            ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
-            ha_stubs.run(self.comp.async_unload_entry(self.hass, None))
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
+            ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
+            ha_stubs.run(self.comp.async_unload_entry(self.hass, self.entry))
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
         self.assertEqual(self.hass.http.async_register_static_paths.await_count, 1)
         self.assertEqual(len(self.rec.panels), 3)
-        self.assertEqual(len(self.rec.commands), 5)
+        self.assertEqual(len(self.rec.commands), 8)
 
     def test_reload_after_changed_panel_files_serves_a_new_path_once(self):
         """Ships a frontend update without a restart: new hash, new static path, panel under the new URL."""
@@ -67,12 +69,12 @@ class SetupTest(unittest.TestCase):
             folder = Path(tmp)
             write_files(folder, {"panel.js": "export {};\n", "ui/style.js": "a\n"})
             with mock.patch.object(self.comp, "FRONTEND_DIR", folder):
-                ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
-                ha_stubs.run(self.comp.async_unload_entry(self.hass, None))
+                ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
+                ha_stubs.run(self.comp.async_unload_entry(self.hass, self.entry))
                 write_files(folder, {"ui/style.js": "b\n"})
-                ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
-                ha_stubs.run(self.comp.async_unload_entry(self.hass, None))
-                ha_stubs.run(self.comp.async_setup_entry(self.hass, None))  # unchanged: no third path
+                ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
+                ha_stubs.run(self.comp.async_unload_entry(self.hass, self.entry))
+                ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))  # unchanged: no third path
         calls = self.hass.http.async_register_static_paths.await_args_list
         urls = [call.args[0][0][0] for call in calls]
         self.assertEqual(len(urls), 2)

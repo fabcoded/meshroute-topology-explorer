@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Options:** "Configure" on the integration (administrators) offers: show in the sidebar, allow radio actions (off hides
+  the scan control and the attribute read in the panel; a panel switch, not a lock), and a reception history. Saving
+  reloads the integration, not Home Assistant.
+- **Reception history:** records the neighbour-table values (Zigbee LQI; Thread LQI and RSSI), Zigbee routing entries and
+  route records every 3 hours (1 to 24) from what ZHA and the Matter server already hold, never starting a scan, in the
+  integration's own day files (kept 30 days, 1 to 90). Interval under 3 hours needs a confirmation. New administrator
+  commands `history/series`, `history/records`, `history/info`; no display yet. English translations only.
 - **Status pill:** the status line at the bottom is now a pill floating at the bottom centre of the map: a round arrow
   button, the network's name over its data state ("29/29 router tables · unchanged since 15:50"), and a dot last (green:
   all tables read; amber: something missing or old; red: connection lost). It is the network menu; the menu also holds

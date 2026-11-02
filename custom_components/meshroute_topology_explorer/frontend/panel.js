@@ -235,6 +235,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   // ---- state ---------------------------------------------------------------------------------------------------
 
+  /** The integration's option "Allow radio actions" (panel config, spec 10.1): off hides the scan control and the
+   *  attribute read. A switch of this panel, not a lock: ZHA's own pages offer both. Absent (dev page) means allowed. */
+  _radioActions() {
+    return !(this._panel && this._panel.config && this._panel.config.radio_actions === false);
+  }
+
   _versionMismatch() {
     return versionMismatch(this._panel, VERSION);
   }
@@ -527,7 +533,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
-          devicePage: adapterFor(this._network).devicePage,
+          devicePage: adapterFor(this._network).devicePage, radioActions: this._radioActions(),
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
@@ -541,7 +547,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         // source has one.
         keepFocus(this._root, panel, () => renderView(panel, { t, canSettings: this._isAdmin(), settings: this._settings.settings,
           groups: engineFor(this._network).options(this._network, this._settings.settings),
-          canScan: Boolean(this._network.capabilities.scan),
+          canScan: Boolean(this._network.capabilities.scan) && this._radioActions(),
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",
