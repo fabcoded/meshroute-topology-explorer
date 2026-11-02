@@ -12,7 +12,7 @@ import { engineFor } from "../engines/index.js";
 
 /** One read of the networks through hass.callWS, one adapter per data source (adapters/index.js), in their order.
  *  Returns { phase, network?, raw?, networks?: { <adapter key>: network | null }, reads?: { <adapter key>: the
- *  adapter's read }, message? }; never throws. `network` is the first adapter's network that could be read; the
+ *  adapter's read }, registriesFailed?, message? }; never throws. `network` is the first adapter's network that could be read; the
  *  panel picks which of `networks` it shows (ui/network-switch.js). keys: read only these adapters, the others are
  *  "skipped" (the scan's re-reads follow their own source only). Without any network the phase is the first blocked
  *  adapter's (its own key, e.g. ZHA not loaded), else "no_devices". */
@@ -20,8 +20,14 @@ export async function readNetwork(hass, { keys = null } = {}) {
   try {
     // The adapters' commands are admin only, so the cheap check comes first and nothing is sent without it.
     if (!(hass.user && hass.user.is_admin)) return { phase: "not_admin" };
-    // Names and areas are a nicety: without the registries the models fall back to the integrations' own names.
-    const optional = (type) => hass.callWS({ type }).catch((err) => { if (isConnectionLost(err)) throw err; return []; });
+    // Names and areas are a nicety: without the registries the models fall back to the integrations' own names, and
+    // the status line says so (registriesFailed).
+    let registriesFailed = false;
+    const optional = (type) => hass.callWS({ type }).catch((err) => {
+      if (isConnectionLost(err)) throw err;
+      registriesFailed = true;
+      return [];
+    });
     let registries = null;
     const readRegistries = async () => {
       if (!registries) {
@@ -39,7 +45,7 @@ export async function readNetwork(hass, { keys = null } = {}) {
     const networks = Object.fromEntries(ADAPTERS.map((a) => [a.key, reads[a.key].network || null]));
     const first = ADAPTERS.find((a) => networks[a.key]);
     if (!first) return { phase: ADAPTERS.map((a) => reads[a.key].blocking).find(Boolean) || "no_devices", reads };
-    return { phase: "ready", network: networks[first.key], raw: reads[first.key].raw || [], networks, reads };
+    return { phase: "ready", network: networks[first.key], raw: reads[first.key].raw || [], networks, reads, registriesFailed };
   } catch (err) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
     return { phase: "error", message: errorText(err) };
@@ -69,7 +75,7 @@ export class PanelController extends EventTarget {
      *  down), raw (the shown source's own answer, for the Details' raw tables), reads (each adapter's read), message,
      *  connection "ok" | "lost", loading (a reload is running while the old picture stays). */
     this.state = { phase: "loading", network: null, raw: null, networks: null, reads: null, message: null,
-      connection: "ok", loading: false };
+      registriesFailed: false, connection: "ok", loading: false };
     this._token = 0;
     this._conn = null;
     this._onDisconnected = () => this._lost();
@@ -123,7 +129,8 @@ export class PanelController extends EventTarget {
       return;
     }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
-      networks: result.networks || null, reads: result.reads || null, message: result.message || null, loading: false });
+      networks: result.networks || null, reads: result.reads || null, message: result.message || null,
+      registriesFailed: result.registriesFailed === true, loading: false });
   }
 
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */

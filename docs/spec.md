@@ -584,6 +584,8 @@ One place per thing; nothing appears twice.
   data, connection lost, reading) between the top groups, or below them where that leaves less than 280 px. No header
   bar: the map fills the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are
   rounded, on the theme's surface with a light shadow, targets at least 44 px. View switch **[v1.1]**.
+- If the device or area registry cannot be read, the map keeps the integrations' own names and the status line adds
+  the part "Names and areas not read".
 - The status line's source-route stage (ZHA only) sits apart on its right: "Return paths assumed for 8 devices
   (source route)", "Source route off · 8 return paths unknown", "Source route from zigpy · 6 recorded, 2 assumed",
   "zigpy not available · 8 assumed" with the reason as description; nothing when no device is concerned or in the view

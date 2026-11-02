@@ -216,3 +216,15 @@ test("Devices search finds a Thread device by its RLOC16 and its extended addres
   assert.deepEqual(found("aa:bb:cc:dd:00:00:00:02"), ["2"], "extended address");
   assert.equal("nwk" in net.devices[0], false, "the RLOC16 is no Zigbee network address");
 });
+
+test("a failed registry read keeps the panel working and is reported for the status line", async () => {
+  const hass = fakeHass();
+  const failing = { ...hass, callWS: async (msg) => {
+    if (msg.type === "config/area_registry/list") throw { code: "home_assistant_error", message: "areas" };
+    return hass.callWS(msg);
+  } };
+  const bad = await readNetwork(failing);
+  assert.equal(bad.phase, "ready");
+  assert.equal(bad.registriesFailed, true);
+  assert.equal((await readNetwork(hass)).registriesFailed, false);
+});

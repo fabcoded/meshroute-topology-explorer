@@ -206,6 +206,7 @@ export const SHARED = Object.freeze({
   "legend.stages": "(views {a} and {b})",
   "legend.stage_computed": "(computed, view {n})",
   "legend.symbol_wired": "Plug only, no arcs: wired device",
+  "status.names_missing": "Names and areas not read",
   "status.network_menu": "Network: {source}. Choose another network",
   "status.network_unavailable": "{source} is not available: {reason}",
   "status.age_minutes": "{n} min ago",

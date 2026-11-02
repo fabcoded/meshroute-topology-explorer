@@ -415,7 +415,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     })() : null;
     const status = engineFor(net).status(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected,
       settings: this._settings ? this._settings.settings : null });
-    const parts = status.parts;
+    // The registries could not be read: the names and areas shown are the integrations' own.
+    const parts = this._controller.state.registriesFailed ? [...status.parts, ["status.names_missing", {}]] : status.parts;
     this._ui.status.classList.toggle("compact", compact);
     // The engine's part on the right (board M1: the source-route stage) sits apart.
     const sr = status.right;
