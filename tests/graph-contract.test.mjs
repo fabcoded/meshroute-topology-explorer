@@ -392,3 +392,30 @@ test("no value covers the label of the selected device, its lanes and values sta
   }
   env.flush();
 });
+
+test("no label covers a value of the selection's paths: a device on the paths keeps off it where it can", () => {
+  // A device on the paths is always labelled; with no free place its label took the first place, over a value drawn
+  // before it (a router lying on the lane to the coordinator hid "RX: 111", 2026-11-02). Before the change the sample
+  // had 10, 17 and 250 such values in the three views; now the label takes the place covering least of the values,
+  // and a value it still covers is drawn again on top.
+  const { view } = show();
+  const labels = new Set(view.scene.nodes.map((n) => n.label));
+  for (const paths of ["coordinator", "table", "all"]) {
+    view.setEngineView({ paths, returnRoutes: true, heard: paths === "table" });
+    let checked = 0;
+    for (let i = 0; i < view.scene.nodes.length; i++) {
+      view.selected = i;
+      view.ctx.calls.length = 0;
+      view.draw();
+      const { calls } = view.ctx;
+      for (const v of view.lastDraw.paths.values.filter((x) => x.drawn)) {
+        const at = calls.reduce((last, c, j) => (c[0] === "fillText" && c[1] === v.text && Math.abs(c[2] - v.x) < 0.5 ? j : last), -1);
+        const cover = calls.find((c, j) => j > at && c[0] === "fillText" && labels.has(c[1])
+          && Math.abs(c[2] - v.x) * 2 < labelWidth(c[1]) + 4 + v.w && Math.abs(c[3] - v.y) * 2 < 14 + v.height);
+        assert.ok(at >= 0 && !cover, `${paths}, ${view.scene.nodes[i].label}: "${v.text}" under "${cover && cover[1]}"`);
+        checked++;
+      }
+    }
+    assert.ok(checked > 200, `${paths}: ${checked} values checked`);
+  }
+});

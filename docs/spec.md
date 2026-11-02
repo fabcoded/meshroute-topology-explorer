@@ -503,6 +503,8 @@ mean the first and third view.
 **Node view on the map.** Each hop lies on the lane of its direction, dashed by its evidence and weighted by its role
 (Styles above), its width step by the hearer's rating where it measured the hop. Every hop carries
 its value: raw LQI at the hearer; "Parent" or "Route" where implied; "–" or "?" by the glyph rule.
+- The node view's lanes, glyphs and stems lie above the symbols (a lane ends outside its own two), so a device on a
+  lane's line never hides it; the band and the overview stay under the symbols (decision 2026-11-02).
 - An incomplete path ends at the device where its walk stopped with a short dashed stem towards its goal (right of
   that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown".
 - On a click (not hover) the up path also lies as a wide translucent band under its hops; in stage 2 it sets the way
@@ -595,7 +597,8 @@ user-supplied image or map tiles from a user-configured address.
     names 3 px below the symbol, each centred; (2) all 3 px below, centred; (3) all 3 px above, centred; (4) right of
     the symbol, 4 px from its edge, left-aligned, centred vertically; (5) the same on the left, right-aligned. Equal
     places (the name alone: 1 and 2) are tried once. Without a free place the block is left out, except for the
-    coordinator, the focus and every device on the focus's paths, which take the first place (overlap accepted).
+    coordinator and the focus, which take the first place, and every device on the focus's paths, which takes the place
+    covering least of the focus's values; a value it still covers is drawn again on top (overlap accepted).
 
 ## 9. Interaction [v1]
 

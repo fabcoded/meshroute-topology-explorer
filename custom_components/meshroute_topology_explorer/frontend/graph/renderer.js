@@ -4,8 +4,9 @@
 // its network engine gives it (engines/<type>/scene.js overview and focus; graph/links.js laneStyle), optionally
 // coloured by reception. The overview's lanes form a layer of their own, dimmed while something is in focus; a
 // selected device shows only its focus (its lanes with the reception at every hearer, a band under its way where the
-// engine gives one, unknown ends as dashed stems with "?") and dims the other devices; the device under the pointer
-// previews its focus within the overview; debug mode draws every lane with its value. Labels as canvas text placed
+// engine gives one, unknown ends as dashed stems with "?"; lanes, glyphs and stems above the symbols, the band under
+// them) and dims the other devices; the device under the pointer previews its focus within the overview; debug mode
+// draws every lane with its value. Labels as canvas text placed
 // around obstacles: a block of the device's type above the symbol, its readable name below and optionally the original
 // Home Assistant name under that (labels.js). Also hit testing, which shares the symbols' size. What a lane means is
 // the engine's; this module only indexes, draws and places. Pure except for the context passed in.
@@ -387,47 +388,6 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
   }
 
-  // The focus's lanes: each directed hop once, on the lane of its direction of travel, with the reception at its
-  // hearer; an incomplete path ends in a dashed stem towards its goal with "?" (unknown beats wrong).
-  const pathValues = [];
-  const ends = [];
-  if (route) {
-    ctx.globalAlpha = 1;
-    // The selection's way as a band under its lanes, where the engine gives one; hover previews without it.
-    if (selecting && route.band) drawBand(ctx, route.band, sx, sy, theme);
-    const items = [];
-    const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
-    for (const hop of hops) {
-      const { s, h, dir } = hop;
-      if (!segmentVisible(s, h)) continue;
-      const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
-      if (!lane) continue;
-      const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
-      items.push({ lane, style, key: styleKey(style), rank: hop.rank });
-      count(hop);
-      let text = engine.laneValue(dir, texts);
-      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1 });
-      pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
-        ref: t });
-    }
-    lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
-    if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
-    ctx.setLineDash(STEM.dash);
-    ctx.lineCap = "butt";
-    ctx.lineWidth = STEM.width;
-    ctx.strokeStyle = theme.foreground;
-    for (const end of pathEnds) {
-      const stem = stemGeometry(sx[end.at], sy[end.at], sx[end.toward], sy[end.toward], size, offset);
-      if (!stem) continue;
-      ctx.beginPath();
-      ctx.moveTo(stem.x0, stem.y0);
-      ctx.lineTo(stem.x1, stem.y1);
-      ctx.stroke();
-      ends.push({ ...end, x: stem.gx, y: stem.gy, ux: stem.ux, uy: stem.uy });
-    }
-  }
   ctx.setLineDash([]);
   ctx.lineCap = "butt";
   ctx.textAlign = "center";
@@ -437,6 +397,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     haloText(ctx, g.text, g.x, g.y, theme, theme.muted);
   }
   ctx.globalAlpha = 1;
+  // The selection's way as a band under its lanes and the symbols, where the engine gives one; hover previews without it.
+  if (route && selecting && route.band) drawBand(ctx, route.band, sx, sy, theme);
 
   // Devices: plain ones first, the devices on the focus's paths above them, the focus on top.
   const nodeOrder = [];
@@ -469,6 +431,55 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     drawSymbol(ctx, layers, x, y, size, dpr, { fill, stroke, slash: node.available && !value });
     symbols++;
   }
+
+  // The focus's lanes: each directed hop once, on the lane of its direction of travel, with the reception at its
+  // hearer; an incomplete path ends in a dashed stem towards its goal with "?" (unknown beats wrong). They lie above
+  // the symbols: a lane ends outside its own two symbols, so only a third device on its line is crossed, and it no
+  // longer hides the lane (a router between another and the coordinator read as the way up, 2026-11-02).
+  const pathValues = [];
+  const ends = [];
+  if (route) {
+    ctx.globalAlpha = 1;
+    const items = [];
+    const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
+    for (const hop of hops) {
+      const { s, h, dir } = hop;
+      if (!segmentVisible(s, h)) continue;
+      const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
+      if (!lane) continue;
+      const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
+      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
+      items.push({ lane, style, key: styleKey(style), rank: hop.rank });
+      count(hop);
+      let text = engine.laneValue(dir, texts);
+      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
+      const t = addValue(lane, text, { path: true, alpha: 1 });
+      pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
+        ref: t });
+    }
+    lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
+    const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
+    if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
+    ctx.setLineDash(STEM.dash);
+    ctx.lineCap = "butt";
+    ctx.lineWidth = STEM.width;
+    ctx.strokeStyle = theme.foreground;
+    for (const end of pathEnds) {
+      const stem = stemGeometry(sx[end.at], sy[end.at], sx[end.toward], sy[end.toward], size, offset);
+      if (!stem) continue;
+      ctx.beginPath();
+      ctx.moveTo(stem.x0, stem.y0);
+      ctx.lineTo(stem.x1, stem.y1);
+      ctx.stroke();
+      ends.push({ ...end, x: stem.gx, y: stem.gy, ux: stem.ux, uy: stem.uy });
+    }
+    ctx.setLineDash([]);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const g of glyphs.slice(firstGlyph)) haloText(ctx, g.text, g.x, g.y, theme, theme.muted);
+  }
+  ctx.setLineDash([]);
+  ctx.lineCap = "butt";
 
   // Text, in order of importance. A label block tries its places around its device and is left out if all would
   // cover another device or text already placed (the details list everything); the engine's anchors and the focus are
@@ -526,6 +537,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   // Label boxes of the focus devices (selected, hovered): no value may cover them. Values yield to them only.
   const protectedRects = [];
+  // The focus's values as drawn ({ rect, t }), and those a label had to cover: they are drawn again on top.
+  const valueRects = [];
+  const covered = new Set();
   const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
     * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
   const rectOf = (b) => ({ x: b.cx - b.line.w / 2, y: b.cy - b.line.h / 2, w: b.line.w, h: b.line.h });
@@ -537,7 +551,13 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const options = places(sx[i], sy[i], above.map(lineOf), below.map(lineOf));
     let spot = options.find((boxes) => boxes.every((b) => !placed.hits({ ...rectOf(b), owner: i }))) || null;
     if (!spot && !forced) { dropped++; return; }
-    if (!spot) spot = options[0];
+    if (!spot) {
+      // No free place: the place covering least of the focus's values (the first where none is placed yet), so a
+      // device lying on a lane keeps its label beside the lane's value where it can; a value it still covers wins.
+      const over = (boxes) => boxes.reduce((sum, b) => sum + valueRects.reduce((a, v) => a + overlapArea(rectOf(b), v.rect), 0), 0);
+      spot = options.reduce((best, boxes) => (over(boxes) < over(best) ? boxes : best));
+      for (const v of valueRects) if (spot.some((b) => overlapArea(rectOf(b), v.rect) > 0)) covered.add(v);
+    }
     ctx.globalAlpha = dimming && !near.has(i) ? DIM : 1;
     const isFocus = focusSet.has(i);
     for (const b of spot) {
@@ -557,6 +577,12 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
     ctx.globalAlpha = 1;
     shown++;
+  };
+  const drawValue = (t) => {
+    ctx.globalAlpha = t.alpha;
+    haloText(ctx, t.lines[0], t.x, t.y - LINE_HEIGHT / 2, theme, theme.muted);
+    haloText(ctx, t.lines[1], t.x, t.y + LINE_HEIGHT / 2, theme);
+    ctx.globalAlpha = 1;
   };
   const value = (t) => {
     let rect = null;
@@ -584,10 +610,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
     if (!rect) return false;
     placed.add(rect);
-    ctx.globalAlpha = t.alpha;
-    haloText(ctx, t.lines[0], t.x, t.y - LINE_HEIGHT / 2, theme, theme.muted);
-    haloText(ctx, t.lines[1], t.x, t.y + LINE_HEIGHT / 2, theme);
-    ctx.globalAlpha = 1;
+    if (t.path) valueRects.push({ rect, t });
+    drawValue(t);
     values++;
     return true;
   };
@@ -622,6 +646,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // position where lane values had taken every place): the values were placed first, so the block takes its first
   // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);
+  for (const v of covered) drawValue(v.t);
   if (labelsForAll(k, view.labelZoom)) {
     // Everyone else in the engine's label order (labelRank: the more central a role, the earlier).
     const rank = (i) => engine.scene.labelRank(scene.nodes[i]);
