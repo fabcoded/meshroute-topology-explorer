@@ -12,16 +12,16 @@
 // - Cluster: the signature's clusters per endpoint, a row opens the cluster's details (cluster-dialog.js).
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
-import { h } from "./dom.js";
+import { h } from "../../../ui/dom.js";
 import { detailsOf, howText, pathParts, stopText } from "./details.js";
-import { unknownEnd } from "../model/node-paths.js";
+import { unknownEnd } from "../node-paths.js";
 import { findingText } from "./finding-text.js";
-import { lqiText, percent, rankTooltip, roleText } from "./format.js";
-import { formatNwk } from "../model/parse.js";
-import { clusterTable, nodeCard } from "../model/signature.js";
-import { clusterName, deviceTypeName, profileName } from "../model/zcl.js";
+import { lqiText, percent, rankTooltip, roleText } from "../../../ui/format.js";
+import { formatNwk } from "../../../model/parse.js";
+import { clusterTable, nodeCard } from "../signature.js";
+import { clusterName, deviceTypeName, profileName } from "../zcl.js";
 import { rawText, RAW_COLUMNS } from "./raw-values.js";
-import { deviceLinks, inApp, moreInfo } from "./ha-links.js";
+import { deviceLinks, inApp, moreInfo } from "../../../ui/ha-links.js";
 
 /** The sub-tabs, in the board's order. */
 export const DETAIL_TABS = Object.freeze(["communication", "entity", "cluster"]);
@@ -377,7 +377,9 @@ function entity(panel, d, raw, ctx, capabilities) {
   panel.append(card(t("node.title"), h("div", { class: "chips" }, chips), h("div", { class: "kv-list" }, facts)));
 
   // The ways into Home Assistant (board M8), as links that stay in the app.
-  const links = deviceLinks(d, capabilities).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
+  // The source's own page of the device (ZHA's), where the source has one; the panel hands its adapter's builder.
+  const sourcePage = capabilities && capabilities.devicePage && ctx.devicePage ? ctx.devicePage(d, "signature") : null;
+  const links = deviceLinks(d, sourcePage).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
     key === "area" ? t("ha.area", { name: d.area || d.areaId }) : t(`ha.${key}`)));
   panel.append(card(t("ha.title"), links.length ? h("div", { class: "pills" }, links) : h("div", { class: "muted", text: t("ha.none") }),
     h("p", { class: "muted small", text: t("ha.note") })));

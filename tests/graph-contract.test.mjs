@@ -7,11 +7,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { theoreticalLanes, theoreticalPath }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/theoretical.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js";
 import { FakeCanvas, fakeEnv, labelWidth } from "./graph-fakes.mjs";
 
 const r = JSON.parse(readFileSync(new URL("./fixtures/zha-sample.json", import.meta.url), "utf8")).responses;
@@ -89,7 +89,7 @@ test("the overview per stage: up and down lanes; from 'all' the backbone of theo
   assert.equal(drawn.assumed, sc.counts.assumed, "assumed return paths, dotted");
   // Stage 2 (decision by Fabian Schwamborn, 2026-11-01): every lane any theoretical path uses, as a route where it is
   // not up or down, lighter where only a computed route discovery takes it.
-  view.setPaths("all");
+  view.setEngineView({ paths: "all" });
   env.flush();
   const bb = sceneBackbone(scene);
   const backbone = scene.lanes.filter((l) => bb.kind[l.index] && sc.cls[l.index] !== "up" && sc.cls[l.index] !== "down");
@@ -99,7 +99,7 @@ test("the overview per stage: up and down lanes; from 'all' the backbone of theo
   assert.equal(two.predicted, backbone.filter((l) => bb.kind[l.index] === "predicted").length);
   assert.equal(two.heard + two.none + view.lastDraw.glyphs, 0);
   // The heard option without a selection looks like stage 2: heard-only partners come on click.
-  view.setHeard(true);
+  view.setEngineView({ heard: true });
   env.flush();
   assert.deepEqual(view.lastDraw.classes, two);
   assert.equal(view.lastDraw.glyphs, 0);
@@ -141,11 +141,11 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
   const counts = {};
   for (const sourceRoute of ["assume", "off"]) {
     const { view, env } = show();
-    view.setSourceRoute(sourceRoute);
+    view.setEngineView({ sourceRoute: sourceRoute });
     for (const paths of ["coordinator", "all"]) {
       for (const heard of [false, true]) {
-        view.setPaths(paths);
-        view.setHeard(heard);
+        view.setEngineView({ paths: paths });
+        view.setEngineView({ heard: heard });
         env.flush();
         counts[`${sourceRoute} ${paths}${heard ? " + heard" : ""}`] = [view.lastDraw.lanes, view.lastDraw.glyphs];
       }
@@ -167,7 +167,7 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
 test("on click and hover the selection's own tree decides each hop's class: computed where only a discovery takes it", () => {
   const { view, env } = show();
   const { scene } = view;
-  view.setPaths("all");
+  view.setEngineView({ paths: "all" });
   const tally = {};
   for (const label of ["End device 06", "Router 13", "Router 11", "Coordinator"]) {
     const i = scene.nodes.findIndex((n) => n.label === label);
@@ -228,16 +228,16 @@ test("a stage or checkbox change redraws at once, with and without a selection (
   const r13 = scene.nodes.findIndex((n) => n.label === "Router 13");
   const steps = (selected) => {
     view.selected = selected;
-    view.setPaths("coordinator");
-    view.setHeard(false);
+    view.setEngineView({ paths: "coordinator" });
+    view.setEngineView({ heard: false });
     view.draw();
     const out = [];
     // [stage, heard]: stage 2, the checkbox on, stage 1, the checkbox off, the checkbox on, stage 2.
     for (const [stage, heard] of [["all", false], ["all", true], ["coordinator", true], ["coordinator", false],
       ["coordinator", true], ["all", true]]) {
       const before = view.lastDraw;
-      view.setPaths(stage);
-      view.setHeard(heard);
+      view.setEngineView({ paths: stage });
+      view.setEngineView({ heard: heard });
       env.flush(); // the next animation frame, nothing else
       assert.notEqual(view.lastDraw, before, `${stage} heard ${heard}: drawn again`);
       out.push(view.lastDraw.lanes);
@@ -257,7 +257,7 @@ test("a device on the selected device's paths keeps its label in a hub position 
   const { view, env } = show();
   const i = view.scene.nodes.findIndex((n) => n.label === "End device 06");
   for (const stage of ["coordinator", "all"]) {
-    view.setPaths(stage);
+    view.setEngineView({ paths: stage });
     view.selected = i;
     view.ctx.calls.length = 0;
     view.draw();
@@ -273,7 +273,7 @@ test("every hop of the focus carries its value on click, overlap accepted (board
   const { view, env } = show();
   const { scene } = view;
   for (const [label, stage, hops] of [["Router 13", "all", 82], ["Router 11", "coordinator", null], ["End device 06", "all", 85]]) {
-    view.setPaths(stage);
+    view.setEngineView({ paths: stage });
     view.selected = scene.nodes.findIndex((n) => n.label === label);
     view.draw();
     const { paths } = view.lastDraw;
@@ -294,7 +294,7 @@ test("no value covers the label of the selected device, its lanes and values sta
   view.setTexts({ kinds });
   for (const working of [false, true]) for (const [label, stage] of [["Router 13", "all"], ["End device 06", "coordinator"], ["End device 06", "all"],
     ["Router 11", "all"], ["Coordinator", "all"]]) {
-    view.setPaths(stage);
+    view.setEngineView({ paths: stage });
     const i = scene.nodes.findIndex((n) => n.label === label);
     view.selected = i;
     if (working) { // the type line shows from the working scale: zoom there, centred on the device

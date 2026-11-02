@@ -10,7 +10,7 @@ import {
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { SLASH } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
-import { drawnSymbols, recordingContext } from "./graph-fakes.mjs";
+import { asZigbee, drawnSymbols, recordingContext } from "./graph-fakes.mjs";
 
 test("cividis passes through the 17 published values at t = 0, 1/16, ..., 1", () => {
   const published = ["#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073",
@@ -120,7 +120,7 @@ test("a device without a value under the fill (here: role unknown) is grey with 
     ],
     readings: [],
   };
-  const scene = buildScene(network, (text) => text.length * 7);
+  const scene = buildScene(asZigbee(network), (text) => text.length * 7);
   const ctx = recordingContext();
   const theme = resolveTheme({});
   const pos = { x: [0, 100, 200], y: [0, 0, 0], pinned: [0, 0, 0], mesh: [1, 1, 1] };
@@ -138,7 +138,7 @@ test("the none fill draws every available symbol neutral grey with foreground li
     { id: "a", role: "router", label: "Rated", rating: 0.9 }, { id: "b", role: "router", label: "Unrated", rating: null },
   ], readings: [] };
   for (const background of ["#ffffff", "#111111"]) {
-    const scene = buildScene(network, (text) => text.length * 7);
+    const scene = buildScene(asZigbee(network), (text) => text.length * 7);
     const ctx = recordingContext({ props: true });
     const theme = resolveTheme({ background });
     const pos = { x: [0, 100], y: [0, 0], pinned: [0, 0], mesh: [1, 1] };

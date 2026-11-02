@@ -28,7 +28,7 @@ test("1.4a: the rank names the comparison basis the model used", () => {
 test("1.4b: no 'weakest RX' summary: the heading names hop counts and the markers, and the function is gone", async () => {
   assert.ok(!/weakest/i.test(en["details.theory_head"]), en["details.theory_head"]);
   assert.match(en["details.theory_head"], /^Hops: \u2192 outbound \u00B7 \u2190 return\. Expand a device for readings and missing values\.$/);
-  const details = await import("../custom_components/meshroute_topology_explorer/frontend/ui/details.js");
+  const details = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js");
   assert.equal("weakestHop" in details, false);
 });
 
@@ -57,7 +57,7 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
   const { ENGINES } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/index.js");
   const { sampleNetwork } = await import("./panel-fixture.mjs");
   const container = new Node("div");
-  const settings = sanitizeSettings({ paths: "all" });
+  const settings = sanitizeSettings({ paths: "all" }, ENGINES.zigbee.settings);
   renderView(container, { t, settings, groups: ENGINES.zigbee.options(sampleNetwork(), settings), openOnSelect: false,
     dark: false, debug: false, pinCount: 0,
     scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},

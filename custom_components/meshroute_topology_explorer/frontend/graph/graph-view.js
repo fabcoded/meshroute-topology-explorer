@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The quality-view map on a <canvas> (spec 7.1, 8, 9.3): runs the layout, draws frames, turns pointer, wheel and key
 // input into pan, zoom, pin and selection, and reports what the user did as events. Knows nothing about Home
-// Assistant: it reads a Network ({ source, id, devices, readings }, see model/index.js) and a theme of plain colours.
+// Assistant: it reads a Network ({ engine, source, id, devices, readings }, built by its engine, engines/<type>/model.js) and a theme of plain colours.
 // Usage: const view = new GraphView(canvas, { theme, density }); view.setNetwork(network);
 //        view.addEventListener("select", (e) => e.detail.id); view.reveal(id, insets, { zoom: true })
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:
@@ -16,8 +16,6 @@ import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
-import { sourceRouteMode } from "../model/source-routes.js";
-import { legendEntries, pathStage } from "./links.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -39,6 +37,8 @@ const FIRST_BUDGET_MS = 40;
 const ZOOM_ANIMATION_MS = 200;
 /** Screen margin of the fitted view: room for labels under the outer devices. */
 const FIT_MARGIN = 56;
+/** Room beyond half the widest label at the sides of a "contain" fit (CSS pixels). Own choice. */
+const CONTAIN_GAP = 8;
 /** A revealed device keeps this much room to the edge of the free area (CSS pixels): its label fits beside it. */
 const REVEAL_MARGIN = 48;
 /** A tap on the map zooms to the working scale when the shortest lane of the selection's paths would be shorter than
@@ -89,13 +89,11 @@ function cleanLabels(labels) {
 
 export class GraphView extends EventTarget {
   /** options: theme (colours, see palette.js), density (0.96 / 1.44 / 2.28, e.g. the stored setting), fill ("none",
-   *  "role" or "power"), paths (the view of "Communication paths": "coordinator", "table" or "all", links.js), heard
-   *  (the option "additional heard neighbours"), returnRoutes (the view "table"'s "Include return routes"),
-   *  receptionColors (lanes coloured by their reading), receptionStops (the user's [bad, medium, good] colours, each
-   *  a colour or null for the theme's own), labels ({ type, name, haName }: the lines of a device's label),
-   *  sourceRoute ("assume", "zigpy" or "off": return paths without a table entry, model/source-routes.js), texts
-   *  ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light", ... } }), seed, debug, env (timers and
-   *  media queries, injectable for tests). */
+   *  "role" or "power"), engineView (the network engine's own view settings, which only the engine reads; Zigbee:
+   *  paths, heard, returnRoutes, sourceRoute), receptionColors (lanes coloured by their reading), receptionStops (the
+   *  user's [bad, medium, good] colours, each a colour or null for the theme's own), labels ({ type, name, haName }:
+   *  the lines of a device's label), texts ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light",
+   *  ... } }), seed, debug, env (timers and media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
     this.canvas = canvas;
@@ -108,14 +106,9 @@ export class GraphView extends EventTarget {
     this.seed = options.seed || 1;
     this.debug = Boolean(options.debug);
     this.fill = FILLS.includes(options.fill) ? options.fill : "none";
-    this.paths = pathStage(options.paths);
-    this.heard = options.heard === true;
-    this.returnRoutes = options.returnRoutes === true;
+    this.engineView = { ...(options.engineView || {}) };
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
-    // Return paths without a table entry (model/source-routes.js): "assume" (default) draws them, assumed; "zigpy"
-    // draws zigpy's route records as measured and assumes the rest; "off" not.
-    this.sourceRoute = sourceRouteMode(options.sourceRoute);
     this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
       kinds: {}, ...(options.texts || {}) };
     this.width = 0;
@@ -168,7 +161,8 @@ export class GraphView extends EventTarget {
 
   /** Change the density (spec 7.1): every position is drawn at base × D, so all lines get longer or shorter while
    *  symbols, labels and the zoom stay as they are. No new layout. The selection keeps its place on screen; without
-   *  one, the point at the centre of the view stays there. */
+   *  one, the point at the centre of the view stays there, except under a "contain" fit (Thread) that the user has
+   *  not moved away from: that view is fitted again. */
   setDensity(density) {
     if (!(density > 0) || density === this.density) return;
     const ratio = density / this.density;
@@ -180,10 +174,15 @@ export class GraphView extends EventTarget {
     const anchor = this.selected >= 0 ? toScreen(target, this.pos.x[this.selected], this.pos.y[this.selected],
       this.width, this.height) : null;
     this._sync();
+    // A "contain" fit frames the drawn map, so its zoom follows the density; the base fit does not move with it.
+    const contain = Boolean(this.scene.engine) && this.scene.engine.scene.fit === "contain";
+    if (contain) this.fitK = this._fitCamera().k;
     if (anchor) {
       const i = this.selected;
       this.cam = { k, cx: this.pos.x[i] - (anchor[0] - this.width / 2) / k,
         cy: this.pos.y[i] - (anchor[1] - this.height / 2) / k };
+    } else if (contain && this.autoFit) {
+      this.cam = this._fitCamera(); // the user has not moved the view: it keeps containing the map
     } else {
       this.cam = { k, cx: target.cx * ratio, cy: target.cy * ratio };
     }
@@ -195,42 +194,13 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** The view of "Communication paths" (spec 7.1, 9.1; board M11): "coordinator" (default: the way up and down of
-   *  every device, on click only the device's), "table" (every usable routing entry, on click the device's own entries
-   *  followed hop by hop) or "all" (on click also its paths to and from other devices); anything else counts as the
-   *  default. Drawing only: the layout and the
-   *  positions stay. */
-  setPaths(stage) {
-    const next = pathStage(stage);
-    if (next === this.paths) return;
-    this.paths = next;
-    this._invalidate();
-  }
-
-  /** The option "additional heard neighbours (best 3)": on click, also the selection's 3 best partners with a reading
-   *  and no lane drawn between the two, in any view. */
-  setHeard(on) {
-    const next = on === true;
-    if (next === this.heard) return;
-    this.heard = next;
-    this._invalidate();
-  }
-
-  /** "Include return routes" of the view "routing table": on click, also each destination's walk back. */
-  setReturnRoutes(on) {
-    const next = on === true;
-    if (next === this.returnRoutes) return;
-    this.returnRoutes = next;
-    this._invalidate();
-  }
-
-  /** Return paths without a table entry (spec 5.1, 9.1): "assume" draws the way up reversed as assumed, "zigpy" the
-   *  route records as measured and the rest as assumed, "off" leaves them unknown; anything else counts as "assume".
-   *  Drawing only. */
-  setSourceRoute(mode) {
-    const next = sourceRouteMode(mode);
-    if (next === this.sourceRoute) return;
-    this.sourceRoute = next;
+  /** The network engine's own view settings (engines cut, section 2; Zigbee: paths, heard, returnRoutes, sourceRoute),
+   *  merged into what it has: the shell passes them on and never reads them, the engine's overview and focus do.
+   *  Drawing only: the layout and the positions stay. */
+  setEngineView(patch) {
+    const next = { ...this.engineView, ...(patch || {}) };
+    if (Object.keys(next).every((k) => next[k] === this.engineView[k])) return;
+    this.engineView = next;
     this._invalidate();
   }
 
@@ -276,10 +246,18 @@ export class GraphView extends EventTarget {
     this._invalidate();
   }
 
-  /** Legend entries for the links in the current theme (links.js legendEntries): the panel draws them in its words. */
+  /** Legend entries for the links in the current theme, from the network's engine (engines/<type>/lanes.js
+   *  legendEntries): the panel draws them in its words. None before a network with an engine is shown. */
   legend() {
-    return legendEntries(this.theme, { heard: this.heard, debug: this.debug, colored: this.receptionColors,
-      routes: !this.scene || this.scene.routes !== false });
+    if (!this.scene || !this.scene.engine) return [];
+    return this.scene.engine.legend(this.theme, { ...this._engineSettings(), debug: this.debug,
+      colored: this.receptionColors });
+  }
+
+  /** The engine's view settings as drawn: its own defaults (engine.settings.defaults), overlaid with what was set. */
+  _engineSettings() {
+    const engine = this.scene && this.scene.engine;
+    return engine ? { ...engine.settings.defaults, ...this.engineView } : { ...this.engineView };
   }
 
   setTheme(theme) {
@@ -479,7 +457,9 @@ export class GraphView extends EventTarget {
     const scene = this.scene;
     const l0 = baseLength(scene.labels, this._measure, NODE_DIAMETER);
     const pinned = new Map([...this.pinned].map(([id, p]) => [id, { x: p.x * l0, y: p.y * l0 }]));
-    this.layout = new Layout(this.network, { baseLength: l0, density: 1, seed: this.seed, pinned });
+    // The springs read each reading's quality through the network's engine (no engine: no springs).
+    const quality = scene.engine ? scene.engine.springQuality : () => null;
+    this.layout = new Layout(this.network, { baseLength: l0, density: 1, seed: this.seed, pinned, quality });
     const n = scene.nodes.length;
     this._toLayout = Int32Array.from(scene.nodes, (node) => this.layout.index.get(node.id));
     this.pos = { x: new Float64Array(n), y: new Float64Array(n), pinned: new Uint8Array(n), mesh: new Uint8Array(n) };
@@ -508,15 +488,34 @@ export class GraphView extends EventTarget {
     this._scaleCache = null;
   }
 
-  /** The fitted view of the base layout (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the density, so a dense map
-   *  sits smaller inside the margin and a spread one reaches past the window. */
+  /** The fitted view, as the network's engine frames its map (engine.scene.fit). "base" (Zigbee): the base layout
+   *  (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the
+   *  density, so a dense map sits smaller inside the margin and a spread one reaches past the window. "contain"
+   *  (Thread): the drawn map at the active density, every device inside with room for its label beside and below
+   *  it (main session, 2026-11-01). */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
     const d = this.density;
     const box = bounds(this.pos.x, this.pos.y);
+    const engine = this.scene && this.scene.engine;
+    if (engine && engine.scene.fit === "contain") return this._containCamera(box);
     const base = box && { minX: box.minX / d, minY: box.minY / d, maxX: box.maxX / d, maxY: box.maxY / d };
     const cam = fitCamera(base, this.width, this.height, FIT_MARGIN);
     return { k: cam.k, cx: cam.cx * d, cy: cam.cy * d };
+  }
+
+  /** The "contain" fit: the drawn box (positions at the active density) inside the window, keeping half the widest
+   *  label free left and right of the outer devices and FIT_MARGIN (the symbol and its label lines) above and below.
+   *  A single device or an empty map sits at zoom 1, like fitCamera. */
+  _containCamera(box) {
+    if (!box) return fitCamera(null, this.width, this.height, FIT_MARGIN);
+    const widest = this.scene.labels.reduce((w, label) => Math.max(w, this._measure(label)), 0);
+    const side = Math.max(FIT_MARGIN, widest / 2 + CONTAIN_GAP);
+    const w = box.maxX - box.minX;
+    const h = box.maxY - box.minY;
+    const k = w < 1 && h < 1 ? 1 : Math.min(Math.max(this.width - 2 * side, 1) / Math.max(w, 1),
+      Math.max(this.height - 2 * FIT_MARGIN, 1) / Math.max(h, 1));
+    return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 };
   }
 
   _screenOf(i) {
@@ -574,12 +573,13 @@ export class GraphView extends EventTarget {
       this._fps = this._fps === null ? fps : this._fps * 0.9 + fps * 0.1;
     }
     this._lastFrame = now;
+    // The engine's own settings first: the shell's keys win if a name were ever shared.
     const view = {
+      ...this._engineSettings(),
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
-      debug: this.debug, paths: this.paths, heard: this.heard, returnRoutes: this.returnRoutes, selected: this.selected,
-      hovered: this.hovered, fps: this._fps,
+      debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps,
       fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
-      typeZoom: this.workingZoom, sourceRoute: this.sourceRoute, texts: this.texts,
+      typeZoom: this.workingZoom, texts: this.texts,
     };
     this.lastDraw = drawScene(this.ctx, this.scene, this.pos, view, this.theme, this._measure);
   }

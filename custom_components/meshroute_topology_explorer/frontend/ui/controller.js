@@ -5,23 +5,21 @@
 //
 // Why a separate controller: Home Assistant assigns a new `hass` object on every state change in the house. Only the
 // first one may start a load (spec 10); later ones are checked for a lost or restored connection only. The reads
-// themselves are the adapters' (adapters/zha.js, adapters/matter.js); this module composes them.
-import { readThread } from "../adapters/matter.js";
-import { readZha, readZhaEntries } from "../adapters/zha.js";
+// themselves are the adapters' (adapters/index.js); this module composes them in their order.
+import { ADAPTERS, adapterFor } from "../adapters/index.js";
 import { errorText, isConnectionLost } from "../adapters/ws.js";
-import { blockingState } from "./status.js";
 import { engineFor } from "../engines/index.js";
 
-/** One read of the networks through hass.callWS, one adapter per data source (adapters/). Returns { phase, network?,
- *  raw?, networks?: { zha, thread }, thread?: readThread's status, message? }; never throws. `network` is the ZHA
- *  network, else the Thread one; the panel picks which of `networks` it shows (ui/network-switch.js). matter: false
- *  skips the Matter topology (the scan's re-reads, which only follow ZHA's tables). */
-export async function readNetwork(hass, { matter = true } = {}) {
+/** One read of the networks through hass.callWS, one adapter per data source (adapters/index.js), in their order.
+ *  Returns { phase, network?, raw?, networks?: { <adapter key>: network | null }, reads?: { <adapter key>: the
+ *  adapter's read }, message? }; never throws. `network` is the first adapter's network that could be read; the
+ *  panel picks which of `networks` it shows (ui/network-switch.js). keys: read only these adapters, the others are
+ *  "skipped" (the scan's re-reads follow their own source only). Without any network the phase is the first blocked
+ *  adapter's (its own key, e.g. ZHA not loaded), else "no_devices". */
+export async function readNetwork(hass, { keys = null } = {}) {
   try {
-    const isAdmin = Boolean(hass.user && hass.user.is_admin);
-    // The zha/* commands are admin only and fail without ZHA, so the cheap checks come first.
-    const configEntries = isAdmin ? await readZhaEntries(hass) : [];
-    if (!isAdmin) return { phase: "not_admin" };
+    // The adapters' commands are admin only, so the cheap check comes first and nothing is sent without it.
+    if (!(hass.user && hass.user.is_admin)) return { phase: "not_admin" };
     // Names and areas are a nicety: without the registries the models fall back to the integrations' own names.
     const optional = (type) => hass.callWS({ type }).catch((err) => { if (isConnectionLost(err)) throw err; return []; });
     let registries = null;
@@ -33,15 +31,15 @@ export async function readNetwork(hass, { matter = true } = {}) {
       }
       return registries;
     };
-    const blocked = blockingState({ isAdmin, configEntries });
-    const { raw, network: zha } = blocked ? { raw: null, network: null }
-      : await readZha(hass, { configEntries, registries: readRegistries });
-    // The scan's re-reads (matter: false) follow ZHA only: no Matter read every 15 seconds.
-    const thread = matter ? await readThread(hass, await readRegistries()) : { status: "skipped" };
-    const networks = { zha, thread: thread.network || null };
-    const network = zha || networks.thread;
-    if (!network) return { phase: blocked || "no_devices", thread };
-    return { phase: "ready", network, raw: zha ? raw : [], networks, thread };
+    const reads = {};
+    for (const adapter of ADAPTERS) {
+      reads[adapter.key] = keys && !keys.includes(adapter.key) ? { status: "skipped", network: null, blocking: null }
+        : await adapter.read(hass, { registries: readRegistries });
+    }
+    const networks = Object.fromEntries(ADAPTERS.map((a) => [a.key, reads[a.key].network || null]));
+    const first = ADAPTERS.find((a) => networks[a.key]);
+    if (!first) return { phase: ADAPTERS.map((a) => reads[a.key].blocking).find(Boolean) || "no_devices", reads };
+    return { phase: "ready", network: networks[first.key], raw: reads[first.key].raw || [], networks, reads };
   } catch (err) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
     return { phase: "error", message: errorText(err) };
@@ -66,11 +64,11 @@ export class PanelController extends EventTarget {
     this.hass = null;
     this.attached = false;
     this.started = false;
-    /** phase ("loading", "not_admin", "zha_not_loaded", "no_devices", "disconnected", "error" or "ready", which
+    /** phase ("loading", "not_admin", an adapter's blocking phase, "no_devices", "disconnected", "error" or "ready", which
      *  carries a network; the others are messages, spec 9.4), network (kept while a reload runs or the connection is
-     *  down), raw zha/devices list, message,
+     *  down), raw (the shown source's own answer, for the Details' raw tables), reads (each adapter's read), message,
      *  connection "ok" | "lost", loading (a reload is running while the old picture stays). */
-    this.state = { phase: "loading", network: null, raw: null, networks: null, thread: null, message: null,
+    this.state = { phase: "loading", network: null, raw: null, networks: null, reads: null, message: null,
       connection: "ok", loading: false };
     this._token = 0;
     this._conn = null;
@@ -120,12 +118,12 @@ export class PanelController extends EventTarget {
     const problem = result.phase === "ready"
       ? engineProblem([result.network, ...Object.values(result.networks || {})]) : null;
     if (problem) {
-      this._set({ phase: "error", network: null, raw: null, networks: null, thread: result.thread || null,
+      this._set({ phase: "error", network: null, raw: null, networks: null, reads: result.reads || null,
         message: problem, loading: false });
       return;
     }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
-      networks: result.networks || null, thread: result.thread || null, message: result.message || null, loading: false });
+      networks: result.networks || null, reads: result.reads || null, message: result.message || null, loading: false });
   }
 
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
@@ -136,8 +134,8 @@ export class PanelController extends EventTarget {
       this._set({ phase: "error", network: null, raw: null, networks: null, message: problem, loading: false });
       return;
     }
-    // A followed scan reads ZHA only: the Thread network stays as it was.
-    const networks = { ...(this.state.networks || {}), zha: network };
+    // A followed scan reads its own source only: the other networks stay as they were.
+    const networks = { ...(this.state.networks || {}), [adapterFor(network).key]: network };
     this._set({ phase: "ready", network, raw: raw || null, networks, message: null, loading: false });
   }
 

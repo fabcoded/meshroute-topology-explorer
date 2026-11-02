@@ -11,6 +11,8 @@ import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
 import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
+import { openClusterDialog } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js";
+import { adapterFor } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
@@ -422,9 +424,12 @@ async function drive() {
   // cluster=0x0006&ep=1&dir=in opens that cluster's details; readvalues=1 then presses "Read values from the device".
   if (q.get("cluster") && id) {
     await sleep(100);
-    el._openCluster({ endpoint: Number(q.get("ep") || 1), profile: 0x0104, cluster: parseInt(q.get("cluster"), 16),
-      direction: q.get("dir") === "out" ? "out" : "in" }, null);
-    if (flag("readvalues") && el._cluster) el._cluster.read();
+    // As the Details' cluster button does: the Zigbee engine opens the dialog through the panel's dialog host.
+    const device = el._network.devices.find((d) => d.id === id);
+    el._openDialog((host) => openClusterDialog({ ...host, t: el._t, device, endpoint: Number(q.get("ep") || 1),
+      profile: 0x0104, cluster: parseInt(q.get("cluster"), 16), direction: q.get("dir") === "out" ? "out" : "in",
+      opener: null, devicePage: adapterFor(el._network).devicePage }));
+    if (flag("readvalues") && el._dialog) el._dialog.read();
   }
   const panel = q.get("right") ? el._right : el._left;
   // expand=theory[:n]: the Details card "Paths to other devices" opened, and its first n rows (default 2).

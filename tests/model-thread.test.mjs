@@ -6,8 +6,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildThreadNetwork, extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET,
-  THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
-import { classifyLanes, unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
+  THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
+import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
+import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 
 const sampleTopology = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8"))
   .responses["matter/network_topology"];
@@ -35,7 +36,8 @@ test("the sample: five nodes, their roles, the border router as a node, collecti
   assert.equal(br.wired, true);
   assert.equal(br.available, true, "availability null is not offline");
   assert.equal(br.availabilityKnown, false);
-  assert.equal(br.hasTable, false);
+  assert.equal(br.tableRead, false, "a border router is no Matter node: no table");
+  assert.equal("hasTable" in br, false, "no Zigbee table fields (engines cut step 7)");
   assert.equal(sample.collectedAt, "2026-01-01T12:00:00.000Z");
   assert.match(sample.id, /^thread-[A-Za-z0-9]{1,32}$/);
   assert.equal(sample.status.nodes, 5);
@@ -163,7 +165,7 @@ test("unavailable nodes: drawn offline, their readings stale and never drawn; fi
   connections: [link(1, 2, dir(3, -50), dir(3, -55))] });
   const r = byNode(net, "1");
   assert.equal(r.available, false);
-  assert.equal(r.hasTable, false);
+  assert.equal(r.tableRead, false);
   assert.equal(net.staleReadings.length, 1);
   assert.equal(net.readings.length, 1);
   const kinds = net.findings.map((f) => `${f.kind}:${byNode(net, "1").id === f.device ? 1 : f.device === byNode(net, "2").id ? 2 : 3}`);
@@ -184,12 +186,14 @@ test("parsers: extended addresses, link quality, RSSI, times", () => {
 });
 
 test("lanes: parent links are drawn as traffic, other readings as neighbours, no up path band", () => {
-  const { lanes, upPaths } = classifyLanes(sample);
+  // The Thread engine's own lane meaning (engines cut step 6b): toParent / fromParent instead of Zigbee's up and down;
+  // no up paths at all, so no band (tests/engine-leaks.test.mjs 7).
+  const { lanes } = classifyLanes(sample);
   const id = (k) => byNode(sample, k).id;
   const lane = (s, h) => lanes.find((l) => l.sender === id(s) && l.hearer === id(h));
-  assert.equal(lane("16", "14").up, true, "end device -> parent");
-  assert.equal(lane("14", "16").downMeasured, true, "parent -> child");
-  assert.equal(lane("14", "15").up, false);
+  assert.equal(lane("16", "14").toParent, true, "end device -> parent");
+  assert.equal(lane("14", "16").fromParent, true, "parent -> child");
+  assert.equal(lane("14", "15").toParent, false);
   assert.equal(lane("14", "15").dir.state, "measured");
-  assert.ok([...upPaths.values()].every((ids) => ids.length === 0));
+  assert.ok(lanes.every((l) => !("up" in l) && !("downMeasured" in l)), "no Zigbee lane flags");
 });

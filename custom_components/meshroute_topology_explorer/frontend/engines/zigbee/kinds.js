@@ -7,12 +7,11 @@
 // identifier the sample carries maps to the picture its model name suggests.
 // node --test tests/
 
-import { parseAddress } from "./parse.js";
+import { parseAddress } from "../../model/parse.js";
+import { KINDS } from "../../graph/symbols.js";
 
-/** Kinds a device can have; each has a picture (graph/symbols.js). "unknown" when the signature does not tell:
- *  unknown beats wrong (spec 1). */
-export const KINDS = Object.freeze(["light", "outlet", "relay", "button", "sensor", "motion", "temperature",
-  "thermostat", "blind", "lock", "hub", "unknown"]);
+/** Kinds a device can have (graph/symbols.js, the shared vocabulary); the ZCL signature decides which. */
+export { KINDS };
 
 const HA = 0x0104;
 const ZLL = 0xc05e;

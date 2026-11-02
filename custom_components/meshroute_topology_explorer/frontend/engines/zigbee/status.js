@@ -2,7 +2,7 @@
 // The status line of a Zigbee network (spec 6, board M1): source, "Router tables: x/y", "unchanged since" from the
 // observations, a followed scan, the source-route stage on the right, and the "incomplete" banner below 90 % of the
 // available routers with a table. No DOM: the panel translates the parts. node --test tests/
-import { sourceRouteSummary } from "../../model/source-routes.js";
+import { sourceRouteSummary } from "./source-routes.js";
 
 /** Below this completeness (share of available routers with a table) the map carries the banner "incomplete". */
 export const INCOMPLETE_BELOW = 0.9;
@@ -11,7 +11,7 @@ export function isIncomplete(status) {
   return status.completeness < INCOMPLETE_BELOW;
 }
 
-/** Status keys of a followed scan (ui/scan.js states). */
+/** Status keys of a followed scan (adapters/zha-scan.js states). */
 const SCAN_KEYS = { running: "status.scan_running", ended: "status.scan_ended", stopped: "status.scan_stopped",
   "not-sent": "status.scan_not_sent" };
 
@@ -24,7 +24,7 @@ const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_
 const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "error", "unknown_command"];
 
 /** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
- *  (model/source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned, and
+ *  (source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned, and
  *  in the view "routing table" (`paths` "table"), which draws no assumed or recorded return path (main session,
  *  2026-11-01, brief a4z).
  *  Long and short form, [key, params, longKey] like the other parts. In the stage "zigpy" the part counts recorded and

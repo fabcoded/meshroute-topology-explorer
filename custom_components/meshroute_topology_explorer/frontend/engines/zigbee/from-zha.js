@@ -6,9 +6,18 @@
 // IEEE is unusable and to resolve routing entries, which carry no IEEE. The tables of an unavailable device are
 // stale: its readings are dropped; its routes are kept but flagged `stale` and never followed by path walks
 // (a later "last known" view may use them).
-import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "./parse.js";
+import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "../../model/parse.js";
 import { deviceKind, receiverOffWhenIdle } from "./kinds.js";
 import { entityIds } from "./signature.js";
+
+/** What a network read from ZHA holds (spec 4.6): routes with a next hop, parents, ratings on the LQI scale, the
+ *  user-started scan, observed table changes (no measurement time), signatures and clusters, zigpy's route records and
+ *  ZHA's own device page. Kept beside the ZHA schema mapping, which is what knows the payload; the views read it
+ *  through the engine (owner decision 2026-11-01: one viewer engine per network type). */
+export const ZHA_CAPABILITIES = Object.freeze({
+  routes: true, parents: true, ratings: true, measurementTime: false, userRefresh: true, scan: true,
+  observations: true, clusters: true, routeRecords: true, devicePage: true, scale: "lqi",
+});
 
 const ROLES = { Coordinator: "coordinator", Router: "router", EndDevice: "end device" };
 const isActive = (status) => typeof status === "string" && status.trim().toLowerCase() === "active";

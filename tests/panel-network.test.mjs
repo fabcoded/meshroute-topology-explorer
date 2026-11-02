@@ -12,10 +12,11 @@ import { activeNetwork, loadNetworkChoice, networkChoices, PANEL_STORE, saveNetw
 import { ageParts } from "../custom_components/meshroute_topology_explorer/frontend/ui/status.js";
 import { threadParts } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/status.js";
 import { SettingsClient } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
-import { buildScene, laneValue, scenePaths, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
-import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/ui/thread-details.js";
-import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/thread.js";
+import { buildScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { ENGINES } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
+import { laneValue, legendEntries, threadValue } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
+import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/details.js";
+import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
@@ -52,7 +53,7 @@ test("both networks are read; the topology is asked with refresh false, never tr
   assert.equal(result.phase, "ready");
   assert.equal(result.network.source, "zha");
   assert.equal(result.networks.thread.source, "thread");
-  assert.equal(result.thread.status, "ok");
+  assert.equal(result.reads.thread.status, "ok");
   const asks = hass.calls.filter((m) => m.type === "matter/network_topology");
   assert.deepEqual(asks, [{ type: "matter/network_topology", refresh: false }]);
 });
@@ -78,16 +79,16 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
 
 test("switch choices: one network is plain text, a greyed Thread entry names its reason; first load is Zigbee", () => {
   const zha = { id: "z" };
-  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, thread: { status: "not_loaded" } }),
+  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_loaded" } } }),
     [{ key: "zha", available: true }]);
-  const both = networkChoices({ networks: { zha, thread }, thread: { status: "ok" } });
+  const both = networkChoices({ networks: { zha, thread }, reads: { thread: { status: "ok" } } });
   assert.deepEqual(both.map((c) => c.key), ["zha", "thread"]);
   assert.equal(activeNetwork(both, null), "zha");
   assert.equal(activeNetwork(both, "thread"), "thread");
-  const greyed = networkChoices({ networks: { zha, thread: null }, thread: { status: "not_supported" } });
+  const greyed = networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_supported" } } });
   assert.deepEqual(greyed[1], { key: "thread", available: false, reason: "not_supported", message: null });
   assert.equal(activeNetwork(greyed, "thread"), "zha", "a greyed network is never shown");
-  assert.equal(activeNetwork(networkChoices({ networks: { zha: null, thread }, thread: { status: "ok" } }), "zha"), "thread");
+  assert.equal(activeNetwork(networkChoices({ networks: { zha: null, thread }, reads: { thread: { status: "ok" } } }), "zha"), "thread");
 });
 
 test("the chosen network is stored under the panel's own id, merged; a failing store is ignored", async () => {
@@ -141,11 +142,12 @@ test("status line for Thread: coverage, collection time with age, missing border
 
 test("map: the overview draws parent links and neighbours; a click shows the device's own lanes and glyphs", () => {
   const scene = buildScene(thread, (s) => s.length * 6);
-  assert.equal(scene.routes, false);
+  assert.equal(scene.engine, ENGINES.thread);
   const leader = scene.index.get(thread.devices.find((d) => d.leader).id);
-  const own = scenePaths(scene, leader, "all", "assume", true);
+  // Zigbee view settings are not the Thread engine's: they change nothing.
+  const own = ENGINES.thread.scene.focus(scene, leader, { paths: "all", sourceRoute: "assume", heard: true, selected: leader });
   assert.equal(own.ends.length, 0, "no paths, no unknown ends");
-  assert.equal(own.hops.size, 5, "leader: both lanes to router 15 and to its child, one to the border router");
+  assert.equal(own.hops.length, 5, "leader: both lanes to router 15 and to its child, one to the border router");
   assert.equal(own.glyphs.length, 1, "the border router has no table: one direction without a reading");
   assert.equal(own.nodes.size, 4);
 });
@@ -160,7 +162,7 @@ test("arrow values for Thread: RSSI in dBm, link quality only without RSSI; unkn
 });
 
 test("legend for Thread lists what its map draws, nothing about stages", () => {
-  const ids = legendEntries({ foreground: "#000", muted: "#888" }, { routes: false }).map((e) => e.id);
+  const ids = legendEntries({ foreground: "#000", muted: "#888" }).map((e) => e.id);
   assert.deepEqual(ids, ["parent", "neighbour", "not-listed", "no-table-thread", "rx-thread"]);
   const t = translator("en");
   for (const id of ["parent", "neighbour", "not-listed", "no-table-thread"]) assert.notEqual(t(`legend.link.${id}`), `legend.link.${id}`);
@@ -186,8 +188,25 @@ test("merge A4w: zigpy's route records are read for ZHA only; the scan's re-read
   assert.equal(only.network.source, "thread");
   assert.equal(threadOnly.calls.filter((m) => m.type === zigpy).length, 0, "no zigpy call for Thread");
   const scan = fakeHass();
-  const reread = await readNetwork(scan, { matter: false });
+  const reread = await readNetwork(scan, { keys: ["zha"] });
   assert.equal(reread.network.source, "zha");
   assert.equal(scan.calls.filter((m) => m.type === "matter/network_topology").length, 0);
   assert.deepEqual(networkChoices(reread).map((c) => c.key), ["zha"], "a skipped read greys nothing");
+});
+
+test("Devices search finds a Thread device by its RLOC16 and its extended address (engine.addresses)", async () => {
+  const { deviceRows, filterRows } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
+  const pan = "00112233aabbcc01";
+  const net = buildThreadNetwork({ nodes: [
+    { id: "1", kind: "matter", network_type: "thread", node_id: 1, role: "leader", available: true, rloc16: 0x1c00,
+      ext_address: "AABBCCDD00000001", ext_pan_id: pan },
+    { id: "2", kind: "matter", network_type: "thread", node_id: 2, role: "end_device", available: true, rloc16: 0x1c01,
+      ext_address: "AABBCCDD00000002", ext_pan_id: pan },
+  ], connections: [{ source: "2", target: "1", network: "thread", source_to_target: { lqi: 3, rssi: -60 } }] }, {});
+  const rows = deviceRows(net);
+  const found = (text) => filterRows(rows, text).map((r) => net.devices.find((d) => d.id === r.id).nodeKey);
+  assert.deepEqual(found("0x1c01"), ["2"], "RLOC16 in hex");
+  assert.deepEqual(found("7168"), ["1"], "RLOC16 in decimal");
+  assert.deepEqual(found("aa:bb:cc:dd:00:00:00:02"), ["2"], "extended address");
+  assert.equal("nwk" in net.devices[0], false, "the RLOC16 is no Zigbee network address");
 });

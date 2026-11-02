@@ -29,8 +29,9 @@ export function spearman(xs, ys) {
   return sxy / Math.sqrt(sxx * syy);
 }
 
-/** Fidelity of a finished Layout: Spearman(drawn length, LQI) over all springs with a known LQI. */
+/** Fidelity of a finished Layout: Spearman(drawn length, quality) over all springs with a known quality (Zigbee:
+ *  LQI / 255, the same ranks as the LQI). */
 export function fidelity(layout) {
-  const known = layout.springLengths().filter((s) => s.lqi !== null);
-  return spearman(known.map((s) => s.length), known.map((s) => s.lqi));
+  const known = layout.springLengths().filter((s) => s.quality !== null);
+  return spearman(known.map((s) => s.length), known.map((s) => s.quality));
 }

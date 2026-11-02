@@ -4,7 +4,7 @@
 // 15 minutes, counting the tables that changed since the start. It never claims the scan finished: ZHA does not say,
 // and a table that did not change may have been answered too. No DOM; timers and clock injectable.
 // Tested in Node: node --test tests/
-import { fingerprints } from "../model/index.js";
+import { fingerprints } from "./zha-fingerprints.js";
 
 /** Re-read schedule of spec 6, in ms after the start. */
 export const SCAN_SCHEDULE = Object.freeze({ fastEvery: 15000, fastUntil: 120000, slowEvery: 60000, stopAt: 900000 });

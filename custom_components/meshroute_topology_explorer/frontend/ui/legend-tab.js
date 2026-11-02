@@ -8,7 +8,7 @@
 // and map always agree. Runs in the browser.
 import { h, svg } from "./dom.js";
 import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
-import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
+import { drawSymbol, legendSigns, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
 /** Symbols in the Legend tab are drawn at 40 px (board M7 and brief A4j). */
@@ -68,36 +68,16 @@ export function renderLegend(container, { t, theme, fill, roles, devices = [], l
   // Symbols carry a value of the current fill, never the grey that means "no value"; the "none" fill is the neutral grey.
   const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
     : fill === "power" ? theme.categories.power.mains : theme.neutral);
-  // One device of this network per sign, so each row shows a symbol as the map draws it, picture included (board M7):
-  // a router (a light where there is one), an end device (a sleeping one where there is one), the coordinator, and a
-  // device on a cable only. A sign no device carries has no row.
-  const parts = devices.map((d) => ({ role: d.role, parts: symbolParts(d) }));
-  const pick = (...tests) => {
-    for (const test of tests) {
-      const found = parts.find(test);
-      if (found) return found.parts;
-    }
-    return null;
-  };
-  const router = pick((x) => x.role === "router" && x.parts.picture === "light", (x) => x.role === "router");
-  const end = pick((x) => x.role === "end device" && x.parts.bed, (x) => x.role === "end device");
-  const coordinator = pick((x) => x.role === "coordinator");
-  const wired = pick((x) => x.parts.cable && !x.parts.radio);
+  // One device of this network per sign (graph/symbols.js legendSigns, board M7).
   const item = (swatch, key) => h("li", {}, swatch, h("span", { text: t(key) }));
-  const signs = [];
-  if (router) signs.push(item(symbolSwatch(router, theme, typical("router")), "legend.symbol_router"));
-  if (end) {
-    const key = end.bed ? "legend.symbol_end_sleepy" : "legend.symbol_end";
-    signs.push(item(symbolSwatch(end, theme, typical("end device")), key));
-  }
-  if (coordinator) {
-    signs.push(item(symbolSwatch(coordinator, theme, typical("coordinator")), "legend.symbol_coordinator"));
-  }
-  if (wired) signs.push(item(symbolSwatch(wired, theme, typical("router")), "legend.symbol_wired"));
-  if (signs.length) container.append(title("legend.symbols_title"), h("ul", { class: "legend-rows symbols" }, signs));
+  const signs = legendSigns(devices);
+  const rows = signs.map((sign) => item(symbolSwatch(sign.parts, theme, typical(sign.role)), sign.key));
+  if (rows.length) container.append(title("legend.symbols_title"), h("ul", { class: "legend-rows symbols" }, rows));
 
   // States, on the router's symbol (board M7), else on any device's.
-  const example = router || (parts[0] && parts[0].parts) || symbolParts({ role: "router", kind: "light" });
+  const router = signs.find((sign) => sign.key === "legend.symbol_router");
+  const example = (router && router.parts) || (devices[0] && symbolParts(devices[0]))
+    || symbolParts({ role: "router", kind: "light" });
   const tint = typical("router");
   container.append(title("legend.states_title"), h("ul", { class: "legend-rows symbols" },
     item(symbolSwatch(example, theme, tint, { offline: true }), "legend.state_offline"),

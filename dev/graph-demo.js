@@ -5,7 +5,7 @@
 
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
 import { LIGHT, DARK } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { syntheticNetwork } from "../tests/synthetic-network.mjs";
 
 const q = new URLSearchParams(location.search);

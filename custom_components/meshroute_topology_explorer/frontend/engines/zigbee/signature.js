@@ -5,7 +5,7 @@
 // type (2.3.2.3.1), frequency band (2.3.2.3.5), MAC capability flags (2.3.2.3.6, from IEEE 802.15.4), manufacturer
 // code, buffer and transfer sizes and server mask (2.3.2.3.10, whose bits 9-15 carry the stack compliance revision
 // since r21). Pure functions, no DOM; zcl.js has the names. node --test tests/
-import { parseAddress } from "./parse.js";
+import { parseAddress } from "../../model/parse.js";
 import { isManufacturerSpecific } from "./zcl.js";
 
 /** Logical types of the node descriptor. */

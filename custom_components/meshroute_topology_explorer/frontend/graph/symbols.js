@@ -175,6 +175,42 @@ export function tracePath(ctx, ops) {
 
 // ---- composition -----------------------------------------------------------------------------------------------
 
+/** Kinds a device can have (spec 4.2, the shared vocabulary of every network type); each has a picture. "unknown" when
+ *  the source does not tell: unknown beats wrong (spec 1). */
+export const KINDS = Object.freeze(["light", "outlet", "relay", "button", "sensor", "motion", "temperature",
+  "thermostat", "blind", "lock", "hub", "unknown"]);
+
+/** Roles the map knows (spec 4.2, the shared vocabulary of both network types); anything else is drawn as unknown. */
+export const ROLES = Object.freeze(["coordinator", "router", "end device", "border router", "unknown"]);
+
+/** Whether a device sleeps: an end device whose receiver is off when idle (spec 4.2; the bed of its symbol). */
+export const sleeps = (device) => device.role === "end device" && device.sleepy === true;
+
+/** The signs the legend explains (board M7), one device of the network per sign so each row shows a symbol as the map
+ *  draws it, picture included: a router (a light where there is one), an end device (a sleeping one where there is
+ *  one), the coordinator, and a device on a cable only. A sign no device carries has no row. Returns [{ parts (of
+ *  that device's symbol), role (whose fill colour the row takes), key (its text) }]. */
+export function legendSigns(devices) {
+  const parts = devices.map((d) => ({ role: d.role, parts: symbolParts(d) }));
+  const pick = (...tests) => {
+    for (const test of tests) {
+      const found = parts.find(test);
+      if (found) return found.parts;
+    }
+    return null;
+  };
+  const router = pick((x) => x.role === "router" && x.parts.picture === "light", (x) => x.role === "router");
+  const end = pick((x) => x.role === "end device" && x.parts.bed, (x) => x.role === "end device");
+  const coordinator = pick((x) => x.role === "coordinator");
+  const wired = pick((x) => x.parts.cable && !x.parts.radio);
+  const signs = [];
+  if (router) signs.push({ parts: router, role: "router", key: "legend.symbol_router" });
+  if (end) signs.push({ parts: end, role: "end device", key: end.bed ? "legend.symbol_end_sleepy" : "legend.symbol_end" });
+  if (coordinator) signs.push({ parts: coordinator, role: "coordinator", key: "legend.symbol_coordinator" });
+  if (wired) signs.push({ parts: wired, role: "router", key: "legend.symbol_wired" });
+  return signs;
+}
+
 /** Which parts a device's symbol has, from the data model's device (role, kind, sleepy) and, for later sources, the
  *  flags radio (default true), wired and leader:
  *  { picture, router, radio, cable, mark: "C" | "L" | null, bed }. Routers, coordinators and border routers get the
@@ -192,7 +228,7 @@ export function symbolParts(device = {}) {
     radio,
     cable: !radio || device.wired === true || role === "coordinator" || role === "border router",
     mark,
-    bed: !mark && role === "end device" && device.sleepy === true,
+    bed: !mark && sleeps(device),
   };
 }
 

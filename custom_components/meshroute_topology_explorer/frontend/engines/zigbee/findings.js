@@ -3,7 +3,7 @@
 // each one names its evidence and the tables it would need but lacks. Missing data never turns into a verdict.
 // No finding is raised from the table of an unavailable device (stale), from LQI 0, or from a missing neighbour
 // entry alone. Pure functions over the normalized parts of a Network.
-import { isActive } from "./normalize.js";
+import { isActive } from "./from-zha.js";
 
 const WEAK_TENTH = 0.1;       // reception in the lowest tenth of what the reporter hears ...
 const WEAK_HALF = 0.5;        // ... and below this share of the reporter's median

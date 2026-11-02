@@ -5,7 +5,8 @@
 // model's own rule (model/ratings.js), so lines and fills behave as on a real network.
 
 import { seededRandom } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
-import { applyRatings } from "../custom_components/meshroute_topology_explorer/frontend/model/ratings.js";
+import { applyRatings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ratings.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 
 export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, routerShare = 0.6 } = {}) {
   const rnd = seededRandom(seed);
@@ -41,5 +42,6 @@ export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, rou
     }
   }
   applyRatings(list, out);
-  return { source: "zha", id: `synthetic-${devices}`, devices: list, readings: out };
+  return { source: "zha", engine: "zigbee", capabilities: ZHA_CAPABILITIES, id: `synthetic-${devices}`, devices: list,
+    readings: out };
 }

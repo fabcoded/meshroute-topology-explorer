@@ -10,8 +10,8 @@ import {
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/labels.js";
 import { buildScene, drawScene, typeShown } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
-import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
-import { recordingContext, labelWidth as measure } from "./graph-fakes.mjs";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { asZigbee, recordingContext, labelWidth as measure } from "./graph-fakes.mjs";
 
 const cut = (name, others, max = MAX_LABEL_WIDTH) => shortenName(name, others, measure, max);
 const startsWord = (name, label) => {
@@ -59,7 +59,7 @@ test("the model's labels are used as they are when they fit", () => {
 
 /** Draw a scene at zoom k (everyone labelled from zoom 1) and return the label texts and their centres. */
 function labelsAt(network, pos, k, { selected = -1, width = 4000, height = 400, cx = 1500, cy = 0, labels, kinds, typeZoom } = {}) {
-  const scene = buildScene(network, measure);
+  const scene = buildScene(asZigbee(network), measure);
   const ctx = recordingContext({ props: true });
   const stats = drawScene(ctx, scene, pos, { cam: { k, cx, cy }, width, height, dpr: 1, labelZoom: 1,
     debug: false, selected, hovered: -1, fps: null, labels, typeZoom, texts: kinds ? { kinds } : undefined }, resolveTheme({}), measure);

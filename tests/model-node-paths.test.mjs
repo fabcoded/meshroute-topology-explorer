@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { sampleNetwork } from "./panel-fixture.mjs";
 import { buildNetwork, upPath, downPath, nodePaths, pathHops, unknownEnd, NODE_VIEWS }
-  from "../custom_components/meshroute_topology_explorer/frontend/model/index.js";
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 
 const sample = sampleNetwork();
 const coordinator = sample.devices.find((d) => d.role === "coordinator");

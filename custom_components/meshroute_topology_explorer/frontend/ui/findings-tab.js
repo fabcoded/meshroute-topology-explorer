@@ -12,8 +12,9 @@ export function renderFindings(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
   const name = (id) => (network.devices.find((x) => x.id === id) || { label: id }).label;
-  const findingText = engineFor(network).findings.text; // each network type has its own words
-  const grouped = groupFindings(network.findings, name);
+  const engine = engineFor(network);
+  const findingText = engine.findings.text; // each network type has its own words
+  const grouped = groupFindings(network.findings, name, engine.findings.kinds);
   /** One entry; the finding's own kind is named when it differs from its group's (a hedged "parent unknown" in the
    *  missing-table group). */
   const item = (f, groupKind) => {

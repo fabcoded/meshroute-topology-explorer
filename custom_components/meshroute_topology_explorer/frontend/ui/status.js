@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: MIT
-// The decision which empty or error state applies before any data is shown (spec 9.4), and the age of a time for the
-// status line. The status line's parts are the engines' (engines/*/status.js). No DOM, no Home Assistant objects.
+// The age of a time for the status line. The status line's parts are the engines' (engines/<type>/status.js); which
+// empty or error state applies before any data is shown is the controller's and the adapters' (spec 9.4). No DOM.
 // Tested in Node: node --test tests/
-
-/** Decide which empty/error state applies before any data is shown (spec 9.4). Returns a key or null. */
-export function blockingState({ isAdmin, configEntries }) {
-  if (!isAdmin) return "not_admin";
-  const loaded = Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
-  return loaded ? null : "zha_not_loaded";
-}
 
 /** Age of a time as a text key and its parameters: "just now", "{n} min ago", "{n} h ago". */
 export function ageParts(iso, now = Date.now()) {

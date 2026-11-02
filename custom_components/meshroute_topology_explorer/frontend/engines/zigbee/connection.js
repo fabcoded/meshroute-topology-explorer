@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // How a Zigbee device hangs in the network, for its row in the Devices list (board M3). Pure. node --test tests/
-import { upPath } from "../../model/paths.js";
+import { upPath } from "./paths.js";
 
 /** How a device hangs in the network, for its row (design by Fabian Schwamborn, 2026-11-01, board M3): the
  *  coordinator is the network; an end device is "via" its parent, or "direct" when the parent is the coordinator; a
