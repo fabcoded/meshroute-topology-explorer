@@ -3,7 +3,7 @@
 // availability, children, relay load, readings in both directions with reporter and rating, its own routing entries,
 // its findings, and its paths in the node view as text lines, so every value the map draws at a hop also exists as
 // text (spec 9.3); in the view "all" its theoretical paths per other device (spec 5.7) with how each hop is taken; in
-// the view "table" its routing-table walks per destination (spec 7.1), optionally with the walks back. No DOM; details-tab.js renders it. Tested in Node: node --test tests/
+// the view "table" its routing-table walks per destination (spec 7.1), optionally with the walks back. No DOM; details-tab.js renders it. Tested in Node: npm test
 import { nodePaths, unknownEnd } from "../node-paths.js";
 import { zigpyRecords } from "../source-routes.js";
 import { lqiText } from "../../../ui/format.js";

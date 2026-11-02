@@ -8,7 +8,7 @@
 // Geometry: design input ChatGPT (OpenAI), via Fabian Schwamborn; completed by Claude (round 6.2, docs/provenance.md).
 // Pure functions plus one drawing function that takes a Canvas 2D context; paths are traced with plain context calls
 // (no Path2D), so tests in Node see what is drawn and the legend draws the same symbols.
-// node --test tests/
+// npm test
 
 /** Grid of the drawings. */
 export const GRID = 24;

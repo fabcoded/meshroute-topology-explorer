@@ -3,7 +3,7 @@
 // 2026.9 or newer, read with refresh false: the server's cached snapshot, no radio traffic) onto devices, readings
 // and links, and holds the capability set of a Thread network read through Matter. The engine's model (model.js)
 // derives parents, pairs, status and findings from it. Pure, no DOM.
-// node --test tests/
+// npm test
 //
 // What the snapshot gives and what it does not (capability set, spec 4.6): readings per direction (Thread link
 // quality 0-3 and RSSI in dBm, measured by the receiver), the role of each node (leader, router, end device, sleepy

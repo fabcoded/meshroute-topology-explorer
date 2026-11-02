@@ -2,7 +2,7 @@
 // The Thread viewer engine (engines/index.js): what a Thread network read through Matter means (spec 3.2, 4.6). The
 // object gathers the engine's modules (from-matter.js and model.js, lanes.js, scene.js, status.js, findings.js,
 // details.js, texts.js); every hook has a caller in the shell, and both engines offer the same hooks.
-// Pure except details(), which fills the Details tab. node --test tests/
+// Pure except details(), which fills the Details tab. npm test
 import { buildThreadNetwork } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderThreadDetails } from "./details.js";

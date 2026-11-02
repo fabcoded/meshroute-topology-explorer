@@ -2,7 +2,7 @@
 // Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part, the
 // Okabe–Ito colours of the category fills (role, power source) and the grey for "no value". Pure functions, no DOM.
 // The panel passes theme colours in; nothing here depends on Home Assistant.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 
 /** cividis at t = 0, 1/16, ..., 1: 17 values of the published table (Nuñez, Anderton and Renslow 2018, PLOS ONE,
  *  doi:10.1371/journal.pone.0199239, supplement S2, CC BY 4.0; see NOTICE). Linear interpolation between them stays

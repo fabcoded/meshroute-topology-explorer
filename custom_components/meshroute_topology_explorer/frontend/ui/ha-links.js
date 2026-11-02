@@ -13,7 +13,7 @@
 // - entity list: src/common/url/entities-query-params.ts, parameter "device" filters by device registry id;
 // - more-info dialog: the bubbling, composed event "hass-more-info" with detail { entityId }
 //   (src/state/more-info-mixin.ts).
-// Pure path builders plus two small browser helpers. node --test tests/
+// Pure path builders plus two small browser helpers. npm test
 
 /** Home Assistant's device page. */
 export const devicePagePath = (registryId) => `/config/devices/device/${encodeURIComponent(registryId)}`;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Text forms of values shared by the tabs: LQI (0 is "uncertain", spec 3.1), ratings as ranks within what the
-// reporter hears (spec 5.4), roles. Pure; t is the translator of i18n.js. Tested in Node: node --test tests/
+// reporter hears (spec 5.4), roles. Pure; t is the translator of i18n.js. Tested in Node: npm test
 
 /** Below this rating a reading is in the "weakest tenth of what R hears" (spec 5.4 wording). */
 const WEAKEST = 0.1;

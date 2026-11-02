@@ -4,7 +4,7 @@
 // spec 4.3), the status numbers and the findings Thread data supports. Devices, readings and pairs come in the shared
 // shapes the map draws, and only with what Thread data says: no Zigbee field is filled with a default (no network
 // address, no router-table counts, no capacity, relay load or rating); what the snapshot does not name is null.
-// Pure, no DOM. node --test tests/
+// Pure, no DOM. npm test
 import { THREAD_CAPABILITIES, THREAD_SOURCE, fromMatter } from "./from-matter.js";
 
 export { RECEIVER_OF_SOURCE_TO_TARGET, THREAD_CAPABILITIES, THREAD_SOURCE, extAddress, isoTime, threadLqi, threadRssi }

@@ -6,7 +6,7 @@
 // homeassistant/components/zha/websocket_api.py, websocket_read_zigbee_cluster_attributes; message shape as in
 // home-assistant/frontend src/data/zha.ts readAttributeValue). Attributes are read one after another, so a sleepy or
 // busy device is not flooded; the first timeout or error stops the rest, which would fail the same way.
-// No DOM. node --test tests/
+// No DOM. npm test
 
 /** How long one read may take before the panel stops waiting. A device that sleeps answers only when awake; ZHA's own
  *  request gives up earlier and then answers with an error. Own choice. */

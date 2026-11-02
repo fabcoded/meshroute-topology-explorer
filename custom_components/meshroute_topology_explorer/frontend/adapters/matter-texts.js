@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The Matter adapter's texts (engines cut step 9): its name in the network switch and why a Thread network
 // cannot be shown. English is the reference; the dormant German table moves along. Merged into the panel's tables by
-// ui/i18n.js through adapters/index.js. Pure data. node --test tests/
+// ui/i18n.js through adapters/index.js. Pure data. npm test
 
 const en = {
   "source.thread": "Thread (Matter)",

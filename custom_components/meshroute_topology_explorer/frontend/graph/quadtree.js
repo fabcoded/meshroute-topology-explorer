@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Barnes-Hut approximation (Barnes and Hut 1986) of the repulsion sum in layout.js: far groups of devices act as
 // one mass at their centre. Used only for large networks; small ones use exact pair sums. Pure, no DOM.
-// node --test tests/
+// npm test
 
 const MAX_DEPTH = 24; // coincident points end up together in one leaf instead of splitting forever
 

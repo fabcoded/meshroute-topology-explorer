@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // State machine of the panel (spec 9.4, 10): reads the network once, decides which empty or error state applies,
 // notices a lost connection and reloads by itself when Home Assistant is back. No DOM: the panel element renders
-// whatever `state` says and listens for "change". Tested with a fake hass: node --test tests/
+// whatever `state` says and listens for "change". Tested with a fake hass: npm test
 //
 // Why a separate controller: Home Assistant assigns a new `hass` object on every state change in the house. Only the
 // first one may start a load (spec 10); later ones are checked for a lost or restored connection only. The reads

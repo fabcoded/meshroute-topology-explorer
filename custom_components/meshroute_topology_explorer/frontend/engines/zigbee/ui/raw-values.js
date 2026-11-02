@@ -3,7 +3,7 @@
 // receiver on when idle, permit joining, route status and yes/no flags. Values come from zigpy's and ZHA's enum names
 // ("Battery or Unknown", "NoneOfTheAbove", "Discovery_Underway"); an unknown value is shown as ZHA sent it. In debug
 // mode the raw text stays next to the translation. Pure; t is the translator of i18n.js.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 
 /** Kinds of raw values and where they occur. */
 export const RAW_KINDS = Object.freeze(["power", "available", "relationship", "device_type", "rx_on_when_idle",

@@ -2,7 +2,7 @@
 // The Zigbee engine's own settings keys (spec 11; engines cut, section 3): the view of "Communication paths", its
 // checkboxes "additional heard neighbours" and "Include return routes", and the source-route stage, with the legacy
 // readings of each. The shell (ui/settings.js) sanitizes its own keys and hands the stored object here; keys of other
-// engines are kept verbatim by the shell and never read here. No DOM. node --test tests/
+// engines are kept verbatim by the shell and never read here. No DOM. npm test
 import { DEFAULT_PATHS, PATH_STAGES } from "./lanes.js";
 import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "./source-routes.js";
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The status line of a Zigbee network (spec 6, board M1): source, "Router tables: x/y", "unchanged since" from the
 // observations, a followed scan, the source-route stage on the right, and the "incomplete" banner below 90 % of the
-// available routers with a table. No DOM: the panel translates the parts. node --test tests/
+// available routers with a table. No DOM: the panel translates the parts. npm test
 import { sourceRouteSummary } from "./source-routes.js";
 
 /** Below this completeness (share of available routers with a table) the map carries the banner "incomplete". */

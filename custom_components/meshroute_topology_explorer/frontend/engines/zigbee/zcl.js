@@ -5,7 +5,7 @@
 // Zigbee Cluster Library specification (07-5123, revision 8), the Zigbee Home Automation and Zigbee Light Link profile
 // specifications and the Green Power basic specification; names follow the ZCL's own spelling. Data and lookups only,
 // no DOM. Clusters 0xFC00-0xFFFF are manufacturer-specific by definition (ZCL 2.6.1.3): their meaning is the vendor's.
-// node --test tests/
+// npm test
 
 /** Profiles by id. Proper names, the same in every language. */
 export const PROFILES = Object.freeze({

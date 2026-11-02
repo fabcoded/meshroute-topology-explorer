@@ -8,7 +8,7 @@
 // - Groups follow the order of the network engine's finding kinds; hints form their own group, shown collapsed.
 // - The missing-table group lists both kinds by the table they name, so the list says which router to look at. A
 //   finding that lacks several tables appears under each of them.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 export const HINT_KINDS = Object.freeze(["very low reading"]);
 export const isHint = (finding) => HINT_KINDS.includes(finding.kind);
 

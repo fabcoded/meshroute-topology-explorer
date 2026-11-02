@@ -7,7 +7,7 @@
 // rating; opt-in, rated lanes are coloured by reception, red to green. What a lane means, and which look it gets, is
 // the network engine's (engines/<type>/lanes.js and scene.js; engines cut, section 3).
 // Pure functions: geometry and stroke styles.
-// node --test tests/
+// npm test
 
 import { SYMBOL_SIZE, contourExit } from "./symbols.js";
 import { receptionColor } from "./palette.js";

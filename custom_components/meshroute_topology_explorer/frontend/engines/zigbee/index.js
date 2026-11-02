@@ -3,7 +3,7 @@
 // the engine's modules (from-zha.js and model.js with the derived facts, lanes.js, scene.js, options.js, settings.js,
 // status.js, connection.js, texts.js, the Details in ui/); every hook has a caller in the shell, and both engines offer
 // the same hooks.
-// Pure except details(), which fills the Details tab. node --test tests/
+// Pure except details(), which fills the Details tab. npm test
 import { buildNetwork, FINDING_KINDS } from "./model.js";
 import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
 import { renderDetails } from "./ui/details-tab.js";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The status line of a Thread network (spec 3.2, 6; board Variant A): no router tables, no source-route stage and no
 // completeness banner (every Matter node's table comes with the snapshot). No DOM: the panel translates the parts.
-// node --test tests/
+// npm test
 
 /** Status parts of a Thread network (spec 3.2, 6; board Variant A): the source, the coverage "Links with both
  *  directions: x/y" instead of router tables (every Matter node's table comes with the snapshot), when the Matter

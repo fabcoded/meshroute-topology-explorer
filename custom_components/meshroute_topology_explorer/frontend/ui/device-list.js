@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The device list as data: rows, a text filter and the keyboard model of a single-select listbox (WAI-ARIA Authoring
 // Practices, listbox pattern). It is the keyboard path to every device (spec 9.3): arrows move, Enter selects.
-// No DOM; the Devices tab renders it. Tested in Node: node --test tests/
+// No DOM; the Devices tab renders it. Tested in Node: npm test
 import { engineFor } from "../engines/index.js";
 import { sleeps } from "../graph/symbols.js";
 

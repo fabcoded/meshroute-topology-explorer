@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The ZHA adapter's texts (engines cut step 9): its blocked and empty states, its name in the network switch,
 // its scan dialog, its device page link and the reload note. English is the reference; the dormant German table moves
-// along. Merged into the panel's tables by ui/i18n.js through adapters/index.js. Pure data. node --test tests/
+// along. Merged into the panel's tables by ui/i18n.js through adapters/index.js. Pure data. npm test
 
 const en = {
   "message.zha_not_loaded": "ZHA is not loaded. Set up the Zigbee Home Automation integration, then try again.",

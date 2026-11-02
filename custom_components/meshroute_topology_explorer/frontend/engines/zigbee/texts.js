@@ -3,7 +3,7 @@
 // "Communication paths", the source-route stage and zigpy, the Details' raw ZHA tables. English is the reference; the
 // dormant German table moves along (ui/i18n.js, owner decision 2026-11-01). Merged into the panel's tables by
 // ui/i18n.js through engines/index.js; keys are disjoint from the shared table's (a key two engines share, such as
-// role.end device, has the same text in both). Pure data. node --test tests/
+// role.end device, has the same text in both). Pure data. npm test
 
 const en = {
   "role.coordinator": "Coordinator",

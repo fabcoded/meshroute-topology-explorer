@@ -6,7 +6,7 @@
 // Stored object: { routers: { <ieee>: { fingerprint, firstSeen } }, ...unknown keys kept }. Saves are debounced and
 // read-merge-write per router: the same fingerprint keeps the earlier time (another panel saw it first), a different
 // one is replaced by what this panel sees now. Stored data is untrusted input and cleaned before use. No DOM.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 import { fingerprints, updateObservations, newestChange } from "./zha-fingerprints.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "./ws.js";
