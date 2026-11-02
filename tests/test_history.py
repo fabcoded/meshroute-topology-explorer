@@ -73,6 +73,21 @@ class FilesTest(unittest.TestCase):
         self.assertNotIn("e", got[2])
         self.assertEqual(len(got[3]["r"]), 1)
 
+    def test_parent_links_format_dedupe_and_a_child_moving(self):
+        n = {("p1", "c"): (50, None)}
+        self.assertTrue(self.put(self.files, "n", DAY, n, parents=(("c", "p1"),)))
+        self.assertFalse(self.put(self.files, "n", DAY + H, n, parents=(("c", "p1"),)))
+        self.assertTrue(self.put(self.files, "n", DAY + 2 * H, n, parents=(("c", "p2"),)))  # same table, new parent
+        got = self.lines("n.2026-11-01.jsonl")
+        self.assertEqual(got[0], {"k": ["p1", "c"]})
+        self.assertEqual(got[1]["p"], [[1, 0]])
+        self.assertEqual(got[3], {"k": ["p2"]})
+        self.assertEqual(got[4]["p"], [[1, 2]])
+        out = self.files.records("n", DAY, DAY + 3 * H)
+        self.assertEqual([r.get("p") for r in out["records"]], [[[1, 0]], None, [[1, 2]]])
+        self.assertEqual(out["k"][2], "p2")
+        self.assertNotIn("p", self.lines("n.2026-11-01.jsonl")[0])
+
     def test_records_range_with_one_key_table_across_days(self):
         n = {("r", "s"): (1, None)}
         self.put(self.files, "n", DAY, n)
@@ -248,6 +263,19 @@ class SourcesTest(unittest.TestCase):
         self.assertEqual(got, ((a, "0x9999", b, "Discovery_Underway"), (a, b, a, "Active")))
         devices[2]["nwk"] = 0x1111  # two devices with one address: neither can be named
         self.assertEqual(self.src.parse_zha(devices).routes[0], (a, "0x2222", "0x1111", "Active"))
+
+    def test_zha_parent_links_from_the_relationship(self):
+        r, c, other = "aa:bb:cc:dd:00:00:00:01", "aa:bb:cc:dd:00:00:00:02", "aa:bb:cc:dd:00:00:00:03"
+        devices = [
+            {"ieee": r, "available": True, "neighbors": [
+                {"ieee": c, "lqi": "9", "relationship": "Child"}, {"ieee": other, "lqi": "9", "relationship": "Sibling"}]},
+            {"ieee": c, "available": True, "neighbors": [{"ieee": other, "lqi": "9", "relationship": "Parent"}]},
+            {"ieee": other, "available": False, "neighbors": [{"ieee": c, "lqi": "9", "relationship": "Child"}]}]
+        # r is c's parent (r lists c as Child); other is c's parent too (c lists other as Parent); stale table skipped
+        self.assertEqual(self.src.parse_zha(devices).parents, ((c, r), (c, other)))
+        fixture = self.src.parse_zha(self.zha).parents
+        self.assertTrue(fixture)
+        self.assertTrue(all(len(p) == 2 and p[0] != p[1] for p in fixture))
 
     def test_zha_routes_of_the_fixture(self):
         routes = self.src.parse_zha(self.zha).routes

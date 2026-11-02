@@ -872,17 +872,19 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
 
 - **Files:** `/config/.storage/meshroute_topology_explorer_history/<network id, URL-quoted>.<UTC day>.jsonl`, append only,
   one file per network and day; writing and reading run in the executor. Lines: `{"k":[keys]}` extends the file's key
-  table; `{"t":epoch,"e":[[receiver,sender,lqi(,rssi)]],"r":[[holder,destination,next hop,status]],"l":[[device,[relays]]]}`
-  is a record (`r`, `l` left out when empty); `{"t":epoch}` alone repeats the previous record. The first record of a file is
+  table; `{"t":epoch,"e":[[receiver,sender,lqi(,rssi)]],"r":[[holder,destination,next hop,status]],"l":[[device,[relays]]],"p":[[child,parent]]}`
+  is a record (`r`, `l`, `p` left out when empty); `{"t":epoch}` alone repeats the previous record. The first record of a file is
   full. Keys: IEEE (Zigbee), the Thread adapter's key (extended address, else `thread:<node id>`); a network address no
   device holds stays text (`0x2B82`). Receiver = the device whose table reports the value (it hears the sender). Status =
-  ZHA's route status text.
-- **Dedupe:** the whole record (neighbours, routes, relays) is compared with the previous one, kept in memory per network
+  ZHA's route status text. `p` comes from the neighbour entries' relationship as ZHA reports it, seen from the table's
+  holder: an entry "Child" for X means the holder is X's parent, an entry "Parent" for X means X is the holder's parent;
+  available devices only, duplicates merged; a child with stale entries can show two parents.
+- **Dedupe:** the whole record (neighbours, routes, relays, parents) is compared with the previous one, kept in memory per network
   (restored from today's file after a restart).
 - **Retention:** day files that ended more than "Keep for" days ago are deleted (also while recording is off). Removing the
   integration deletes the folder; turning recording off does not.
 - **Size:** the owner's Zigbee network (47 devices, 649 neighbour entries, 153 routing entries) is about 10 KB per full
-  record (about 7 KB for the neighbour entries), so at most about 2.4 MB for 30 days at 3 h with every record changed;
+  record (about 7 KB for the neighbour entries, parent links add about 0.3 KB), so at most about 2.4 MB for 30 days at 3 h with every record changed;
   unchanged records cost a line.
 - **Commands (administrators):** `meshroute_topology_explorer/history/series` (`network`, `sender`, `receiver`, `since`
   epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table

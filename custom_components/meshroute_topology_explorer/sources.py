@@ -106,7 +106,7 @@ def _nwk(value: Any) -> str | None:
 
 
 def parse_zha(devices: Any) -> Snapshot:
-    """Neighbour and routing entries of zha/devices.
+    """Neighbour entries, routing entries and parent links of zha/devices.
 
     Neighbours: (device whose table it is, listed neighbour) -> (lqi, None). Routes: (holder, destination, next hop,
     ZHA's route status); an address that exactly one device holds becomes that device's IEEE, else it stays "0xABCD".
@@ -122,6 +122,7 @@ def parse_zha(devices: Any) -> Snapshot:
             owner[nwk] = None if nwk in owner else _ieee(device.get("ieee"))
     entries: Entries = {}
     routes: set[tuple[str, str, str, str]] = set()
+    parents: set[tuple[str, str]] = set()
     for device in devices:
         holder = _ieee(device.get("ieee")) if isinstance(device, dict) else None
         if not holder or device.get("available") is False:
@@ -133,6 +134,13 @@ def parse_zha(devices: Any) -> Snapshot:
                 lqi = int(lqi)
             if sender is None or sender == holder or isinstance(lqi, bool) or not isinstance(lqi, int) or lqi < 0:
                 continue
+            # ZHA's relationship names the neighbour from the holder's side: "Child" = the neighbour is the holder's
+            # child (the holder is its parent), "Parent" = the neighbour is the holder's parent.
+            relationship = n.get("relationship")
+            if relationship == "Child":
+                parents.add((sender, holder))
+            elif relationship == "Parent":
+                parents.add((holder, sender))
             old = entries.get((holder, sender))
             if old is None or lqi > old[0]:
                 entries[(holder, sender)] = (lqi, None)
@@ -141,7 +149,7 @@ def parse_zha(devices: Any) -> Snapshot:
             status = r.get("route_status") if isinstance(r, dict) else None
             if dest and hop and isinstance(status, str):
                 routes.add((holder, owner.get(dest) or dest, owner.get(hop) or hop, status))
-    return Snapshot(entries, tuple(sorted(routes)))
+    return Snapshot(entries, tuple(sorted(routes)), (), tuple(sorted(parents)))
 
 
 def parse_relays(answer: dict[str, Any]) -> tuple[tuple[str, tuple[str, ...]], ...]:

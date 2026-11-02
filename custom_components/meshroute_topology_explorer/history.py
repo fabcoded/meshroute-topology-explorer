@@ -7,12 +7,13 @@ File `<quoted network id>.<YYYY-MM-DD>.jsonl`, one JSON object per line:
 - `{"k": [key, ...]}` extends the file's key table (device keys: IEEE for Zigbee, the Thread adapter's key for Thread; a
   network address no device holds is kept as its text, e.g. "0x2B82"); a row refers to a key by its position over all
   `k` lines of the file, so a file never needs rewriting.
-- `{"t": epoch_seconds, "e": [...], "r": [...], "l": [...]}` one record, all tables of the network:
+- `{"t": epoch_seconds, "e": [...], "r": [...], "l": [...], "p": [...]}` one record, all tables of the network:
   `e` neighbour entries [receiver, sender, lqi(, rssi)]: receiver = the device whose table reports the value (it hears
   the sender), lqi and rssi numbers or null, the trailing rssi left out when null;
   `r` routing entries [holder, destination, next hop, status]: status is ZHA's text ("Active", ...);
   `l` route records [device, [relay, ...]]: the relays between the device and the coordinator, as zigpy holds them.
-  `r` and `l` are left out when empty (Thread has neither).
+  `p` parent links [child, parent], from the neighbour entries' relationship (see sources.py);
+  `r`, `l` and `p` are left out when empty (Thread has none of them).
 - `{"t": epoch_seconds}` alone: nothing changed since the previous record. The first record of a file is always full,
   so a day file can be read without its neighbours.
 Deleting a day file is the whole retention; the previous record per network is the only history held in memory.
@@ -40,9 +41,10 @@ class Snapshot(NamedTuple):
     neighbours: Entries
     routes: tuple[tuple[str, str, str, str], ...] = ()
     relays: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    parents: tuple[tuple[str, str], ...] = ()  # (child, parent) from the neighbour entries' relationship; sorted
 
     def is_empty(self) -> bool:
-        return not (self.neighbours or self.routes or self.relays)
+        return not (self.neighbours or self.routes or self.relays or self.parents)
 
 
 def _rows(snapshot: Snapshot, index: dict[str, int]) -> dict[str, Any]:
@@ -54,6 +56,8 @@ def _rows(snapshot: Snapshot, index: dict[str, int]) -> dict[str, Any]:
         out["r"] = [[index[h], index[d], index[n], status] for h, d, n, status in snapshot.routes]
     if snapshot.relays:
         out["l"] = [[index[d], [index[x] for x in relays]] for d, relays in snapshot.relays]
+    if snapshot.parents:
+        out["p"] = [[index[child], index[parent]] for child, parent in snapshot.parents]
     return out
 
 
@@ -66,6 +70,8 @@ def _keys_of(snapshot: Snapshot) -> list[str]:
         seen.update(dict.fromkeys(row[:3]))
     for device, relays in snapshot.relays:
         seen.update(dict.fromkeys((device, *relays)))
+    for pair in snapshot.parents:
+        seen.update(dict.fromkeys(pair))
     return list(seen)
 
 
@@ -105,7 +111,8 @@ def _parse(path: Path, keys: list[str] | None = None) -> Iterator[tuple[float, S
                     current = Snapshot(
                         {(keys[e[0]], keys[e[1]]): (e[2], e[3] if len(e) > 3 else None) for e in obj["e"]},
                         tuple((keys[r[0]], keys[r[1]], keys[r[2]], r[3]) for r in obj.get("r", [])),
-                        tuple((keys[x[0]], tuple(keys[i] for i in x[1])) for x in obj.get("l", [])))
+                        tuple((keys[x[0]], tuple(keys[i] for i in x[1])) for x in obj.get("l", [])),
+                        tuple((keys[c], keys[q]) for c, q in obj.get("p", [])))
                 yield float(obj["t"]), current
             except (ValueError, KeyError, IndexError, TypeError):
                 continue
@@ -225,7 +232,7 @@ class HistoryFiles:
 
     def records(self, network: str, since: float, until: float) -> dict[str, Any]:
         """Records of a network with since <= time <= until in the file format with one key table over the range:
-        {"k": [...], "records": [{"t", "e", "r", "l"} or {"t"} where nothing changed]}. The first record is full."""
+        {"k": [...], "records": [{"t", "e", "r", "l", "p"} or {"t"} where nothing changed]}. The first record is full."""
         keys: list[str] = []
         index: dict[str, int] = {}
         out: list[dict[str, Any]] = []
