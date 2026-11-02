@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Test helper (also used by dev/graph.html), not shipped: the fidelity measure of spec 12, the rank correlation (Spearman, mid-ranks for
+// Test helper, not shipped: the fidelity measure of spec 12, the rank correlation (Spearman, mid-ranks for
 // ties) between the drawn length of each reading's spring and its LQI. Readings without a value are left out.
 
 function ranks(values) {
