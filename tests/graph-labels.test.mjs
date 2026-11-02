@@ -11,7 +11,9 @@ import {
 import { buildScene, drawScene, typeShown } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { asZigbee, recordingContext, labelWidth as measure } from "./graph-fakes.mjs";
+import { asZigbee, recordingContext, labelWidth as measure, FakeCanvas, fakeEnv } from "./graph-fakes.mjs";
+import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
+import { DENSITY } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 
 const cut = (name, others, max = MAX_LABEL_WIDTH) => shortenName(name, others, measure, max);
 const startsWord = (name, label) => {
@@ -219,4 +221,38 @@ test("the type line shows only from the working scale up; the overview stays cal
   assert.deepEqual(at(1, 2), ["Kitchen"], "below the working scale: the name only");
   assert.deepEqual(at(2, 2), ["Kitchen", "Light"], "at the working scale: type and name");
   assert.deepEqual(at(3, 2), ["Kitchen", "Light"]);
+});
+
+test("medium, wide and custom density cut by character count (28), dense by width; a density change recomputes", () => {
+  const long = "Living room ceiling lamp over the sofa left"; // 43 characters
+  const mid = "Living room ceiling lamp left"; // 29 characters
+  const net = asZigbee({ devices: [
+    { id: "a", label: long, role: "router" }, { id: "b", label: "Living room ceiling lamp over the sofa right", role: "router" },
+    { id: "c", label: "Short name 26 characters ok", role: "router" }, { id: "d", label: mid, role: "router" },
+  ], readings: [] });
+  const chars = (view, i) => view.scene.nodes[i].label;
+  const mk = (density) => {
+    const env = fakeEnv({ dpr: 1, reducedMotion: true });
+    const view = new GraphView(new FakeCanvas(1280, 800), { env, density });
+    view.setNetwork(net);
+    return view;
+  };
+  const dense = mk(DENSITY.dense);
+  const medium = mk(DENSITY.medium);
+  for (const d of [DENSITY.medium, DENSITY.spread, 3.1]) {
+    const v = mk(d);
+    assert.equal(chars(v, 2), "Short name 26 characters ok", "26 characters: whole");
+    for (let i = 0; i < 4; i++) assert.ok(chars(v, i).length <= 28 || !chars(v, i).startsWith(ELLIPSIS), chars(v, i));
+    assert.ok(chars(v, 0).length <= 28 && chars(v, 0).startsWith(ELLIPSIS) && chars(v, 0).endsWith("left"), chars(v, 0));
+    assert.notEqual(chars(v, 0), chars(v, 1), "still unique");
+  }
+  assert.equal(chars(medium, 3), "…room ceiling lamp left", "29 characters: cut by the same rules");
+  assert.ok(measure(chars(dense, 0)) <= MAX_LABEL_WIDTH, "dense still by pixels");
+  assert.notEqual(chars(dense, 0), chars(medium, 0), "dense and medium differ");
+  const before = chars(medium, 0);
+  medium.setDensity(DENSITY.dense);
+  assert.equal(chars(medium, 0), chars(dense, 0), "dense again by pixels");
+  assert.equal(medium.scene.labels[0], chars(medium, 0), "scene.labels follows");
+  medium.setDensity(DENSITY.spread);
+  assert.equal(chars(medium, 0), before, "back to characters");
 });

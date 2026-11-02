@@ -64,13 +64,31 @@ export function hitRadius(k) {
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+/** Shortened readable and Home Assistant names of the devices. labelChars (spec 8) set: names are cut by character
+ *  count (that many at most, the ellipsis included); null: by width in pixels (dense maps). */
+function shortNames(devices, measure, maxLabelWidth, labelChars) {
+  if (labelChars) {
+    const count = (text) => text.length;
+    return { labels: displayLabels(devices, count, labelChars), ha: haLabels(devices, count, labelChars) };
+  }
+  // The Home Assistant name is drawn in the smaller font.
+  return { labels: displayLabels(devices, measure, maxLabelWidth),
+    ha: haLabels(devices, (text) => measure(text) * SMALL_SHARE, maxLabelWidth) };
+}
+
+/** Shorten the names of an existing scene again, in place (the density changed between pixel and character rule). */
+export function relabelScene(scene, measure, maxLabelWidth, labelChars) {
+  const { labels, ha } = shortNames(scene.network.devices, measure, maxLabelWidth, labelChars);
+  scene.nodes.forEach((n, i) => { n.label = labels[i]; n.haLabel = ha[i]; scene.labels[i] = labels[i]; });
+}
+
 /** Static part of the picture for one network: nodes with display labels (readable name, Home Assistant name, kind
  *  for the type line); pairs with their evidence per direction (ab: a hears b, ba: b hears a; { state, lqi, rating,
  *  source, reason } from the data model) and their two lanes; lanes { s, h (node indices of sender and hearer), pair,
  *  dir (the hearer's evidence), key "s>h", index, and the engine's meaning of the lane (engines/<type>/scene.js
  *  lanes) }; neighbours; network (the devices deduplicated); engine: the network's viewer engine (engines/index.js;
  *  null for a network without devices, which has nothing to mean), which adds its own fields once (classify). */
-export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
+export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH, labelChars = null) {
   // No default engine (spec 4.6): a network with devices names its engine or this throws.
   const engine = !(network.devices || []).length && network.engine === undefined ? null : engineFor(network);
   const seen = new Set();
@@ -80,8 +98,7 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH) {
     seen.add(d.id);
     devices.push(d);
   }
-  const labels = displayLabels(devices, measure, maxLabelWidth);
-  const ha = haLabels(devices, (text) => measure(text) * SMALL_SHARE, maxLabelWidth); // drawn in the smaller font
+  const { labels, ha } = shortNames(devices, measure, maxLabelWidth, labelChars);
   const nodes = devices.map((d, i) => {
     const role = ROLES.includes(d.role) ? d.role : "unknown";
     const parts = symbolParts({ ...d, role });

@@ -590,6 +590,8 @@ user-supplied image or map tiles from a user-configured address.
   smaller grey line below, only where it differs (off). The type line shows only from the working scale (9.3) up.
   - Labels are text, never HTML. A name keeps the part that distinguishes it from similar names (cut shared
     beginnings at word starts, keep the end); identical readable names get the network address appended.
+    At the dense setting a name is cut to fit 128 px (about 20 characters); at medium, wide and custom only a name
+    longer than 28 characters is cut, by the same rules, so those labels may overlap more; labels follow a density change.
   - Below a scale measured on screen (devices half a label width from their nearest neighbour, so a spread map is
     labelled from a smaller zoom) only the engine's anchors (Zigbee coordinator; Thread leader and border routers),
     the selection and its neighbours carry labels.
