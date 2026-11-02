@@ -67,8 +67,7 @@ const DEVICE_TYPES = {
   },
 };
 
-/** Clusters: id -> [name, what it does]. One name has its slash escaped so tools/guard.py does not read it as
- *  a websocket command. */
+/** Clusters: id -> [name, what it does]. */
 const CLUSTERS = {
   0x0000: ["Basic", "Who the device is: manufacturer, model, versions and power source."],
   0x0001: ["Power Configuration", "Mains and battery: voltage, battery level and battery type."],
@@ -76,7 +75,7 @@ const CLUSTERS = {
   0x0003: ["Identify", "Makes the device show itself, for example by blinking."],
   0x0004: ["Groups", "Group membership, so that one command reaches several devices."],
   0x0005: ["Scenes", "Stored scenes that the device recalls on command."],
-  0x0006: ["On\u002FOff", "Switches the device on and off."],
+  0x0006: ["On/Off", "Switches the device on and off."],
   0x0007: ["On/Off Switch Configuration", "How a switch acts when pressed."],
   0x0008: ["Level Control", "Sets a level, such as the brightness of a lamp."],
   0x0009: ["Alarms", "A list of the device's alarms."],

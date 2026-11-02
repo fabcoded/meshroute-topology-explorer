@@ -71,8 +71,9 @@ ALLOWED_COMMANDS = {
     "thread/discover_routers", "thread/list_datasets", "mqtt/subscribe",
 }
 OWN_NAMESPACE = "meshroute_topology_explorer/"
-# A command-like literal: starts with a name, has a slash, no spaces ("./a.js", "/abs/path" and URLs do not match).
-LITERAL = re.compile(r"""(["'`])([A-Za-z_][A-Za-z0-9_.*-]*/[A-Za-z0-9_/.*-]*)\1""")
+# A command-like literal: Home Assistant command names are lower case ("zha/devices"), start with a name, have a slash
+# and no spaces ("./a.js", "/abs/path", URLs and display names such as "On/Off" do not match).
+LITERAL = re.compile(r"""(["'`])([a-z_][a-z0-9_.*-]*/[a-z0-9_/.*-]*)\1""")
 JOIN = re.compile(r"""(["'`])([^"'`]*)\1\s*\+\s*(["'`])([^"'`]*)\3""")
 CALL = re.compile(r"\b(?:callWS|sendMessage|subscribeMessage)\b")
 UNRESOLVED = re.compile(r"""\$\{|["'`]\s*\+|\+\s*["'`]|\[\s*["']type["']\s*\]""")
