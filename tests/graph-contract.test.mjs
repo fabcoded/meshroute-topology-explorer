@@ -330,7 +330,7 @@ test("a device on the selected device's paths keeps its label in a hub position"
   }
 });
 
-test("every hop of the focus carries its value on click, overlap accepted (board M11 rule 8)", () => {
+test("every hop of the focus carries its value on click, overlap accepted (spec 7.1)", () => {
   // On 7b7e9b1 a click in stage 2 lost 24-33 of 82 values (no free place or a lane too short) and Router 11 in stage 1
   // showed 1 of 3 at the fitted view.
   const { view, env } = show();

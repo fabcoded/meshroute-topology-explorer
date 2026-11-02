@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Zigbee lane carries and says (spec 4.3, 7.1, 8; boards M2, M7, M11). Classes belong to a lane, not to a pair: "up" (the hearer is the sender's next hop on the
+// What a Zigbee lane carries and says (spec 4.3, 7.1, 8). Classes belong to a lane, not to a pair: "up" (the hearer is the sender's next hop on the
 // sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a device, measured from the
 // tables or assumed as the reversed way up, source-routes.js), "route" (on an active route between two devices,
 // neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry several; it is drawn as its
@@ -18,7 +18,7 @@ import { downPath, routePath, upPath } from "./paths.js";
 import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "./source-routes.js";
 import { isActive } from "./from-zha.js";
 
-/** "Communication paths" (spec 7.1, 9.1, 11; board M11; routing-table view): three views, each its own basis, none containing another: with the
+/** "Communication paths" (spec 7.1, 9.1, 11; routing-table view): three views, each its own basis, none containing another: with the
  *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
  *  an option (checkbox) under the routing table. */
 export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);
@@ -178,8 +178,8 @@ export function laneValue(dir, texts) {
   return text === "?" ? unknownGlyph(dir && dir.reason) : text;
 }
 
-/** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
- *  M7): the strokes by evidence whatever the view, each with its sample and the views that draw it: read (every
+/** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; spec 9.1):
+ *  the strokes by evidence whatever the view, each with its sample and the views that draw it: read (every
  *  view), assumed or derived (views 1 and 3), computed (view 3, marked computed), heard (the option under the routing
  *  table, needs a selection); the weight by role; the band under a selected device's way up; the glyphs for directions
  *  without a reading where the option draws them (on click, debug); debug mode adds the lane without traffic or

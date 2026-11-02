@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// "Communication paths" (boards M2, M11; spec 7.1, 9.1, 11): classes per
+// "Communication paths" (spec 7.1, 9.1, 11): classes per
 // direction (the way back of an up hop is not up; down measured or assumed; routes between devices; heard only), what
 // each stage draws in the overview, on click and on hover, debug mode drawing every lane, the layout never moving, and
 // the stored setting with its migration from the class switches and the node view.
@@ -155,7 +155,7 @@ test("click: everything else off; stage 1 the way up and down, stage 2 adds rout
   // Stage 2: the way to and from every other device (spec 5.7). Out: r2 -> r1 and r2 -> r3 directly (r2 hears both),
   // r2 -> r1 -> r4 by the tables, r2 -> r1 -> e1 by discovery to the parent, which delivers. In: r1 and e1 by r1's
   // table; r3 does not hear r2 and r4 has no entry: their ways are what a discovery finds (r3 -> c -> r1 -> r2 costs
-  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). On click the selection's own tree decides (board M11 rule 5): r2's own up and down lanes stay up and down; e1 -> r1 and r1 -> e1 are parent hops of its
+  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). On click the selection's own tree decides (spec 7.1): r2's own up and down lanes stay up and down; e1 -> r1 and r1 -> e1 are parent hops of its
   // trees, so routes (not the up and down lanes they are for e1); r3 -> c and r4 -> r1 are only what a discovery would
   // take, so computed although they are someone's up lane or neighbour hop.
   assert.deepEqual(two.paths.values.map((v) => [ID[v.s], ID[v.h], v.text, v.cls, v.predicted]).sort(), [
@@ -273,7 +273,7 @@ test("the stored stage: valid stages kept, anything else is the default", () => 
   assert.deepEqual([again.paths, again.heard], ["all", true]);
 });
 
-test("the path views carry the owner's terms (boards M2, M7, M11)", () => {
+test("the path views carry the owner's terms (spec 9.1, 7.1)", () => {
   assert.equal(STRINGS["view.paths_coordinator"], "with the coordinator, there and back");
   assert.equal(STRINGS["view.paths_all"], "paths to all devices (theoretical)");
   assert.equal(STRINGS["view.paths_heard"], "additional heard neighbours (best 3)");

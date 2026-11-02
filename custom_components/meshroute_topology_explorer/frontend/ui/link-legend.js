@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The links part of the legend (board M7), built from what the network's engine says its map draws (GraphView.legend(),
+// The links part of the legend (spec 9.1), built from what the network's engine says its map draws (GraphView.legend(),
 // engines/*/lanes.js legendEntries): Zigbee's strokes by evidence whatever the view (read solid, assumed or derived
 // dash-dot, computed dash-dot in grey, heard only dashed grey, each with the views or option that draw it) and the
 // width by role, Thread's parent and neighbour lanes; the band under a selected device's way up, in debug mode also
@@ -26,7 +26,7 @@ export function linkLegendRows(entries, t) {
 }
 
 /** A lane as the map strokes it: width, dash, cap and colour of the entry's style, with its arrowhead (40 × 10 as on
- *  board M7). */
+ *  spec 9.1). */
 export function laneSample(style, length = 40) {
   const height = 10;
   const y = height / 2;
@@ -69,7 +69,7 @@ function stemSample(entry) {
   return el;
 }
 
-/** The reception scale as a bar from weakest (left) to strongest (right), 40 × 6 as on board M7. */
+/** The reception scale as a bar from weakest (left) to strongest (right), 40 × 6 (spec 9.1). */
 function scaleSample(entry) {
   return h("span", { class: "scale-sample", "aria-hidden": "true",
     style: { background: `linear-gradient(90deg, ${entry.colors.join(", ")})` } });

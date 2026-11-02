@@ -40,5 +40,5 @@ test("status line parts on the sample and a network below 90 %", () => {
   assert.equal(isIncomplete(low), true);
   assert.equal(isIncomplete({ completeness: 0.9 }), false);
   const later = statusParts(network, { unchangedSince: "2026-01-01 11:30" }).map(([key]) => key);
-  assert.equal(later.at(-1), "status.unchanged", "observed unchanged since closes the line (board M1)");
+  assert.equal(later.at(-1), "status.unchanged", "observed unchanged since closes the line (spec 6)");
 });

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Which network the map shows, Zigbee (ZHA) or Thread (Matter), and the control that switches it (board design
-// "Variant A", not yet approved): with two or more networks the first part of the status line ("Source: ZHA") is a chip with a caret that
+// Which network the map shows, Zigbee (ZHA) or Thread (Matter), and the control that switches it (spec 9.1,
+// draft design, not yet approved): with two or more networks the first part of the status line ("Source: ZHA") is a chip with a caret that
 // opens a small menu upward; with one network it stays plain text, no extra element. A network that cannot be read
 // is a greyed entry with the reason. sourcePart() is the one place that builds the control, so the approved design
 // can replace it. The choice is stored under the reserved network id PANEL_STORE through the integration's settings
@@ -12,7 +12,7 @@ import { getStored, setStored } from "./store-client.js";
 
 /** Networks the panel can show, in menu order: one per adapter (adapters/index.js); the keys are stored values. */
 export const NETWORK_KEYS = Object.freeze(ADAPTERS.map((a) => a.key));
-/** The first load shows the first adapter's network, Zigbee (board Variant A). */
+/** The first load shows the first adapter's network, Zigbee (spec 9.1). */
 export const DEFAULT_NETWORK = NETWORK_KEYS[0];
 /** Reserved network id for settings of the panel itself (the chosen network); valid under spec 10's id rule. */
 export const PANEL_STORE = "panel";

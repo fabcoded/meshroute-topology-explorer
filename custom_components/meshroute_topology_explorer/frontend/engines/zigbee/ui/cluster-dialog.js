@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The details of one cluster of one device (spec 9.2; board M10): a modal
+// The details of one cluster of one device (spec 9.2): a modal
 // dialog (WAI-ARIA dialog pattern: native <dialog> with showModal, Tab kept inside, Esc and a close button, focus back
 // to the row that opened it) with the cluster's name and id, device, endpoint, direction and profile; one sentence on
 // what the cluster does and what In or Out means; the attributes the public ZCL specification lists for it with a

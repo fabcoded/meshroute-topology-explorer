@@ -18,7 +18,7 @@ export const STYLES = `
   --mte-warn: var(--warning-color, #ffa600);
   --mte-error: var(--error-color, #db4437);
   --mte-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-  /* The segmented control's track and the soft boxes (boards M4, M9, M10), an outline for chips and links, and a
+  /* The segmented control's track and the soft boxes (spec 9.2), an outline for chips and links, and a
      warm text colour for hints ("manufacturer-specific", "experimental"), all mixed from the theme. */
   --mte-track: color-mix(in srgb, var(--mte-fg) 7%, var(--mte-card));
   --mte-outline: color-mix(in srgb, var(--mte-fg) 25%, transparent);
@@ -147,7 +147,7 @@ p { margin: 4px 0; }
 .small { font-size: 12px; }
 .mono { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 13px; }
 .empty { color: var(--mte-muted); margin: 16px 0; }
-/* Details (boards M4, M8, M9): name, one line, a segmented control and a
+/* Details (spec 9.2): name, one line, a segmented control and a
    stack of cards. Surfaces mix the theme's text colour into the card colour, so light and dark themes both work. */
 .details-head { margin-bottom: 12px; }
 .details-head p { margin-top: 2px; }
@@ -196,7 +196,7 @@ p { margin: 4px 0; }
 .reading-name .link { text-decoration: none; }
 .reading-name .link:hover { text-decoration: underline; }
 .more > summary { font-weight: 400; font-size: 13px; color: var(--mte-muted); min-height: 28px; }
-/* "… all" under the readings reads as a line of text (board M4); its own ellipsis says there is more. */
+/* "… all" under the readings reads as a line of text (spec 9.2); its own ellipsis says there is more. */
 .more.all-readings > summary::before { content: none; }
 .more.all-readings[open] > summary { display: none; }
 .more h4 { margin: 8px 0 2px; }
@@ -234,7 +234,7 @@ td.id, .id { font-size: 12px; color: var(--mte-muted); }
 .link { display: inline; min-height: 24px; padding: 2px 0; border: none; background: none; color: inherit; font: inherit;
   text-align: left; text-decoration: underline; text-decoration-color: var(--mte-muted); text-underline-offset: 2px;
   cursor: pointer; }
-/* Board M8: entity ids in a code font; .link resets font, so the class .mono needs this rule after it. */
+/* Entity ids in a code font; .link resets font, so the class .mono needs this rule after it. */
 .link.mono { font-family: var(--ha-font-family-code, ui-monospace, Menlo, monospace); font-size: 13px; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0 0; }
 .facts dt { color: var(--mte-muted); }
@@ -278,7 +278,7 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
   outline: 2px solid var(--mte-fg); outline-offset: -2px; }
 .row-label { font-weight: 700; overflow-wrap: anywhere; }
 .row-meta { color: var(--mte-muted); font-size: 13px; }
-/* Legend (board M7): compact rows, 28 px for links, 40 px for symbols; section titles 13 px bold. */
+/* Legend (spec 9.1): compact rows, 28 px for links, 40 px for symbols; section titles 13 px bold. */
 .legend-title { margin: 10px 0 4px; font-size: 13px; font-weight: 700; color: var(--mte-muted); }
 .legend-title:first-child { margin-top: 0; }
 .legend-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -290,7 +290,7 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
 .small svg { vertical-align: middle; }
 fieldset { border: none; margin: 0 0 14px; padding: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
-/* View tab (board M2): groups of real checkboxes and radios, titles 13 px
+/* View tab (spec 9.1): groups of real checkboxes and radios, titles 13 px
    bold, rows of 32 px with a fine pointer and 44 px targets with a coarse one (WCAG 2.2 2.5.8 needs 24 px). */
 .view-group { display: flex; flex-direction: column; margin: 0 0 18px; }
 .view-group > legend { font-size: 13px; font-weight: 700; color: var(--mte-muted); margin-bottom: 4px; }
@@ -350,7 +350,7 @@ dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog.confirm h2 { margin: 0 0 10px; }
 dialog.confirm p { margin: 0 0 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-/* Cluster details (board M10): a modal box, 680 px wide where there is room. */
+/* Cluster details (spec 9.2): a modal box, 680 px wide where there is room. */
 dialog.cluster-dialog { width: min(680px, calc(100vw - 24px)); max-width: none; max-height: calc(100vh - 24px); padding: 0;
   border: none; border-radius: 16px; background: var(--mte-card); color: var(--mte-fg);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); overflow: auto; font-size: 14px; }

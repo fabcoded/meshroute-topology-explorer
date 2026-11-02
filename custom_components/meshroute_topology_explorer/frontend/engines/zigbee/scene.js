@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Zigbee map draws (spec 5.7, 7.1, 9.3; board M11,
+// What a Zigbee map draws (spec 5.7, 7.1, 9.3,
 // section 2). "Communication paths" says what is drawn: the view "coordinator" (default) shows the up and down lanes
 // of all devices and, on click, only the device's way up and down; "table" every usable routing entry and, on click,
 // the device's own entries walked hop by hop; "all" the backbone of every lane a theoretical path uses and, on click,
@@ -305,7 +305,7 @@ export function focus(scene, i, view) {
   const sc = sceneClasses(scene, sourceRoute);
   // Stage 1: a lane keeps its strongest class whatever is in focus: a hop of the focus's
   // ways on someone's up or down lane is drawn as that lane. From stage 2 on the focus's own tree decides (main
-  // session, 2026-11-01, board M11 rule 5): scenePaths already gives each hop the strongest of the selection's own
+  // session, 2026-11-01, spec 7.1): scenePaths already gives each hop the strongest of the selection's own
   // ways (its up and down lanes, tables, neighbours, parent and child links, else discovery = computed); the
   // network-wide backbone does not reach into the focus, or nearly every computed hop would look proven.
   // Only the selection's stage-1 lanes (its up and down paths; the coordinator's routes down and up) override: they

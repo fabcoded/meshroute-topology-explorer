@@ -187,7 +187,7 @@ hint").
 
 ## 6. Open questions for the owner
 
-1. **Lane width by band (recommended) or by RSSI rank, as board M24 says.** Example: links at −40 and −45 dBm. By
+1. **Lane width by band (recommended) or by RSSI rank, as the design draft says.** Example: links at −40 and −45 dBm. By
    band both get the widest stroke; by rank per receiver the −45 dBm link gets the thinnest. Band keeps width and
    colour telling the same thing.
 2. **Decided: fixed constant of −100 dBm, capped by the receiver's own link quality.** Example: −75 dBm with link

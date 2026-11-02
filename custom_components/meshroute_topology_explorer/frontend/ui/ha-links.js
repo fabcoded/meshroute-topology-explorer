@@ -28,7 +28,7 @@ export const historyPath = (entityIds) => withEntities("/history", entityIds);
 /** The entity list, filtered to the device. */
 export const entitiesPath = (registryId) => `/config/entities?${new URLSearchParams({ device: registryId })}`;
 
-/** The links of the Entity tab for a device: [{ key, path }] in the board's order; a link whose target is unknown
+/** The links of the Entity tab for a device: [{ key, path }] in the order of spec 9.2; a link whose target is unknown
  *  (no registry entry, no area, no entities) is left out. sourcePage: the source's own page of the device, { key,
  *  path }, from its adapter (ZHA's; adapters/index.js devicePage), or null. */
 export function deviceLinks(device, sourcePage = null) {

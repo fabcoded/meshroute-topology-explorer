@@ -242,7 +242,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
     if (!this._versionMismatch() && st.phase === "ready" && networkChoices(st).length > 1 && this._choice === "unread"
       && this._hass) {
-      // Two networks: the stored choice decides which one shows first (board Variant A: first load Zigbee).
+      // Two networks: the stored choice decides which one shows first (spec 9.1: first load Zigbee).
       this._choice = "reading";
       loadNetworkChoice((msg) => this._hass.callWS(msg)).then((key) => {
         if (key && !this._networkKey) this._networkKey = key;
@@ -267,7 +267,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     return (key && st.networks[key]) || st.network;
   }
 
-  /** Switch the network (board Variant A): clears the selection, keeps the panels on their tab, stores the choice. */
+  /** Switch the network (spec 9.1): clears the selection, keeps the panels on their tab, stores the choice. */
   _chooseNetwork(key) {
     this._networkMenu = false;
     if (key === this._networkKey && this._source && adapterFor(this._source).key === key) { this._render(); return; }
@@ -386,7 +386,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) this._view.resize();
     this._renderButtons();
 
-    // Status line (spec 6, board M1): source, tables, completeness, "observed unchanged since" and a followed scan.
+    // Status line (spec 6): source, tables, completeness, "observed unchanged since" and a followed scan.
     const { incomplete } = this._renderStatus();
     ui.incomplete.hidden = !incomplete;
     if (incomplete) {
@@ -398,7 +398,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderTabs();
   }
 
-  /** Status line (spec 6, board M1): the network engine's parts (source, tables or links, "unchanged since" with its
+  /** Status line (spec 6): the network engine's parts (source, tables or links, "unchanged since" with its
    *  caveat as the part's description, a followed scan with its stop button) and its part on the right (the
    *  source-route stage). Below the wide breakpoint it is compact: short forms in at most two lines; the long forms
    *  are the parts' descriptions. Returns the engine's status ({ parts, right, incomplete }). */
@@ -418,7 +418,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     // The registries could not be read: the names and areas shown are the integrations' own.
     const parts = this._controller.state.registriesFailed ? [...status.parts, ["status.names_missing", {}]] : status.parts;
     this._ui.status.classList.toggle("compact", compact);
-    // The engine's part on the right (board M1: the source-route stage) sits apart.
+    // The engine's part on the right (spec 6: the source-route stage) sits apart.
     const sr = status.right;
     // The source part is the network switch when there is more than one network (ui/network-switch.js).
     const choices = networkChoices(this._controller.state);
@@ -684,7 +684,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     }
   }
 
-  /** A modal dialog an engine's Details open (Zigbee: one cluster's details, spec 9.2, board M10): open(host) builds it
+  /** A modal dialog an engine's Details open (Zigbee: one cluster's details, spec 9.2): open(host) builds it
    *  in the panel's root with Home Assistant's states and websocket and returns { close, refresh }. One at a time. */
   _openDialog(open) {
     if (!this._hass) return;

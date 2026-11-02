@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Legend tab of the right panel (spec 8, 9.1; board M7): compact, in three
+// The Legend tab of the right panel (spec 8, 9.1): compact, in three
 // sections. Communication paths: the classes the current stage draws (all in debug mode), "RX:" and, while paths are
 // coloured, the colour bar; the fill when one is chosen; Symbols: four rows, each a device of this network drawn by the
 // map's own drawSymbol with its picture (router, end device, coordinator, wired only); States: offline, selected,
@@ -11,7 +11,7 @@ import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
 import { drawSymbol, legendSigns, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
-/** Symbols in the Legend tab are drawn at 40 px (board M7). */
+/** Symbols in the Legend tab are drawn at 40 px (spec 9.1). */
 const SWATCH = 40;
 
 /** [{ label, color, slash }] of the category fill; the grey "none" entry last. */
@@ -68,13 +68,13 @@ export function renderLegend(container, { t, theme, fill, roles, devices = [], l
   // Symbols carry a value of the current fill, never the grey that means "no value"; the "none" fill is the neutral grey.
   const typical = (role) => (fill === "role" ? theme.categories.role[role] || theme.categories.role.router
     : fill === "power" ? theme.categories.power.mains : theme.neutral);
-  // One device of this network per sign (graph/symbols.js legendSigns, board M7).
+  // One device of this network per sign (graph/symbols.js legendSigns, spec 9.1).
   const item = (swatch, key) => h("li", {}, swatch, h("span", { text: t(key) }));
   const signs = legendSigns(devices);
   const rows = signs.map((sign) => item(symbolSwatch(sign.parts, theme, typical(sign.role)), sign.key));
   if (rows.length) container.append(title("legend.symbols_title"), h("ul", { class: "legend-rows symbols" }, rows));
 
-  // States, on the router's symbol (board M7), else on any device's.
+  // States, on the router's symbol (spec 9.1), else on any device's.
   const router = signs.find((sign) => sign.key === "legend.symbol_router");
   const example = (router && router.parts) || (devices[0] && symbolParts(devices[0]))
     || symbolParts({ role: "router", kind: "light" });

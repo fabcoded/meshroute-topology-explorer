@@ -325,7 +325,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const w = Math.max(measure(texts.rx), measure(text));
     const h = 2 * LINE_HEIGHT;
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
-    // A focus lane's value is never dropped (board M11 rule 8): on a short lane it sits at its
+    // A focus lane's value is never dropped (spec 7.1): on a short lane it sits at its
     // middle, beside the lane, where the lane is long enough for nothing else. Other values yield (spec 9.3).
     if (along + 8 > lane.len && !extra.path) return null;
     const half = Math.min(0.5, along / 2 / lane.len);
@@ -560,7 +560,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   const value = (t) => {
     let rect = null;
-    // The focus's values sit at their preferred place whatever is there (board M11 rule 8,
+    // The focus's values sit at their preferred place whatever is there (spec 7.1,
     // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
     // A focus value keeps off the focus labels: the next spot on its lane, else the one covering least of them.
     let least = Infinity;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Details tab (spec 9.2; boards M4, M8, M9): the device's name and one
+// The Details tab (spec 9.2): the device's name and one
 // line "type · role · vendor model", then a segmented control with three sub-tabs, each a stack of cards:
 // - Communication: the path with the coordinator there and back with the reception at every hop (the coordinator: all
 //   its routes), in the view "table" its routing-table walks per destination, in the view "all" its theoretical paths
@@ -23,9 +23,9 @@ import { clusterName, deviceTypeName, profileName } from "../zcl.js";
 import { rawText, RAW_COLUMNS } from "./raw-values.js";
 import { deviceLinks, inApp, moreInfo } from "../../../ui/ha-links.js";
 
-/** The sub-tabs, in the board's order. */
+/** The sub-tabs, in the order of spec 9.2. */
 export const DETAIL_TABS = Object.freeze(["communication", "entity", "cluster"]);
-/** Readings listed before "… all" (board M4). */
+/** Readings listed before "… all" (spec 9.2). */
 const TOP_READINGS = 5;
 /** "All paths" collapses above this many lines (spec 9.2). */
 const PATHS_OPEN = 12;
@@ -51,7 +51,7 @@ export function renderDetails(container, ctx) {
   const prefix = ctx.idPrefix || "mte-details";
   const name = (id) => (network.devices.find((x) => x.id === id) || { label: id }).label;
 
-  // Head: name, then "type · role · vendor model" (board M4); the state when it is down.
+  // Head: name, then "type · role · vendor model" (spec 9.2); the state when it is down.
   const kind = d.kind && d.kind !== "unknown" ? t(`kind_short.${d.kind}`) : null;
   const product = [d.vendor, d.model].filter(Boolean).join(" ");
   const line = [kind, roleText(d.role, t), product].filter(Boolean).join(" · ");
@@ -84,7 +84,7 @@ export function renderDetails(container, ctx) {
   else clusters(panel, d, raw, ctx);
 }
 
-/** A card: a bordered box with a small bold heading (board M4). */
+/** A card: a bordered box with a small bold heading (spec 9.2). */
 function card(title, ...children) {
   return h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null, ...children);
 }
@@ -153,7 +153,7 @@ function communication(panel, info, ctx, name) {
   }
 }
 
-/** The path card (board M4): "Communication path with the coordinator" with the lines there and back; for the
+/** The path card (spec 9.2): "Communication path with the coordinator" with the lines there and back; for the
  *  coordinator, whose paths are its routes, "All paths" collapsed when long. Each hop names the device that hears it
  *  and the reception there, the value in bold; an assumed return path (source route) says so in its prefix and in a
  *  note, and so does one from zigpy's route record (stage "zigpy", `record` of detailsOf), whose note names the radio
@@ -268,7 +268,7 @@ function tableCard(table, ctx, name) {
     ...notes.map((text) => h("p", { class: "muted small", text })), ...items));
 }
 
-/** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (board M4). */
+/** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (spec 9.2). */
 function readingRows(list, ctx) {
   const t = ctx.t;
   return h("div", { class: "reading-rows", role: "table" }, list.map((r) => {
@@ -284,7 +284,7 @@ function readingRows(list, ctx) {
   }));
 }
 
-/** "Heard by 18 · hears 25" (board M4): the reception, the best readings of the device, then behind "… all" the rest
+/** "Heard by 18 · hears 25" (spec 9.2): the reception, the best readings of the device, then behind "… all" the rest
  *  and what the device itself hears. */
 function heardCard(info, ctx) {
   const t = ctx.t;
@@ -305,7 +305,7 @@ function heardCard(info, ctx) {
   return card(t("details.heard_title", { by: info.heardBy.length, hears: info.hears.length }), ...body);
 }
 
-/** "Tables and load" (board M4): the neighbour table against the model's capacity, the routing table, the relay load;
+/** "Tables and load" (spec 9.2): the neighbour table against the model's capacity, the routing table, the relay load;
  *  the routing entries behind a disclosure. */
 function tablesCard(info, ctx) {
   const t = ctx.t;
@@ -376,7 +376,7 @@ function entity(panel, d, raw, ctx, capabilities) {
     : t.time(node.lastSeen)) : unknown());
   panel.append(card(t("node.title"), h("div", { class: "chips" }, chips), h("div", { class: "kv-list" }, facts)));
 
-  // The ways into Home Assistant (board M8), as links that stay in the app.
+  // The ways into Home Assistant (spec 9.2), as links that stay in the app.
   // The source's own page of the device (ZHA's), where the source has one; the panel hands its adapter's builder.
   const sourcePage = capabilities && capabilities.devicePage && ctx.devicePage ? ctx.devicePage(d, "signature") : null;
   const links = deviceLinks(d, sourcePage).map(({ key, path }) => h("a", { class: "pill", href: path, on: { click: inApp(path) } },
@@ -419,7 +419,7 @@ function clusters(panel, d, raw, ctx) {
         h("td", { text: t(c.direction === "in" ? "cluster.in" : "cluster.out") })));
     }
   }
-  // The table stands on its own, not in a card (board M9).
+  // The table stands on its own, not in a card (spec 9.2).
   panel.append(h("section", { class: "cluster-section" }, h("table", { class: "cluster-table" }, h("thead", {}, h("tr", {},
     h("th", { scope: "col", text: t("cluster.col_cluster") }), h("th", { scope: "col", text: t("cluster.col_id") }),
     h("th", { scope: "col", text: t("cluster.col_direction") }))), body),
