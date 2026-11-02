@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Tests for the Thread network in the panel (brief a7, spec 3.2, 6, 9, 11): reading the Matter topology (refresh false,
+// Tests for the Thread network in the panel (spec 3.2, 6, 9, 11): reading the Matter topology (refresh false,
 // not_supported), the network switch's choices and stored choice, settings kept per network, the status line, the map's
 // lanes and values for Thread, the legend and the details rows. Run: npm test
 import test from "node:test";
@@ -178,7 +178,7 @@ test("details rows: the parent first, both directions per neighbour", () => {
   assert.equal(threadNeighbourRows(thread, leader.id).length, 3);
 });
 
-test("merge A4w: zigpy's route records are read for ZHA only; the scan's re-reads skip the Matter topology", async () => {
+test("merge: zigpy's route records are read for ZHA only; the scan's re-reads skip the Matter topology", async () => {
   const zigpy = "meshroute_topology_explorer/zigpy_routes";
   const both = fakeHass();
   await readNetwork(both);

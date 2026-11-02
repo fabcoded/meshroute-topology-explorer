@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What the two panels do when the selection changes or the user asks for a tab (spec 9.1, 9.2; design by Fabian
-// Schwamborn, 2026-11-01). Pure: the panel passes both panels' state and carries out the answer, a list of steps
+// What the two panels do when the selection changes or the user asks for a tab (spec 9.1, 9.2). Pure: the panel passes both panels' state and carries out the answer, a list of steps
 // { panel: "left" | "right", action: "open" | "close", tab, expanded, auto, focus } in order. Rules:
 // - "Details on click" (openOnSelect) applies to a click on a device on the map or in the Devices list: it opens the
 //   left panel on that device's Details. It never takes Findings away: a click on the map while the left panel shows

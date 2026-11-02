@@ -39,7 +39,7 @@ test("an end device: parent, LQI at the parent and its findings", () => {
   assert.equal(info.hears.length, 0, "end devices keep no neighbour table here");
 });
 
-test("reading tooltip: own pool names the reporter, vendor pool never claims the single reporter's weakest tenth (Codex 3.5)", () => {
+test("reading tooltip: own pool names the reporter, vendor pool never claims the single reporter's weakest tenth", () => {
   const t = translator("en");
   const reporter = { label: "Router 12", vendor: "IKEA" };
   assert.equal(rankTooltip({ rating: 0.04, pool: "own", reporter }, t),
@@ -149,7 +149,7 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.equal(en("details.theory_cost", { cost: 9 }), "Total path cost 9");
 });
 
-test("a hop whose hearer's table was read but does not list the sender shows the dash and names its basis (brief a4o)", () => {
+test("a hop whose hearer's table was read but does not list the sender shows the dash and names its basis", () => {
   const network = sampleNetwork();
   const t = translator("de");
   const names = new Map(network.devices.map((d) => [d.id, d.label]));

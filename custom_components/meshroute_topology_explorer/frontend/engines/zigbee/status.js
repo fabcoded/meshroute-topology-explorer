@@ -25,8 +25,7 @@ const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "err
 
 /** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
  *  (source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned, and
- *  in the view "routing table" (`paths` "table"), which draws no assumed or recorded return path (main session,
- *  2026-11-01, brief a4z).
+ *  in the view "routing table" (`paths` "table"), which draws no assumed or recorded return path.
  *  Long and short form, [key, params, longKey] like the other parts. In the stage "zigpy" the part counts recorded and
  *  assumed return paths; when zigpy could not be read it says so, the reason being the part's description. */
 export function sourceRoutePart(summary, compact = false, paths = "coordinator") {
@@ -51,8 +50,7 @@ export function sourceRoutePart(summary, compact = false, paths = "coordinator")
 /** Parts of the status line as [key, params] for the translator, in order (board M1): source, "Router tables: x/y"
  *  (available routers with a table; the coordinator is not counted; no percentage, review 1.4c), "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
  *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
- *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again" (decision by Fabian
- *  Schwamborn, 2026-11-01). compact (narrow screens): short forms in at most two lines, without the source; each part
+ *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again". compact (narrow screens): short forms in at most two lines, without the source; each part
  *  then carries a third element, the key of its long form, which the panel offers as the part's description. The
  *  source-route part (sourceRoutePart) is not among them: the panel sets it apart on the right. */
 export function statusParts(network, { unchangedSince = null, scan = null, compact = false } = {}) {

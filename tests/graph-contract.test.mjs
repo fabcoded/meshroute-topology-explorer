@@ -87,7 +87,7 @@ test("the overview per stage: up and down lanes; from 'all' the backbone of theo
   assert.equal(drawn.up + drawn.down, traffic, "every up and down lane");
   assert.equal(drawn.route + drawn.heard + drawn.none, 0, "nothing else");
   assert.equal(drawn.assumed, sc.counts.assumed, "assumed return paths, dotted");
-  // Stage 2 (decision by Fabian Schwamborn, 2026-11-01): every lane any theoretical path uses, as a route where it is
+  // Stage 2: every lane any theoretical path uses, as a route where it is
   // not up or down, lighter where only a computed route discovery takes it.
   view.setEngineView({ paths: "all" });
   env.flush();
@@ -222,7 +222,7 @@ test("on click and hover the selection's own tree decides each hop's class: comp
   assert.equal(view.lastDraw.classes.predicted, 19);
 });
 
-test("a stage or checkbox change redraws at once, with and without a selection (owner's report 2026-11-01)", () => {
+test("a stage or checkbox change redraws at once, with and without a selection ", () => {
   const { view, env } = show();
   const { scene } = view;
   const r13 = scene.nodes.findIndex((n) => n.label === "Router 13");
@@ -247,7 +247,7 @@ test("a stage or checkbox change redraws at once, with and without a selection (
   // Without a selection the checkbox changes nothing: the backbone in stage 2, the up and down lanes in stage 1.
   assert.deepEqual(steps(-1), [570, 570, 95, 95, 95, 570]);
   // Router 13 selected: its way up and down (2 lanes) in stage 1 and its trees in stage 2 (82), whatever the checkbox
-  // says: it works under the routing table only (owner decision 2026-11-02, spec 12).
+  // says: it works under the routing table only (spec 12).
   assert.deepEqual(steps(r13), [82, 82, 2, 2, 2, 82]);
   // Under the routing table the checkbox draws the heard partners.
   view.selected = r13;
@@ -259,7 +259,7 @@ test("a stage or checkbox change redraws at once, with and without a selection (
   assert.deepEqual([tablePlain, view.lastDraw.lanes], [6, 11], "Router 13 under the routing table: 6 lanes, 11 with the option");
 });
 
-test("a device on the selected device's paths keeps its label in a hub position (A4m, owner report 2026-11-01)", () => {
+test("a device on the selected device's paths keeps its label in a hub position", () => {
   // End device 06 with every theoretical path: Router 17 is the hub of the lanes, and their values had taken every
   // place around it, so its label vanished (blocks were left out when no place was free).
   const { view, env } = show();
@@ -275,7 +275,7 @@ test("a device on the selected device's paths keeps its label in a hub position 
   }
 });
 
-test("every hop of the focus carries its value on click, overlap accepted (board M11 rule 8, owner 2026-11-01)", () => {
+test("every hop of the focus carries its value on click, overlap accepted (board M11 rule 8)", () => {
   // On 7b7e9b1 a click in stage 2 lost 24-33 of 82 values (no free place or a lane too short) and Router 11 in stage 1
   // showed 1 of 3 at the fitted view.
   const { view, env } = show();
@@ -293,7 +293,7 @@ test("every hop of the focus carries its value on click, overlap accepted (board
   env.flush();
 });
 
-test("no value covers the label of the selected device, its lanes and values stay (A4s, Codex review 1.6)", () => {
+test("no value covers the label of the selected device, its lanes and values stay", () => {
   // Stage 2 on a hub put the many RX values over the name of the clicked device. Values now take the next spot on their
   // own lane; the label (type line and name) is drawn and no value box intersects it.
   const { view, env } = show();

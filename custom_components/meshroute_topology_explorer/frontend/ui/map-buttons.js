@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The controls that float on the map (spec 9.1; design by Fabian Schwamborn, 2026-11-01, "one place per thing"):
+// The controls that float on the map (spec 9.1; "one place per thing"):
 // top left the button "Devices" with the findings count, and below it the slide switch "Details on click" (only while
 // the left panel is closed); top right "View" and below it "Legend". On narrow screens Home Assistant's sidebar button
 // joins the left group (custom panels bring their own). The zoom group lives in the panel. Each button opens its

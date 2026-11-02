@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a device's `zha/devices` entry says about the node itself (spec 9.2 "Entity" and "Cluster"; design by Fabian
-// Schwamborn, 2026-11-01): the node descriptor decoded into readable facts, and the endpoints of the signature as a
+// What a device's `zha/devices` entry says about the node itself (spec 9.2 "Entity" and "Cluster"): the node descriptor decoded into readable facts, and the endpoints of the signature as a
 // cluster table. Field meanings from the Zigbee specification (05-3474, revision 22): the node descriptor's logical
 // type (2.3.2.3.1), frequency band (2.3.2.3.5), MAC capability flags (2.3.2.3.6, from IEEE 802.15.4), manufacturer
 // code, buffer and transfer sizes and server mask (2.3.2.3.10, whose bits 9-15 carry the stack compliance revision

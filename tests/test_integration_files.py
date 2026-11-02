@@ -30,7 +30,7 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertEqual(m["domain"], COMP.name)
         self.assertEqual(m["name"], "Meshroute Topology Explorer")
         self.assertEqual(m["dependencies"], ["frontend", "http", "panel_custom"])
-        # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared (since A4w).
+        # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared.
         # after_dependencies, not dependencies: the integration must also load without ZHA (Thread only).
         self.assertEqual(m.get("after_dependencies"), ["zha"])
         self.assertNotIn("zha", m["dependencies"])

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Tests of the link rendering (spec 7.1, 8, 9.3; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01): lanes on
+// Tests of the link rendering (spec 7.1, 8, 9.3): lanes on
 // the right of their travel in every quadrant, classes per direction by dash and weight, glyphs for directions without
 // a reading, drawing order, the selection's lanes with "RX:" values a quarter before each hearer, unknown ends, colour
 // by reception, legend entries per stage.
@@ -162,7 +162,7 @@ test("selection: only its lanes, its way up as a band, every hop with RX at its 
   assert.equal(stats.lanes, 2, "everything else is off");
   assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.drawn, v.cls]),
     [[4, 1, "90", true, "up"], [1, 0, "200", true, "up"]]);
-  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (main session, 2026-11-01: it tells the way
+  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (it tells the way
   // to the coordinator apart from the other paths).
   const bandAt = calls.findIndex((c, j) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width &&
     calls.slice(Math.max(0, j - 3), j).some((x) => x[0] === "set" && x[1] === "globalAlpha" && x[2] === BAND.alpha));
@@ -347,7 +347,7 @@ test("text beside a lane stays clear of it, on its right", () => {
 
 test("legend entries follow the stage: the classes it draws, RX, the scale while coloured; debug all (board M7)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
-  // Every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); the glyph rows with the heard option under the routing table.
+  // Every class whatever the stage; the glyph rows with the heard option under the routing table.
   const classes = ["coordinator", "assumed", "route", "discovery", "heard", "up-path"];
   assert.deepEqual(ids(), [...classes, "rx"]);
   assert.deepEqual(ids({ paths: "all" }), [...classes, "rx"]);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Details tab and the status line in the view "routing table" (main session decisions, 2026-11-01, brief a4z): the
+// The Details tab and the status line in the view "routing table": the
 // coordinator shows only the "Routing table" card, other devices keep the card with the coordinator above it; the
 // status line leaves the source-route part out in that view, which draws no assumed or recorded return path.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderDetails. npm test

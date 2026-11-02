@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Ways into Home Assistant's own pages for one device (spec 9.2 "Entity"; design by Fabian Schwamborn, 2026-11-01).
+// Ways into Home Assistant's own pages for one device (spec 9.2 "Entity").
 // Paths follow Home Assistant's public frontend routes (home-assistant/frontend, read for the route contracts only):
 // - device page: src/panels/config/devices/ha-config-devices.ts, route "device" reads the registry id from the path;
 // - ZHA's own device page (the path is built by adapters/zha.js): src/panels/config/integrations/integration-panels/zha/zha-config-dashboard-router.ts,

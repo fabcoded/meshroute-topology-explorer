@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The controls on the map (design by Fabian Schwamborn, 2026-11-01; spec 9.1) and the legend built from the graph's own
+// The controls on the map (spec 9.1) and the legend built from the graph's own
 // entries: places with and without the panels, banners between or below the top groups, the links rows in both
 // languages.
 // node --test "tests/**/*.test.mjs"

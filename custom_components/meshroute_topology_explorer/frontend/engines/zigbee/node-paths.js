@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The paths of one device for the node view (spec 5.1, 5.7, 7.1; decisions by Fabian Schwamborn, 2026-11-01): three
+// The paths of one device for the node view (spec 5.1, 5.7, 7.1): three
 // views, each its own basis. "coordinator" is its up and down path; "table" follows its own usable routing entries hop
 // by hop through every holder's entry for the same destination, optionally each destination's way back
 // (paths.js tableWalk); "all" adds to the first its theoretical way to every other available device and back
@@ -12,7 +12,7 @@ import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
 import { drawMode, returnPaths } from "./source-routes.js";
 
-/** The node views (spec 7.1, 9.1, 11; owner proposal 2026-11-01, Codex 5): the default shows the way to and from the
+/** The node views (spec 7.1, 9.1, 11): the default shows the way to and from the
  *  coordinator, which stands for Home Assistant; "table" the device's own routing-table entries followed hop by hop;
  *  "all" adds to the first the device's theoretical way to every other device and back (spec 5.7). */
 export const NODE_VIEWS = Object.freeze(["coordinator", "table", "all"]);
@@ -54,8 +54,7 @@ export function pathHops(network, ids) {
 /** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
  *  assumed, reason, cost }]. "table" gives only the walks of the routing-table view (tableWalk): an out path to every
  *  destination of the device's own usable entries and, with `returns`, an in path from each of them, every hop with
- *  `how` ("table", "child", "parent"); never up or down paths, never more destinations (owner proposal and Codex 4.4,
- *  2026-11-01); an unavailable device has none (its table is stale).
+ *  `how` ("table", "child", "parent"); never up or down paths, never more destinations; an unavailable device has none (its table is stale).
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds, for every other available device except the coordinator (in the network's order), the
@@ -65,7 +64,7 @@ export function pathHops(network, ids) {
  *  unavailable device has none (its tables are stale, 5.1). Unknown modes count as "coordinator". The coordinator
  *  stands for Home Assistant: in "coordinator" mode it shows the routes it holds and the routes towards it (an empty
  *  map on its click would say nothing); in "all" its theoretical way to every available device and back, from its own
- *  table on, like any device (decision by Fabian Schwamborn, 2026-11-01). sourceRoute "assume" replaces an unknown
+ *  table on, like any device. sourceRoute "assume" replaces an unknown
  *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
  *  true, and so do its hops. "zigpy" replaces it by zigpy's route record where one passes the gate (recorded: true,
  *  drawn as measured), else assumes as "assume" does. The default "off" gives the measured paths of spec 5.1 only. */

@@ -53,7 +53,7 @@ export const thread = Object.freeze({
   },
   /** Fill the Details tab: one stack of cards, no sub-tabs (no routes, signature or clusters). */
   details: (container, ctx) => renderThreadDetails(container, ctx),
-  /** The View tab's Thread groups: none of the Zigbee path groups (owner decision 2026-11-01: hidden, not greyed;
+  /** The View tab's Thread groups: none of the Zigbee path groups (hidden, not greyed;
    *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
   options: () => THREAD_OPTIONS,
   /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's own

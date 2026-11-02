@@ -16,8 +16,7 @@
 // "source_to_target: source -> target observation, when that direction reported the link", and its websocket schema
 // changelog, schema 13: Thread links come "from the nodes' own ThreadNetworkDiagnostics (neighbor + route tables)",
 // both observed directions are kept): the reporting node is `source` and the entry is its neighbour-table record of
-// `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the main session,
-// 2026-11-01, and by the capture: links to a border router (not a Matter node, no table read) carry only
+// `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the capture: links to a border router (not a Matter node, no table read) carry only
 // source_to_target. RECEIVER_OF_SOURCE_TO_TARGET is the one place to flip it.
 import { normalizeIeee } from "../../model/parse.js";
 
@@ -89,8 +88,7 @@ function registryIndex(deviceRegistry) {
 
 /** One reading "reporter hears subject" from a direction object { strength, lqi, rssi } of the snapshot, or null when
  *  the direction is missing. measured: a valid RSSI, or link quality above 0, says the link was heard. Link quality 0
- *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2, owner decision
- *  2026-11-01). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
+ *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
  *  measurement) are not measured and never drawn as a dead link (spec 3.2). */
 function reading(reporter, subject, dir, connection) {
   if (!dir || typeof dir !== "object") return null;

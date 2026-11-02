@@ -14,7 +14,7 @@ import { DEFAULT_LABELS } from "../graph/labels.js";
 import { normalizeIeee } from "../model/parse.js";
 import { errorText, isConnectionLost } from "../adapters/ws.js";
 
-/** Path display (spec 7.1, 8; design by Fabian Schwamborn, 2026-11-01): lanes "grey" (no colour, default) or
+/** Path display (spec 7.1, 8): lanes "grey" (no colour, default) or
  *  "coloured" by reception; bad, medium and good are the user's own colours ("#rrggbb", e.g. for colour blindness) or
  *  null for the theme's own red, yellow and green (graph/palette.js RECEPTION_STOPS). */
 export const PATH_MODES = Object.freeze(["grey", "coloured"]);
@@ -91,7 +91,7 @@ export function sanitizeSettings(input, engineSettings = null) {
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   if (engineSettings) engineSettings.sanitize(src, out);
   out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
-  // Replaced by pathColors, and the legend pill is gone (A4h): the next save leaves both out.
+  // Replaced by pathColors, and the legend pill is gone: the next save leaves both out.
   delete out.receptionColors;
   delete out.legendOpen;
   out.labels = sanitizeLabels(src.labels);

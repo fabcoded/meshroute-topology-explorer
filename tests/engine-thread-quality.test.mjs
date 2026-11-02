@@ -60,7 +60,7 @@ test("directionBand: RSSI first, link quality only where RSSI is missing or 127,
   }
 });
 
-test("directionBand: the receiver's own link quality caps the RSSI band (owner decision 2026-11-01)", () => {
+test("directionBand: the receiver's own link quality caps the RSSI band", () => {
   const m = (lqi, rssi) => directionBand({ state: "measured", lqi, rssi });
   assert.deepEqual([m(2, -75).band, m(2, -75).basis], ["mid", "lq cap"], "-75 dBm with link quality 2: mid");
   assert.deepEqual([m(1, -60).band, m(1, -60).basis], ["low", "lq cap"]);

@@ -94,7 +94,7 @@ export function pathLine(path, t, name) {
   return `${prefix}: ${items.join(" \u2192 ")}`;
 }
 
-/** The walks of the view "routing table" per destination (spec 7.1, 9.2; owner proposal 2026-11-01): { rows: [{ id,
+/** The walks of the view "routing table" per destination (spec 7.1, 9.2): { rows: [{ id,
  *  out, in }] by destination name (natural order), with `in` null unless return routes are included, and `none`:
  *  null, or why there are no rows ("end device": it keeps no routing table; "unavailable": its table is stale; "no
  *  entries": no usable entry). */
@@ -117,7 +117,7 @@ export function tableRows(network, id, returns, name) {
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
  *  `nodeView` ("coordinator" or "all", ../node-paths.js; the view "table" lists the way with the coordinator here
  *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
- *  then empty, main session 2026-11-01), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
+ *  then empty), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
  *  ../source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */

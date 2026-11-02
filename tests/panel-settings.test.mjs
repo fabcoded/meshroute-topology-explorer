@@ -231,7 +231,7 @@ test("communication paths and path display are stored per network; old keys migr
   for (const bad of ["ALL", "", 1, null, { all: true }, ["all"], "__proto__"]) {
     assert.equal(sanitizeSettings({ paths: bad }, ZIGBEE).paths, "coordinator", JSON.stringify(bad));
   }
-  // Round trip through the integration: a panel from before A4j stored the class switches and the node view "all";
+  // Round trip through the integration: an earlier panel stored the class switches and the node view "all";
   // the next save writes the stage and leaves both old keys out.
   const server = fakeServer({ stored: { nodeView: "all", links: { up: true, route: false, heard: true },
     pathColors: { mode: "rainbow", bad: "red" } } });

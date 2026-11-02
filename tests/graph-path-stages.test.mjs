@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// "Communication paths" (decision by Fabian Schwamborn, 2026-11-01; boards M2, M11; spec 7.1, 9.1, 11): classes per
+// "Communication paths" (boards M2, M11; spec 7.1, 9.1, 11): classes per
 // direction (the way back of an up hop is not up; down measured or assumed; routes between devices; heard only), what
 // each stage draws in the overview, on click and on hover, debug mode drawing every lane, the layout never moving, and
 // the stored setting with its migration from the class switches and the node view.
@@ -99,7 +99,7 @@ test("overview: up and down lanes in every stage; from 'all' the backbone of all
   const coordinator = draw().stats;
   assert.deepEqual(coordinator.classes, { heard: 0, route: 0, down: 5, up: 5, assumed: 1, predicted: 0, none: 0 });
   assert.equal(coordinator.glyphs, 0, "only in their direction, nothing else");
-  // Stage 2 (decision by Fabian Schwamborn, 2026-11-01): every lane a theoretical path between two devices takes, as
+  // Stage 2: every lane a theoretical path between two devices takes, as
   // a route where it is not up or down; here r2 -> r3 and r4 -> r1 (neighbours), r1 -> e1 and e1 -> r1 (child,
   // parent), r1 -> r4 (table). A lane only a discovery takes would be lighter; the sample has 19 (graph-contract).
   const two = draw({ paths: "all" }).stats;
@@ -125,8 +125,7 @@ test("click: everything else off; stage 1 the way up and down, stage 2 adds rout
   // Stage 2: the way to and from every other device (spec 5.7). Out: r2 -> r1 and r2 -> r3 directly (r2 hears both),
   // r2 -> r1 -> r4 by the tables, r2 -> r1 -> e1 by discovery to the parent, which delivers. In: r1 and e1 by r1's
   // table; r3 does not hear r2 and r4 has no entry: their ways are what a discovery finds (r3 -> c -> r1 -> r2 costs
-  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). On click the selection's own tree decides (main session, 2026-11-01,
-  // board M11 rule 5): r2's own up and down lanes stay up and down; e1 -> r1 and r1 -> e1 are parent hops of its
+  // 4 + 3 + 4, via r4 it would cost 6 + 5 + 4). On click the selection's own tree decides (board M11 rule 5): r2's own up and down lanes stay up and down; e1 -> r1 and r1 -> e1 are parent hops of its
   // trees, so routes (not the up and down lanes they are for e1); r3 -> c and r4 -> r1 are only what a discovery would
   // take, so computed although they are someone's up lane or neighbour hop.
   assert.deepEqual(two.paths.values.map((v) => [ID[v.s], ID[v.h], v.text, v.cls, v.predicted]).sort(), [
@@ -136,7 +135,7 @@ test("click: everything else off; stage 1 the way up and down, stage 2 adds rout
     ["r4", "r1", "80", "route", true]]);
   assert.deepEqual(two.classes, { heard: 0, route: 6, down: 2, up: 2, assumed: 0, predicted: 2, none: 0 });
   assert.equal(two.paths.ends, 0, "every way complete");
-  // The checkbox exists in the view "table" only (owner decision 2026-11-02): with the coordinator and in the
+  // The checkbox exists in the view "table" only: with the coordinator and in the
   // theoretical view a stored heard = true draws nothing extra.
   for (const paths of ["coordinator", "all"]) {
     const plain = draw({ selected: r2, paths }).stats;
@@ -216,7 +215,7 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   env.flush();
   assert.equal(view.engineView.heard, true);
   assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before);
-  // The legend lists every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); only the glyph rows
+  // The legend lists every class whatever the stage; only the glyph rows
   // follow the checkbox, which works under the routing table only (2026-11-02).
   assert.ok(!view.legend().some((e) => e.id === "not-listed"), "no glyph rows: heard has no effect in this view");
   view.setEngineView({ paths: "table" });
@@ -244,7 +243,7 @@ test("the stored stage: valid stages kept, the old node view migrates, the old k
   assert.ok(!("links" in migrated) && !("nodeView" in migrated), "dropped");
   assert.equal(migrated.extra, 1, "unknown keys are kept");
   assert.equal(sanitizeSettings({ links: { heard: false } }).paths, "coordinator");
-  // A.4l: the third stage became a checkbox on top of stage 2 (decision by Fabian Schwamborn, 2026-11-01).
+  // The third stage became a checkbox on top of stage 2.
   const legacy = sanitizeSettings({ paths: "heard", nodeView: "coordinator" });
   assert.deepEqual([legacy.paths, legacy.heard], ["all", true], "paths 'heard' -> all + heard");
   assert.deepEqual([migrated.heard, sanitizeSettings({}).heard, DEFAULTS.heard], [false, false, false], "calm default");
@@ -279,14 +278,14 @@ test("the three stages, their hints and the legend's words in English and German
   }
   assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
   assert.equal(STRINGS.en["view.paths_note"], "Each view has its own basis. Debug shows everything.");
-  // The routing-table view (owner proposal 2026-11-01, Codex 5 and 6.2): its hint and the return-route checkbox.
+  // The routing-table view: its hint and the return-route checkbox.
   assert.equal(STRINGS.en["view.paths_table"], "routing table");
   assert.equal(STRINGS.en["view.paths_table_hint"],
     "Each router's table names the next hop to a destination. This view follows those entries until the destination or a gap.");
   assert.equal(STRINGS.en["view.paths_returns_hint"],
     "Follow each destination's route back, using the routing table at every hop.");
   assert.equal(STRINGS.en["view.paths_heard"], "additional heard neighbours (best 3)");
-  // Texts of the main session (2026-11-01, owner's decisions on the stage-2 overview and the stage-3 click).
+  // Texts (on the stage-2 overview and the stage-3 click).
   assert.equal(STRINGS.en["view.paths_all_hint"],
     "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
   assert.equal(STRINGS.en["view.paths_heard_hint"],

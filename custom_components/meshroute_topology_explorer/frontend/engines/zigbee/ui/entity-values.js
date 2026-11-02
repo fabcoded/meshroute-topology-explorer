@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Attribute values Home Assistant already knows, without radio traffic (spec 9.2 cluster popup; design by Fabian
-// Schwamborn, 2026-11-01): where an attribute obviously is an entity's state, its current value comes from the
+// Attribute values Home Assistant already knows, without radio traffic (spec 9.2 cluster popup): where an attribute obviously is an entity's state, its current value comes from the
 // `hass.states` object Home Assistant hands every panel (developers.home-assistant.io, "Frontend data": hass.states).
 // Obvious means: the device has exactly one entity of the matching domain (and device class); with two lamps on two
 // endpoints nothing is shown, since the endpoint of an entity is not known here. Pure functions, no DOM.

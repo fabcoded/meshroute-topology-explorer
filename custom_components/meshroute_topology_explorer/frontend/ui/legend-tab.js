@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Legend tab of the right panel (spec 8, 9.1; design by Fabian Schwamborn, 2026-11-01, board M7): compact, in three
+// The Legend tab of the right panel (spec 8, 9.1; board M7): compact, in three
 // sections. Communication paths: the classes the current stage draws (all in debug mode), "RX:" and, while paths are
 // coloured, the colour bar; the fill when one is chosen; Symbols: four rows, each a device of this network drawn by the
 // map's own drawSymbol with its picture (router, end device, coordinator, wired only); States: offline, selected,
@@ -11,7 +11,7 @@ import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
 import { drawSymbol, legendSigns, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
-/** Symbols in the Legend tab are drawn at 40 px (board M7 and brief A4j). */
+/** Symbols in the Legend tab are drawn at 40 px (board M7). */
 const SWATCH = 40;
 
 /** [{ label, color, slash }] of the category fill; the grey "none" entry last. */

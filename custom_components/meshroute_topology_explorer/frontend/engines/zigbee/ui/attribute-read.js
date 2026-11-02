@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Reading attribute values from a device, once, on the user's request (spec 1, 3.4; decision by Fabian Schwamborn,
-// 2026-11-01): besides the topology scan this is the only thing the panel may cause radio traffic with. Never
+// Reading attribute values from a device, once, on the user's request (spec 1, 3.4): besides the topology scan this is the only thing the panel may cause radio traffic with. Never
 // automatic, never a write, no reporting, no binding. ZHA's command `zha/devices/clusters/attributes/value` reads one
 // attribute, uncached, and answers the value as text, "None" when the device gave none (home-assistant/core
 // homeassistant/components/zha/websocket_api.py, websocket_read_zigbee_cluster_attributes; message shape as in

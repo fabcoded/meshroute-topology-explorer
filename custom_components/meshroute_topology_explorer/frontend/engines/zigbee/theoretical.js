@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Theoretical paths (spec 5.7; decision by Fabian Schwamborn, 2026-11-01, board M11, brief a4k): the way a frame from
+// Theoretical paths (spec 5.7; board M11): the way a frame from
 // one device would most likely take to another today, worked out hop by hop at the device holding it, after the
 // unicast routing of the Zigbee specification r22 (05-3474-22): 3.6.3.3 (child, routing table, neighbour table) and
 // 3.6.3.5 (route discovery, path cost 3.6.3.1). "Theoretical": computed, not observed; Home Assistant does not show
@@ -24,7 +24,7 @@ import { pairEvidence } from "./pairs.js";
 /** How a hop is taken, in the order of the rules above (spec 5.7). */
 export const HOWS = Object.freeze(["parent", "child", "table", "neighbour", "discovery"]);
 
-/** Link cost 1..7 of one direction from the hearer's LQI (spec 5.7; decision of the main session, 2026-11-01):
+/** Link cost 1..7 of one direction from the hearer's LQI (spec 5.7):
  *  1 + round(6 (1 - LQI / 255)), so LQI 255 costs 1, 128 costs 4 and 0 costs 7. The specification wants a cost of 1
  *  to 7 (3.4.8.3.2) that falls with link quality, allows "a table-driven function ... to map average LQI values onto
  *  C{l}" (3.6.3.1) and leaves the estimate to the implementation; its example min(7, round(1 / p^4)) with p read as
@@ -81,7 +81,7 @@ function idsOf(label) {
  *  ids from the start on (an own tie-break, so the result never depends on the order of the data). On a tie of cost
  *  and hops both chains have the same length: they are walked back together and the difference nearest the start
  *  decides, without building the id lists (ties are frequent with integer costs; the lists were most of a click's
- *  model time on the sample, brief a4z). A shared label means the same ids from there to the start. */
+ *  model time on the sample). A shared label means the same ids from there to the start. */
 function better(p, q) {
   if (p.cost !== q.cost) return p.cost < q.cost;
   if (p.hops !== q.hops) return p.hops < q.hops;
@@ -229,7 +229,7 @@ const laneCache = new WeakMap(); // network -> theoreticalLanes
 
 /** Every lane the theoretical paths between any two available devices use, the coordinator's included: Map
  *  "sender>hearer" -> { sender, hearer, hows (Set of how it is taken) }. The stage-2 overview draws this backbone
- *  (decisions by Fabian Schwamborn, 2026-11-01: every lane any path uses). Computed once per network; on the sample
+ *  (every lane any path uses). Computed once per network; on the sample
  *  1722 paths and 570 lanes. */
 export function theoreticalLanes(network) {
   let lanes = laneCache.get(network);

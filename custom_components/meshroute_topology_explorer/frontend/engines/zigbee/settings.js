@@ -14,7 +14,7 @@ import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "./source-routes.js";
 export const DEFAULTS = Object.freeze({ paths: DEFAULT_PATHS, heard: false, returnRoutes: false,
   sourceRoute: DEFAULT_SOURCE_ROUTE });
 
-/** The stage of "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11). Before it, the panel
+/** The stage of "Communication paths" (board M11). Before it, the panel
  *  stored class switches (`links`) and the node view (`nodeView`: "coordinator" or "all"); without a valid `paths`
  *  the node view decides: "all" reads as the stage "all", anything else as the default. */
 export function sanitizePaths(input, legacyNodeView) {
@@ -27,15 +27,15 @@ export function sanitizePaths(input, legacyNodeView) {
  *  and drop the keys they replaced, so the next save leaves those out. */
 export function sanitize(src, out) {
   out.paths = sanitizePaths(src.paths, src.nodeView);
-  // Until A4l "heard" was a third stage (A4j/A4k): it now reads as the stage "all" with the checkbox on.
+  // Formerly "heard" was a third stage: it now reads as the stage "all" with the checkbox on.
   out.heard = src.paths === "heard" ? true : src.heard === true;
   if (src.paths === "heard") out.paths = "all";
-  // New in A4z; older stores have no key and read as off.
+  // Newer key; older stores have no key and read as off.
   out.returnRoutes = src.returnRoutes === true;
-  // Replaced by paths (A4j): the next save leaves the class switches and the node view out.
+  // Replaced by paths: the next save leaves the class switches and the node view out.
   delete out.links;
   delete out.nodeView;
-  // off, assume or zigpy (read the route records, brief a4w); anything else counts as "assume".
+  // off, assume or zigpy (read the route records); anything else counts as "assume".
   out.sourceRoute = sourceRouteMode(src.sourceRoute);
   return out;
 }

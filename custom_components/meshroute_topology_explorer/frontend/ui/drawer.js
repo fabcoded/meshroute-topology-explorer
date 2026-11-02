@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// One of the panel's two panels (spec 9.1; design by Fabian Schwamborn, 2026-11-01): the left one with the tabs
+// One of the panel's two panels (spec 9.1): the left one with the tabs
 // Devices, Findings and Details, the right one with View and Legend. A side panel on its side on wide screens, a
 // bottom sheet on narrow ones (collapsed to one line, or expanded); WAI-ARIA tabs pattern: arrows move between tabs and
 // activate them, Home/End jump. It is not modal: the map stays usable beside it. Closing returns focus to where it was

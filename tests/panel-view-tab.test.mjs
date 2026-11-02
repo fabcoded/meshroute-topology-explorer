@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The View tab's "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view by
-// owner proposal 2026-11-01): three radios (the views), and under the routing table the checkboxes "include return
-// routes" and "additional heard neighbours (best 3)" (owner decision 2026-11-02), whose states follow the settings and whose changes are reported at
+// The View tab's "Communication paths" (board M11; routing-table view): three radios (the views), and under the routing table the checkboxes "include return
+// routes" and "additional heard neighbours (best 3)", whose states follow the settings and whose changes are reported at
 // once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.
 // npm test
@@ -53,7 +52,7 @@ test("View tab: three view radios, the return-route checkbox and the heard check
   assert.deepEqual([returns.checked, Boolean(returns.disabled)], [false, true], "off and greyed outside the routing table");
 });
 
-test("View tab: 'include return routes' sits under the routing table and works only there (Codex 5)", () => {
+test("View tab: 'include return routes' sits under the routing table and works only there", () => {
   const { all, returns, patches } = render({ paths: "table", returnRoutes: true });
   assert.deepEqual([returns.checked, Boolean(returns.disabled)], [true, false]);
   const ids = all.filter((n) => n.attrs && n.attrs.id).map((n) => n.attrs.id);
@@ -103,7 +102,7 @@ test("View tab: a change of the checkbox or a radio is reported at once, as one 
   assert.deepEqual(patches, [{ heard: true }, { paths: "table" }, { paths: "all" }]);
 });
 
-test("View tab: three source-route stages, 'Read from zigpy' enabled with its tag (brief a4w)", () => {
+test("View tab: three source-route stages, 'Read from zigpy' enabled with its tag", () => {
   const sr = (stored) => {
     const { all, patches } = render(stored);
     return { radios: all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-sourceRoute"), all, patches };
@@ -119,7 +118,7 @@ test("View tab: three source-route stages, 'Read from zigpy' enabled with its ta
 
 test("View tab: the reload note comes from the network's adapter; a Thread tab never shows the ZHA note", async () => {
   // The shared tab once read ZHA's note on every network, so Thread said "the tables currently held by ZHA" (engines
-  // cut report, brief qa1). Each adapter now names its note; the tab has no text of its own.
+  // cut report). Each adapter now names its note; the tab has no text of its own.
   const { readFileSync } = await import("node:fs");
   const { adapterFor } = await import("../custom_components/meshroute_topology_explorer/frontend/adapters/index.js");
   const { buildThreadNetwork } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js");

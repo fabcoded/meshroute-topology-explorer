@@ -6,7 +6,7 @@
 //        view.addEventListener("select", (e) => e.detail.id); view.reveal(id, insets, { zoom: true })
 // Events (user actions only; calls from code do not emit): select { id|null }, details-request { id, via:
 // "long-press" | "context-menu" | "key" }, hover { id|null }, pin-change { id, pinned, x, y }.
-// Density (decision by Fabian Schwamborn, 2026-10-31) only lengthens or shortens the lines: the layout is computed
+// Density only lengthens or shortens the lines: the layout is computed
 // once in base units (D = 1) and drawn at base × D; symbols, labels, fit and the working scale never depend on D.
 // Pinned positions (events, pin(), setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
 // stored pin keeps its place in the picture whatever the density or the label font.
@@ -44,7 +44,7 @@ const REVEAL_MARGIN = 48;
 /** A tap on the map zooms to the working scale when the shortest lane of the selection's paths would be shorter than
  *  this on screen (CSS px). Below it, values stack and short hops vanish (phone at fit zoom: lanes of a few px). The
  *  shortest lane decides, not a percentile: laneGeometry drops any lane under 4 px, and one skipped hop makes a path
- *  unreadable. In open areas the view stays (owner decision, Fabian Schwamborn, 2026-11-01, spec 9.3). */
+ *  unreadable. In open areas the view stays (spec 9.3). */
 export const TAP_ZOOM_MIN_LANE = 24;
 
 function defaultEnv() {
@@ -492,7 +492,7 @@ export class GraphView extends EventTarget {
    *  (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the
    *  density, so a dense map sits smaller inside the margin and a spread one reaches past the window. "contain"
    *  (Thread): the drawn map at the active density, every device inside with room for its label beside and below
-   *  it (main session, 2026-11-01). */
+   *  it. */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
     const d = this.density;

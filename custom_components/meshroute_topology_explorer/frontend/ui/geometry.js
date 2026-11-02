@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Where the two panels sit and how much of the map they cover (spec 9.1; design by Fabian Schwamborn, 2026-11-01):
+// Where the two panels sit and how much of the map they cover (spec 9.1):
 // the left panel (Devices, Findings, Details) and the right panel (View, Legend) are side panels on wide screens and
 // bottom sheets on narrow ones, collapsed to one line or expanded. The covered part goes to GraphView.setInsets(),
 // which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go.
@@ -9,7 +9,7 @@
  *  its share). A side panel of 320 px then still leaves 400 px of map. Own choice. */
 export const WIDE_MIN = 720;
 /** Width of a side panel: 36 % of the panel, within 320..384 px. Own choice: room for a reading table; at most 384 px
- *  as on the boards (design by Fabian Schwamborn, 2026-11-01, M2 to M7). */
+ *  as on the boards (M2 to M7). */
 export const SIDE_MIN = 320;
 export const SIDE_MAX = 384;
 const SIDE_SHARE = 0.36;
@@ -44,7 +44,7 @@ export function combinedInsets(a, b) {
   return { top: 0, left: a.left + b.left, right: a.right + b.right, bottom: Math.max(a.bottom, b.bottom) };
 }
 
-/** Floating controls on the map (decision by Fabian Schwamborn, 2026-10-31; spec 9.1): gap to the edges and between
+/** Floating controls on the map (spec 9.1): gap to the edges and between
  *  groups, and the smallest target. Own choice within WCAG 2.2 2.5.8 (24 px). */
 export const FLOAT_GAP = 12;
 export const FLOAT_TARGET = 44;

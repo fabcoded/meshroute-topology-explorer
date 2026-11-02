@@ -23,17 +23,15 @@ export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
 const LINE_HEIGHT = 14;
-/** The original Home Assistant name is a smaller line (design by Fabian Schwamborn, 2026-11-01): 10 px in a 12 px
+/** The original Home Assistant name is a smaller line: 10 px in a 12 px
  *  label font, scaled by this share; its line is a little lower too. Own choice. */
 const SMALL_SHARE = 10 / 12;
 const SMALL_LINE_HEIGHT = 12;
-/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT,
- *  decision by Fabian Schwamborn, 2026-11-01), then a little further back, then closer to the hearer. Own choice. */
+/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT), then a little further back, then closer to the hearer. Own choice. */
 /** Opacity of the plate under a focus device's label. */
 const PLATE_ALPHA = 0.85;
 const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
-/** Further places along its own lane for a focus value that would cover a focus device's label (A4s, Codex review 1.6,
- *  main session decision 2026-11-01); tried after VALUE_SPOTS, still beside the lane and before the hearer. */
+/** Further places along its own lane for a focus value that would cover a focus device's label; tried after VALUE_SPOTS, still beside the lane and before the hearer. */
 const EXTRA_SPOTS = Object.freeze([0.4, 0.5, 0.72, 0.8, 0.95, 0.15]);
 
 /** Screen length (CSS px) of the shortest focus lane of device `index` at camera `cam`, as drawn by drawScene: the
@@ -327,7 +325,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const w = Math.max(measure(texts.rx), measure(text));
     const h = 2 * LINE_HEIGHT;
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
-    // A focus lane's value is never dropped (board M11 rule 8, owner 2026-11-01): on a short lane it sits at its
+    // A focus lane's value is never dropped (board M11 rule 8): on a short lane it sits at its
     // middle, beside the lane, where the lane is long enough for nothing else. Other values yield (spec 9.3).
     if (along + 8 > lane.len && !extra.path) return null;
     const half = Math.min(0.5, along / 2 / lane.len);
@@ -337,12 +335,12 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!spots.some((p) => Math.abs(p.at - at) < 0.02)) spots.push({ at, xy: textBeside(lane, w + 4, h, 1, at) });
     }
     // Last resort for a focus value: the same places on the lane's other side, tried only if its own side would cover a
-    // focus label (A4s); a short lane running along the label has no free spot on its own side.
+    // focus label; a short lane running along the label has no free spot on its own side.
     if (extra.path) {
       const flipped = { ...lane, nx: -lane.nx, ny: -lane.ny };
       for (const p of [...spots]) spots.push({ at: p.at, xy: textBeside(flipped, w + 4, h, 1, p.at) });
       // Still no free place (a short lane running along the label of a hub): past either end of the lane, still beside its
-      // line (A4t: with wider density factors the test sample hit this on Coordinator 0 > 7).
+      // line (with wider density factors the test sample hit this on Coordinator 0 > 7).
       for (const at of [1.25, 1.6, -0.25, -0.6]) for (const l of [lane, flipped]) spots.push({ at, xy: textBeside(l, w + 4, h, 1, at) });
     }
     const t = { lines: [texts.rx, text], x: spots[0].xy[0], y: spots[0].xy[1], w, h, spots: spots.map((p) => p.xy),
@@ -482,7 +480,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const placed = obstacles; // labels become obstacles for later labels
-  // The type line shows from the working scale up (A4h review, Fabian Schwamborn, 2026-11-01): the overview stays calm.
+  // The type line shows from the working scale up: the overview stays calm.
   const shownLabels = view.labels || DEFAULT_LABELS;
   const lineSwitches = typeShown(k, view.typeZoom) ? shownLabels : { ...shownLabels, type: false };
   let values = 0;
@@ -526,7 +524,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       return true;
     });
   };
-  // Label boxes of the focus devices (selected, hovered): no value may cover them (A4s). Values yield to them only.
+  // Label boxes of the focus devices (selected, hovered): no value may cover them. Values yield to them only.
   const protectedRects = [];
   const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
     * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
@@ -562,9 +560,9 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   const value = (t) => {
     let rect = null;
-    // The focus's values sit at their preferred place whatever is there (board M11 rule 8, owner decision 2026-11-01:
+    // The focus's values sit at their preferred place whatever is there (board M11 rule 8,
     // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
-    // A focus value keeps off the focus labels (A4s): the next spot on its lane, else the one covering least of them.
+    // A focus value keeps off the focus labels: the next spot on its lane, else the one covering least of them.
     let least = Infinity;
     for (const [x, y] of t.spots) {
       const r = { x: x - t.w / 2 - 2, y: y - t.h / 2, w: t.w + 4, h: t.h };
@@ -620,7 +618,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
-  // A device on the focus's paths is always labelled (A4m, owner report 2026-11-01: Router 17 lost its label in a hub
+  // A device on the focus's paths is always labelled (Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
   // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);

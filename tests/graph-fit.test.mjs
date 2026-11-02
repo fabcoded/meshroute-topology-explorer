@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The fitted view per network engine (spec 9.3; engines cut step 6c, main session 2026-11-01): a Thread map
+// The fitted view per network engine (spec 9.3; engines cut step 6c): a Thread map
 // "contains" every device and its label in the window at every density and at phone width, after load and after
-// "fit"; a Zigbee map keeps the owner's fit at density factor 1, so at medium density it reaches past the window
-// (owner decision, Fabian Schwamborn, 2026-11-01), and its camera does not depend on the engine cut.
+// "fit"; a Zigbee map keeps its fit at density factor 1, so at medium density it reaches past the window,
+// and its camera does not depend on the engine cut.
 // npm test
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -88,5 +88,5 @@ test("Zigbee: the fit stays at density factor 1 (medium reaches past the window)
     const [x, y] = view._screenOf(i);
     return x < 0 || x > view.width || y < 0 || y > view.height;
   });
-  assert.ok(outside.length > 0, "medium density reaches past the window (owner decision)");
+  assert.ok(outside.length > 0, "medium density reaches past the window");
 });

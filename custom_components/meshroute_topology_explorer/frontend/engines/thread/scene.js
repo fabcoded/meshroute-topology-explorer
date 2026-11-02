@@ -36,7 +36,7 @@ export function classify(scene) {
   return scene;
 }
 
-/** Devices always labelled, the anchors of a Thread map (owner decision, Fabian Schwamborn, 2026-11-01): the leader
+/** Devices always labelled, the anchors of a Thread map: the leader
  *  and the border routers. */
 export function anchors(scene) {
   const out = [];
@@ -54,7 +54,7 @@ export function labelRank(node) {
 }
 
 /** How the fitted view frames a Thread map: "contain", every device and its label inside the window at the active
- *  density (main session, 2026-11-01: a network of a few devices, each an extreme of its box, would otherwise reach
+ *  density (a network of a few devices, each an extreme of its box, would otherwise reach
  *  past the window at medium density). */
 export const FIT = "contain";
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Return paths without a table entry (spec 5.1 "source route"; decisions by Fabian Schwamborn, 2026-11-01). A ZHA
+// Return paths without a table entry (spec 5.1 "source route"). A ZHA
 // coordinator reaches many devices by source routing: it keeps no routing entry for them and sends along the relay
 // list the device's own route record gave it, which is the device's way up, reversed. Home Assistant does not expose
 // those route records, so the measured down path of such a device stays unknown (spec 3.1). Three stages:
@@ -24,7 +24,7 @@ export function sourceRouteMode(value) {
 }
 
 /** The stage as the map draws it: like sourceRouteMode, but a missing or unknown value is "off" (the graph's default
- *  before the settings arrive, unchanged since A4i). */
+ *  before the settings arrive, unchanged since the first version). */
 export function drawMode(value) {
   return SOURCE_ROUTE_MODES.includes(value) ? value : "off";
 }

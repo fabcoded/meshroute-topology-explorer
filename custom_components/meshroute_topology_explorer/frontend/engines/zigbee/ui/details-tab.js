@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Details tab (spec 9.2; design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): the device's name and one
+// The Details tab (spec 9.2; boards M4, M8, M9): the device's name and one
 // line "type · role · vendor model", then a segmented control with three sub-tabs, each a stack of cards:
 // - Communication: the path with the coordinator there and back with the reception at every hop (the coordinator: all
 //   its routes), in the view "table" its routing-table walks per destination, in the view "all" its theoretical paths
@@ -100,7 +100,7 @@ function deviceButton(ctx, dev, note) {
 function communication(panel, info, ctx, name) {
   const { t } = ctx;
   const d = info.device;
-  // The coordinator in the view "routing table" has only that card (main session, 2026-11-01).
+  // The coordinator in the view "routing table" has only that card.
   if (!(info.table && info.device.role === "coordinator")) panel.append(pathsCard(info.paths, ctx, name, info.record));
   if (info.table) panel.append(tableCard(info.table, ctx, name));
   if (info.theory.length) panel.append(theoryCard(info.theory, ctx, name));
@@ -128,7 +128,7 @@ function communication(panel, info, ctx, name) {
       ...info.children.map((c) => h("div", {}, deviceButton(ctx, c, c.model && c.model !== c.label ? c.model : null)))));
   }
 
-  // Findings only when the device has some (decision by Fabian Schwamborn, 2026-11-01), with a way to the Findings
+  // Findings only when the device has some, with a way to the Findings
   // tab, where they stand among the network's; nothing when it has none.
   if (info.findings.length) {
     panel.append(card(t("details.findings", { count: info.findings.length }), h("ul", { class: "finding-list" },
@@ -158,7 +158,7 @@ function communication(panel, info, ctx, name) {
  *  and the reception there, the value in bold; an assumed return path (source route) says so in its prefix and in a
  *  note, and so does one from zigpy's route record (stage "zigpy", `record` of detailsOf), whose note names the radio
  *  library and that the record has no time; a record that takes another way than a complete measured down path is
- *  one line, not drawn (decision of the main session, 2026-11-01). A device's theoretical paths have their own card
+ *  one line, not drawn. A device's theoretical paths have their own card
  *  (theoryCard). */
 function pathsCard(all_, ctx, name, record = null) {
   const t = ctx.t;
@@ -193,7 +193,7 @@ function pathsCard(all_, ctx, name, record = null) {
     h("summary", { class: "card-title", text: t("details.paths_all", { count: paths.length }) }), ...body, ...notes));
 }
 
-/** "Paths to other devices (theoretical)" (spec 5.7, 9.2; brief a4k): a row per other device, the shortest first,
+/** "Paths to other devices (theoretical)" (spec 5.7, 9.2): a row per other device, the shortest first,
  *  with the number of hops there (→) and back (←); a row opens to both ways, every hop with the
  *  reception at its hearer and how it is taken (table, neighbour, route discovery, parent, child), a discovery with its
  *  path cost. Collapsed above PATHS_OPEN rows, like "All paths". */
@@ -228,7 +228,7 @@ function theoryCard(rows, ctx, name) {
     h("p", { class: "muted small", text: t("details.theory_head") }), ...items));
 }
 
-/** "Routing table" (spec 7.1, 9.2; owner proposal 2026-11-01, Codex 4.4): a row per destination of the device's own
+/** "Routing table" (spec 7.1, 9.2): a row per destination of the device's own
  *  usable entries with the hops there (→) and, with "Include return routes", back (←), "?" for a walk that stops; a
  *  row opens to the walks, every hop with the reception at its hearer and how it is taken, a gap named with the device
  *  it stopped at and why. The notes say what the view rests on and what it leaves out (zigpy's route records and
@@ -250,7 +250,7 @@ function tableCard(table, ctx, name) {
       const notes = [s.how && howText(s.how, t), s.basis].filter(Boolean);
       if (notes.length) nodes.push(h("span", { class: "how", text: ` · ${notes.join(", ")}` }));
     });
-    // A gap names the device the walk stopped at: the tables hold nothing further from there (Codex 4.4).
+    // A gap names the device the walk stopped at: the tables hold nothing further from there.
     const gap = unknownEnd(p);
     if (gap) {
       nodes.push(steps.length ? " → " : "", h("span", { class: "unknown",

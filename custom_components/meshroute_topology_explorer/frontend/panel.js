@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Entry module of the Meshroute Topology Explorer panel: the quality view of a Zigbee or Thread network (spec 6-11). Home
 // Assistant loads it as a custom panel and sets `hass`, `narrow` and `panel` on the element (spec 10).
-// Layout (spec 9.1; design by Fabian Schwamborn, 2026-11-01, "one place per thing"): no header bar; the map fills the
+// Layout (spec 9.1; "one place per thing"): no header bar; the map fills the
 // panel. On the map only: top left "Devices" with the findings count and below it the slide switch "Details on click"
 // (with the sidebar button on narrow screens), top right "View" and below it "Legend", the zoom group bottom right,
 // the status line. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide

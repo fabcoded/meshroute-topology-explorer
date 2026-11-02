@@ -2,7 +2,7 @@
 // How a Zigbee device hangs in the network, for its row in the Devices list (board M3). Pure. npm test
 import { upPath } from "./paths.js";
 
-/** How a device hangs in the network, for its row (design by Fabian Schwamborn, 2026-11-01, board M3): the
+/** How a device hangs in the network, for its row (board M3): the
  *  coordinator is the network; an end device is "via" its parent, or "direct" when the parent is the coordinator; a
  *  router is "direct" when its up path is the one hop to the coordinator. Otherwise null: a router's next hop is a
  *  route, not a bond, and an end device without a known parent says nothing here (Details explains). */
