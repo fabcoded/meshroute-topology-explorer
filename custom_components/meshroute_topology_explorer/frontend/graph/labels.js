@@ -9,6 +9,10 @@ export const ELLIPSIS = "…";
 /** Widest label at zoom 1, in CSS pixels; about 20 characters of the 12 px label font. Own choice. */
 export const MAX_LABEL_WIDTH = 128;
 
+/** From the middle density on (spec 8) names are cut by length, not by width: only names longer than this many
+ *  characters (the ellipsis counted) are shortened. Own choice (Fabian 2026-11-02: 25 to 30). */
+export const MAX_LABEL_CHARS = 28;
+
 /** Which lines a label block has by default (spec 11, settings `labels`): type and readable name. */
 export const DEFAULT_LABELS = Object.freeze({ type: true, name: true, haName: false });
 

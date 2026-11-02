@@ -13,9 +13,9 @@
 // npm test
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
-import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
+import { relabelScene, buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
-import { DEFAULT_LABELS, LABEL_SCALE } from "./labels.js";
+import { DEFAULT_LABELS, LABEL_SCALE, MAX_LABEL_CHARS } from "./labels.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, bounds, fitCamera, interpolate, panBy, toWorld, toScreen, wheelFactor, zoomAt,
@@ -152,11 +152,16 @@ export class GraphView extends EventTarget {
     if (pinned) this.pinned = new Map(pinned instanceof Map ? pinned : Object.entries(pinned));
     const keep = this.scene ? this.selectedId : null;
     this.network = network || { devices: [], readings: [] };
-    this.scene = buildScene(this.network, this._measure);
+    this.scene = buildScene(this.network, this._measure, undefined, this._labelChars());
     // The selection survives a data refresh if the device is still there.
     this.selected = keep !== null && this.scene.index.has(keep) ? this.scene.index.get(keep) : -1;
     this.hovered = -1;
     this._relayout();
+  }
+
+  /** The character limit of names at the active density (spec 8); null at the dense one, where width decides. */
+  _labelChars() {
+    return this.density > DENSITY.dense * (1 + 1e-9) ? MAX_LABEL_CHARS : null;
   }
 
   /** Change the density (spec 7.1): every position is drawn at base × D, so all lines get longer or shorter while
@@ -166,8 +171,13 @@ export class GraphView extends EventTarget {
   setDensity(density) {
     if (!(density > 0) || density === this.density) return;
     const ratio = density / this.density;
+    const before = this._labelChars();
     this.density = density;
     if (!this.scene) return;
+    if (this._labelChars() !== before) {
+      relabelScene(this.scene, this._measure, undefined, this._labelChars());
+      this._scaleCache = null;
+    }
     const target = this._anim ? this._anim.to : this.cam;
     this._anim = null;
     const k = target.k;
