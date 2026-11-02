@@ -7,8 +7,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { sampleNetwork } from "./panel-fixture.mjs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { upPath, downPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { upPath, downPath, tableWalk } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
 import { nodePaths, pathHops, unknownEnd } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
+import { classify, focus, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
+import { buildScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { labelWidth } from "./graph-fakes.mjs";
 
 const sample = sampleNetwork();
 const coordinator = sample.devices.find((d) => d.role === "coordinator");
@@ -209,4 +212,42 @@ test("end device: its way up and down, and to every other device through its par
   assert.deepEqual(all[3].hops.map((h) => h.how), ["child"]);
   assert.deepEqual(all[0].hops.map(hopText), ["100", "200"]);   // router 1 hears it at 100, the coordinator router 1 at 200
   assert.deepEqual(all[1].hops.map(hopText), ["190", "parent"]);
+});
+
+test("routing table view: a router or the coordinator without an entry delivers directly to a listed neighbour", () => {
+  // The shape of a report (2026-11-02): router 1 holds 0x0000 via 0x0000 and lists the coordinator as Parent; the
+  // coordinator lists 1 as Child and holds no entry for it (none is needed for a neighbour), only one via 1 for 1's
+  // end device 3. Router 2 lists 1 with LQI 0 and holds no entry for it. End device 3 is listed as Child by 1 (90,
+  // its parent) and by 2 (50). Router 5 is listed by nobody.
+  const n = synth([
+    [0, C, { nb: [[1, 111, "Child"], [2, 140]], rt: [[2, 2], [3, 1]] }],
+    [1, R, { nb: [[0, 172, "Parent"], [2, 160], [3, 90, "Child"]], rt: [[0, 0], [2, 2]] }],
+    [2, R, { nb: [[0, 130], [1, 0], [3, 50, "Child"]], rt: [[0, 0]] }],
+    [3, E],
+    [5, R, { nb: [[2, 80]], rt: [[0, 2]] }],
+  ]);
+  const walks = nodePaths(n, ieee(1), "table", { returns: true });
+  const line = (p) => `${p.kind} ${p.ids.map((id) => id.slice(-2)).join(">")} ${p.complete ? p.hops.map((h) => h.how) : p.reason}`;
+  // Before: "in 00 no entry" and "in 02 no entry"; the way up (its own entry) was always complete.
+  assert.deepEqual(walks.map(line), ["out 01>00 table", "out 01>02 table", "in 00>01 neighbour", "in 02>01 neighbour"]);
+  // Unknown beats wrong: an end device is reached by its parent only, even where another router lists it as Child;
+  // a goal its holder does not list stays a gap.
+  const gap = (from, to) => { const w = tableWalk(n, ieee(from), ieee(to)); return [w.ids.map((id) => id.slice(-2)), w.reason]; };
+  assert.deepEqual(gap(2, 3), [["02"], "no entry"]);
+  assert.deepEqual(gap(0, 5), [["00"], "no entry"]);
+  assert.deepEqual(tableWalk(n, ieee(0), ieee(3)).hops.map((h) => h.how), ["table", "child"]);
+  // The view "with the coordinator" keeps spec 5.1: the down path of a coordinator neighbour is never guessed.
+  assert.deepEqual(downPath(n, ieee(1)), { ids: [ieee(0)], complete: false });
+  assert.deepEqual(upPath(n, ieee(1)), { ids: [ieee(1), ieee(0)], complete: true });
+  // On the map the hop takes its lane's look: solid where an entry of the sender names the hearer (the coordinator's
+  // entry for 3 via 1), dash-dot where none does (router 2 names 1 nowhere).
+  const scene = classify(buildScene(n, labelWidth));
+  const i = scene.index.get(ieee(1));
+  const hops = focus(scene, i, { paths: "table", returnRoutes: true, sourceRoute: "off", selected: i }).hops;
+  const look = (s, h) => {
+    const hop = hops.find((x) => x.s === scene.index.get(ieee(s)) && x.h === scene.index.get(ieee(h)));
+    return hop && `${hop.cls} ${hop.stroke}`;
+  };
+  assert.deepEqual([look(1, 0), look(0, 1), look(2, 1)], ["route solid", "route solid", "route dashdot"]);
+  assert.equal(scenePaths(scene, i, "table", "off", false, true).ends.length, 0, "no stem with '?' is left");
 });

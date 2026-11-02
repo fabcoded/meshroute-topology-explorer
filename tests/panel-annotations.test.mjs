@@ -100,7 +100,7 @@ test("1.3: 'Read data again' only re-reads: the reload path never sends zha/topo
 test("1.5/1.6: one term per kind of path: computed, assumed, measured; a neighbour hop is not an observed route", () => {
   assert.match(en["legend.link.discovery"], /^Computed path: a candidate/);
   assert.equal(t("details.how_discovery"), "route discovery (computed)");
-  assert.equal(t("details.how_neighbour"), "direct neighbour (from the neighbour table)");
+  assert.equal(t("details.how_neighbour"), "direct to a neighbour (no table entry needed)");
   assert.match(en["legend.link.derived"], /^Assumed or derived/);
   // No evidence levels 0-4 and no "predicted" / "calculated" synonyms in the active texts.
   for (const [key, text] of Object.entries(en)) {

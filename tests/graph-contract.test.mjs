@@ -243,19 +243,21 @@ test("a lane keeps its look in all three views: the stroke says the evidence, th
   // Router 02 (routing entries of the fixture): way up over Router 04, its own entry and Router 04's. Its return is
   // assumed (the coordinator holds no entry for it), but on lanes tables name: Coordinator -> RWL022 via Router 04,
   // Router 04 -> End device 10 via Router 02. Before, the way up was dash-dot under "Routing table" and the return
-  // dotted in "all". The routing table view draws no return: the coordinator's walk back stops at once.
+  // dotted in "all". In the routing table view the walks back are direct neighbour hops (5.1): the coordinator and
+  // Router 04 list Router 02 (162, 200) without an entry for it; Router 04's hop is read, as its entry for End device
+  // 10 names Router 02, the coordinator's derived, as no entry names Router 02 there (the fixture, by hand).
   const r02 = drawn(at("Router 02"));
-  for (const k of [key("Router 02", "Router 04"), key("Router 04", "Coordinator")]) {
+  for (const k of [key("Router 02", "Router 04"), key("Router 04", "Coordinator"), key("Router 04", "Router 02")]) {
     assert.deepEqual(look(r02, k), ["solid strong", "solid strong", "solid strong"], k);
   }
-  for (const k of [key("Coordinator", "Router 04"), key("Router 04", "Router 02")]) {
-    assert.deepEqual(look(r02, k), ["solid strong", null, "solid strong"], k);
-  }
-  // Router 06: its own entry to the coordinator; no table names Router 06 as next hop, so its assumed return stays
-  // dash-dot wherever it is drawn.
+  assert.deepEqual(look(r02, key("Coordinator", "Router 04")), ["solid strong", null, "solid strong"]);
+  // In "all" End device 07's way to Router 02 takes the same hop over its parent, the coordinator (5.7 rule 4).
+  assert.deepEqual(look(r02, key("Coordinator", "Router 02")), [null, "dashdot regular", "dashdot regular"]);
+  // Router 06: its own entry to the coordinator; no table names Router 06 as next hop, so its return (assumed, or
+  // in the routing table view the coordinator's direct hop to its neighbour, LQI 79) stays dash-dot wherever drawn.
   const r06 = drawn(at("Router 06"));
   assert.deepEqual(look(r06, key("Router 06", "Coordinator")), ["solid strong", "solid strong", "solid strong"]);
-  assert.deepEqual(look(r06, key("Coordinator", "Router 06")), ["dashdot strong", null, "dashdot strong"]);
+  assert.deepEqual(look(r06, key("Coordinator", "Router 06")), ["dashdot strong", "dashdot strong", "dashdot strong"]);
   // Router 13: a direct neighbour of the coordinator both ways by entries on both sides.
   const r13 = drawn(at("Router 13"));
   for (const k of [key("Router 13", "Coordinator"), key("Coordinator", "Router 13")]) {

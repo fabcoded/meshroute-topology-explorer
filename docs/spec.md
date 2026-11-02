@@ -255,10 +255,13 @@ others are "possibly stale". `PreviousChild` is ignored.
   - "table": only **table walks**. Out walks go to every destination of the device's usable entries (active, not from
     a stale table), each holder forwarding by its own entry for that destination, a parent delivering to its child,
     an end device sending to its parent. "Include return routes" adds in walks from each destination back by every
-    hop's entry for the device. A walk stops at "no entry", "entry inactive", a table not read, a loop or an
-    unavailable device, and names where. Nothing fills a gap (no neighbour, discovery, reversed way out, source route
-    or route record); a return route missing from the tables is no verdict on the link. No up or down path; end
-    devices and unavailable devices have none.
+    hop's entry for the device. A router or the coordinator without a usable entry delivers directly to a goal that is
+    a router or the coordinator listed in its own neighbour table, whatever the relationship or LQI ("neighbour": the
+    NWK unicast to a neighbour, Zigbee r22 3.6.3.3; a coordinator keeps no entry for its neighbours); an end-device goal
+    keeps the parent rule, as another router's Child listing may be stale. A walk stops at "no entry", "entry
+    inactive", a table not read, a loop or an unavailable device, and names where. Nothing else fills a gap
+    (discovery, reversed way out, source route or route record); a return route missing from the tables is no verdict
+    on the link. No up or down path; end devices and unavailable devices have none.
   - "all": adds a **theoretical** (5.7) **out path** to and **in path** from every other available device except the
     coordinator, whose way is the up and down path. Unavailable devices have none. The coordinator gets out and in
     paths for every available device, from its own table on.
@@ -472,7 +475,8 @@ mean the first and third view.
 - **Routing table** (`table`): the overview draws the lane of every usable routing entry (owner -> next hop) as a route,
   nothing else (no up or down lane, no band). A click shows the device's table walks (5.1) as routes, every hop with its
   value, a gap as the dashed stem with "?" at the device where the walk stopped; a device without usable entries (an end
-  device) shows nothing. **"Include return routes"** (checkbox under this view only, default off, greyed in the others,
+  device) shows nothing. A direct hop to a listed neighbour takes the look of its lane: solid where a usable entry of
+  the sender names the hearer, dash-dot (derived) otherwise. **"Include return routes"** (checkbox under this view only, default off, greyed in the others,
   which hold both directions anyway) adds each destination's walk back. zigpy's route records and assumed return paths
   are another basis and stay out (Details says so).
 - **Paths to all devices (theoretical)** (`all`): the overview draws the **backbone**, every lane any theoretical path
@@ -632,8 +636,8 @@ One place per thing; nothing appears twice.
 - **View** tab, in this order:
   - **Communication paths**: one radio group of the three views (7.1), each with a one-line hint; the routing table's:
     "Each router's table names the next hop to a destination. This view follows those entries until the destination
-    or a gap." Indented under it, greyed in the other views: the checkbox "include return routes" ("Follow each
-    destination's route back, using the routing table at every hop.") and then "additional heard neighbours (best 3)"
+    or a gap; a listed neighbour is reached directly." Indented under it, greyed in the other views: the checkbox
+    "include return routes" ("Follow each destination's route back by the same rules.") and then "additional heard neighbours (best 3)"
     ("needs a selection: adds the device's 3 best partners with a reading and no drawn lane"; no info button). Below
     the group: "Each view has its own basis. Debug shows everything."
   - **Path display**: grey or coloured by reception, info button "Colour shows the relative reception rank, not
@@ -695,15 +699,16 @@ One place per thing; nothing appears twice.
       observed, and how) at the top. A row per other device: hops there (→) and back (←), shortest first, equal counts
       by name in natural order (Router 2 before Router 10), the whole path's cost at the row's end. No "weakest RX"
       summary: it would mix a missing value with a low one and compare receivers on different scales. A row opens to
-      both ways, every hop with its RX and how it is taken ("routing table entry", "direct neighbour (from the
-      neighbour table)", "route discovery (computed)", "parent", "child"; "table not read" or "entry inactive" where
+      both ways, every hop with its RX and how it is taken ("routing table entry", "direct to a neighbour (no table
+      entry needed)", "route discovery (computed)", "parent", "child"; "table not read" or "entry inactive" where
       the holder had none), a discovery with its path cost, a stopped way with its reason. A "–" hop names its basis
       ("Basis: Router 05 hears Router 13 with 48; Router 13's table is full (16/16)"; where the table has room "Link
       probably one-sided or aged").
     - In the view "table", **"Routing table · n"** after the coordinator card (for the coordinator itself the only
       path card, as its stage-1 list would repeat the routes), collapsed above 12 rows: a row per destination of the
       usable entries by name, hops there (→) and with "include return routes" back (←), "?" for a stopped walk. A row
-      opens to the walks, every hop with its RX and how it is taken ("routing table entry", "child", "parent"), a gap
+      opens to the walks, every hop with its RX and how it is taken ("routing table entry", "direct to a neighbour (no
+      table entry needed)", "child", "parent"), a gap
       as "path unknown beyond X (no entry | entry inactive | table not read | loop | unavailable)". Notes: what the
       view follows; that return routes are off, or that a missing one is no verdict on the link; that route records
       and assumed return paths are another basis. Without rows it says why: "No usable routing-table entries on this
@@ -838,7 +843,7 @@ so, and nothing stored is overwritten. After a lost connection they are read aga
 |---|---|
 | Unknown beats wrong | On derived fixtures (sample with one table removed, with three removed, without the coordinator's table, coordinator table only) the findings are a subset of the complete sample's findings plus "data incomplete"; no "no parent", "isolated" or "weak reception" that the complete sample lacks; "parent unknown" only in its hedged form that names the missing tables. |
 | Paths | On the sample: up paths complete 41 of 44, down paths 33 of 44, 23 of 33 differ, 2 active routes to unavailable devices. Assumed return paths (source route, 5.1) separately: 8 more devices, 41 of 44 (every available device) with a measured or assumed down path; none without the coordinator's table. Route records from zigpy (synthetic, tests/zigpy-fake.mjs: every complete way up, 2 broken): 6 recorded, 2 assumed, still 41 of 44; 23 records differ from a complete measured down path and are only named. Theoretical paths (5.7): 1640 between the 41 available devices besides the coordinator, all complete, hops 1507 discovery, 603 neighbour, 480 child, 480 parent, 198 table; a click on End device 06 gives 40 out and 40 in (parent 51, child 51, table 4, neighbour 23, discovery 77), on Router 13 (12, 12, 6, 38, 69), on Router 11 (12, 12, 13, 48, 32); the coordinator 41 and 41, all complete. |
-| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (effective under the routing table only): Router 13 draws 2 lanes in the coordinator view and 82 in "all" whatever the option says, 6 lanes in the routing table view and 11 with the option. Routing table: 129 entries, 127 usable, overview 99 lanes (101 distinct owner -> next hop, 2 towards an unavailable device have none); Router 13: 5 destinations, all walks complete (Router 24 over Router 17, End device 06 delivered by its parent Router 17); its return routes: the coordinator's complete, the other four stop ("no entry" at Router 14, 24, 26 and at Router 17 after End device 06's parent hop); the coordinator: 30 destinations, 30 return routes complete; an end device: none. |
+| Lanes | On the sample: 656 lanes, 41 up, 52 down measured and 2 more assumed, 29 routes between devices, 457 heard only (458 with source routes off); the overview draws 95 lanes in the stage "coordinator" (93 with source routes off) and the backbone, 570 lanes, in "all" (with or without the option, as it needs a selection): 95 up or down, of the other 475 by their strongest kind 427 neighbour, 29 table, 19 computed only; the coordinator's trees add none; debug mode 583 lanes and 73 glyphs. Heard-only option on a click (effective under the routing table only): Router 13 draws 2 lanes in the coordinator view and 82 in "all" whatever the option says, 6 lanes in the routing table view and 11 with the option. Routing table: 129 entries, 127 usable, overview 99 lanes (101 distinct owner -> next hop, 2 towards an unavailable device have none); Router 13: 5 destinations, all walks complete (Router 24 over Router 17, End device 06 delivered by its parent Router 17); its return routes all complete: the coordinator's by its entry, Router 14, 24, 26 and Router 17 (after End device 06's parent hop) directly to their neighbour Router 13; the coordinator: 30 destinations, 30 return routes complete; an end device: none. All devices' table walks: 127 out (125 complete), 127 back (120 complete), 65 of their hops direct to a neighbour. |
 | Candidate hit rate | On the sample the cheapest way (5.7 rule 5) names the real next hop of 11 of the 37 active, non-stale router entries whose next hop is not the destination (14 of 62 with the coordinator's entries); test in tests/model-theoretical.test.mjs. Not shown in the product. |
 | Unknown hops | On the sample the complete paths to other devices (5.7) have 174 hops without a reading (87 on the ways out, 87 on the ways back), all neighbour hops on 72 lanes; on the ways out the hearer's table is full for 54, nearly full for 23, with room for 10; all show "–", none "?" (test "a hop whose hearer's table was read ..."). |
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |

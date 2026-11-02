@@ -49,7 +49,7 @@ export function pathHops(network, ids) {
 /** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
  *  assumed, reason, cost }]. "table" gives only the walks of the routing-table view (tableWalk): an out path to every
  *  destination of the device's own usable entries and, with `returns`, an in path from each of them, every hop with
- *  `how` ("table", "child", "parent"); never up or down paths, never more destinations; an unavailable device has none (its table is stale).
+ *  `how` ("table", "neighbour", "child", "parent"); never up or down paths, never more destinations; an unavailable device has none (its table is stale).
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds, for every other available device except the coordinator (in the network's order), the

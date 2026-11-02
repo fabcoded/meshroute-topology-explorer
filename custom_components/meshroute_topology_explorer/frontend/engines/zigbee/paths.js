@@ -24,7 +24,10 @@ function lookups(network) {
   const coordinator = network.devices.find((d) => d.role === "coordinator") || null;
   // "owner|destination" with any entry, usable or not: tells a gap "entry inactive" apart from "no entry".
   const entries = new Set(network.routes.map((r) => `${r.owner}|${r.destination}`));
-  c = { byId, routes, entries, coordinator: coordinator && coordinator.id };
+  // "reporter|subject" for every neighbour-table listing, LQI 0 included (only available devices' tables have
+  // readings): where a table walk may deliver directly to a neighbour.
+  const listed = new Set((Array.isArray(network.readings) ? network.readings : []).map((r) => `${r.reporter}|${r.subject}`));
+  c = { byId, routes, entries, listed, coordinator: coordinator && coordinator.id };
   cache.set(network, c);
   return c;
 }
@@ -133,13 +136,19 @@ export function usableRoutes(network) {
   return out;
 }
 
+const routing = (d) => d.role === "router" || d.role === "coordinator";
+
 /** The walk of the routing-table view (spec 5.1, 7.1): from `from` towards
  *  `to`, every holder H forwards by its own usable entry for the same destination `to` ("table"); a parent delivers to
  *  its end-device child ("child", Zigbee r22 3.6.3.3), and an end device sends to its parent ("parent": it
- *  keeps no routing table, the protocol leaves it no other way). Nothing else fills a gap: no neighbour, no route
- *  discovery, no reversed path, no source route; the walk stops and says why: "no entry", "entry inactive" (an entry
- *  that is not active or comes from a stale table), "table not read", "loop", "unavailable" (a hop or the goal),
- *  "no parent". { ids, complete, hops: [{ sender, hearer, how }], reason }; ids end where the walk stopped. */
+ *  keeps no routing table, the protocol leaves it no other way). A router or the coordinator without a usable entry
+ *  sends straight to a goal that is a router or the coordinator listed in its own neighbour table, whatever the
+ *  relationship or LQI ("neighbour": the NWK layer's unicast to a neighbour, 3.6.3.3; a coordinator keeps no entry for
+ *  its neighbours). End devices keep the parent rule: another router's Child listing may be stale. Nothing else
+ *  fills a gap: no route discovery, no reversed path, no source route; the walk stops and says why: "no entry",
+ *  "entry inactive" (an entry that is not active or comes from a stale table), "table not read", "loop", "unavailable"
+ *  (a hop or the goal), "no parent". { ids, complete, hops: [{ sender, hearer, how }], reason }; ids end where the
+ *  walk stopped. */
 export function tableWalk(network, from, to) {
   const c = lookups(network);
   const start = c.byId.get(from);
@@ -162,6 +171,7 @@ export function tableWalk(network, from, to) {
     } else if (cur === childOf) [next, how] = [to, "child"];
     else {
       next = nextHop(c, cur, to);
+      if (!next && routing(holder) && routing(target) && c.listed.has(`${cur}|${to}`)) [next, how] = [to, "neighbour"];
       if (!next) {
         return result(false, c.entries.has(`${cur}|${to}`) ? "entry inactive" : holder.hasTable === false
           ? "table not read" : "no entry");
