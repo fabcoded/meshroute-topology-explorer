@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // The links part of the legend (board M7), built from what the network's engine says its map draws (GraphView.legend(),
-// engines/*/lanes.js legendEntries): every path class whatever the stage (there and back with the coordinator solid, an
-// assumed return path dotted, paths to other devices dash-dot and the computed route discovery dash-dot in grey with
-// their stage, heard only dashed grey with its stage), the band under a selected device's way up, in debug mode also
-// the lane without traffic or reading, the width steps and the unknown
-// end, the glyphs "–" and "?" where the stage draws them, "RX:" at the hearer, and the scale of the reception colours
+// engines/*/lanes.js legendEntries): Zigbee's strokes by evidence whatever the view (read solid, assumed or derived
+// dash-dot, computed dash-dot in grey, heard only dashed grey, each with the views or option that draw it) and the
+// width by role, Thread's parent and neighbour lanes; the band under a selected device's way up, in debug mode also
+// the lane without traffic or reading, the width steps and the unknown end, the glyphs "–" and "?" where the stage draws them, "RX:" at the hearer, and the scale of the reception colours
 // while paths are coloured. The samples use the entries' own stroke styles, so legend and map cannot drift apart; the
 // words come from i18n by entry id.
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.

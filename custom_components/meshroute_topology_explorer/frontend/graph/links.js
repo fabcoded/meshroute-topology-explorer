@@ -3,9 +3,9 @@
 // M2, M7, M11): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
 // of travel, with an arrowhead at the hearer, shortened to the symbols' contours; a value beside a lane, the dashed
 // stem of an unknown end, the band under a selection's way, the dimming of what is out of focus. Line styles are
-// looks (solid, dotted, dash-dot, dashed, faint) and carry no colour of their own; width follows the lane's own
-// rating; opt-in, rated lanes are coloured by reception, red to green. What a lane means, and which look it gets, is
-// the network engine's (engines/<type>/lanes.js and scene.js).
+// looks (solid, dash-dot, dashed, faint) and carry no colour of their own; a weight (strong, regular, thin) and the
+// lane's own rating set the width; opt-in, rated lanes are coloured by reception, red to green. What a lane means, and
+// which look and weight it gets, is the network engine's (engines/<type>/lanes.js and scene.js).
 // Pure functions: geometry and stroke styles.
 // npm test
 
@@ -31,21 +31,19 @@ export const STEM = Object.freeze({ length: 30, share: 0.45, width: 1.5, dash: O
 /** Rating limits of the three lane widths. */
 export const WIDTH_STEPS = Object.freeze([1 / 3, 2 / 3]);
 /** Stroke looks of a lane: a look, not a meaning; each engine maps its own lane classes to
- *  them (board M11 for Zigbee): solid, dotted (sparse round dots), dash-dot, dash-dot in the lighter grey, dashed, and
- *  the faint dotted grey of a lane without traffic or reading. */
-export const STROKES = Object.freeze(["solid", "dotted", "dashdot", "dashdot-muted", "dashed", "faint"]);
-/** Lane widths per look and width step (CSS pixels): solid strongest, dashed thinnest; dash-dot in the lighter grey
- *  takes dash-dot's, dotted one fixed width (dashdot[1]). Own choice. */
+ *  them (Zigbee: by evidence, spec 7.1): solid, dash-dot, dash-dot in the lighter grey, dashed, and the faint dotted
+ *  grey of a lane without traffic or reading. */
+export const STROKES = Object.freeze(["solid", "dashdot", "dashdot-muted", "dashed", "faint"]);
+/** Lane widths per weight and width step (CSS pixels); the engine gives each lane its weight (Zigbee: by role, the way
+ *  to the coordinator strong). Own choice. */
 export const WIDTHS = Object.freeze({
-  solid: Object.freeze([1.5, 2.25, 3]),
-  dashdot: Object.freeze([1.25, 1.75, 2.25]),
-  dashed: Object.freeze([0.75, 1, 1.4]),
+  strong: Object.freeze([1.5, 2.25, 3]),
+  regular: Object.freeze([1, 1.25, 1.6]),
+  thin: Object.freeze([0.75, 1, 1.4]),
   faint: Object.freeze([1, 1, 1]),
 });
-/** Dash patterns (CSS pixels) of board M11: dash-dot and dashed. Dotted lanes are sparse round dots, a dash of almost
- *  nothing with round caps and this gap, so they stay dots at every width. */
-export const DASH = Object.freeze({ dashdot: Object.freeze([6, 3, 1.5, 3]), dashed: Object.freeze([6, 3]),
-  dottedGap: 6 });
+/** Dash patterns (CSS pixels) of board M11: dash-dot and dashed. */
+export const DASH = Object.freeze({ dashdot: Object.freeze([6, 3, 1.5, 3]), dashed: Object.freeze([6, 3]) });
 
 /** Width step 0..2 of a rating (0..1); an unrated reading gets the thinnest. */
 export function widthStep(rating) {
@@ -54,21 +52,17 @@ export function widthStep(rating) {
 }
 
 /** Stroke style of a lane: { color, width, dash, cap, head }, from its look (STROKES; null counts as "faint": thin
- *  dotted grey, no head). The look sets the dash; the lane's own rating (0..1) sets the width. state "unknown" (a
- *  hop nothing proves) keeps the look's dash in grey at the thinnest width. colored: "colour by reception" is on, so a
- *  rated solid, dash-dot or dashed lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
- *  the look still reads without colour. Dotted and dash-dot in the lighter grey are never coloured (an assumed or computed hop never looks like a measured one). */
-export function laneStyle(stroke, rating, theme, { colored = false, state = "measured" } = {}) {
+ *  dotted grey, no head) and weight (WIDTHS). The look sets the dash; the weight and the lane's own rating (0..1) set
+ *  the width. state "unknown" (a hop nothing proves) keeps the look's dash in grey at the weight's thinnest width.
+ *  colored: "colour by reception" is on, so a rated solid, dash-dot or dashed lane takes its rating's colour
+ *  (palette.js receptionColor); dash and width stay, so the look still reads without colour. Dash-dot in the lighter
+ *  grey is never coloured (a computed hop never looks like a reported one). */
+export function laneStyle(stroke, rating, theme, { colored = false, state = "measured", weight } = {}) {
   if (!stroke || stroke === "faint") {
     return { color: theme.muted, width: WIDTHS.faint[0], dash: [0.01, 3], cap: "round", head: false };
   }
   const unknown = state === "unknown";
-  if (stroke === "dotted") {
-    const w = WIDTHS.dashdot[1];
-    return { color: unknown ? theme.muted : theme.foreground, width: w, dash: [0.01, w + DASH.dottedGap], cap: "round",
-      head: true };
-  }
-  const width = WIDTHS[stroke === "dashdot-muted" ? "dashdot" : stroke][unknown ? 0 : widthStep(rating)];
+  const width = WIDTHS[weight][unknown ? 0 : widthStep(rating)];
   const tint = (fallback) => (unknown ? theme.muted : (colored && receptionColor(rating, theme)) || fallback);
   if (stroke === "dashdot-muted") return { color: theme.muted, width, dash: [...DASH.dashdot], cap: "butt", head: true };
   if (stroke === "solid") return { color: tint(theme.foreground), width, dash: [], cap: "butt", head: true };

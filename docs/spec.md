@@ -264,8 +264,8 @@ others are "possibly stale". `PreviousChild` is ignored.
 - **Source route** (View tab 9.1, stored 11): a ZHA coordinator reaches many devices without a routing entry, along
   the relays of the device's own route record (its up path reversed), which Home Assistant does not expose. Stages:
   - **off**: the down path stays unknown.
-  - **assume** (default): the down path is the up path reversed, marked **assumed** wherever it shows, never drawn or
-    counted as measured. Only for an available device whose measured down path is incomplete, whose up path is
+  - **assume** (default): the down path is the up path reversed, marked **assumed** wherever it shows, never counted
+    as measured, drawn dash-dot unless a table or a parent link names the lane (7.1). Only for an available device whose measured down path is incomplete, whose up path is
     complete, and for which the coordinator's table (present) holds no active route; so a direct neighbour of the
     coordinator gets a one-hop return path. An end device with a coordinator entry stays unknown: its gap lies
     elsewhere. Then every available sample device has a measured or assumed down path (12).
@@ -430,10 +430,21 @@ contour (8) with an arrowhead at the hearer.
   coordinator. **Heard**: a reading, no traffic. A lane with several classes is drawn as its strongest: up and
   measured down, assumed down, route, heard. Sample (12): 12 of the 41 up lanes go to a parent; 75 lanes carry
   nothing and have no reading (73 unknown, 2 only implied by a route or parent link).
-- **Styles**, colourless by default: up and down solid in the foreground; assumed down sparse round dots in the
-  foreground; routes dash-dot (6 3 1.5 3) in the foreground; a hop only a computed route discovery takes (5.7) the
-  same dash-dot in grey; heard only dashed (6 3) in grey; each with an arrowhead at the hearer. Width follows the
-  lane's own rating in three steps. A computed hop never looks like one a table proves.
+- **Styles**, colourless by default, each with an arrowhead at the hearer: the dash says the **evidence**, the width
+  the **role** (decision 2026-11-02).
+  - **Read**, solid in the foreground: a usable routing entry of the sender names the hearer as next hop (for any
+    destination), or the two are an end device and its parent (4.5); under "read from zigpy" also a recorded hop (5.1).
+  - **Assumed or derived**, dash-dot (6 3 1.5 3) in the foreground: any other hop of a path, such as an assumed return
+    path (5.1) or a direct hop to a neighbour without an entry (5.7 rule 4).
+  - **Computed**, the same dash-dot in grey: a hop the path takes only by route discovery (5.7); never coloured.
+  - **Heard only**, dashed (6 3) in grey.
+  - **Solid belongs to the lane, not to the path**: a lane keeps its dash in every view and between overview and
+    click; views only add or remove lanes. One exception: on a click in "all" the selection's own tree draws a hop it
+    takes only by discovery computed, even on a lane a table names (decision 2026-11-01); the overview has no single
+    path, so there such a lane is read.
+  - **Width**: strong on the way to the coordinator and back (up and down lanes in every overview, the routing table's
+    included; on a click the selection's own up and down path in every view), regular for other routes, thin for heard
+    only; within each, three steps by the lane's own rating.
 - **Glyphs**: a direction without a reading has no lane but a glyph at its lane's middle wherever the view draws its
   pair as heard only (and in debug mode): "–" when the hearer's table does not list the sender (full, nearly full or
   with space), "?" when there is no table to ask (end device, missing or stale table) or it says LQI 0. A lane
@@ -441,8 +452,8 @@ contour (8) with an arrowhead at the hearer.
 - **Path display** (View tab 9.1, stored 11): grey (default) or **coloured by reception**: every drawn lane with a rated
   reading takes its rating (5.4, relative to the hearer) on a scale of reception rank from lower over middle to higher
   (never worded bad or good), red, yellow and green unless the user chose three own colours (for colour blindness).
-  Lanes without rating, computed hops and assumed return paths keep their class colour. Dash and width stay, so class
-  and rating read without colour (8).
+  Lanes without rating and computed hops keep their colour. Dash and width stay, so evidence, role and rating read
+  without colour (8).
 
 **Communication paths** (View tab 9.1, stored 11). Three views, each on its own basis (none contains another, so no
 "+" in their names); they filter the drawing only, while springs, positions and fit stay. "Stage 1" and "stage 2"
@@ -459,7 +470,7 @@ mean the first and third view.
   are another basis and stay out (Details says so).
 - **Paths to all devices (theoretical)** (`all`): the overview draws the **backbone**, every lane any theoretical path
   (5.7) between two available devices uses, the coordinator's included; a lane that is not up or down is drawn as a
-  route, lighter where only a computed discovery takes it. It is computed once per network, not per frame. A click shows
+  route in the look of its evidence (computed where only a discovery takes it). It is computed once per network, not per frame. A click shows
   the device's theoretical way to every other device and back (5.1) and turns the rest off as in stage 1. On a click
   (and hover) the selection's own tree decides each hop's class, so a hop it takes only by discovery is computed; the
   overview and stage 1 keep each lane's strongest class (sample in 12).
@@ -478,8 +489,8 @@ mean the first and third view.
 - Drawing order: lanes without class (debug), heard only, computed, routes, down, up on top. With source routes off
   the 2 assumed lanes count as routes in the backbone (overview numbers in 12).
 
-**Node view on the map.** Each hop lies on the lane of its direction, styled by its class (an assumed return path
-dotted whatever the hearer measured), its width by the hearer's rating where it measured the hop. Every hop carries
+**Node view on the map.** Each hop lies on the lane of its direction, dashed by its evidence and weighted by its role
+(Styles above), its width step by the hearer's rating where it measured the hop. Every hop carries
 its value: raw LQI at the hearer; "Parent" or "Route" where implied; "–" or "?" by the glyph rule.
 - An incomplete path ends at the device where its walk stopped with a short dashed stem towards its goal (right of
   that direction, about 30 px at zoom 1, at most 45 % of the way), a "?" and "path unknown".
@@ -554,6 +565,7 @@ user-supplied image or map tiles from a user-configured address.
   (coordinator vermillion, router bluish green, end device blue, border router reddish purple), power source (mains
   blue, battery reddish purple, DC bluish green). ZHA's "Battery or Unknown" counts as battery, and the legend says
   so.
+- **Lanes**: the dash says the evidence, the width the role and the rating; colour by reception only on request (7.1).
 - **Palettes**: Okabe–Ito for categories; graphic elements reach 3:1 against light and dark
   Home Assistant themes. Colour never carries meaning alone (7.1). The opt-in path display coloured by reception uses
   by default red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d, #f2c230, #3fbd5c),
@@ -623,7 +635,7 @@ One place per thing; nothing appears twice.
   - **On click on a device**: checkbox "Open details", the same setting as the map switch; what the map shows on a
     click follows the communication paths.
   - **Return paths without a table entry (source route)**: off (return path "unknown"), assume (the way up reversed,
-    dotted), read from zigpy (tagged "experimental") (5.1); info button "The return path is assumed to follow the
+    dash-dot), read from zigpy (tagged "experimental") (5.1); info button "The return path is assumed to follow the
     outbound path in reverse. It has not been verified."
   - **Node distance (density)**: dense, medium, spread (lower case) (7.1); info button "Spacing helps arrange the
     network. It does not show physical distance."
@@ -635,10 +647,9 @@ One place per thing; nothing appears twice.
     scan (6); a note on where settings are kept, only when not in Home Assistant (11).
   - Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a coarse one.
 - **Legend** tab, compact, in sections:
-  - **Communication paths**, every class whatever the view: there and back with the coordinator and the assumed
-    return path "(views 1 and 3)"; paths to other devices "(views 2 and 3)"; the computed path, "a possible path
-    computed from the available tables (one of the cheapest by LQI)", actual traffic may differ, "(computed, view
-    3)"; heard only "(option under "Routing table", needs a selection)"; the band; the glyphs "–" and "?" wherever
+  - **Communication paths**, one row per evidence whatever the view: read from a routing table (every view);
+    assumed or derived "(views 1 and 3)"; computed, "a candidate, not observed traffic" "(computed, view 3)"; heard only
+    "(option under "Routing table", needs a selection)"; one row for the width by role; the band; the glyphs "–" and "?" wherever
     the map can show them (option on in the routing table view, debug); in debug mode also the lane without traffic,
     the width steps and the unknown end; "RX:" (the reception reported by the receiver at the arrowhead, a quarter of
     the lane before it; receivers may use different scales); the colour bar while paths are coloured. These rows come
@@ -824,7 +835,7 @@ so, and nothing stored is overwritten. After a lost connection they are read aga
 | Link evidence | On the sample: 241 pairs measured in both directions, 85 in one (12 of them implied by the parent, none by a route), 2 pairs implied by routes only; capacity 16 for IKEA and 26 for Signify models seen on several devices. |
 | Parsing | Tests feed addresses as `0x` and `0X` text, numbers and LQI as text; string comparison fails the suite. |
 | Fidelity | Rank correlation between drawn spring length and the reading's LQI over all readings ≤ −0.75 in every density, fixed seed. |
-| Click classes | Hops of a click in stage 2 drawn computed, by each lane's strongest class and by the selection's own tree (7.1): Router 13 1 of 82 and 20 of 82; End device 06 2 of 85 and 34 of 85; Router 11 0 of 82 and 9 of 82; the coordinator 0 of 96 (its trees take no discovery). The overview keeps 95 / 570 lanes, 19 computed only. Router 13 -> Router 21 (route discovery over Router 11): Router 11 -> Router 21 is drawn computed, Router 13 -> Router 11 a proven route, as Router 13 reaches Router 11 itself as a neighbour. |
+| Click classes | Hops of a click in stage 2 drawn computed, by each lane's strongest class and by the selection's own tree (7.1): Router 13 1 of 82 and 20 of 82; End device 06 2 of 85 and 34 of 85; Router 11 0 of 82 and 9 of 82; the coordinator 0 of 96 (its trees take no discovery). The overview keeps 95 / 570 lanes, 19 computed only. Router 13 -> Router 21 (route discovery over Router 11): Router 11 -> Router 21 is drawn computed, Router 13 -> Router 11 a derived route (dash-dot, not computed), as Router 13 reaches Router 11 itself as a neighbour. |
 | Speed | Synthetic network of 300 devices and 3 000 readings settles (largest move < 0.5 px per step) within 5 s in Node, measured as the layout's own CPU time (process.cpuUsage) in a child process started with V8's `--single-threaded` flag (tests/layout-time.mjs), best of three runs of the same deterministic layout; about 0.9–1.2 s (Node 18.19 under WSL). 30 frames per second while panning on a mid-range laptop (debug mode shows the frame rate). A click in stage 2 on the sample stays under 100 ms of model time: process CPU time in a single-threaded child process (tests/click-time.mjs), so compiler and garbage-collector threads do not count, after two warm-up rounds of the four measured clicks, each the best of three fresh networks; slowest click 8–30 ms, median 14 ms of 7 runs (Node 18.19 under WSL). In the test process itself the same clicks read a median of 117 ms (one warm-up click) and up to 110 ms beside the other suites (two warm-up rounds). A click in the routing table takes under 6 ms; the backbone is computed once per network (about 20–70 ms wall on the sample). |
 | Calm default | Default view state shows only the elements listed in 9.1. |
 | Accessibility | Keyboard path to every device and value; hit areas ≥ 24 px; reduced motion honoured; 3:1 contrast of graphic elements. |

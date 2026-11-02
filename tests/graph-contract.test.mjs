@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
+import { focus, overview, sceneBackbone, sceneClasses, scenePaths }
+  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { theoreticalLanes, theoreticalPath }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js";
 import { FakeCanvas, fakeEnv, labelWidth } from "./graph-fakes.mjs";
@@ -207,9 +208,12 @@ test("on click and hover the selection's own tree decides each hop's class: comp
   view.selected = r13;
   view.draw();
   const drawn = new Map(view.lastDraw.paths.values.map((v) => [`${v.s}>${v.h}`, v]));
-  // R13 -> R11 is R13's neighbour hop to R11 itself, so the strongest of its own ways makes it a proven route; R11 ->
-  // R21 only a discovery takes: computed.
+  // R13 -> R11 is R13's neighbour hop to R11 itself, so the strongest of its own ways makes it a route, not computed;
+  // no table names R11 as R13's next hop, so it is drawn derived (dash-dot). R11 -> R21 only a discovery takes: computed.
   assert.deepEqual([drawn.get(`${r13}>${r11}`).cls, drawn.get(`${r13}>${r11}`).predicted], ["route", false]);
+  const r13Hops = focus(scene, r13, { paths: "all", sourceRoute: "assume", selected: r13 }).hops;
+  const stroke = (s, h) => r13Hops.find((hop) => hop.s === s && hop.h === h).stroke;
+  assert.deepEqual([stroke(r13, r11), stroke(r11, r21)], ["dashdot", "dashdot-muted"]);
   assert.deepEqual([drawn.get(`${r11}>${r21}`).cls, drawn.get(`${r11}>${r21}`).predicted], ["route", true]);
   // A lane the selection takes by a table stays a proven route, even where only discovery is computed elsewhere.
   const proven = [...scenePaths(scene, r13, "all", "assume").hops.values()].filter((h) => h.cls === "route" && !h.predicted);
@@ -220,6 +224,57 @@ test("on click and hover the selection's own tree decides each hop's class: comp
   view.draw();
   assert.equal(view.lastDraw.lanes, 570);
   assert.equal(view.lastDraw.classes.predicted, 19);
+});
+
+test("a lane keeps its look in all three views: the stroke says the evidence, the width the role (spec 7.1)", () => {
+  const { view } = show();
+  const { scene } = view;
+  const at = (label) => scene.nodes.findIndex((n) => n.label === label);
+  const key = (a, b) => `${at(a)}>${at(b)}`;
+  const VIEWS = ["coordinator", "table", "all"];
+  // Per view the drawn lanes as "stroke weight": the overview (i = -1) or the click on device i.
+  const drawn = (i) => Object.fromEntries(VIEWS.map((paths) => {
+    const v = { paths, sourceRoute: "assume", returnRoutes: true, selected: i };
+    const looks = i < 0 ? scene.lanes.map((l) => [l.key, overview(scene, v)[l.index]]).filter(([, o]) => o)
+      : focus(scene, i, v).hops.map((h) => [`${h.s}>${h.h}`, h]);
+    return [paths, new Map(looks.map(([k, o]) => [k, `${o.stroke} ${o.weight}`]))];
+  }));
+  const look = (d, k) => VIEWS.map((v) => d[v].get(k) ?? null);
+  // Router 02 (routing entries of the fixture): way up over Router 04, its own entry and Router 04's. Its return is
+  // assumed (the coordinator holds no entry for it), but on lanes tables name: Coordinator -> RWL022 via Router 04,
+  // Router 04 -> End device 10 via Router 02. Before, the way up was dash-dot under "Routing table" and the return
+  // dotted in "all". The routing table view draws no return: the coordinator's walk back stops at once.
+  const r02 = drawn(at("Router 02"));
+  for (const k of [key("Router 02", "Router 04"), key("Router 04", "Coordinator")]) {
+    assert.deepEqual(look(r02, k), ["solid strong", "solid strong", "solid strong"], k);
+  }
+  for (const k of [key("Coordinator", "Router 04"), key("Router 04", "Router 02")]) {
+    assert.deepEqual(look(r02, k), ["solid strong", null, "solid strong"], k);
+  }
+  // Router 06: its own entry to the coordinator; no table names Router 06 as next hop, so its assumed return stays
+  // dash-dot wherever it is drawn.
+  const r06 = drawn(at("Router 06"));
+  assert.deepEqual(look(r06, key("Router 06", "Coordinator")), ["solid strong", "solid strong", "solid strong"]);
+  assert.deepEqual(look(r06, key("Coordinator", "Router 06")), ["dashdot strong", null, "dashdot strong"]);
+  // Router 13: a direct neighbour of the coordinator both ways by entries on both sides.
+  const r13 = drawn(at("Router 13"));
+  for (const k of [key("Router 13", "Coordinator"), key("Coordinator", "Router 13")]) {
+    assert.deepEqual(look(r13, k), ["solid strong", "solid strong", "solid strong"], k);
+  }
+  // Every lane drawn in more than one view looks the same in each, for the overview and for clicks; only a hop the
+  // click in "all" takes by route discovery alone is drawn computed on its own (decision 2026-11-01).
+  let compared = 0;
+  for (const label of [null, "Router 02", "Router 06", "Router 13", "Router 11", "End device 06", "RODRET Dimmer",
+    "Coordinator"]) {
+    const d = drawn(label ? at(label) : -1);
+    for (const k of new Set(VIEWS.flatMap((v) => [...d[v].keys()]))) {
+      const looks = look(d, k).filter((o, n) => o && !(VIEWS[n] === "all" && o.startsWith("dashdot-muted")));
+      if (looks.length < 2) continue;
+      compared++;
+      assert.equal(new Set(looks).size, 1, `${label || "overview"} ${k}: ${look(d, k).join(" | ")}`);
+    }
+  }
+  assert.ok(compared > 200, `${compared} lanes compared`);
 });
 
 test("a stage or checkbox change redraws at once, with and without a selection ", () => {

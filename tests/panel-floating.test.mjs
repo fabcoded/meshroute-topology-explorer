@@ -66,23 +66,22 @@ test("the links legend is built from the graph's entries, with words for every e
         assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), row.id);
       }
       const lanes = rows.filter((r) => r.kind === "lane");
-      assert.deepEqual(lanes.map((r) => r.id), ["coordinator", "assumed", "route", "discovery", "heard", "implied"]);
+      assert.deepEqual(lanes.map((r) => r.id), ["read", "derived", "discovery", "heard", "implied"]);
       assert.ok(lanes.every((r) => r.style && typeof r.style.width === "number"), "samples use the graph's own strokes");
       assert.deepEqual(rows.filter((r) => r.note).map((r) => [r.id, r.note]),
-        [["coordinator", t("legend.stages", { a: 1, b: 3 })], ["assumed", t("legend.stages", { a: 1, b: 3 })],
-          ["route", t("legend.stages", { a: 2, b: 3 })], ["discovery", t("legend.stage_computed", { n: 3 })],
-          ["heard", t("legend.option_heard")]], "a class names its views or option");
+        [["derived", t("legend.stages", { a: 1, b: 3 })], ["discovery", t("legend.stage_computed", { n: 3 })],
+          ["heard", t("legend.option_heard")]], "evidence a view or option draws names it; read is in every view");
       const scale = rows.find((r) => r.id === "reception");
       assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), "scale");
       assert.equal(rows.find((r) => r.id === "rx").label, t("legend.rx"));
     }
   }
   const rows = linkLegendRows(legendEntries(resolveTheme({}), { heard: true, paths: "table" }), t);
-  assert.deepEqual(rows.map((r) => r.label), [t("legend.link.coordinator"), t("legend.link.assumed"), t("legend.link.route"),
-    t("legend.link.discovery"), t("legend.link.heard"), t("legend.link.up-path"), t("legend.link.not-listed"),
+  assert.deepEqual(rows.map((r) => r.label), [t("legend.link.read"), t("legend.link.derived"), t("legend.link.discovery"),
+    t("legend.link.heard"), t("legend.link.role"), t("legend.link.up-path"), t("legend.link.not-listed"),
     t("legend.link.no-table"), t("legend.rx")]);
-  assert.deepEqual(rows.slice(2, 5).map((r) => r.note), [t("legend.stages", { a: 2, b: 3 }), t("legend.stage_computed", { n: 3 }),
-    t("legend.option_heard")]);
+  assert.deepEqual(rows.slice(0, 4).map((r) => r.note), [undefined, t("legend.stages", { a: 1, b: 3 }),
+    t("legend.stage_computed", { n: 3 }), t("legend.option_heard")]);
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");

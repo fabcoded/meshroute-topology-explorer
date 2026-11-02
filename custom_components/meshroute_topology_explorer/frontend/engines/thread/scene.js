@@ -13,9 +13,11 @@ export const CLASSES = Object.freeze(["neighbour", "parent"]);
 /** The look of a lane of class `cls` ("parent", "neighbour" or null); rank orders the drawing, the end device's lane to
  *  its parent on top. */
 function look(cls, toParent = false) {
-  if (cls === "parent") return { cls, stroke: "solid", rank: toParent ? 4 : 3, assumed: false, predicted: false };
-  if (cls === "neighbour") return { cls, stroke: "dashed", rank: 1, assumed: false, predicted: false };
-  return { cls: null, stroke: "faint", rank: 0, assumed: false, predicted: false };
+  if (cls === "parent") {
+    return { cls, stroke: "solid", weight: "strong", rank: toParent ? 4 : 3, assumed: false, predicted: false };
+  }
+  if (cls === "neighbour") return { cls, stroke: "dashed", weight: "thin", rank: 1, assumed: false, predicted: false };
+  return { cls: null, stroke: "faint", weight: "faint", rank: 0, assumed: false, predicted: false };
 }
 
 /** Pairs and lanes from the network (shared renderer, buildScene): the meaning of each lane is { toParent,

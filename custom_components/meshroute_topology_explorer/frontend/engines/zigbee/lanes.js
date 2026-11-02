@@ -3,8 +3,9 @@
 // sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a device, measured from the
 // tables or assumed as the reversed way up, source-routes.js), "route" (on an active route between two devices,
 // neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry several; it is drawn as its
-// strongest, in the look of its class (strokeOf: up and down solid, assumed down dotted, routes between devices
-// dash-dot, computed hops dash-dot in the lighter grey, heard only dashed). "Communication paths" says what is drawn
+// strongest. The stroke says the evidence, the same in every view (strokeOf: read from a routing table or a parent
+// link solid, assumed or derived dash-dot, computed dash-dot in the lighter grey, heard only dashed); the weight says
+// the role (weightOf: the way to the coordinator and back strong). "Communication paths" says what is drawn
 // (scene.js). Also the value under "RX:" (the raw LQI at the hearer, "Parent" or "Route" where only they imply the
 // direction), the glyph of a direction without a reading ("–" when the hearer's table does not list the sender, "?"
 // when there is no table to ask), and the legend rows of every path class with the view or option that draws it.
@@ -59,14 +60,25 @@ export function overviewShows(cls, stage, { backbone = false, table = false, deb
   return cls === "route" && backbone && view === "all";
 }
 
-/** The look of a Zigbee lane class (CLASSES or null) on the map (board M11): up and down solid, an assumed down lane
- *  dotted, a route between devices dash-dot, one only a computed route discovery takes dash-dot in the lighter grey,
- *  heard only dashed, no class faint. */
-export function strokeOf(cls, { assumed = false, predicted = false } = {}) {
+/** The stroke of a Zigbee lane by its evidence (spec 7.1, decision 2026-11-02): solid where it is read (a usable
+ *  routing entry of the sender names the hearer as next hop, or the two are an end device and its parent), dash-dot
+ *  where only an assumption or a derivation draws it (an assumed return path, a direct hop to a neighbour), dash-dot
+ *  in the lighter grey where the path takes it only by a computed route discovery, heard only dashed; a lane without
+ *  class (CLASSES or null) faint. */
+export function strokeOf(cls, { read = false, predicted = false } = {}) {
   if (!cls) return "faint";
-  if (cls === "route") return predicted ? "dashdot-muted" : "dashdot";
-  if (cls === "down" && assumed) return "dotted";
-  return cls === "heard" ? "dashed" : "solid";
+  if (cls === "heard") return "dashed";
+  if (predicted) return "dashdot-muted";
+  return read ? "solid" : "dashdot";
+}
+
+/** The weight of a Zigbee lane by its role (spec 7.1): strong on the way to the coordinator and back (an up or down
+ *  lane, or `axis`: a hop of the selection's own way there and back in a view that draws it as a route), regular for
+ *  other routes, thin for heard only. */
+export function weightOf(cls, axis = false) {
+  if (!cls) return "faint";
+  if (cls === "heard") return "thin";
+  return axis || cls === "up" || cls === "down" ? "strong" : "regular";
 }
 
 const laneKey = (sender, hearer) => `${sender}>${hearer}`;
@@ -167,25 +179,26 @@ export function laneValue(dir, texts) {
 }
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
- *  M7): every path class whatever the view, each with its stroke sample:
- *  there and back with the coordinator (up and down share one row) and the assumed return path (views 1 and 3), paths
- *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option under the routing table,
- *  needs a selection); the band under a selected device's way up; the glyphs for directions without a reading where
- *  the option draws them (on click, debug); debug mode adds the lane without traffic or reading, the width steps and
- *  the unknown end; "RX:" at the hearer with a sample value, and with colored the reception scale. */
+ *  M7): the strokes by evidence whatever the view, each with its sample and the views that draw it: read (every
+ *  view), assumed or derived (views 1 and 3), computed (view 3, marked computed), heard (the option under the routing
+ *  table, needs a selection); the weight by role; the band under a selected device's way up; the glyphs for directions
+ *  without a reading where the option draws them (on click, debug); debug mode adds the lane without traffic or
+ *  reading, the width steps and the unknown end; "RX:" at the hearer with a sample value, and with colored the
+ *  reception scale. */
 export function legendEntries(theme, { debug = false, colored = false, heard = false, paths = DEFAULT_PATHS } = {}) {
-  const sample = (stroke) => laneStyle(stroke, 1, theme);
+  const sample = (stroke, weight) => laneStyle(stroke, 1, theme, { weight });
   const glyphs = debug || (heard && paths === "table");
   return [
-    // The views that draw each class: up and down in 1 and 3, routes in 2 and 3.
-    { id: "coordinator", kind: "lane", style: sample("solid"), stage: [1, 3] },
-    { id: "assumed", kind: "lane", style: sample("dotted"), stage: [1, 3] },
-    { id: "route", kind: "lane", style: sample("dashdot"), stage: [2, 3] },
-    { id: "discovery", kind: "lane", style: sample("dashdot-muted"), stage: 3, computed: true },
-    { id: "heard", kind: "lane", style: sample("dashed"), option: "heard" },
+    // The views that draw each kind of evidence: read in all three, assumed or derived in 1 and 3 (the routing table
+    // view draws table entries only), computed in 3.
+    { id: "read", kind: "lane", style: sample("solid", "regular") },
+    { id: "derived", kind: "lane", style: sample("dashdot", "regular"), stage: [1, 3] },
+    { id: "discovery", kind: "lane", style: sample("dashdot-muted", "regular"), stage: 3, computed: true },
+    { id: "heard", kind: "lane", style: sample("dashed", "thin"), option: "heard" },
+    { id: "role", kind: "width", widths: [WIDTHS.regular[2], WIDTHS.strong[2]], color: theme.foreground },
     { id: "up-path", kind: "band", color: theme.foreground, alpha: BAND.alpha, width: BAND.width },
     ...(debug ? [{ id: "implied", kind: "lane", style: laneStyle("faint", null, theme) },
-      { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.solid], color: theme.foreground }] : []),
+      { id: "width", kind: "width", steps: [...WIDTH_STEPS], widths: [...WIDTHS.strong], color: theme.foreground }] : []),
     ...(glyphs ? [{ id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
       { id: "no-table", kind: "glyph", text: "?", color: theme.muted }] : []),
     ...(debug ? [{ id: "path-end", kind: "stem", color: theme.foreground, width: STEM.width, dash: [...STEM.dash],
