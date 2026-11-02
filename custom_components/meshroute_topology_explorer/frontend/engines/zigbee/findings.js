@@ -14,15 +14,11 @@ export const FINDING_KINDS = ["offline", "parent offline", "route to offline dev
   "weak reception", "very low reading", "parent unknown", "isolated", "many end-device children"];
 
 /** Counts for the status line (spec 6). The coordinator is not counted as a router. */
-export function computeStatus({ devices, readings }) {
+export function computeStatus({ devices }) {
   const routers = devices.filter((d) => d.role === "router" && d.available);
-  const listed = new Set(readings.map((r) => r.subject));
   return {
     routersAvailable: routers.length,
     routersWithTable: routers.filter((d) => d.hasTable).length,
-    devicesListed: devices.filter((d) => listed.has(d.id)).length,
-    devicesTotal: devices.length,
-    unavailable: devices.filter((d) => !d.available).length,
     completeness: routers.length ? routers.filter((d) => d.hasTable).length / routers.length : 1,
   };
 }

@@ -42,7 +42,7 @@ export function buildNetwork(rawDevices, { deviceRegistry, areaRegistry, configE
     capabilities,
     devices, readings, routes,
     pairs: computePairs({ devices, readings, routes }),
-    status: computeStatus({ devices, readings }),
+    status: computeStatus({ devices }),
     findings: computeFindings({ devices, readings, routes }),
     unresolved,
   };

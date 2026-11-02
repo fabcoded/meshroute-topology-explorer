@@ -18,9 +18,6 @@ test("status counts on the sample: only available routers count (spec 6), the co
   assert.equal(devices.filter((d) => d.device_type === "Router" && d.neighbors.length > 0).length, 30);
   assert.equal(s.routersAvailable, 29);
   assert.equal(s.routersWithTable, 29);
-  assert.equal(s.devicesTotal, 45);
-  assert.equal(s.unavailable, devices.filter((d) => !d.available).length);
-  assert.ok(s.devicesListed > 0 && s.devicesListed <= s.devicesTotal);
 });
 
 test("deviceRows are sorted text rows; blockingState follows spec 9.4", () => {

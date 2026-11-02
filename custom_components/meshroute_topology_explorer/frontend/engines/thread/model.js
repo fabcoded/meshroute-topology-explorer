@@ -72,7 +72,7 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
     capabilities,
     collectedAt,
     devices, readings, staleReadings: stale, routes: [], links, pairs,
-    status: threadStatus(devices, pairs, collectedAt),
+    status: threadStatus(devices, pairs),
     findings: threadFindings(devices),
     unresolved,
   };
@@ -101,20 +101,14 @@ export function threadPairs(devices, readings, links) {
     .map(({ a, b }) => ({ a, b, ab: direction(a, b), ba: direction(b, a) }));
 }
 
-/** Status line numbers (spec 6) of a Thread network: devices listed in a link, devices, unavailable ones, nodes, links
- *  (pairs), links measured in both directions, border routers listed, the collection time. No "router tables x/y"
- *  and no completeness (engines cut, step 7): every Matter node's table comes with the snapshot. */
-export function threadStatus(devices, pairs, collectedAt) {
+/** Status line numbers (spec 6) of a Thread network: links (pairs), links measured in both directions, border routers
+ *  listed. No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
+export function threadStatus(devices, pairs) {
   const both = pairs.filter((p) => p.ab.state === "measured" && p.ba.state === "measured").length;
   return {
-    devicesListed: devices.filter((d) => pairs.some((p) => p.a === d.id || p.b === d.id)).length,
-    devicesTotal: devices.length,
-    unavailable: devices.filter((d) => !d.available).length,
-    nodes: devices.length,
     links: pairs.length,
     linksBoth: both,
     borderRouters: devices.filter((d) => d.role === "border router").length,
-    collectedAt,
   };
 }
 
@@ -127,8 +121,8 @@ export function threadFindings(devices) {
   for (const d of devices) {
     if (!d.available) out.push({ kind: "offline", device: d.id, evidence: { lastSeen: d.lastSeen }, missing: [] });
     if (d.role === "end device" && d.parent && !byId.get(d.parent).available) {
-      out.push({ kind: "parent offline", device: d.id, evidence: { parent: d.parent, parentLastSeen: byId.get(d.parent).lastSeen,
-        listedInStaleTable: false, lastKnown: false }, missing: [] });
+      out.push({ kind: "parent offline", device: d.id,
+        evidence: { parent: d.parent, parentLastSeen: byId.get(d.parent).lastSeen }, missing: [] });
     }
   }
   for (const d of devices) {

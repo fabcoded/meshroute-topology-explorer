@@ -40,7 +40,6 @@ test("the sample: five nodes, their roles, the border router as a node, collecti
   assert.equal("hasTable" in br, false, "no Zigbee table fields (engines cut step 7)");
   assert.equal(sample.collectedAt, "2026-01-01T12:00:00.000Z");
   assert.match(sample.id, /^thread-[A-Za-z0-9]{1,32}$/);
-  assert.equal(sample.status.nodes, 5);
   assert.equal(sample.status.links, 5);
   assert.equal(sample.status.linksBoth, 3);
   assert.equal(sample.status.borderRouters, 1);

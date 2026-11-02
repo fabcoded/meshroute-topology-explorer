@@ -52,8 +52,7 @@ test("sample: path numbers of spec 12", () => {
 });
 
 test("sample: status, findings per kind, roles and parents", () => {
-  assert.deepEqual(sample.status, { routersAvailable: 29, routersWithTable: 29, devicesListed: 43, devicesTotal: 45,
-    unavailable: 3, completeness: 1 });
+  assert.deepEqual(sample.status, { routersAvailable: 29, routersWithTable: 29, completeness: 1 });
   const kinds = {};
   for (const f of sample.findings) kinds[f.kind] = (kinds[f.kind] || 0) + 1;
   assert.deepEqual(kinds, { offline: 3, "route to offline device": 2, "very low reading": 10 });

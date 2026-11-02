@@ -30,19 +30,14 @@ export const THREAD_CAPABILITIES = Object.freeze({
   observations: false, clusters: false, routeRecords: false, devicePage: false, scale: "thread-lqi",
 });
 
-/** Thread roles of the snapshot -> model role (spec 4.2) and sleep. A leader is a router with the "L" crown (spec 8);
+/** Thread roles of the snapshot (spec 3.2) -> model role (spec 4.2) and sleep; any other role is unknown. A leader is a router with the "L" crown (spec 8);
  *  a REED (router-eligible end device) is attached like an end device and listens when idle. */
 const ROLE_MAP = {
   leader: { role: "router", sleepy: false, leader: true },
   router: { role: "router", sleepy: false },
   reed: { role: "end device", sleepy: false, reed: true },
   end_device: { role: "end device", sleepy: false },
-  minimal_end_device: { role: "end device", sleepy: false },
-  med: { role: "end device", sleepy: false },
   sleepy_end_device: { role: "end device", sleepy: true },
-  synchronized_sleepy_end_device: { role: "end device", sleepy: true },
-  sed: { role: "end device", sleepy: true },
-  ssed: { role: "end device", sleepy: true },
 };
 /** OpenThread reports 127 for "no RSSI"; anything outside a radio's range is no value either. */
 const RSSI_MIN = -128;
@@ -90,16 +85,14 @@ function registryIndex(deviceRegistry) {
  *  the direction is missing. measured: a valid RSSI, or link quality above 0, says the link was heard. Link quality 0
  *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
  *  measurement) are not measured and never drawn as a dead link (spec 3.2). */
-function reading(reporter, subject, dir, connection) {
+function reading(reporter, subject, dir) {
   if (!dir || typeof dir !== "object") return null;
   const lqi = threadLqi(dir.lqi);
   const rssi = threadRssi(dir.rssi);
   const strength = text(dir.strength);
   if (lqi === null && rssi === null && strength === null && dir.lqi === undefined) return null; // an empty object
   const measured = strength !== "unknown" && ((lqi !== null && lqi > 0) || rssi !== null);
-  return { reporter, subject, lqi, rssi, strength, measured, scale: "thread-lqi", relationship: null, rating: null,
-    viaRouteTable: typeof connection.via_route_table === "boolean" ? connection.via_route_table : null,
-    pathCost: int(connection.path_cost) };
+  return { reporter, subject, lqi, rssi, strength, measured, scale: "thread-lqi", relationship: null, rating: null };
 }
 
 /** Group the snapshot's Thread nodes by extended PAN id; returns the ext PAN id of the largest group (spec 3.2:
@@ -172,8 +165,8 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
       parentLqi: null, possiblyStaleParents: [],
       // Thread fields (spec 3.2), shown in the details.
       nodeKey, nodeId: int(n.node_id), extAddress: address, rloc16: int(n.rloc16), extPanId: text(n.ext_pan_id),
-      networkName: text(n.network_name), threadRole: text(n.role), leader: Boolean(mapped && mapped.leader),
-      reed: Boolean(mapped && mapped.reed), matter: kind === "matter", threadKind: kind, isBridge: n.is_bridge === true,
+      threadRole: text(n.role), leader: Boolean(mapped && mapped.leader),
+      reed: Boolean(mapped && mapped.reed), matter: kind === "matter",
     };
     devices.push(device);
     byNode.set(nodeKey, device);
@@ -199,9 +192,9 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
     byKey.set(key, true);
     const [atSource, atTarget] = RECEIVER_OF_SOURCE_TO_TARGET === "source"
       ? [c.source_to_target, c.target_to_source] : [c.target_to_source, c.source_to_target];
-    const rs = reading(a.id, b.id, atSource, c);
-    const rt = reading(b.id, a.id, atTarget, c);
-    links.push({ a: a.id, b: b.id, strength: text(c.strength), pathCost: int(c.path_cost) });
+    const rs = reading(a.id, b.id, atSource);
+    const rt = reading(b.id, a.id, atTarget);
+    links.push({ a: a.id, b: b.id });
     for (const r of [rs, rt]) {
       if (!r) continue;
       const reporter = r.reporter === a.id ? a : b;
