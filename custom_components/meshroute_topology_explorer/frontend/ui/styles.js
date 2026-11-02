@@ -430,6 +430,8 @@ dialog.cluster-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
   color: inherit; text-align: left; text-decoration: none; background: transparent; border: 0; cursor: pointer; }
 button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; justify-content: center; }
 .menu-row[aria-checked="true"] { font-weight: 600; }
+.menu-row[role="menuitemradio"] { position: relative; padding-left: 36px; }
+.menu-row[role="menuitemradio"][aria-checked="true"]::before { content: "✓"; position: absolute; left: 14px; top: 10px; }
 .menu-row[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 .menu-row:hover:not([aria-disabled="true"]), .menu-row:focus-visible { background: var(--secondary-background-color, #eee); }
 .menu-sep { border-top: 1px solid var(--mte-divider); margin: 4px 0; }

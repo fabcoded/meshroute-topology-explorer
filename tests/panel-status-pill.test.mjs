@@ -137,6 +137,8 @@ test("phone width of the map: second line hidden, the short name, the dot stays"
   assert.match(rule[1], /\.pill-short \{ display: inline; \}/);
   assert.ok(!/pill-dot/.test(rule[1]), "the dot is not hidden");
   assert.match(STYLES, /\.pill-short \{ display: none; \}/);
+  assert.match(STYLES, /\.menu-row\[role="menuitemradio"\]\[aria-checked="true"\]::before \{ content: "✓";/,
+    "the chosen network carries a check mark (board M23)");
   assert.match(STYLES, /\.status-pill \{[^}]*max-width: calc\(100% - var\(--inset-left\) - var\(--inset-right\) - 144px\)/,
     "room left and right for the zoom group");
 });
