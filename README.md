@@ -10,9 +10,6 @@ available data supports, and how complete that data is.
 <sub>The anonymized sample network from this repository: a coordinator, 32 routers, 12 end devices. Links are coloured
 by reception, green strong, red weak.</sub>
 
-> [!NOTE]
-> Early development, nothing to install yet. The screenshots show the development page with the sample network.
-
 ## Why
 
 You open a network map when something has stopped working: a lamp in the garden drops out, a motion sensor reports
@@ -62,12 +59,31 @@ On a phone the panels open from the bottom: the overview, the findings, the deta
 
 | Source | State |
 |---|---|
-| Zigbee through ZHA | first release (v1), in development |
+| Zigbee through ZHA | 0.1.0 |
 | Thread through the Matter integration | preview |
 | Zigbee through Zigbee2MQTT | later |
 
-Once released, installation will go through HACS as a custom repository and needs Home Assistant 2026.9 or newer.
-After adding the integration, a "Meshroute" entry appears in the sidebar.
+## Install
+
+Requirements: Home Assistant 2026.9 or newer with ZHA set up. The panel is for administrators.
+
+1. In HACS open the three-dot menu, then Custom repositories.
+2. Add `https://github.com/fabcoded/meshroute-topology-explorer` with type Integration.
+3. Find Meshroute Topology Explorer in HACS and download it.
+4. Restart Home Assistant.
+5. Go to Settings > Devices & services > Add integration and add Meshroute Topology Explorer. A "Meshroute" entry
+   appears in the sidebar.
+
+Known limits:
+
+- Thread through the Matter integration is a preview.
+- The panel is English only.
+- Route records come from an internal zigpy interface. After a Home Assistant update the panel may report "not
+  supported" for them until the project is adapted.
+- Zigbee2MQTT is not supported yet.
+
+Update: download the new version in HACS, restart Home Assistant and reload the browser page.
+Removal: delete the integration under Settings > Devices & services, then remove it in HACS and restart.
 
 ## Contributing
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The View tab's "Communication paths" (board M11; routing-table view): three radios (the views), and under the routing table the checkboxes "include return
+// The View tab's "Communication paths" (spec 7.1; routing-table view): three radios (the views), and under the routing table the checkboxes "include return
 // routes" and "additional heard neighbours (best 3)", whose states follow the settings and whose changes are reported at
 // once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.

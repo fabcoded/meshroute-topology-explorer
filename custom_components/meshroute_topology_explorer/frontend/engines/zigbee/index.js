@@ -28,9 +28,9 @@ export const zigbee = Object.freeze({
   unknownGlyph,
   /** A reading's quality 0..1 for the layout's springs (LQI / 255), or null for no spring. */
   springQuality,
-  /** The link rows of the legend (board M7): every path class with the stage or option that draws it. */
+  /** The link rows of the legend (spec 9.1): every path class with the stage or option that draws it. */
   legend: (theme, view = {}) => legendEntries(theme, view),
-  /** The status line (spec 6, board M1): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
+  /** The status line (spec 6): { parts, right (the source-route stage), incomplete ({ x, y } or null) }. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Its finding kinds in the order the Findings tab groups them (findings.js), and the words of a finding:
    *  { title, lines }. */
@@ -38,9 +38,9 @@ export const zigbee = Object.freeze({
   /** What a user may type to find a device by its network address (Devices search): "0x1234 4660", or none. */
   addresses: (device) => (typeof device.nwk === "number"
     ? [`0x${device.nwk.toString(16).padStart(4, "0")} ${device.nwk}`] : []),
-  /** The grey line's connection of a device in the Devices list (board M3), or null. */
+  /** The grey line's connection of a device in the Devices list (spec 9.1), or null. */
   connection,
-  /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow
+  /** Fill the Details tab (three sub-tabs, spec 9.2). ctx: the panel's Details context; the paths follow
    *  this engine's own settings (paths, returnRoutes, sourceRoute); a cluster's details open as a dialog through the
    *  panel's ctx.openDialog(open(host)). */
   details: (container, ctx) => renderDetails(container, { ...ctx, stage: ctx.settings.paths,

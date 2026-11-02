@@ -8,7 +8,7 @@ import { sleeps } from "../graph/symbols.js";
 /** Keys that move the active row, as steps; Home/End go to the ends. PageUp/PageDown step by this many. */
 const PAGE = 10;
 
-/** Rows for the list from a Network: one per device, the device that is the network first (board M3: the Zigbee
+/** Rows for the list from a Network: one per device, the device that is the network first (spec 9.1: the Zigbee
  *  coordinator; engine.connection kind "network"), then by label and address.
  *  The search text holds what a user may type: label, Home Assistant name, vendor, model, area, the device key (IEEE or
  *  extended address) and the network address as the engine writes it (engine.addresses: Zigbee 0x1234 and decimal;
@@ -26,7 +26,7 @@ export function deviceRows(network) {
 /** Whether a row's device is the network itself (its engine's connection says so: the Zigbee coordinator). */
 const isNetwork = (row) => Boolean(row.connection && row.connection.kind === "network");
 
-/** The grey line under a row's name (board M3): "Light · Router · direct to the coordinator", "Button · sleeps · via
+/** The grey line under a row's name (spec 9.1): "Light · Router · direct to the coordinator", "Button · sleeps · via
  *  Router 03", "Coordinator · Network"; then the area and, when it is down, "unavailable". The reception rank lives in
  *  Details. t: the translator. */
 export function rowMeta(row, t) {

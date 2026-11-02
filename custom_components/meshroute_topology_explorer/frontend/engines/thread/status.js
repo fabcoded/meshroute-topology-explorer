@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The status line of a Thread network (spec 3.2, 6; board Variant A). No DOM: the panel translates the parts.
+// The status line of a Thread network (spec 3.2, 6, 9.1). No DOM: the panel translates the parts.
 // npm test
 
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router

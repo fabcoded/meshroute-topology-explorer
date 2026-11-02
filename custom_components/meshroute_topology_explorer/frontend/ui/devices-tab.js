@@ -85,7 +85,7 @@ export class DevicesTab {
     if (!t) return;
     const rows = this.model.visible;
     // The count is a live region: written only when it changes, so arrow keys do not repeat it. It shows only while a
-    // search filters the list (board M3: no count over the full list).
+    // search filters the list (spec 9.1: no count over the full list).
     const filtered = Boolean(this.model.filter.trim());
     const countText = !rows.length ? t("devices.none") : filtered ? t("devices.count", { shown: rows.length, total: this.model.rows.length }) : "";
     if (countText !== this._countText) {

@@ -8,8 +8,7 @@
 /** The panel is "wide" from this width on (CSS pixels of the panel, not the window: Home Assistant's sidebar takes
  *  its share). A side panel of 320 px then still leaves 400 px of map. Own choice. */
 export const WIDE_MIN = 720;
-/** Width of a side panel: 36 % of the panel, within 320..384 px. Own choice: room for a reading table; at most 384 px
- *  as on the boards (M2 to M7). */
+/** Width of a side panel: 36 % of the panel, within 320..384 px. Own choice: room for a reading table; at most 384 px. */
 export const SIDE_MIN = 320;
 export const SIDE_MAX = 384;
 const SIDE_SHARE = 0.36;

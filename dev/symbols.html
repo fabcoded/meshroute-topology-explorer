@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Development page (not shipped): every device symbol as the map draws it (graph/symbols.js drawSymbol), at 32, 48
-     and 96 px, with the states at 48 px, to compare with the design board. Any static server on the repository root:
+     and 96 px, with the states at 48 px, to compare with the symbol drafts. Any static server on the repository root:
        python3 -m http.server 8824 --bind 127.0.0.1   then open   http://127.0.0.1:8824/dev/symbols.html
      Query: theme=dark; fill=<css colour> for the symbols' background (default: the theme's grey for "no value"). -->
 <html lang="en">
@@ -48,7 +48,7 @@
     return c;
   }
 
-  // The catalogue of the design board (round 6): what the data model can say today, plus later sources.
+  // The catalogue of the symbol drafts (round 6): what the data model can say today, plus later sources.
   const catalogue = [
     ["Light · router", { role: "router", kind: "light" }],
     ["Outlet · router", { role: "router", kind: "outlet" }],

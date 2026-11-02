@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The View tab of the right panel (spec 9.1, 11; board M2): everything that
+// The View tab of the right panel (spec 9.1, 11): everything that
 // changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
 // communication paths and the path display), then what a click on a device does (open details), the engine's groups
 // placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
@@ -98,7 +98,7 @@ export function renderView(container, ctx) {
     const out = [h("div", { class: "radio-line" },
       radio("pathMode", "grey", t("view.grey"), !coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "grey" } })),
       radio("pathMode", "coloured", t("view.coloured"), coloured, () => ctx.onChange({ pathColors: { ...pc, mode: "coloured" } })))];
-    // The pickers stay in view under "coloured by reception" (board M2), dimmed and inert while paths are grey.
+    // The pickers stay in view under "coloured by reception" (spec 9.1), dimmed and inert while paths are grey.
     const defaults = receptionStops(Boolean(ctx.dark));
     const pickers = PATH_STOPS.map((key, i) => h("label", { class: "color-pick" },
       // "change" only: the native picker would close if the tab were rebuilt while it is open.
@@ -157,7 +157,7 @@ export function renderView(container, ctx) {
     check("label-name", t("view.label_name"), lab.name, (on) => ctx.onChange({ labels: { ...lab, name: on } })),
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
-  // Below a line: debug mode (never stored, spec 9.1), reading again (with the source's note, board M1 review: what
+  // Below a line: debug mode (never stored, spec 9.1), reading again (with the source's note, spec 6: what
   // ZHA reads differs from what the Matter server returns, so the shared tab has no text of its own), releasing pins,
   // the scan (debug mode only: it causes radio traffic).
   const reloadInfo = ctx.reloadInfo ? infoNote("reload", t("view.reload_info_label"), t(ctx.reloadInfo)) : null;
@@ -179,7 +179,7 @@ export function renderView(container, ctx) {
     tools.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
       id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
   }
-  // Where the settings live: said only when they are not kept in Home Assistant as usual (board M2 has no note).
+  // Where the settings live: said only when they are not kept in Home Assistant as usual (no note in spec 9.1).
   const kept = ctx.client.mode === "stored" && !ctx.client.error;
   tools.append(h("p", { class: `storage small ${ctx.client.mode === "memory" || ctx.client.error ? "warn" : ""}`.trim(),
     role: "status", hidden: kept, text: kept ? "" : storageText(ctx.client, t) }));

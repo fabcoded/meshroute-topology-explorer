@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The status line of a Zigbee network (spec 6, board M1): source, "Router tables: x/y", "unchanged since" from the
+// The status line of a Zigbee network (spec 6): source, "Router tables: x/y", "unchanged since" from the
 // observations, a followed scan, the source-route stage on the right, and the "incomplete" banner below 90 % of the
 // available routers with a table. No DOM: the panel translates the parts. npm test
 import { sourceRouteSummary } from "./source-routes.js";
@@ -22,7 +22,7 @@ const SCAN_SHORT = { running: "status.short_scan_running", ended: "status.short_
 /** Reasons the integration gives when zigpy cannot be read (zigpy_routes.py); anything else is shown as it came. */
 const ZIGPY_REASONS = ["zha_not_loaded", "no_gateway", "internals_changed", "error"];
 
-/** The part on the right of the status line (board M1): the source-route stage and how many return paths it concerns
+/** The part on the right of the status line (spec 6): the source-route stage and how many return paths it concerns
  *  (source-routes.js sourceRouteSummary: { mode, count, recorded, zigpy }); null when no device is concerned, and
  *  in the view "routing table" (`paths` "table"), which draws no assumed or recorded return path.
  *  Long and short form, [key, params, longKey] like the other parts. In the stage "zigpy" the part counts recorded and
@@ -46,7 +46,7 @@ export function sourceRoutePart(summary, compact = false, paths = "coordinator")
   return compact ? [short, { count: summary.count }, long] : [long, { count: summary.count }];
 }
 
-/** Parts of the status line as [key, params] for the translator, in order (board M1): source, "Router tables: x/y"
+/** Parts of the status line as [key, params] for the translator, in order (spec 6): source, "Router tables: x/y"
  *  (available routers with a table; the coordinator is not counted), "unchanged since" when known (the caveat "observed" is the tooltip) (formatted time,
  *  from the observations), the state of a followed scan (spec 6, 9.4). Devices missing from every table are named by
  *  the findings, and that ZHA reads the tables by itself is an info button beside "Read data again". compact (narrow screens): short forms in at most two lines, without the source; each part

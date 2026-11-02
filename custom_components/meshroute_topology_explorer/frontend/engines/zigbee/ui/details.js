@@ -34,7 +34,7 @@ export function hopBasis(hop, t, name) {
   return key === "space" ? `${text}. ${t("details.basis_one_sided")}` : text;
 }
 
-/** One path in parts (board M4): prefix ("there", "back", "back, assumed (source route)", "to X", "from X"), the
+/** One path in parts (spec 9.2): prefix ("there", "back", "back, assumed (source route)", "to X", "from X"), the
  *  steps in the direction of travel, each { name, rx } with rx the reception at that device (null for the first),
  *  and tail ("path unknown") where the walk stopped short of its goal. A goal that is unavailable is named so.
  *  name(id) gives a device's label. */

@@ -362,7 +362,7 @@ test("text beside a lane stays clear of it, on its right", () => {
   }
 });
 
-test("legend entries: one row per evidence with its views, the role, RX, the scale while coloured; debug all (board M7)", () => {
+test("legend entries: one row per evidence with its views, the role, RX, the scale while coloured; debug all (spec 9.1)", () => {
   const ids = (o) => legendEntries(theme, o).map((e) => e.id);
   // Every kind of evidence whatever the view; the glyph rows with the heard option under the routing table.
   const rows = ["read", "derived", "discovery", "heard", "role", "up-path"];

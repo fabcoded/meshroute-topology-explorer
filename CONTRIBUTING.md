@@ -1,8 +1,9 @@
 # Contributing
 
 Setup, checks and bug reports. The project rules for people and AI agents, including scope, clean-room origin,
-provenance trailers, sign-off and captures, are in [AGENTS.md](AGENTS.md). By contributing you agree that your work
-is published under the MIT License.
+provenance trailers, sign-off (DCO, `git commit -s`) and captures, are in [AGENTS.md](AGENTS.md). By contributing you
+agree that your work is published
+under the MIT License.
 
 ## Development setup
 
@@ -45,3 +46,13 @@ CI runs the same script. Single steps:
 Search existing issues first. Give the revision, Home Assistant version, network type, data source, steps, expected
 and actual result, and attach an anonymized capture you have looked through (see [README.md](README.md)).
 Security issues: [SECURITY.md](SECURITY.md).
+
+## Release checklist
+
+1. Set the version in three places, which `tests/test_integration_files.py` requires to be equal: `"version"` in
+   `custom_components/meshroute_topology_explorer/manifest.json`, `VERSION` in `.../const.py` (the static path
+   `STATIC_URL_BASE` derives from it) and `VERSION` in `.../frontend/panel.js`.
+2. Run `python3 tools/check.py`.
+3. Commit with sign-off (`git commit -s`, see AGENTS.md).
+4. Tag `vX.Y.Z` on that commit and push the tag.
+5. Create the GitHub release from the tag with release notes.

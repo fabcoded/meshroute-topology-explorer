@@ -186,7 +186,7 @@ export const ROLES = Object.freeze(["coordinator", "router", "end device", "bord
 /** Whether a device sleeps: an end device whose receiver is off when idle (spec 4.2; the bed of its symbol). */
 export const sleeps = (device) => device.role === "end device" && device.sleepy === true;
 
-/** The signs the legend explains (board M7), one device of the network per sign so each row shows a symbol as the map
+/** The signs the legend explains (spec 9.1), one device of the network per sign so each row shows a symbol as the map
  *  draws it, picture included: a router (a light where there is one), an end device (a sleeping one where there is
  *  one), the coordinator, and a device on a cable only. A sign no device carries has no row. Returns [{ parts (of
  *  that device's symbol), role (whose fill colour the row takes), key (its text) }]. */

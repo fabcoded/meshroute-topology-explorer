@@ -8,7 +8,7 @@ import { translator } from "../custom_components/meshroute_topology_explorer/fro
 import { rawKey, rawText, RAW_COLUMNS } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/raw-values.js";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 
-test("status line (board M1): source, router tables, observed unchanged since, then the scan", () => {
+test("status line (spec 6): source, router tables, observed unchanged since, then the scan", () => {
   const network = sampleNetwork();
   const scan = { status: "running", changed: 11, total: 29 };
   const parts = statusParts(network, { unchangedSince: "14:32", scan });

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Zigbee groups of the View tab (spec 9.1, 11; board M2, M11), as data the shared View tab renders
+// The Zigbee groups of the View tab (spec 9.1, 11), as data the shared View tab renders
 // (ui/view-tab.js renderView). Communication paths: three views, each its own basis, with "Include return routes"
 // under the routing table (greyed in the other views, which already hold both directions) and, after it, the
 // checkbox "additional heard neighbours", which also works in that view only; path display, grey or coloured by reception (the shared key pathColors); return paths without a table

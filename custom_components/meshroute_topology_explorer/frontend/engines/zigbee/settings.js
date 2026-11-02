@@ -13,7 +13,7 @@ import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "./source-routes.js";
 export const DEFAULTS = Object.freeze({ paths: DEFAULT_PATHS, heard: false, returnRoutes: false,
   sourceRoute: DEFAULT_SOURCE_ROUTE });
 
-/** The stage of "Communication paths" (board M11); anything else is the default. */
+/** The stage of "Communication paths" (spec 7.1); anything else is the default. */
 export function sanitizePaths(input) {
   return PATH_STAGES.includes(input) ? input : DEFAULT_PATHS;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Theoretical paths (spec 5.7; board M11): the way a frame from
+// Theoretical paths (spec 5.7): the way a frame from
 // one device would most likely take to another today, worked out hop by hop at the device holding it, after the
 // unicast routing of the Zigbee specification r22 (05-3474-22): 3.6.3.3 (child, routing table, neighbour table) and
 // 3.6.3.5 (route discovery, path cost 3.6.3.1). "Theoretical": computed, not observed; Home Assistant does not show

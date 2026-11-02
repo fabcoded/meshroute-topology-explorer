@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// How the quality view draws links (spec 7.1, 8; boards
-// M2, M7, M11): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
+// How the quality view draws links (spec 7.1, 8): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
 // of travel, with an arrowhead at the hearer, shortened to the symbols' contours; a value beside a lane, the dashed
 // stem of an unknown end, the band under a selection's way, the dimming of what is out of focus. Line styles are
 // looks (solid, dash-dot, dashed, faint) and carry no colour of their own; a weight (strong, regular, thin) and the
@@ -42,7 +41,7 @@ export const WIDTHS = Object.freeze({
   thin: Object.freeze([0.75, 1, 1.4]),
   faint: Object.freeze([1, 1, 1]),
 });
-/** Dash patterns (CSS pixels) of board M11: dash-dot and dashed. */
+/** Dash patterns (CSS pixels), spec 7.1: dash-dot and dashed. */
 export const DASH = Object.freeze({ dashdot: Object.freeze([6, 3, 1.5, 3]), dashed: Object.freeze([6, 3]) });
 
 /** Width step 0..2 of a rating (0..1); an unrated reading gets the thinnest. */

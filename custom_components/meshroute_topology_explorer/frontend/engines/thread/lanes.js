@@ -14,7 +14,7 @@ export function springQuality(r) {
   return Math.min(r.lqi, 3) / 3;
 }
 
-/** What a Thread lane shows at its arrow (spec 7.1; board recommendation, M15 asks for a choice):
+/** What a Thread lane shows at its arrow (spec 7.1; the choice is open):
  *  "rssi" = the RSSI in dBm, the link quality 0-3 only where no RSSI was reported (the details list both); "lqi" = the
  *  link quality first. The one switch for that choice. */
 export const THREAD_VALUE = "rssi";
