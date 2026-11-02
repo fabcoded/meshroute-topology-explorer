@@ -765,7 +765,9 @@ again when the connection is back.
 - Custom integration with a config flow; manifest `name` "Meshroute Topology Explorer", domain
   `meshroute_topology_explorer`, version, documentation, issue tracker, code owners, `brand/icon.png`, `hacs.json`;
   hassfest and HACS checks in CI. No Python dependencies beyond Home Assistant.
-- One admin panel (URL path `meshroute-topology`, custom element `meshroute-topology-explorer`), removed on unload.
+- One admin panel (URL path `meshroute-topology`, custom element `meshroute-topology-explorer`), removed on unload. The panel
+  takes the viewport's height (Home Assistant's custom-panel container has none) and brings its own sidebar button
+  on narrow screens.
 - Websocket commands, each checking admin rights, validating input and rejecting payloads above 256 KiB:
   `meshroute_topology_explorer/settings/get` and `/settings/set`, `meshroute_topology_explorer/observations/get` and
   `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store.
