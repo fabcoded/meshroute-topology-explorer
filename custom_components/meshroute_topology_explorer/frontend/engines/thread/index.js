@@ -4,7 +4,8 @@
 // details.js, texts.js); every hook has a caller in the shell, and both engines offer the same hooks.
 // Pure except details(), which fills the Details tab. npm test
 import { buildThreadNetwork } from "./model.js";
-import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
+import { laneValue, legendEntries, springQuality } from "./lanes.js";
+import { unknownGlyph } from "../unknown-reason.js";
 import { renderThreadDetails } from "./details.js";
 import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
@@ -31,7 +32,7 @@ export const thread = Object.freeze({
    *  glyph; never a number on the Zigbee LQI scale. */
   laneValue: (dir, texts) => laneValue(dir, texts),
   /** "–" where the hearer's neighbour table was read and does not list the sender, "?" where there is none. */
-  unknownGlyph: (reason) => unknownGlyph(reason),
+  unknownGlyph,
   /** A reading's quality 0..1 for the layout's springs (link quality / 3), or null: RSSI alone is no spring. */
   springQuality: (reading) => springQuality(reading),
   /** The link rows of the legend: parent links, measured neighbours, the glyphs, RX in dBm; no stages. */

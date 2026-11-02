@@ -72,11 +72,11 @@ export function computeFindings({ devices, readings, routes }) {
   for (const d of devices) {
     if (!d.available) continue;
     if ((d.role === "router" || d.role === "coordinator") && !d.hasTable) {
-      add("data incomplete", d.id, { reason: `${d.role} without table` }, [d.id]);
+      add("data incomplete", d.id, { reason: "no_table" }, [d.id]);
       continue;
     }
     const lacking = expectedReporters(d).filter((id) => !byId.get(id).hasTable);
-    if (lacking.length) add("data incomplete", d.id, { reason: "expected reporter without table" }, [...new Set(lacking)].sort());
+    if (lacking.length) add("data incomplete", d.id, { reason: "reporter_no_table" }, [...new Set(lacking)].sort());
   }
 
   for (const d of devices) {

@@ -69,7 +69,7 @@ test("an unhedged no parent stays a finding of its own and counts as one", () =>
   const findings = [
     { kind: "parent unknown", device: "e1", evidence: { verdict: "no parent" }, missing: [] },
     { kind: "parent unknown", device: "e2", evidence: { verdict: "parent unknown" }, missing: ["r1", "r2"] },
-    { kind: "data incomplete", device: "r1", evidence: { reason: "router without table" }, missing: ["r1"] },
+    { kind: "data incomplete", device: "r1", evidence: { reason: "no_table" }, missing: ["r1"] },
     { kind: "very low reading", device: "e3", evidence: { readings: [] }, missing: [] },
   ];
   assert.equal(isMissingTable(findings[0]), false);

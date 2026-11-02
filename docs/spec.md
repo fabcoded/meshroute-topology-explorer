@@ -192,6 +192,7 @@ two differ by a median of 8 LQI and by more than 60 in a tenth of pairs.
   "route" or "parent", as both prove a two-way link at setup;
 - **unknown**, with a reason: "end device (no table)", "table full (n/cap)", "table nearly full (n/cap), link probably
   weak", "table has space, link probably weak or aged out", "lqi 0", "table missing or stale", "capacity unknown".
+  The model carries the reason as a code with size and capacity, not as text.
 
 **Capacity** of a model: the most router entries (routers and coordinator) in any table of its manufacturer and model
 in this network, from at least two devices. A model on one device borrows its manufacturer's largest table ("vendor

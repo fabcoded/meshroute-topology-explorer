@@ -46,7 +46,7 @@ export function pathHops(network, ids) {
     const back = m.get(`${sender}|${hearer}`); // the sender's own reading of the hearer: the basis of a "–" hop
     hops.push(dir ? { sender, hearer, state: dir.state, lqi: dir.lqi, rating: dir.rating, source: dir.source,
       reason: dir.reason, ...(back && back.state === "measured" ? { backLqi: back.lqi } : {}) }
-      : { sender, hearer, state: "unknown", lqi: null, rating: null, source: null, reason: "no evidence" });
+      : { sender, hearer, state: "unknown", lqi: null, rating: null, source: null, reason: { code: "no_evidence" } });
   }
   return hops;
 }

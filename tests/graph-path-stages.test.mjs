@@ -51,7 +51,7 @@ const NET = asZigbee({
     { a: "e1", b: "r1", ab: { state: "implied", lqi: null, rating: null, source: "parent", reason: null }, ba: m(60, 0.3) },
     { a: "r1", b: "r2", ab: m(150, 0.7), ba: m(140, 0.7) },
     { a: "r1", b: "r4", ab: m(80, 0.4), ba: m(70, 0.3) },
-    { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: "table full (16/16)" } },
+    { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: { code: "table_full", size: "16/16" } } },
     { a: "r3", b: "r4", ab: m(40, 0.2), ba: m(30, 0.1) },
   ],
 });

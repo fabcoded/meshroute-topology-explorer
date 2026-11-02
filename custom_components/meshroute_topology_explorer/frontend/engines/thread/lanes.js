@@ -4,6 +4,7 @@
 // legend rows of what a Thread map draws: parent links, measured neighbours, the glyphs, RX in dBm; no views, no
 // stages. Drawn by the shared renderer through the engine (engines/index.js). Pure. npm test
 import { laneStyle } from "../../graph/links.js";
+import { unknownGlyph } from "../unknown-reason.js";
 
 /** A reading's quality for the layout's springs (spec 7.1): Thread link quality 1..3 as 1/3..1; null where it is no
  *  spring: link quality 0 or none (an RSSI alone gives no spring; the reception model, quality.js, is not wired
@@ -11,12 +12,6 @@ import { laneStyle } from "../../graph/links.js";
 export function springQuality(r) {
   if (!r || r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) return null;
   return Math.min(r.lqi, 3) / 3;
-}
-
-/** Glyph for a direction without a reading: "–" where the hearer's neighbour table was read and does not list the
- *  sender (model.js reason "not in the neighbour table"), "?" where there is no table to ask. */
-export function unknownGlyph(reason) {
-  return typeof reason === "string" && /^not in the neighbour table/.test(reason) ? "–" : "?";
 }
 
 /** What a Thread lane shows at its arrow (spec 7.1; board recommendation, M15 asks for a choice):

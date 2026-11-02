@@ -5,7 +5,8 @@
 // the same hooks.
 // Pure except details(), which fills the Details tab. npm test
 import { buildNetwork, FINDING_KINDS } from "./model.js";
-import { laneValue, legendEntries, springQuality, unknownGlyph } from "./lanes.js";
+import { laneValue, legendEntries, springQuality } from "./lanes.js";
+import { unknownGlyph } from "../unknown-reason.js";
 import { renderDetails } from "./ui/details-tab.js";
 import { openClusterDialog } from "./ui/cluster-dialog.js";
 import { findingText } from "./ui/finding-text.js";
@@ -23,7 +24,7 @@ export const zigbee = Object.freeze({
   /** The value under "RX:" of a direction: the raw LQI, "Parent" or "Route" where only they imply it, else a glyph. */
   laneValue: (dir, texts) => laneValue(dir, texts),
   /** "–" where the hearer's table was read and does not list the sender, "?" where there is no table to ask. */
-  unknownGlyph: (reason) => unknownGlyph(reason),
+  unknownGlyph,
   /** A reading's quality 0..1 for the layout's springs (LQI / 255), or null for no spring. */
   springQuality: (reading) => springQuality(reading),
   /** The link rows of the legend (board M7): every path class with the stage or option that draws it. */

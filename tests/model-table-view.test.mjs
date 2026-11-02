@@ -21,7 +21,7 @@ const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });
-const none = { state: "unknown", lqi: null, rating: null, source: null, reason: "table has space, link probably weak or aged out" };
+const none = { state: "unknown", lqi: null, rating: null, source: null, reason: { code: "table_space" } };
 const route = (owner, destination, nextHop, status = "Active") => ({ owner, destination, nextHop, status, stale: false });
 const router = (id) => ({ id, role: "router", label: id.toUpperCase(), available: true, hasTable: true, children: [] });
 

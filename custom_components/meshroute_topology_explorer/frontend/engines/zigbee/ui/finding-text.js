@@ -22,7 +22,7 @@ export function findingText(f, t, name) {
       lines.push(t("evidence.route_offline", { destination: name(e.destination), next: name(e.nextHop), list: list(e.unavailable) }));
       break;
     case "data incomplete":
-      lines.push(/without table$/.test(e.reason || "") && e.reason !== "expected reporter without table"
+      lines.push(e.reason === "no_table"
         ? t("evidence.no_table", { name: name(f.device) })
         : t("evidence.reporter_no_table", { list: list(f.missing) }));
       break;

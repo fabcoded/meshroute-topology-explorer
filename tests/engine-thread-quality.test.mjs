@@ -55,7 +55,7 @@ test("directionBand: RSSI first, link quality only where RSSI is missing or 127,
   assert.equal(directionBand(m(0, 127)).band, null, "link quality 0 and RSSI 127: no band, not low");
   assert.equal(directionBand(m(0, null)).band, null, "link quality 0 and no RSSI: a fresh entry, no band");
   for (const d of [null, undefined, { state: "implied", source: "parent", lqi: null, rssi: null },
-    { state: "unknown", lqi: 2, rssi: -70, reason: "lqi 0" }]) {
+    { state: "unknown", lqi: 2, rssi: -70, reason: { code: "lqi0" } }]) {
     assert.equal(directionBand(d).band, null, `state ${d && d.state}`);
   }
 });

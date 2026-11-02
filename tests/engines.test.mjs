@@ -107,7 +107,6 @@ test("facades: lane values and glyphs are the engine's own lanes module's for ev
     assert.ok(dirs.length >= 10, `${engine.key}: ${dirs.length} directions`);
     for (const dir of dirs) {
       assert.equal(engine.laneValue(dir, TEXTS), lanes.laneValue(dir, TEXTS));
-      assert.equal(engine.unknownGlyph(dir.reason), lanes.unknownGlyph(dir.reason));
     }
   }
 });

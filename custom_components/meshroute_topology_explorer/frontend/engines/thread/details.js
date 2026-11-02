@@ -7,7 +7,7 @@
 import { h } from "../../ui/dom.js";
 import { findingText } from "./findings.js";
 import { roleText } from "../../ui/format.js";
-import { unknownGlyph } from "./lanes.js";
+import { unknownGlyph } from "../unknown-reason.js";
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 export function threadReception(dir) {

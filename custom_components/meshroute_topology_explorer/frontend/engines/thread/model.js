@@ -13,13 +13,14 @@ export { RECEIVER_OF_SOURCE_TO_TARGET, THREAD_CAPABILITIES, THREAD_SOURCE, extAd
 const ROUTER_ROLES = new Set(["router", "border router"]);
 
 /** Why direction "hearer hears sender" has no reading (spec 4.3 wording where it fits). "–" glyph: the hearer's table
- *  was read and does not list the sender; "?": there is no table to ask (engines/thread/lanes.js unknownGlyph). */
+ *  was read and does not list the sender; "?": there is no table to ask (unknown-reason.js). */
 function unknownReason(hearer, r) {
-  if (r && r.strength === "none") return "reported as no link";
-  if (r) return "lqi 0";
-  if (!hearer.tableRead) return hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false
-    ? "no table (not a Matter node)" : "table missing or stale";
-  return "not in the neighbour table";
+  if (r && r.strength === "none") return { code: "no_link" };
+  if (r) return { code: "lqi0" };
+  if (!hearer.tableRead) {
+    return { code: hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false ? "not_matter" : "table_missing" };
+  }
+  return { code: "not_listed" };
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area

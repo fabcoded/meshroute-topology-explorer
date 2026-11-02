@@ -289,7 +289,7 @@ test("10a: Thread values are never on the Zigbee scale", async () => {
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
   const dirs = threadNet.pairs.flatMap((p) => [p.ab, p.ba]);
   dirs.push({ state: "measured", scale: "thread-lqi", lqi: 0, rssi: null }, { state: "unknown", scale: "thread-lqi",
-    lqi: 0, rssi: null, reason: "lqi 0" }, { state: "measured", scale: "thread-lqi", lqi: 3, rssi: null });
+    lqi: 0, rssi: null, reason: { code: "lqi0" } }, { state: "measured", scale: "thread-lqi", lqi: 3, rssi: null });
   for (const dir of dirs) {
     const value = thread.laneValue(dir, texts);
     assert.doesNotMatch(value, /^\d+$/, JSON.stringify(dir));

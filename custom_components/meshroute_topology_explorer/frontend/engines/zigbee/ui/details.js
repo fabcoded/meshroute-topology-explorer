@@ -7,7 +7,7 @@
 import { nodePaths, unknownEnd } from "../node-paths.js";
 import { zigpyRecords } from "../source-routes.js";
 import { lqiText } from "../../../ui/format.js";
-import { unknownGlyph } from "../lanes.js";
+import { unknownGlyph } from "../../unknown-reason.js";
 
 const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -1) - (a.lqi ?? -1))
   || a.device.label.localeCompare(b.device.label);
@@ -25,9 +25,8 @@ export function hopValue(hop, t) {
  *  hop, "?" included (no table to ask: nothing to name). name(id) gives a device's label. */
 export function hopBasis(hop, t, name) {
   if (hop.state !== "unknown" || unknownGlyph(hop.reason) !== "–") return null;
-  const r = String(hop.reason);
-  const size = (/\(([^),]*)/.exec(r) || [])[1] || "";
-  const key = /^table full/.test(r) ? "full" : /^table nearly full/.test(r) ? "nearly" : /^table has space/.test(r) ? "space" : "capacity";
+  const { code, size = "" } = hop.reason;
+  const key = { table_full: "full", table_nearly_full: "nearly", table_space: "space" }[code] || "capacity";
   const parts = [];
   if (typeof hop.backLqi === "number") parts.push(t("details.basis_heard", { sender: name(hop.sender), hearer: name(hop.hearer), lqi: hop.backLqi }));
   parts.push(t(`details.basis_${key}`, { hearer: name(hop.hearer), size }));

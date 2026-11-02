@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { buildThreadNetwork, extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET,
   THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
-import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
+import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/unknown-reason.js";
 
 const sampleTopology = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8"))
   .responses["matter/network_topology"];
@@ -97,15 +97,15 @@ test("missing values stay unknown, never 0; strength none and unknown are not me
   const aHearsC = p13.a === a ? p13.ab : p13.ba;
   const cHearsA = p13.a === a ? p13.ba : p13.ab;
   assert.equal(aHearsC.state, "unknown");
-  assert.equal(aHearsC.reason, "reported as no link");
-  assert.equal(cHearsA.reason, "table missing or stale", "3 reports nothing: its table is not known");
+  assert.equal(aHearsC.reason.code, "no_link");
+  assert.equal(cHearsA.reason.code, "table_missing", "3 reports nothing: its table is not known");
   assert.equal(unknownGlyph(cHearsA.reason), "?");
   // 2 reports 1, so its table was read: a neighbour it does not list gets "–".
   const net2 = buildThreadNetwork({ nodes: [node(1, "router"), node(2, "router"), node(3, "router")],
     connections: [link(1, 2, dir(3, -50), dir(3, -52)), link(2, 3, null, dir(2, -80))] });
   const p23 = net2.pairs.find((p) => [p.a, p.b].includes(byNode(net2, "3").id));
   const twoHearsThree = p23.a === byNode(net2, "2").id ? p23.ab : p23.ba;
-  assert.equal(twoHearsThree.reason, "not in the neighbour table");
+  assert.equal(twoHearsThree.reason.code, "not_listed");
   assert.equal(unknownGlyph(twoHearsThree.reason), "–");
   assert.equal(net.collectedAt, "2026-01-01T12:00:00.000Z", "seconds are accepted as well");
 });

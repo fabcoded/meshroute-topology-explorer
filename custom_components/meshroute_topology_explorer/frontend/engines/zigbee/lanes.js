@@ -12,6 +12,7 @@
 import { BAND, STEM, WIDTH_STEPS, WIDTHS, laneStyle } from "../../graph/links.js";
 import { receptionColor } from "../../graph/palette.js";
 import { computePairs } from "./pairs.js";
+import { unknownGlyph } from "../unknown-reason.js";
 import { downPath, routePath, upPath } from "./paths.js";
 import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "./source-routes.js";
 import { isActive } from "./from-zha.js";
@@ -146,14 +147,6 @@ export function classifyLanes(network) {
 export function springQuality(r) {
   if (!r || r.measured === false || !(typeof r.lqi === "number" && r.lqi > 0)) return null;
   return Math.min(r.lqi, 255) / 255;
-}
-
-/** Glyph for a direction without a reading (spec 4.3 reasons): "–" when the hearer has a table that does not list the
- *  sender (full, nearly full, with space, capacity unknown); "?" when there is no table to ask (end device, missing or
- *  stale table) or the table says LQI 0 (unmeasured or very weak). */
-export function unknownGlyph(reason) {
-  const listedNot = /^(table (full|nearly full|has space)|capacity unknown)/;
-  return typeof reason === "string" && listedNot.test(reason) ? "–" : "?";
 }
 
 /** Text for a reading's value on a lane, raw LQI: "0 (uncertain)" for 0 (spec 3.1; the panel passes its translation),

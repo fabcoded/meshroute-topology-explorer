@@ -150,21 +150,21 @@ test("a hop whose hearer's table was read but does not list the sender shows the
     for (const p of nodePaths(network, d.id, "all")) if (p.complete) hops.push(...p.hops);
   }
   const unknown = hops.filter((h) => h.state === "unknown" && h.lqi !== 0);
-  const listedNot = unknown.filter((h) => /^table (full|nearly full|has space)|^capacity unknown/.test(h.reason));
+  const listedNot = unknown.filter((h) => ["table_full", "table_nearly_full", "table_space", "capacity_unknown"].includes(h.reason.code));
   assert.ok(listedNot.length > 0, "the sample has such hops");
   for (const hop of listedNot) {
-    assert.equal(hopValue(hop, t), "–", hop.reason);
+    assert.equal(hopValue(hop, t), "–", hop.reason.code);
     assert.equal(laneValue(hop, { uncertain: "0", parent: "P", route: "R" }), "–", "map and Details agree");
     assert.match(hopBasis(hop, t, name), /^Basis: /);
   }
-  const full = listedNot.find((h) => /^table full/.test(h.reason) && typeof h.backLqi === "number");
+  const full = listedNot.find((h) => h.reason.code === "table_full" && typeof h.backLqi === "number");
   assert.match(hopBasis(full, t, name), new RegExp(`${name(full.sender)} hears ${name(full.hearer)} with ${full.backLqi}; ${name(full.hearer)}'s table is full \\(\\d+/\\d+\\)$`));
-  const space = listedNot.find((h) => /^table has space/.test(h.reason));
+  const space = listedNot.find((h) => h.reason.code === "table_space");
   assert.match(hopBasis(space, t, name), /table has room\. Link probably one-sided or aged$/);
   // No table to ask: "?" on both, and no basis.
-  const noTable = { sender: "a", hearer: "b", state: "unknown", lqi: null, reason: "end device (no table)" };
+  const noTable = { sender: "a", hearer: "b", state: "unknown", lqi: null, reason: { code: "no_table_end_device" } };
   assert.equal(hopValue(noTable, t), "?");
   assert.equal(laneValue(noTable, { uncertain: "0" }), "?");
   assert.equal(hopBasis(noTable, t, name), null);
-  assert.equal(hopValue({ state: "unknown", lqi: null, reason: "no evidence" }, t), "?");
+  assert.equal(hopValue({ state: "unknown", lqi: null, reason: { code: "no_evidence" } }, t), "?");
 });

@@ -162,7 +162,7 @@ test("arrow values for Thread: RSSI in dBm, link quality only without RSSI; unkn
   assert.equal(threadValue({ state: "measured", rssi: -75, lqi: 3 }), "−75 dBm");
   assert.equal(threadValue({ state: "measured", rssi: null, lqi: 2 }), "LQI 2");
   assert.equal(threadValue({ state: "measured", rssi: -75, lqi: 3 }, "lqi"), "LQI 3");
-  assert.equal(threadValue({ state: "unknown", reason: "no table (not a Matter node)" }), "?");
+  assert.equal(threadValue({ state: "unknown", reason: { code: "not_matter" } }), "?");
   assert.equal(laneValue({ state: "measured", scale: "thread-lqi", rssi: -36, lqi: 3 }, {}), "−36 dBm");
   assert.equal(threadReception({ state: "measured", rssi: -36, lqi: 3 }), "−36 dBm · LQI 3");
 });
