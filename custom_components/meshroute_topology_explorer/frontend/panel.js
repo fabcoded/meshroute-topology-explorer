@@ -43,7 +43,7 @@ import { STYLES } from "./ui/styles.js";
 import { versionMismatch } from "./ui/version.js";
 
 // Must equal the version in manifest.json and const.py (tests/test_integration_files.py).
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 const ELEMENT = "meshroute-topology-explorer";
 
 class MeshrouteTopologyExplorer extends HTMLElement {

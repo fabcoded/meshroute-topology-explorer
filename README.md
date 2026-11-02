@@ -59,7 +59,7 @@ On a phone the panels open from the bottom: the overview, the findings, the deta
 
 | Source | State |
 |---|---|
-| Zigbee through ZHA | 0.1.0 |
+| Zigbee through ZHA | 0.1.1 |
 | Thread through the Matter integration | preview |
 | Zigbee through Zigbee2MQTT | later |
 

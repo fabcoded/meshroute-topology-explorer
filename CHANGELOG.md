@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.1 – Custom spread, direct delivery to neighbours
+
+- **Custom spread:** a fourth node distance "Custom" with its own steps (25 % each, ×0.6 to ×8) in the View tab, a
+  Spread button pair above the zoom buttons, keys `[` and `]`. The preset "Spread" is now labelled "Wide"; stored
+  settings keep working.
+- **Routing table view:** a router without a table entry for a destination in its own neighbour table delivers to it
+  directly, as the Zigbee network layer does ("direct to a neighbour (no table entry needed)"). Return walks to the
+  coordinator's neighbours no longer end in "?".
+- **Drawing:** the selected device's lanes and values are drawn above other devices' symbols, so a device lying on a
+  lane no longer hides it.
+- **Names:** from medium density on, names are shortened only when longer than 28 characters.
+- **Updates:** the panel's files are served under a hash of their content, so browsers load a new version without a
+  forced reload.
+
 ## 0.1.0 – Zigbee map (ZHA), Thread preview
 
 First public release.
