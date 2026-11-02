@@ -11,7 +11,7 @@
 // - Requests (the map's buttons, right-click, long press, the menu key) open expanded and are never auto; a button
 //   closes its panel again when that tab is already in view.
 // - On narrow screens only one sheet is open: opening one closes the other.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 
 /** Effective "open details on select": the stored choice, else on for wide panels and off for narrow ones. */
 export function openOnSelect(stored, wide) {

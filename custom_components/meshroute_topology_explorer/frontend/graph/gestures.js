@@ -2,7 +2,7 @@
 // One gesture model for mouse, pen and touch (spec 9.3), fed with plain pointer records so it runs without a DOM:
 // a press that moves less than 8 px is a tap, more is a drag (on a device: pin and move; on the background: pan);
 // 500 ms without moving 8 px is a long press; two pointers pinch. Timers are injectable for tests.
-// node --test tests/
+// npm test
 
 /** Movement in CSS pixels below which a press is still a tap (spec 9.3). */
 export const TAP_SLOP = 8;

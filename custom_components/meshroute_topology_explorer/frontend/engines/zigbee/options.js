@@ -5,7 +5,7 @@
 // "additional heard neighbours" with its info note in the third view only (decision by Fabian Schwamborn,
 // 2026-11-01); path display, grey or coloured by reception (the shared key pathColors); return paths without a table
 // entry (source route: off, assume, read from zigpy with its "experimental" tag), after "On click".
-// Pure. node --test tests/
+// Pure. npm test
 import { PATH_STAGES } from "./lanes.js";
 import { SOURCE_ROUTE_MODES } from "./source-routes.js";
 

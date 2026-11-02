@@ -9,7 +9,7 @@
 //   to the network as `network.zigpy` by adapters/zha.js), drawn as measured where they pass a strict gate; every
 //   other device gets the assumption as under "assume". A record only fills a gap: it never replaces a complete
 //   measured down path, and where it disagrees with one, zigpyRecords says so (Details), nothing is drawn.
-// Pure functions over a Network. node --test tests/
+// Pure functions over a Network. npm test
 import { downPath, upPath, activeRoute } from "./paths.js";
 import { pairEvidence } from "./pairs.js";
 import { normalizeIeee } from "../../model/parse.js";

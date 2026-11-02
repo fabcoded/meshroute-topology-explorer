@@ -2,7 +2,7 @@
 // Words for a Zigbee finding (spec 5.6): its title and the sentences that name its evidence and the tables it lacks.
 // The Zigbee engine's findings text (engines/zigbee/index.js), used by its Details and the Findings tab. Pure: t is
 // the translator (i18n.js), name(id) labels a device. Tested in Node on the sample and its derived variants:
-// node --test tests/
+// npm test
 
 /** { title, lines: [text] } for one finding. */
 export function findingText(f, t, name) {

@@ -3,7 +3,7 @@
 // the left panel (Devices, Findings, Details) and the right panel (View, Legend) are side panels on wide screens and
 // bottom sheets on narrow ones, collapsed to one line or expanded. The covered part goes to GraphView.setInsets(),
 // which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go.
-// Pure functions, no DOM. Tested in Node: node --test tests/
+// Pure functions, no DOM. Tested in Node: npm test
 
 /** The panel is "wide" from this width on (CSS pixels of the panel, not the window: Home Assistant's sidebar takes
  *  its share). A side panel of 320 px then still leaves 400 px of map. Own choice. */

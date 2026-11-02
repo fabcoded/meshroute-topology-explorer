@@ -2,7 +2,7 @@
 // The cluster dialog's layout contract (owner decision 2026-11-01, brief a4y): the read row (button, progress, note)
 // sits directly above the attribute table, the button comes first in keyboard order, and a request goes out only when
 // the button is clicked. A minimal fake DOM stands in for the browser; the dialog is the real one.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 

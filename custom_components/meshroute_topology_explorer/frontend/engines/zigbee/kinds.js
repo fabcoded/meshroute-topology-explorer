@@ -5,7 +5,7 @@
 // Lighting & Occupancy and Zigbee 3.0), the Zigbee Light Link profile (0xc05e) and the Zigbee Cluster Library; the
 // MAC capability field of the Zigbee specification (bit 3, receiver on when idle). Checked against the sample: every
 // identifier the sample carries maps to the picture its model name suggests.
-// node --test tests/
+// npm test
 
 import { parseAddress } from "../../model/parse.js";
 import { KINDS } from "../../graph/symbols.js";

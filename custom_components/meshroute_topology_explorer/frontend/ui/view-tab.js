@@ -3,8 +3,8 @@
 // changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
 // communication paths and the path display), then what a click on a device does (open details), the engine's groups
 // placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
-// fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (ZHA reads the tables
-// by itself), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
+// fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (the source's own
+// note, from its adapter), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
 // are not kept in Home Assistant. A group the network type does not have is not shown (owner decision 2026-11-01:
 // hidden, not greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
@@ -18,6 +18,7 @@ import { FILLS, receptionStops } from "../graph/palette.js";
  *  click"), dark (the map's theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running }
  *  or null), client (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only),
  *  idPrefix (stable, so focus is found again after a re-render), info ({ [key]: open }: which info notes are shown),
+ *  reloadInfo (text key of the source's note on reading again, adapters/*.js; without one no info button),
  *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
  *  onInfo(key, open) }.
  *  OptionGroup = { id, legend (text key; without one the group is a single line, its note), className, info ({ key,
@@ -156,20 +157,21 @@ export function renderView(container, ctx) {
     check("label-name", t("view.label_name"), lab.name, (on) => ctx.onChange({ labels: { ...lab, name: on } })),
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
-  // Below a line: debug mode (never stored, spec 9.1), reading again (with the note that ZHA reads the tables by
-  // itself, board M1 review), releasing pins, the scan (debug mode only: it causes radio traffic).
-  const reloadInfo = infoNote("reload", t("view.reload_info_label"), t("view.reload_info"));
+  // Below a line: debug mode (never stored, spec 9.1), reading again (with the source's note, board M1 review: what
+  // ZHA reads differs from what the Matter server returns, so the shared tab has no text of its own), releasing pins,
+  // the scan (debug mode only: it causes radio traffic).
+  const reloadInfo = ctx.reloadInfo ? infoNote("reload", t("view.reload_info_label"), t(ctx.reloadInfo)) : null;
   const tools = h("div", { class: "view-tools" },
     check("debug", t("view.debug"), Boolean(ctx.debug), (on) => ctx.onDebug(on)),
     h("div", { class: "actions" },
       h("span", { class: "with-info" },
         h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"),
           on: { click: () => ctx.onReload() } }),
-        reloadInfo.button),
+        reloadInfo && reloadInfo.button),
       h("button", { type: "button", class: "button", id: `${id}-release`, disabled: !ctx.pinCount,
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
         on: { click: () => ctx.onReleaseAll() } })),
-    reloadInfo.note);
+    reloadInfo && reloadInfo.note);
   if (ctx.debug && ctx.canScan) {
     const running = Boolean(ctx.scan && ctx.scan.running);
     const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
@@ -201,4 +203,3 @@ export function storageText(client, t) {
   if (client.error) return t("storage.error", { message: client.error.message });
   return t("storage.stored");
 }
-

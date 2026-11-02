@@ -4,7 +4,7 @@
 // an adapter only through this registry: by its key (the stored choice of the network switch, ui/network-switch.js) or
 // by a network (adapterFor: the adapter whose key is the network's source). An adapter's capabilities travel on its
 // networks (spec 4.6); here are its I/O: read, the phase of a blocked source, the device page, the scan and the
-// observations, each null where the source has none. No DOM. node --test tests/
+// observations, each null where the source has none. No DOM. npm test
 import { adapter as zha } from "./zha.js";
 import { adapter as matter } from "./matter.js";
 

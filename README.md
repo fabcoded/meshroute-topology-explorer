@@ -1,9 +1,9 @@
 # Meshroute Topology Explorer
 
 An interactive map of the Zigbee and Thread networks that Home Assistant manages: radio links and their quality,
-the routes packets actually take, and how fresh and complete the data behind the picture is. Built for finding
-real problems in real networks, quiet by default. Read-only: it never controls devices, and it causes radio traffic
-only when you press a button for it (a topology scan, reading one cluster's values).
+the paths the available tables support, and how fresh and complete the data behind the picture is. Built for
+finding real problems in real networks, quiet by default. Read-only: it never controls devices, and it causes radio
+traffic only when you press a button for it (a topology scan, reading one cluster's values).
 
 **Status:** early development, nothing to install yet.
 

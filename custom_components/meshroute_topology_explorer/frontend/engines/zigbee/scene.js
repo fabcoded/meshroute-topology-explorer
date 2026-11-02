@@ -7,7 +7,7 @@
 // heard-only partners. Hover previews within the view; debug mode draws every lane. The shared renderer
 // (graph/renderer.js) strokes what overview() and focus() return; the scene keeps this engine's fields (lane flags
 // from lanes.js classifyLanes, upPaths, coordinator, pathNet, caches).
-// Pure. node --test tests/
+// Pure. npm test
 import { BEST_HEARD, CLASSES, DEFAULT_PATHS, classifyLanes, laneClass, overviewShows, pathStage, strokeOf }
   from "./lanes.js";
 import { nodePaths, unknownEnd } from "./node-paths.js";

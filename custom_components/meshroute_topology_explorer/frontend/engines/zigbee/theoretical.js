@@ -3,7 +3,7 @@
 // one device would most likely take to another today, worked out hop by hop at the device holding it, after the
 // unicast routing of the Zigbee specification r22 (05-3474-22): 3.6.3.3 (child, routing table, neighbour table) and
 // 3.6.3.5 (route discovery, path cost 3.6.3.1). "Theoretical": computed, not observed; Home Assistant does not show
-// whether two devices really talk. Pure functions over a Network. node --test tests/
+// whether two devices really talk. Pure functions over a Network. npm test
 //
 // Rules per hop, in this order, at the holder H of a frame for the goal D:
 //   1. H is an end device: to its parent ("parent").

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The Zigbee engine's data model: buildNetwork() turns the answers of ZHA (from-zha.js) into a Network (spec 4) with
 // derived facts (5) and findings (5.6). No DOM, no Home Assistant objects. Plain objects, so a Network can be
-// serialized. Tested in Node: node --test tests/
+// serialized. Tested in Node: npm test
 //
 // Network = { engine: 'zigbee', source: 'zha', id, capabilities, devices, readings, routes, pairs, status, findings,
 //             unresolved }; engine names the viewer engine (engines/index.js), capabilities what the data holds (spec 4.6)

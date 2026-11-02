@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Parsers for the text and number forms Home Assistant uses for addresses and link quality (spec 3.1, "known traps").
-// Pure functions, no DOM. Tested in Node: node --test tests/
+// Pure functions, no DOM. Tested in Node: npm test
 
 /** Parse an address or number that arrives as hex text ("0x0D", "0X0d"), decimal text or a number.
  *  Returns a number, or null for anything else. Never compare such text as strings ("0x0D" vs "0x000d"). */

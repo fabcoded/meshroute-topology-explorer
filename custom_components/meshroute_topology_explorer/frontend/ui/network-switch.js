@@ -6,7 +6,7 @@
 // is a greyed entry with the reason. sourcePart() is the one place that builds the control, so the approved design
 // can replace it. The choice is stored under the reserved network id PANEL_STORE through the integration's settings
 // commands (spec 10, 11); settings of each network stay under its own id. Runs in the browser; the choice logic is
-// pure and tested in Node: node --test tests/
+// pure and tested in Node: npm test
 import { h } from "./dom.js";
 import { ADAPTERS, adapterByKey } from "../adapters/index.js";
 

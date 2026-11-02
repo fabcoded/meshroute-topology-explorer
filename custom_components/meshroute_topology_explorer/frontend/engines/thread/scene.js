@@ -4,7 +4,7 @@
 // ("parent", the end device's lane to its parent above the parent's lane back) and measured neighbours dashed
 // ("neighbour"); debug mode every lane. A click shows the device's own lanes with their values and the glyph of each
 // own direction without a reading: no band, no unknown ends. The shared renderer (graph/renderer.js) strokes the looks.
-// Pure. node --test tests/
+// Pure. npm test
 import { classifyLanes } from "./lanes.js";
 
 /** Counters of the drawn lanes per class (graph/renderer.js drawScene stats). */

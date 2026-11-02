@@ -3,7 +3,7 @@
 // waiting (ZHA never answers it), then reads zha/devices again every 15 s for 2 minutes and every 60 s up to
 // 15 minutes, counting the tables that changed since the start. It never claims the scan finished: ZHA does not say,
 // and a table that did not change may have been answered too. No DOM; timers and clock injectable.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 import { fingerprints } from "./zha-fingerprints.js";
 
 /** Re-read schedule of spec 6, in ms after the start. */
@@ -97,7 +97,7 @@ export class ScanFollower extends EventTarget {
 
   async _tick(token, index) {
     this._timer = null;
-    let network = null;
+    let network;
     try { network = await this._read(); } catch { network = null; }
     if (token !== this._token) return; // stopped meanwhile
     if (network) {

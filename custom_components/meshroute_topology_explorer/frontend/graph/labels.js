@@ -4,7 +4,7 @@
 // device.label, already unique) and, optionally, the original Home Assistant name in a smaller grey line under that.
 // This module composes the block, shortens names to fit and decides when everyone is labelled. Pure functions, no
 // DOM: text width comes from an injected measure(text) function. Labels are drawn as canvas text, never as HTML.
-// node --test tests/
+// npm test
 
 export const ELLIPSIS = "…";
 /** Widest label at zoom 1, in CSS pixels; about 20 characters of the 12 px label font. Own choice. */

@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { BEST_HEARD } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { sceneBackbone, sceneClasses, scenePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { theoreticalLanes, theoreticalPath }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js";
@@ -168,7 +167,6 @@ test("spec 12: lanes the overview draws per stage, with source routes assumed an
 test("on click and hover the selection's own tree decides each hop's class: computed where only a discovery takes it", () => {
   const { view, env } = show();
   const { scene } = view;
-  const sc = sceneClasses(scene, "assume");
   view.setEngineView({ paths: "all" });
   const tally = {};
   for (const label of ["End device 06", "Router 13", "Router 11", "Coordinator"]) {

@@ -3,7 +3,7 @@
 // nothing of one network's meaning leaks into the other's view or into the shared code. Each test is written against
 // the target interface; a test whose step has not landed yet carries `todo` with that step, runs, and does not fail
 // the suite. A step that makes a test true removes its `todo`.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";

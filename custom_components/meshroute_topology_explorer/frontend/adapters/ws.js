@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Websocket conventions every adapter and client of the panel shares: how a command that died with the connection
-// looks, and a readable text of any error. No DOM. node --test tests/
+// looks, and a readable text of any error. No DOM. npm test
 
 /** Code of home-assistant-js-websocket for a command that died with the connection (ERR_CONNECTION_LOST in its
  *  lib/errors.ts). Pending commands are rejected with { type: "result", success: false, error: { code: 3 } }, results

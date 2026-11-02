@@ -6,7 +6,7 @@
 // (theoretical.js: routing table first, then the next hop's table and so on, else a neighbour, else what a route
 // discovery would find). Each hop carries the reception at its hearer from the pair evidence (4.3). Walks stop at a
 // loop, an unavailable device or where nothing leads on, and say so: unknown beats wrong. Pure functions over a
-// Network. node --test tests/
+// Network. npm test
 import { downPath, routeEnds, routePath, tableWalk, upPath } from "./paths.js";
 import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";

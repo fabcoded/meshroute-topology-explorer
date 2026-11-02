@@ -3,7 +3,7 @@
 // "Communication paths", the source-route stage and zigpy, the Details' raw ZHA tables. English is the reference; the
 // dormant German table moves along (ui/i18n.js, owner decision 2026-11-01). Merged into the panel's tables by
 // ui/i18n.js through engines/index.js; keys are disjoint from the shared table's (a key two engines share, such as
-// role.end device, has the same text in both). Pure data. node --test tests/
+// role.end device, has the same text in both). Pure data. npm test
 
 const en = {
   "role.coordinator": "Coordinator",
@@ -14,7 +14,6 @@ const en = {
   "evidence.children": "{count} end devices use it as parent: {list}.",
   "legend.symbol_end": "Closed frame: end device",
   "legend.symbol_coordinator": "Crown C: coordinator; plug below: wired",
-  "device_kind.hub": "Hub or coordinator",
   "power.battery": "Battery or unknown (ZHA does not tell them apart)",
   "raw.device_type.coordinator": "Coordinator",
   "raw.device_type.end_device": "End device",
@@ -280,7 +279,6 @@ const de = {
   "evidence.children": "{count} End-Devices nutzen es als Parent: {list}.",
   "legend.symbol_end": "geschlossener Rahmen: Endgerät",
   "legend.symbol_coordinator": "Krone C: Koordinator; Stecker unten: am Kabel",
-  "device_kind.hub": "Hub oder Koordinator",
   "power.battery": "Batterie oder unbekannt (ZHA unterscheidet das nicht)",
   "raw.device_type.coordinator": "Koordinator",
   "raw.device_type.end_device": "End-Device",

@@ -3,3 +3,5 @@
 captures/
 __pycache__/
 node_modules/
+.venv/
+.ruff_cache/

@@ -3,7 +3,7 @@
 // legend's parent and neighbour rows, the Details' Thread facts, the border router and end device roles. English is
 // the reference; the dormant German table moves along. Merged into the panel's tables by ui/i18n.js through
 // engines/index.js; every key the Thread engine emits resolves in the shared table or here
-// (tests/engine-leaks.test.mjs 13). Pure data. node --test tests/
+// (tests/engine-leaks.test.mjs 13). Pure data. npm test
 
 const en = {
   "role.end device": "End device",

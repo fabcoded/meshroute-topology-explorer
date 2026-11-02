@@ -1,0 +1,8 @@
+# Development lint only; the integration is not installed as a Python package.
+# Usage: pre-commit run ruff --all-files. The Ruff version is pinned once, in .pre-commit-config.yaml.
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Correctness first; avoid a repository-wide formatting rewrite.
+select = ["E4", "E7", "E9", "F", "B"]

@@ -9,7 +9,7 @@
 // (scene.js). Also the value under "RX:" (the raw LQI at the hearer, "Parent" or "Route" where only they imply the
 // direction), the glyph of a direction without a reading ("–" when the hearer's table does not list the sender, "?"
 // when there is no table to ask), and the legend rows of every path class with the view or option that draws it.
-// Pure. node --test tests/
+// Pure. npm test
 import { BAND, STEM, WIDTH_STEPS, WIDTHS, laneStyle } from "../../graph/links.js";
 import { receptionColor } from "../../graph/palette.js";
 import { computePairs } from "./pairs.js";

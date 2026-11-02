@@ -4,7 +4,7 @@
 // `hass.states` object Home Assistant hands every panel (developers.home-assistant.io, "Frontend data": hass.states).
 // Obvious means: the device has exactly one entity of the matching domain (and device class); with two lamps on two
 // endpoints nothing is shown, since the endpoint of an entity is not known here. Pure functions, no DOM.
-// node --test tests/
+// npm test
 
 /** Attribute -> entity. kind: "onoff" (the state on/off), "attribute" (a state attribute, `from`), "state" (a
  *  sensor's numeric state with its unit). Only server attributes: the device holds them for an input cluster. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration and hands the
 // topology to the Thread engine (engines/index.js), which builds the model. Read only: the server's cached snapshot.
-// No DOM. node --test tests/
+// No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
@@ -47,12 +47,13 @@ export async function readSource(hass, { registries }) {
 }
 
 /** The Matter adapter as the shell sees it (adapters/index.js): key (the source its networks carry, "thread", and the
- *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why. */
+ *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why, and
+ *  the reload note (a text key: the server's cached topology, refresh false, no radio traffic). */
 export const adapter = Object.freeze({
   key: "thread",
   read: readSource,
   blocking: null,
-  unavailable: (read) => Boolean(read && read.status && !["not_loaded", "ok", "skipped"].includes(read.status)),
+  unavailable: (read) => Boolean(read && UNAVAILABLE.includes(read.status)),
   reasonText: (choice, t) => {
     if (choice.reason === "not_supported") return t("status.thread_not_supported");
     if (choice.reason === "empty") return t("status.thread_empty");
@@ -61,5 +62,6 @@ export const adapter = Object.freeze({
   devicePage: null,
   scan: null,
   Observations: null,
+  reloadInfo: "view.thread_reload_info",
   texts: TEXTS,
 });

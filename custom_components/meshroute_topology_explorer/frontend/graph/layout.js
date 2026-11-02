@@ -8,7 +8,7 @@
 // reading's quality from 0 to 1 as the network's engine reads it (engine.springQuality; engines cut, section 2): the
 // layout knows no reading scale.
 // Usage: const layout = new Layout(network, { baseLength, density, seed, quality }); layout.run(); layout.position(id)
-// node --test tests/
+// npm test
 
 import { buildQuadtree, quadtreeForce } from "./quadtree.js";
 

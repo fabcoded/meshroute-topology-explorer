@@ -2,13 +2,14 @@
 // The adapter registry (adapters/index.js; engines cut step 9): one adapter per data source, in menu order, each with
 // the same shape; a network finds its adapter by its source and nothing falls back to ZHA; the stored choices of the
 // network switch stay "zha" and "thread" (spec 11).
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ADAPTERS, adapterByKey, adapterFor } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";
 import { NETWORK_KEYS, DEFAULT_NETWORK } from "../custom_components/meshroute_topology_explorer/frontend/ui/network-switch.js";
 
-const SHAPE = ["Observations", "blocking", "devicePage", "key", "read", "reasonText", "scan", "texts", "unavailable"];
+const SHAPE = ["Observations", "blocking", "devicePage", "key", "read", "reasonText", "reloadInfo", "scan", "texts",
+  "unavailable"];
 
 test("every adapter has the same shape, frozen; the keys are the stored network choices", () => {
   assert.deepEqual(ADAPTERS.map((a) => a.key), ["zha", "thread"]);
@@ -18,6 +19,7 @@ test("every adapter has the same shape, frozen; the keys are the stored network 
     assert.ok(Object.isFrozen(a), a.key);
     assert.deepEqual(Object.keys(a).sort(), SHAPE, a.key);
     assert.equal(typeof a.read, "function");
+    assert.ok(a.texts.en[a.reloadInfo], `${a.key}: its reload note is one of its own texts`);
   }
   // Only ZHA blocks the panel, has a device page, a scan and observations.
   assert.equal(adapterByKey("zha").blocking, "zha_not_loaded");

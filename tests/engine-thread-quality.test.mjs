@@ -2,7 +2,7 @@
 // Tests for the Thread reception model (engines/thread/quality.js, docs/thread-quality-model.md): bands per direction
 // from RSSI with the link-quality fallback, lane stroke levels, and the finding candidates per node, on the anonymized
 // Matter sample and small synthetic snapshots (missing RSSI, RSSI 127, link quality only, asymmetric links).
-// Run: node --test tests/
+// Run: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

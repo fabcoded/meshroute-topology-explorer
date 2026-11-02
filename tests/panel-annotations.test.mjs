@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Wording of the panel's short annotations (owner decision 2026-11-01, Codex review 1.3-1.6): relative ranks are not
 // reliability, terms are used the same way everywhere, notes exist with their keys. Texts are English only.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { STRINGS, translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -60,7 +60,8 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
   const settings = sanitizeSettings({ paths: "all" }, ENGINES.zigbee.settings);
   renderView(container, { t, settings, groups: ENGINES.zigbee.options(sampleNetwork(), settings), openOnSelect: false,
     dark: false, debug: false, pinCount: 0,
-    scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
+    scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, reloadInfo: "view.zha_reload_info",
+    onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
     onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
   const all = container.walk();
   const notes = Object.fromEntries(all.filter((n) => /^v-.*-note$/.test(n.attrs.id || "")).map((n) => [n.attrs.id, n.attrs.text ?? n.text]));
@@ -70,7 +71,7 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
   assert.equal(en["view.colors_info"], "Colour shows the relative reception rank, not connection reliability.");
   assert.equal(en["view.assumed_info"], "The return path is assumed to follow the outbound path in reverse. It has not been verified.");
   assert.equal(en["view.density_info"], "Spacing helps arrange the network. It does not show physical distance.");
-  assert.match(en["view.reload_info"], /^Reloads the tables currently held by ZHA\. It does not start a radio scan\./);
+  assert.match(en["view.zha_reload_info"], /^Reloads the tables currently held by ZHA\. It does not start a radio scan\./);
   assert.ok(Object.keys(notes).length >= 5, JSON.stringify(Object.keys(notes)));
   const buttons = all.filter((n) => n.tag === "button" && /-info$/.test(n.attrs.id || ""));
   assert.equal(new Set(buttons.map((b) => b.attrs.id)).size, buttons.length, "no duplicate buttons");

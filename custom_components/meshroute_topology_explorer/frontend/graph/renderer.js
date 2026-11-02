@@ -9,7 +9,7 @@
 // around obstacles: a block of the device's type above the symbol, its readable name below and optionally the original
 // Home Assistant name under that (labels.js). Also hit testing, which shares the symbols' size. What a lane means is
 // the engine's; this module only indexes, draws and places. Pure except for the context passed in.
-// node --test tests/
+// npm test
 
 import { DEFAULT_LABELS, displayLabels, haLabels, labelLines, labelsForAll, MAX_LABEL_WIDTH } from "./labels.js";
 import { fillColor, lineColorOn, powerCategory } from "./palette.js";

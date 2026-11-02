@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Pan and zoom of the map (spec 9.3) as pure functions. A camera is { k, cx, cy }: scale k (screen pixels per
 // layout unit; layout units are CSS pixels at zoom 1) and the layout point shown at the centre of the canvas.
-// node --test tests/
+// npm test
 
 /** Zoom range relative to the fitted view (spec 9.3). */
 export const ZOOM_MIN = 0.1;

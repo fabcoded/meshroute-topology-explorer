@@ -4,7 +4,7 @@
 // model it builds, what each lane carries and how the map draws it (scene), lane values, legend, options, settings
 // keys, status line, findings, Details, searchable addresses and texts. Shared code reaches an engine only through
 // this module (engineFor, ENGINES); the engines do not import each other (tests/engine-leaks.test.mjs).
-// Pure, no DOM. node --test tests/
+// Pure, no DOM. npm test
 import { zigbee } from "./zigbee/index.js";
 import { thread } from "./thread/index.js";
 

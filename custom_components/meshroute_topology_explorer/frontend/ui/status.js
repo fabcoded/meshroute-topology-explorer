@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The age of a time for the status line. The status line's parts are the engines' (engines/<type>/status.js); which
 // empty or error state applies before any data is shown is the controller's and the adapters' (spec 9.4). No DOM.
-// Tested in Node: node --test tests/
+// Tested in Node: npm test
 
 /** Age of a time as a text key and its parameters: "just now", "{n} min ago", "{n} h ago". */
 export function ageParts(iso, now = Date.now()) {

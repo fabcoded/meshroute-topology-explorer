@@ -3,7 +3,7 @@
 // network (model.js, pairs { a, b, ab, ba }, ab = "a hears b") into one of three signal bands per direction,
 // a stroke level for a lane, and finding candidates per node. Pure, no DOM. Not wired into the map yet: the engine
 // refactor feeds laneLook() to the shared laneStyle() and the findings to the Findings tab.
-// node --test tests/
+// npm test
 //
 // The scale is absolute (dBm), anchored where the receiving Thread stack itself changes its link quality:
 // - OpenThread link quality 0-3 is the link margin: the average RSSI minus the radio's receive-sensitivity constant

@@ -10,7 +10,7 @@
 // once in base units (D = 1) and drawn at base × D; symbols, labels, fit and the working scale never depend on D.
 // Pinned positions (events, pin(), setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
 // stored pin keeps its place in the picture whatever the density or the label font.
-// node --test tests/
+// npm test
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
 import { buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
