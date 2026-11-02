@@ -19,6 +19,7 @@
 // `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the capture: links to a border router (not a Matter node, no table read) carry only
 // source_to_target.
 import { disambiguateLabels, formatNwk, normalizeIeee } from "../../model/parse.js";
+import { entitiesByDevice, threadKind } from "./kinds.js";
 
 /** Text of the status line's source part. */
 export const THREAD_SOURCE = "thread";
@@ -109,7 +110,7 @@ function largestNetwork(nodes) {
  *  devices (labels made distinct), the readings of available reporters, the stale ones of unavailable reporters, the
  *  links and what could not be resolved, the extended PAN id and the collection time. tableRead marks a device whose
  *  neighbour table came with the snapshot. Null when the answer holds no Thread node. */
-export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
+export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};
   const all = (Array.isArray(raw.nodes) ? raw.nodes : []).filter((n) => n && typeof n === "object");
   const unresolved = { neighbours: 0, routes: 0, duplicates: 0, ignored: 0 };
@@ -121,6 +122,7 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
   const nodes = pan ? thread.filter((n) => !text(n.ext_pan_id) || text(n.ext_pan_id).toLowerCase() === pan) : thread;
   unresolved.ignored += thread.length - nodes.length;
   const registry = registryIndex(deviceRegistry);
+  const entitiesOf = entitiesByDevice(entities, states); // empty without hass.entities: every kind stays unknown
   const areas = new Map();
   for (const a of Array.isArray(areaRegistry) ? areaRegistry : []) if (a && a.area_id) areas.set(a.area_id, text(a.name));
 
@@ -152,7 +154,7 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
       vendor, model,
       // The snapshot names no power source; a border router is a mains device by nature (spec 8: wired).
       powerSource: isBorderRouter ? "Mains" : null,
-      kind: isBorderRouter ? "hub" : "unknown", sleepy: isBorderRouter ? false : mapped ? mapped.sleepy : null,
+      kind: isBorderRouter ? "hub" : threadKind(entitiesOf.get(n.ha_device_id)), sleepy: isBorderRouter ? false : mapped ? mapped.sleepy : null,
       // Battery or not is unknown (no power source in the snapshot), and so are relay load and rating (no routes, no
       // Zigbee LQI scale): null, never a Zigbee default.
       battery: null, wired: isBorderRouter,

@@ -176,6 +176,92 @@
     }
    ]
   },
-  "config/device_registry/list": []
+  "config/device_registry/list": [],
+  "config/entity_registry/list": [
+   {
+    "entity_id": "light.thread_lamp_1",
+    "device_id": "device0013",
+    "platform": "matter",
+    "entity_category": null,
+    "disabled_by": null
+   },
+   {
+    "entity_id": "switch.thread_plug_1",
+    "device_id": "device0014",
+    "platform": "matter",
+    "entity_category": null,
+    "disabled_by": null
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_temperature",
+    "device_id": "device0015",
+    "platform": "matter",
+    "entity_category": null,
+    "disabled_by": null
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_humidity",
+    "device_id": "device0015",
+    "platform": "matter",
+    "entity_category": null,
+    "disabled_by": null
+   },
+   {
+    "entity_id": "binary_sensor.thread_contact_1",
+    "device_id": "device0016",
+    "platform": "matter",
+    "entity_category": null,
+    "disabled_by": null
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_battery",
+    "device_id": "device0015",
+    "platform": "matter",
+    "entity_category": "diagnostic",
+    "disabled_by": null
+   }
+  ],
+  "get_states": [
+   {
+    "entity_id": "light.thread_lamp_1",
+    "state": "off",
+    "attributes": {}
+   },
+   {
+    "entity_id": "switch.thread_plug_1",
+    "state": "off",
+    "attributes": {
+     "device_class": "outlet"
+    }
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_temperature",
+    "state": "off",
+    "attributes": {
+     "device_class": "temperature"
+    }
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_humidity",
+    "state": "off",
+    "attributes": {
+     "device_class": "humidity"
+    }
+   },
+   {
+    "entity_id": "binary_sensor.thread_contact_1",
+    "state": "off",
+    "attributes": {
+     "device_class": "door"
+    }
+   },
+   {
+    "entity_id": "sensor.thread_climate_1_battery",
+    "state": "90",
+    "attributes": {
+     "device_class": "battery"
+    }
+   }
+  ]
  }
 }

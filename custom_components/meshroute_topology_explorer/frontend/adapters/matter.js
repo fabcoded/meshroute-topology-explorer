@@ -42,7 +42,8 @@ const UNAVAILABLE = Object.freeze(["not_supported", "empty", "error"]);
 /** One read of this source for the panel (ui/controller.js readNetwork): readThread's { status, network?, message? }
  *  with blocking null (Thread alone never blocks the panel). The registries are read before the Matter read. */
 export async function readSource(hass, { registries }) {
-  const read = await readThread(hass, await registries());
+  // hass.entities and hass.states are already in the panel: the Thread engine derives each device's kind from them.
+  const read = await readThread(hass, { ...(await registries()), entities: hass.entities, states: hass.states });
   return { ...read, network: read.network || null, blocking: null };
 }
 

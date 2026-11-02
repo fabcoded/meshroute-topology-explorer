@@ -350,11 +350,17 @@ async function readAttribute(msg) {
   return SAMPLE_VALUES[`${msg.cluster_id}:${msg.attribute}`] || "None";
 }
 
+// Matter entities and states (the sample's synthetic ones, or a capture's real ones): hass.entities is an object by
+// entity id like Home Assistant's, and the Thread engine derives each device's picture from them.
+const matterEntities = Object.fromEntries(((matterResponses && matterResponses["config/entity_registry/list"]) || [])
+  .map((e) => [e.entity_id, e]));
+const matterStates = Object.fromEntries(((matterResponses && matterResponses["get_states"]) || []).map((s) => [s.entity_id, s]));
+
 let hass = {
   user: { id: "dev", name: "Dev", is_admin: !flag("nonadmin") },
   language: lang, locale: { language: lang, number_format: "language", time_format: "language" },
   themes: { darkMode: flag("dark"), theme: "default" }, selectedTheme: null,
-  connected, connection, callWS, states: syntheticStates(), areas,
+  connected, connection, callWS, states: { ...syntheticStates(), ...matterStates }, areas, entities: matterEntities,
 };
 const push = (patch) => { hass = { ...hass, ...patch }; el.hass = hass; };
 
