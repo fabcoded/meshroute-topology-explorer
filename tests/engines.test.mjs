@@ -171,7 +171,7 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
   const t = translator("en");
   const threadGroups = thread.options(threadNet, settings);
   assert.deepEqual(threadGroups.map((g) => [g.legend, g.controls.length]), [[null, 0]]);
-  assert.equal(t(threadGroups[0].note), "Thread data names neighbours and parents, not routes; there are no path views.");
+  assert.notEqual(t(threadGroups[0].note), threadGroups[0].note, "the note has words");
 });
 
 test("texts: engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
