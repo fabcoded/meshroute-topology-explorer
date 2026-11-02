@@ -25,7 +25,7 @@ export const DEFAULT_PATH_COLORS = Object.freeze({ mode: "grey", bad: null, medi
 /** Defaults of the shell's keys (spec 11). openDetailsOnSelect null means "by screen width": details open on a click on
  *  wide panels and not on narrow ones (spec 9.2). pathColors is shared in storage, whichever engine offers it. The
  *  engines' own keys have their defaults in their settings part. */
-export const DEFAULTS = Object.freeze({ view: "quality", density: "medium", fill: "none", openDetailsOnSelect: null,
+export const DEFAULTS = Object.freeze({ density: "medium", fill: "none", openDetailsOnSelect: null,
   pathColors: DEFAULT_PATH_COLORS, labels: DEFAULT_LABELS, pins: Object.freeze({}) });
 export const DENSITY_NAMES = Object.freeze(Object.keys(DENSITY)); // dense, medium, spread
 /** Pins are stored in base lengths (graph-view.js) rounded to this many decimals: a thousandth of a base length is
@@ -80,7 +80,6 @@ export function sanitizeLabels(input) {
 export function sanitizeSettings(input, engineSettings = null) {
   const src = isPlainObject(input) ? input : {};
   const out = { ...src };
-  out.view = src.view === "quality" ? "quality" : DEFAULTS.view; // the only view of v1; the route view comes in v1.1
   out.density = DENSITY_NAMES.includes(src.density) ? src.density : DEFAULTS.density;
   out.fill = FILLS.includes(src.fill) ? src.fill : DEFAULTS.fill;
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;

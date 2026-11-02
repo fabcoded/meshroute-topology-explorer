@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
-import { extAddress, isoTime, threadLqi, threadRssi, RECEIVER_OF_SOURCE_TO_TARGET, THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js";
+import { extAddress, isoTime, threadLqi, threadRssi, THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js";
 import { classifyLanes } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/unknown-reason.js";
 
@@ -47,7 +47,6 @@ test("the sample: five nodes, their roles, the border router as a node, collecti
 });
 
 test("source_to_target is received at the source: the reporter is the connection's source", () => {
-  assert.equal(RECEIVER_OF_SOURCE_TO_TARGET, "source");
   // 14 -> 16 in the sample: source_to_target lqi 2, rssi -85 (14 hears 16), target_to_source lqi 3, rssi -75.
   const a = byNode(sample, "14").id;
   const b = byNode(sample, "16").id;

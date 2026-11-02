@@ -17,10 +17,9 @@
 // changelog, schema 13: Thread links come "from the nodes' own ThreadNetworkDiagnostics (neighbor + route tables)",
 // both observed directions are kept): the reporting node is `source` and the entry is its neighbour-table record of
 // `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the capture: links to a border router (not a Matter node, no table read) carry only
-// source_to_target. RECEIVER_OF_SOURCE_TO_TARGET is the one place to flip it.
+// source_to_target.
 import { disambiguateLabels, formatNwk, normalizeIeee } from "../../model/parse.js";
 
-export const RECEIVER_OF_SOURCE_TO_TARGET = "source";
 /** Text of the status line's source part. */
 export const THREAD_SOURCE = "thread";
 /** Capabilities of a Thread network read through Matter (spec 4.6): what views, stages and findings may use. No
@@ -185,10 +184,8 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
     const key = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
     if (byKey.has(key)) { unresolved.duplicates += 1; continue; }
     byKey.set(key, true);
-    const [atSource, atTarget] = RECEIVER_OF_SOURCE_TO_TARGET === "source"
-      ? [c.source_to_target, c.target_to_source] : [c.target_to_source, c.source_to_target];
-    const rs = reading(a.id, b.id, atSource);
-    const rt = reading(b.id, a.id, atTarget);
+    const rs = reading(a.id, b.id, c.source_to_target);
+    const rt = reading(b.id, a.id, c.target_to_source);
     links.push({ a: a.id, b: b.id });
     for (const r of [rs, rt]) {
       if (!r) continue;

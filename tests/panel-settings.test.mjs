@@ -68,7 +68,7 @@ test("stored settings are applied on load and cleaned; unknown keys survive", as
   assert.deepEqual(pinsForView(settings.pins), new Map([[A, { x: 1, y: 2 }]]));
   assert.equal(DEFAULTS.fill, "none");
   assert.equal(sanitizeSettings({ fill: "reception" }).fill, "none", "a stored reception fill falls back to none");
-  const clean = sanitizeSettings({ density: "huge", fill: 3, openDetailsOnSelect: "yes", view: "geo" });
+  const clean = sanitizeSettings({ density: "huge", fill: 3, openDetailsOnSelect: "yes" });
   assert.deepEqual({ ...clean, pins: { ...clean.pins } }, { ...DEFAULTS, pins: {} });
 });
 
@@ -110,7 +110,7 @@ test("changes are saved once, after the pause, by reading and merging first", as
   assert.equal(server.sets().length, 1);
   const kinds = server.calls.map((m) => m.type.split("/").pop());
   assert.deepEqual(kinds, ["get", "get", "set"], "read, merge, write");
-  assert.deepEqual(server.stored, { view: "quality", density: "dense", fill: "role", openDetailsOnSelect: true,
+  assert.deepEqual(server.stored, { density: "dense", fill: "role", openDetailsOnSelect: true,
     extra: 1, paths: "coordinator", heard: false, returnRoutes: false,
     pathColors: { mode: "grey", bad: null, medium: null, good: null }, labels: { type: true, name: true, haName: false },
     sourceRoute: "assume", pins: { [A]: [1.235, -2] } });

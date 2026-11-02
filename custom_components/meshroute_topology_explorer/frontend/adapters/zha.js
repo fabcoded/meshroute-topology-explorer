@@ -14,8 +14,7 @@ import { TEXTS } from "./zha-texts.js";
 
 /** Decide which empty/error state applies before any data is shown (spec 9.4): not an administrator, or ZHA not
  *  loaded (its config entries name none in state "loaded"). Returns a phase key or null. */
-export function blockingState({ isAdmin, configEntries }) {
-  if (!isAdmin) return "not_admin";
+export function blockingState({ configEntries }) {
   const loaded = Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
   return loaded ? null : "zha_not_loaded";
 }
@@ -86,7 +85,7 @@ export function sendScan(hass) {
  *  registries(): the shared device and area registries, read once on first need. Errors are thrown to the caller. */
 export async function readSource(hass, { registries }) {
   const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
-  const blocked = blockingState({ isAdmin: true, configEntries });
+  const blocked = blockingState({ configEntries });
   if (blocked) return { status: "not_loaded", network: null, raw: null, blocking: blocked };
   const { raw, network } = await readZha(hass, { configEntries, registries });
   return { status: network ? "ok" : "empty", network, raw, blocking: null };

@@ -792,7 +792,7 @@ chosen network (`network`: `zha` or `thread`) is stored under the reserved id `p
 load shows Zigbee.
 
 Keys:
-- View, direction (v1.1), density.
+- Density.
 - Communication paths: `paths` (`coordinator`, `table`, `all`; else `coordinator`); `heard` (boolean, "additional
   heard neighbours (best 3)", default false, kept in every view, drawn in `table` only); `returnRoutes` (boolean,
   "include return routes", default false).
