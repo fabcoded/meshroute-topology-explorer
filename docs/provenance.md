@@ -115,3 +115,9 @@ from the release commit 0.1.0 on (AGENTS.md).
   temp dir.
 - Record one line per run here: date, tool revision, package versions, maximum pair share and longest run. Results
   are not part of this procedure.
+- 2026-11-02, tool at 3692c62 (k 25, window 4, threshold 50 tokens), ours: 85 frontend files. Against force-graph 1.52.0,
+  float-tooltip 1.7.5, d3-force 3.0.0, d3-zoom 3.0.0, d3-force-3d 3.0.6 and ha-zigbee-map 2.11.0 (release asset): total share
+  0.21 %, maximum pair share 3.9 %, longest run 41 tokens (ours: an object literal of property references), 0 runs at
+  or above the threshold. Against the Home Assistant frontend 20260930.4 network-map files (ha-network-graph, the ZHA
+  and Matter visualization and data modules, compared as .js): total share 0.12 %, maximum pair share 3.1 %, longest
+  run 44 tokens, 0 runs at or above the threshold.
