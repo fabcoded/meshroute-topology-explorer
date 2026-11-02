@@ -437,11 +437,11 @@ contour (8) with an arrowhead at the hearer.
   pair as heard only (and in debug mode): "–" when the hearer's table does not list the sender (full, nearly full or
   with space), "?" when there is no table to ask (end device, missing or stale table) or it says LQI 0. A lane
   carrying nothing that only a route or parent link proves shows in debug mode only, thin dotted grey, no head.
-- **Path display** (View tab 9.1, stored 11): grey (default) or **coloured by reception**: every drawn lane with a
-  rated reading takes its rating (5.4, relative to the hearer) on a scale of reception rank from lower over middle to
-  higher (never worded bad or good), red, yellow and green unless the user chose three own colours (colour
-  blindness). Lanes without rating, computed hops and assumed return paths keep their class colour. Dash and width
-  stay, so class and rating read without colour (8).
+- **Path display** (View tab 9.1, stored 11): grey (default) or **coloured by reception**: every drawn lane with a rated
+  reading takes its rating (5.4, relative to the hearer) on a scale of reception rank from lower over middle to higher
+  (never worded bad or good), red, yellow and green unless the user chose three own colours (for colour blindness).
+  Lanes without rating, computed hops and assumed return paths keep their class colour. Dash and width stay, so class
+  and rating read without colour (8).
 
 **Communication paths** (View tab 9.1, stored 11). Three views, each on its own basis (none contains another, so no
 "+" in their names); they filter the drawing only, while springs, positions and fit stay. "Stage 1" and "stage 2"
