@@ -7,7 +7,8 @@ VERSION = "0.1.0"
 TITLE = "Meshroute Topology Explorer"
 PANEL_URL_PATH = "meshroute-topology"
 PANEL_ELEMENT = "meshroute-topology-explorer"
-STATIC_URL_BASE = f"/{DOMAIN}/{VERSION}"
+# The panel files are served under this prefix plus a content hash of the frontend folder (__init__.py).
+STATIC_URL_PREFIX = f"/{DOMAIN}"
 
 STORE_VERSION = 1
 # Written one burst after the last change: the panel may send settings on every slider move.

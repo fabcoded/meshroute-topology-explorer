@@ -4,7 +4,8 @@
 Used by test_setup.py and test_websocket_api.py (python3 -m unittest discover -s tests). Mirrored signatures:
 websocket_api.async_register_command(hass, command, handler, schema) and async_response (websocket_api/__init__.py,
 decorators.py); Store(hass, version, key) with async_load / async_delay_save(data_func, delay) (helpers/storage.py);
-helpers.json.json_bytes (orjson, helpers/json.py:61-66); panel_custom.async_register_panel and frontend.async_remove_panel; hass.http.async_register_static_paths.
+helpers.json.json_bytes (orjson, helpers/json.py:61-66); panel_custom.async_register_panel and
+frontend.async_remove_panel; hass.http.async_register_static_paths; hass.async_add_executor_job.
 """
 
 import asyncio
@@ -87,6 +88,10 @@ class FakeHass:
         # hass.config.components: the loaded integrations (zigpy_routes.py asks whether "zha" is among them).
         self.config = types.SimpleNamespace(components=set(components))
         self.http = types.SimpleNamespace(async_register_static_paths=mock.AsyncMock())
+
+    async def async_add_executor_job(self, func, *args):
+        # Home Assistant runs func in a worker thread (core.py); the tests run it inline.
+        return func(*args)
 
 
 def install():
