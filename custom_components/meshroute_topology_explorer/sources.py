@@ -14,7 +14,6 @@ memory, no await, no radio, so safe on a timer). Field mapping follows the panel
 from __future__ import annotations
 
 import asyncio
-import inspect
 import re
 from typing import Any
 
@@ -27,7 +26,8 @@ from .zigpy_routes import NotSupported, read_routes
 ALLOWED: dict[str, dict[str, Any]] = {"zha/devices": {}, "matter/network_topology": {"refresh": False}}
 CALL_TIMEOUT = 30  # seconds; the handlers answer from memory, a slow answer is a broken one
 _EUI64 = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){7}$")
-_RSSI_RANGE = (-128, 10)  # the panel's bounds (from-matter.js); 127 means "no value"
+_RSSI_RANGE = (-128, 10)  # the panel's bounds (from-matter.js); 127 (no value) lies outside
+_PENDING_KEY = "meshroute_topology_explorer_pending_reads"
 
 
 class SourceError(Exception):
@@ -64,12 +64,18 @@ async def call_command(hass: HomeAssistant, command: str) -> Any:
         raise SourceError(f"{command} is not registered")
     if not (isinstance(entry, tuple) and len(entry) == 2 and callable(entry[0])):
         raise SourceError("the websocket registry has another layout")
+    pending = hass.data.setdefault(_PENDING_KEY, set())
+    if command in pending:
+        raise SourceError(f"{command}: the previous read has not answered yet")
     future: asyncio.Future = asyncio.get_running_loop().create_future()
+    pending.add(command)
+    # Done (answer or error) frees the command and marks an error as retrieved; a handler that never answers keeps
+    # it pending, so that slow reads do not pile up (the next interval skips with a problem text).
+    future.add_done_callback(lambda f: (pending.discard(command), f.cancelled() or f.exception()))
     try:
-        returned = entry[0](hass, _Connection(future), {"id": 1, "type": command, **ALLOWED[command]})
-        if inspect.isawaitable(returned):
-            await returned
-        return await asyncio.wait_for(future, CALL_TIMEOUT)
+        # async_response handlers return at once and answer through the connection later.
+        entry[0](hass, _Connection(future), {"id": 1, "type": command, **ALLOWED[command]})
+        return await asyncio.wait_for(asyncio.shield(future), CALL_TIMEOUT)  # shield: a timeout must not cancel it
     except TimeoutError:
         raise SourceError(f"{command} did not answer within {CALL_TIMEOUT} s") from None
     except SourceError:
@@ -152,48 +158,57 @@ def parse_relays(answer: dict[str, Any]) -> tuple[tuple[str, tuple[str, ...]], .
 
 
 def _thread_value(direction: Any) -> tuple[int | None, int | None] | None:
-    """(lqi 0-3, rssi dBm) of one direction object, None when it holds neither."""
-    if not isinstance(direction, dict):
+    """(lqi 0-3, rssi dBm) of one direction object, or None unless the panel counts it as measured
+    (from-matter.js reading): strength "unknown" and link quality 0 without a valid RSSI are no values."""
+    if not isinstance(direction, dict) or direction.get("strength") == "unknown":
         return None
     lqi, rssi = direction.get("lqi"), direction.get("rssi")
     lqi = lqi if isinstance(lqi, int) and not isinstance(lqi, bool) and 0 <= lqi <= 3 else None
-    ok = isinstance(rssi, int) and not isinstance(rssi, bool) and _RSSI_RANGE[0] <= rssi <= _RSSI_RANGE[1]
-    rssi = rssi if ok and rssi != 127 else None
-    return None if lqi is None and rssi is None else (lqi, rssi)
+    rssi = rssi if isinstance(rssi, int) and not isinstance(rssi, bool) and _RSSI_RANGE[0] <= rssi <= _RSSI_RANGE[1] \
+        else None
+    return (lqi, rssi) if (lqi is not None and lqi > 0) or rssi is not None else None
 
 
 def parse_thread(topology: Any) -> tuple[str, Snapshot] | None:
     """(network id, snapshot) of the largest Thread network in matter/network_topology, or None without a Thread node.
 
-    Network id and device keys as the panel builds them: `thread-` plus the extended PAN id without separators; the
-    EUI-64 of a node, else `thread:<node id>`. A connection's source_to_target is "source hears target".
+    Mirrors the panel (from-matter.js): Thread nodes that are no Wi-Fi access point; the largest extended PAN id wins
+    and nodes without one stay; a duplicate node or connection is ignored (first wins). Network id and device keys as
+    the panel builds them: `thread-` plus the extended PAN id without separators; the EUI-64 of a node, else
+    `thread:<node id>`. A connection's source_to_target is "source hears target".
     """
     if not isinstance(topology, dict):
         raise SourceError("matter/network_topology did not return an object")
     nodes = [n for n in topology.get("nodes") or [] if isinstance(n, dict)
              and n.get("network_type") == "thread" and n.get("kind") != "wifi_ap"]
+    if not nodes:
+        return None
     pans: dict[str, int] = {}
     for n in nodes:
         pan = n.get("ext_pan_id")
-        if isinstance(pan, str) and pan:
-            pans[pan.lower()] = pans.get(pan.lower(), 0) + 1
-    if not pans:
-        return None
-    pan = sorted(pans.items(), key=lambda p: (-p[1], p[0]))[0][0]
+        if isinstance(pan, str) and pan.strip():
+            pans[pan.strip().lower()] = pans.get(pan.strip().lower(), 0) + 1
+    pan = sorted(pans.items(), key=lambda p: (-p[1], p[0]))[0][0] if pans else ""
     keys: dict[str, tuple[str, bool]] = {}  # node id -> (device key, available)
     for n in nodes:
-        if n.get("id") is None or str(n.get("ext_pan_id") or "").lower() != pan:
+        node_pan = str(n.get("ext_pan_id") or "").strip().lower()
+        if n.get("id") is None or str(n["id"]) in keys or (pan and node_pan and node_pan != pan):
             continue
         raw = str(n.get("ext_address") or "").strip().lower().removeprefix("0x").replace(":", "").replace("-", "")
-        address = _ieee(":".join(raw[i:i + 2] for i in range(0, 16, 2))) if len(raw) == 16 else None
-        keys[str(n["id"])] = (address or f"thread:{n['id']}", n.get("available") is not False)
+        key = (_ieee(":".join(raw[i:i + 2] for i in range(0, 16, 2))) if len(raw) == 16 else None) \
+            or f"thread:{n['id']}"
+        if any(key == k for k, _ in keys.values()):
+            continue
+        keys[str(n["id"])] = (key, n.get("available") is not False)
     entries: Entries = {}
+    seen: set[tuple[str, str]] = set()
     for c in topology.get("connections") or []:
         if not isinstance(c, dict) or c.get("network") != "thread":
             continue
         a, b = keys.get(str(c.get("source"))), keys.get(str(c.get("target")))
-        if not a or not b or a[0] == b[0]:
+        if not a or not b or a[0] == b[0] or tuple(sorted((a[0], b[0]))) in seen:
             continue
+        seen.add(tuple(sorted((a[0], b[0]))))
         for (receiver, ok), sender, direction in ((a, b[0], "source_to_target"), (b, a[0], "target_to_source")):
             value = _thread_value(c.get(direction)) if ok else None  # an unavailable node's table is stale
             if value is not None:

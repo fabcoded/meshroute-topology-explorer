@@ -23,6 +23,8 @@ from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
+from .admin import check_admin
+
 COMMAND = "meshroute_topology_explorer/zigpy_routes"
 # Reasons the panel can tell apart (the text after the colon is for people).
 REASON_ZHA_NOT_LOADED = "zha_not_loaded"
@@ -120,9 +122,7 @@ def read_routes(hass: HomeAssistant) -> dict[str, Any]:
 async def ws_zigpy_routes(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     """Answer with read_routes; admin only, like zha/*. Awaits nothing, so it never waits for the radio."""
     msg_id = msg["id"]
-    user = connection.user
-    if user is None or not user.is_admin:
-        connection.send_error(msg_id, websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+    if not check_admin(connection, msg_id):
         return
     try:
         result = read_routes(hass)

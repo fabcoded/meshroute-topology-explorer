@@ -57,10 +57,20 @@ class ValidationTest(Base):
         self.assertNotIn("confirm_short", stored)  # form-only, never stored
         self.assertEqual(self.check(record_hours=3)[2], {})  # exactly 3 h needs no tick
 
+    def test_a_stored_short_interval_is_not_asked_again(self):
+        stored = {"record_hours": 1}
+        self.assertEqual(self.opt.validate_options({"record_hours": 1, "sidebar": False}, stored)[2], {})
+        self.assertEqual(self.opt.validate_options({"record_hours": 2}, stored)[2], {"confirm_short": "hours_short"})
+        self.assertEqual(self.opt.validate_options({"record_hours": 1}, None)[2], {"confirm_short": "hours_short"})
+
     def test_delete_flag_is_not_stored(self):
         stored, delete, _ = self.check(delete_history=True)
         self.assertTrue(delete)
         self.assertNotIn("delete_history", stored)
+
+    def test_get_options_out_of_range_falls_back(self):
+        got = self.opt.get_options({"record_hours": 0, "keep_days": 500})
+        self.assertEqual((got["record_hours"], got["keep_days"]), (3, 30))
 
     def test_get_options_ignores_wrong_types(self):
         got = self.opt.get_options({"record_hours": True, "sidebar": "yes", "keep_days": 7})
@@ -82,6 +92,10 @@ class FlowTest(Base):
             history["confirm_short"] = confirm
         return ha_stubs.run(flow.async_step_init({"sidebar": sidebar, "radio_actions": radio, "history": history}))
 
+    def test_a_saved_short_interval_saves_other_options_without_the_box(self):
+        flow = self.flow({"record_hours": 1})
+        self.assertEqual(self.submit(flow, record_hours=1, sidebar=False)["type"], "create_entry")
+
     def test_form_shows_current_values_as_defaults(self):
         result = ha_stubs.run(self.flow({"keep_days": 7}).async_step_init())
         self.assertEqual(result["type"], "form")
@@ -100,14 +114,14 @@ class FlowTest(Base):
     def test_short_interval_without_tick_saves_nothing(self):
         result = self.submit(self.flow(), record_hours=1)
         self.assertEqual(result["type"], "form")
-        self.assertEqual(result["errors"], {"confirm_short": "hours_short"})
+        self.assertEqual(result["errors"], {"base": "hours_short"})  # base: always shown at the top
         self.assertEqual(result["description_placeholders"]["hours"], "1")
-        self.assertEqual(self.submit(self.flow(), record_hours=1, confirm=False)["errors"], {"confirm_short": "hours_short"})
+        self.assertEqual(self.submit(self.flow(), record_hours=1, confirm=False)["errors"], {"base": "hours_short"})
         self.assertEqual(self.submit(self.flow(), record_hours=1, confirm=True)["data"]["record_hours"], 1)
 
     def test_out_of_range_names_the_range(self):
         result = self.submit(self.flow(), keep_days=91)
-        self.assertEqual(result["errors"], {"keep_days": "days_range"})
+        self.assertEqual(result["errors"], {"base": "days_range"})
         self.assertEqual(result["description_placeholders"]["days_range"], "1 to 90")
 
     def test_save_stores_flat_options_without_form_only_fields(self):
@@ -153,17 +167,19 @@ class SetupOptionsTest(Base):
         self.setup({"radio_actions": False})
         self.assertIs(self.rec.panels[0]["config"]["radio_actions"], False)
 
-    def test_update_listener_reloads_the_entry_only(self):
+    def test_flow_reloads_the_entry_through_home_assistant(self):
+        """OptionsFlowWithReload does the reload after a save; the integration registers no own update listener."""
+        cf = ha_stubs.load(".config_flow")
+        self.assertTrue(issubclass(cf.MeshrouteOptionsFlow, sys.modules["homeassistant.config_entries"].OptionsFlowWithReload))
         entry = self.setup()
-        ha_stubs.run(entry.listeners[0](self.hass, entry))
-        self.hass.config_entries.async_reload.assert_awaited_once_with("entry1")
-        entry.unload()
         self.assertEqual(entry.listeners, [])
 
     def test_timers_follow_the_options(self):
         self.setup({"record_hours": 5, "record": True})
-        self.assertEqual(self.rec.later[0][0], 60)
         self.assertEqual(self.rec.intervals[0][0].total_seconds(), 5 * 3600)
+        self.assertEqual(self.rec.later, [])  # the first record waits for "Home Assistant started"
+        self.rec.started[0](self.hass)
+        self.assertEqual(self.rec.later[0][0], 30)
         self.rec.intervals.clear()
         self.setup({"record": False})  # off: prune-only timer
         self.assertEqual(self.rec.intervals[0][0].total_seconds(), 6 * 3600)

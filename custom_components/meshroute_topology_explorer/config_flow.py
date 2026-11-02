@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow, OptionsFlowWithReload
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 
@@ -25,7 +25,7 @@ from .const import (
     RECOMMENDED_RECORD_HOURS,
     TITLE,
 )
-from .options import get_options, validate_options
+from .options import ERR_HOURS_SHORT, get_options, validate_options
 from .recorder import async_delete_history
 
 SECTION = "history"  # the form's "Reception history" section; its fields are stored flat in the options
@@ -48,8 +48,10 @@ class MeshrouteConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="user")
 
 
-class MeshrouteOptionsFlow(OptionsFlow):
-    """One form. Home Assistant checks values only on Submit, so range and interval problems come back as field errors."""
+class MeshrouteOptionsFlow(OptionsFlowWithReload):
+    """One form; saving reloads the entry (never Home Assistant). Home Assistant checks values only on Submit, so
+    problems come back as errors. Those of the section's fields are returned as `base` errors, which always show at the
+    top of the form (the frontend's mapping of section field errors is not guaranteed)."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -57,12 +59,13 @@ class MeshrouteOptionsFlow(OptionsFlow):
         if user_input is not None:
             # The history fields arrive nested in their section; flatten before validating.
             flat = {**{k: v for k, v in user_input.items() if k != SECTION}, **user_input.get(SECTION, {})}
-            options, delete, errors = validate_options(flat)
+            options, delete, errors = validate_options(flat, self.config_entry.options)
             if not errors:
                 if delete:
                     await async_delete_history(self.hass)
-                # Saving updates the entry; the update listener (__init__.py) reloads it, never Home Assistant.
                 return self.async_create_entry(data=options)
+            # One base error (the first); the texts carry the numbers. Keep what the user typed.
+            errors = {"base": next(iter(errors.values()))}
             current = {**get_options(None), **flat}
         else:
             current = get_options(self.config_entry.options)
@@ -72,7 +75,7 @@ class MeshrouteOptionsFlow(OptionsFlow):
             vol.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
         }
         # The confirmation box exists only after the warning (board M33): the form comes back with it, unticked.
-        if CONF_CONFIRM_SHORT in errors or (user_input is not None and CONF_CONFIRM_SHORT in flat):
+        if ERR_HOURS_SHORT in errors.values() or (user_input is not None and CONF_CONFIRM_SHORT in flat):
             fields[vol.Required(CONF_CONFIRM_SHORT, default=False)] = bool
         fields[vol.Required(CONF_DELETE_HISTORY, default=False)] = bool
         history = vol.Schema(fields)

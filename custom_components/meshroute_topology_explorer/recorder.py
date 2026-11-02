@@ -18,6 +18,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.start import async_at_started
 
 from .const import CONF_KEEP_DAYS, CONF_RECORD, CONF_RECORD_HOURS, DOMAIN, HISTORY_DIR
 from .history import HistoryFiles
@@ -25,7 +26,7 @@ from .sources import collect
 
 _LOGGER = logging.getLogger(__name__)
 _KEY = f"{DOMAIN}_history"
-FIRST_RECORD_DELAY = 60  # seconds after setup: ZHA and Matter have loaded their tables by then
+FIRST_RECORD_DELAY = 30  # seconds after Home Assistant has started (or after a reload): the sources have their tables
 PRUNE_ONLY_HOURS = 6  # recording off: old files still expire
 
 
@@ -37,29 +38,38 @@ class History:
         self.files = HistoryFiles(hass.config.path(".storage", HISTORY_DIR))
         self.lock = asyncio.Lock()  # HistoryFiles is not thread-safe: one executor job at a time
         self.last_error: str | None = None
+        # Bumped by every delete: a record that was collected before it must not be written after it.
+        self.generation = 0
 
-    async def run(self, func: Callable[..., Any], *args: Any) -> Any:
-        """Run a HistoryFiles method in the executor, one at a time."""
+    async def run(self, func: Callable[..., Any], *args: Any, generation: int | None = None) -> Any:
+        """Run a HistoryFiles method in the executor, one at a time; with `generation`, only if no delete happened
+        since (checked under the lock, so a delete and an append never interleave)."""
         async with self.lock:
+            if generation is not None and generation != self.generation:
+                return None
             return await self.hass.async_add_executor_job(func, *args)
 
     async def record(self, keep_days: int, now: float | None = None) -> None:
         """Take what the sources hold now, append one record per network, then drop expired day files."""
         now = time.time() if now is None else now
-        networks, problems = await collect(self.hass)
-        error = "; ".join(problems) or None
-        if error != self.last_error and error:
-            _LOGGER.warning("Reception history: %s", error)  # once per change, not once per interval
-        self.last_error = error
-        for network, snapshot in networks.items():
-            if not snapshot.is_empty():
-                await self.run(self.files.append, network, now, snapshot)
-        await self.run(self.files.prune, now, keep_days)
+        generation = self.generation
+        try:
+            networks, problems = await collect(self.hass)
+            error = "; ".join(problems) or None
+            if error and error != self.last_error:
+                _LOGGER.warning("Reception history: %s", error)  # once per change, not once per interval
+            self.last_error = error
+            for network, snapshot in networks.items():
+                if not snapshot.is_empty():
+                    await self.run(self.files.append, network, now, snapshot, generation=generation)
+        finally:
+            await self.run(self.files.prune, now, keep_days)  # expiry must not depend on a failing source
 
     async def prune(self, keep_days: int) -> None:
         await self.run(self.files.prune, time.time(), keep_days)
 
     async def delete_all(self) -> None:
+        self.generation += 1
         await self.run(self.files.delete_all)
 
 
@@ -79,13 +89,27 @@ def start_recording(hass: HomeAssistant, options: dict[str, Any]) -> list[Callab
     async def tick(_now: Any = None) -> None:
         try:
             await (history.record(keep) if recording else history.prune(keep))
-        except Exception:  # noqa: BLE001 - a timer callback: log and try again at the next interval
-            history.last_error = "recording failed, see the log"
-            _LOGGER.exception("Reception history failed")
+        except Exception as err:  # noqa: BLE001 - a timer callback: log and try again at the next interval
+            message = f"recording failed: {type(err).__name__}: {err}"
+            if message != history.last_error:  # once per change, like the source problems
+                _LOGGER.exception("Reception history failed")
+            history.last_error = message
+
+    first: list[Callable[[], None]] = []
+
+    def started(_hass: HomeAssistant) -> None:
+        first.append(async_call_later(hass, FIRST_RECORD_DELAY, tick))
+
+    cancel_started = async_at_started(hass, started)
+
+    def stop_first() -> None:
+        if cancel_started:
+            cancel_started()
+        for cancel in first:
+            cancel()
 
     hours = options[CONF_RECORD_HOURS] if recording else PRUNE_ONLY_HOURS
-    return [async_call_later(hass, FIRST_RECORD_DELAY, tick),
-            async_track_time_interval(hass, tick, timedelta(hours=hours))]
+    return [stop_first, async_track_time_interval(hass, tick, timedelta(hours=hours))]
 
 
 async def async_info(hass: HomeAssistant) -> dict[str, Any]:

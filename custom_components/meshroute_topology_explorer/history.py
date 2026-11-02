@@ -21,6 +21,7 @@ Deleting a day file is the whole retention; the previous record per network is t
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -85,12 +86,13 @@ def _split(name: str) -> tuple[str, date] | None:
         return None
 
 
-def _parse(path: Path) -> Iterator[tuple[float, Snapshot]]:
+def _parse(path: Path, keys: list[str] | None = None) -> Iterator[tuple[float, Snapshot]]:
     """Replay one day file: (time, snapshot) per record; a time-only line repeats the previous snapshot.
 
     A line that does not parse (a write cut short by a power loss) is skipped, so one damaged line costs one record.
+    `keys` (optional) receives the file's key table, so the appender needs only this one pass.
     """
-    keys: list[str] = []
+    keys = [] if keys is None else keys
     current = Snapshot({})
     with path.open(encoding="utf-8") as handle:
         for line in handle:
@@ -130,50 +132,51 @@ class HistoryFiles:
     def _path(self, network: str, day: date) -> Path:
         return self.folder / f"{quote(network, safe='')}.{day.isoformat()}{SUFFIX}"
 
-    def _load_state(self, network: str, day: date) -> tuple[list[str], Snapshot]:
-        """Key table and last entries of today's file (so a restart does not write a full record for nothing)."""
+    def _load_state(self, network: str, day: date, path: Path) -> tuple[list[str], Snapshot]:
+        """Key table and last snapshot of today's file (so a restart does not write a full record for nothing)."""
         cached = self._state.get(network)
         if cached and cached[0] == day:
             return cached[1], cached[2]
         keys: list[str] = []
-        last = Snapshot({})
-        path = self._path(network, day)
-        if path.is_file():
-            with path.open(encoding="utf-8") as handle:
-                for line in handle:
-                    try:
-                        obj = json.loads(line)
-                    except ValueError:
-                        continue
-                    if isinstance(obj, dict) and isinstance(obj.get("k"), list):
-                        keys.extend(obj["k"])
-            records = list(_parse(path))  # one day file: a few dozen records
-            if records:
-                last = records[-1][1]
-        self._state[network] = (day, keys, last)
-        return keys, last
+        records = list(_parse(path, keys)) if path.is_file() else []  # one day file: a few dozen records
+        return keys, records[-1][1] if records else Snapshot({})
 
     def append(self, network: str, t: float, snapshot: Snapshot) -> bool:
-        """Add a record; returns False when it was a time-only record (nothing changed)."""
+        """Add a record; returns False when it was a time-only record (nothing changed).
+
+        The cached state (key table, last snapshot) is replaced only after the write succeeded; any failure drops it,
+        so the next call reads the file again instead of trusting keys that never reached the disk.
+        """
         day = _day(t)
         self.folder.mkdir(parents=True, exist_ok=True)
-        keys, last = self._load_state(network, day)
         path = self._path(network, day)
         new_file = not path.exists()
-        lines: list[dict[str, Any]] = []
-        full = new_file or snapshot != last
-        if full:
-            known = set(keys)
-            fresh = [k for k in _keys_of(snapshot) if k not in known]
-            if fresh:
-                keys.extend(fresh)
-                lines.append({"k": fresh})
-            lines.append({"t": int(t), **_rows(snapshot, {key: i for i, key in enumerate(keys)})})
-        else:
-            lines.append({"t": int(t)})
-        # Append only: a record is one write, so a crash leaves at most one damaged last line.
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write("".join(json.dumps(line, separators=(",", ":")) + "\n" for line in lines))
+        try:
+            keys, last = ([], Snapshot({})) if new_file else self._load_state(network, day, path)
+            keys = list(keys)  # a copy: the cache keeps the old table until the write is done
+            full = new_file or snapshot != last
+            lines: list[dict[str, Any]] = []
+            if full:
+                known = set(keys)
+                fresh = [k for k in _keys_of(snapshot) if k not in known]
+                if fresh:
+                    keys.extend(fresh)
+                    lines.append({"k": fresh})
+                lines.append({"t": int(t), **_rows(snapshot, {key: i for i, key in enumerate(keys)})})
+            else:
+                lines.append({"t": int(t)})
+            text = "".join(json.dumps(line, separators=(",", ":")) + "\n" for line in lines)
+            if not new_file and path.stat().st_size:
+                with path.open("rb") as tail:
+                    tail.seek(-1, os.SEEK_END)
+                    # A write cut short earlier leaves a last line without newline; start on a fresh line so that
+                    # only that one record is lost and not this one too.
+                    text = text if tail.read(1) == b"\n" else "\n" + text
+            with path.open("ab") as handle:
+                handle.write(text.encode("utf-8"))
+        except BaseException:
+            self._state.pop(network, None)
+            raise
         self._state[network] = (day, keys, snapshot)
         return full
 

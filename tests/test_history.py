@@ -129,9 +129,40 @@ class FilesTest(unittest.TestCase):
         self.put(self.files, "n", DAY, {("r", "s"): (1, None)})
         self.put(self.files, "n", DAY + H, {("r", "s"): (2, None)})
         path = self.files.folder / "n.2026-11-01.jsonl"
-        path.write_text(path.read_text() + '{"t": 17, "e": [[0,\n')  # a write cut short
+        path.write_text(path.read_text() + '{"t": 17, "e": [[0,\n')  # a damaged line, newline-terminated
         self.assertEqual(self.files.info()["records"], 2)
         self.assertEqual(len(self.files.series("n", "r", "s", 0)), 2)
+
+    def test_a_torn_last_line_without_newline_costs_only_its_own_record(self):
+        self.put(self.files, "n", DAY, {("r", "s"): (1, None)})
+        path = self.files.folder / "n.2026-11-01.jsonl"
+        with path.open("ab") as handle:
+            handle.write(b'{"t":99,"e":[[0,1,')  # power loss mid-write: no trailing newline
+        fresh = load_history()(self.files.folder)
+        self.put(fresh, "n", DAY + H, {("r", "s"): (2, None)})
+        self.assertEqual(self.files.series("n", "r", "s", 0), [[int(DAY), 1], [int(DAY + H), 2]])
+        self.assertEqual(self.files.info()["records"], 2)
+
+    def test_a_failed_write_leaves_no_phantom_keys(self):
+        self.put(self.files, "n", DAY, {("r", "s"): (1, None)})
+        real_open = Path.open
+
+        def failing(self_, mode="r", *a, **k):
+            if "a" in mode:
+                raise OSError("disk full")
+            return real_open(self_, mode, *a, **k)
+
+        with mock.patch.object(Path, "open", failing), self.assertRaises(OSError):
+            self.put(self.files, "n", DAY + H, {("r", "new"): (7, None)})
+        self.put(self.files, "n", DAY + 2 * H, {("r", "new"): (7, None)})  # the key table is written now, not skipped
+        self.assertEqual(self.files.series("n", "r", "new", 0), [[int(DAY + 2 * H), 7]])
+        self.assertEqual(self.lines("n.2026-11-01.jsonl")[-2], {"k": ["new"]})
+
+    def test_a_deleted_day_file_starts_with_an_empty_key_table(self):
+        self.put(self.files, "n", DAY, {("r", "s"): (1, None)})
+        (self.files.folder / "n.2026-11-01.jsonl").unlink()
+        self.put(self.files, "n", DAY + H, {("r", "s"): (1, None)})
+        self.assertEqual(self.lines("n.2026-11-01.jsonl")[0], {"k": ["r", "s"]})
 
     def test_info_and_delete_all(self):
         self.assertEqual(self.files.info(), {"records": 0, "first": None, "last": None, "bytes": 0})
@@ -271,6 +302,38 @@ class SourcesTest(unittest.TestCase):
         self.assertEqual(entries, {})
         self.assertIsNone(self.src.parse_thread({"nodes": [], "connections": []}))
 
+    def test_parse_thread_mirrors_the_panels_filters(self):
+        node = lambda i, pan="aa", addr=None, **kw: {"id": i, "network_type": "thread", "ext_pan_id": pan,  # noqa: E731
+                                                     "ext_address": addr, **kw}
+        conn = lambda a, b, ab=None, ba=None: {"network": "thread", "source": a, "target": b,  # noqa: E731
+                                              "source_to_target": ab, "target_to_source": ba}
+        topo = {"nodes": [node("1", addr="0011223344556677"), node("2"), node("3", pan=None), node("4", pan="bb"),
+                          node("1", addr="9999999999999999"), node("5", kind="wifi_ap")],
+                "connections": [conn("1", "2", {"lqi": 3}, {"lqi": 1, "strength": "unknown"}),
+                                conn("2", "1", {"lqi": 2}, {"lqi": 2}),  # duplicate pair: first wins
+                                conn("1", "3", {"lqi": 0}, {"lqi": 0, "rssi": -90}),
+                                conn("1", "4", {"lqi": 3}, {"lqi": 3})]}  # other PAN: ignored
+        network, snapshot = self.src.parse_thread(topo)
+        self.assertEqual(network, "thread-aa")
+        k1 = "00:11:22:33:44:55:66:77"
+        self.assertEqual(snapshot.neighbours, {
+            (k1, "thread:2"): (3, None),  # 2 -> 1 "unknown" strength: no value
+            ("thread:3", k1): (0, -90)})  # lqi 0 with a valid RSSI is measured; lqi 0 alone is not
+        self.assertEqual(self.src.parse_thread({"nodes": [node("1", pan=None)]})[0], "thread-unknown")
+
+    def test_a_read_that_has_not_answered_is_not_started_again(self):
+        calls = []
+        hass = self.hass({"matter/network_topology": (lambda h, c, m: calls.append(m), None)})  # never answers
+        hass.config.components = {"matter"}
+        with mock.patch.object(self.src, "CALL_TIMEOUT", 0.05):
+            async def twice():  # one loop: closing the loop would cancel the pending read
+                return await self.src.collect(hass), await self.src.collect(hass)
+
+            first, second = asyncio.run(twice())
+        self.assertIn("did not answer", first[1][0])
+        self.assertIn("previous read", second[1][0])
+        self.assertEqual(len(calls), 1)
+
     def test_collect_calls_exactly_the_two_commands_with_refresh_false(self):
         calls = []
         hass = self.hass({"zha/devices": (self.handler(self.zha, calls=calls), None),
@@ -406,6 +469,49 @@ class RecorderTest(unittest.TestCase):
         self.assertEqual(self.command("records", network="zha-entry", since=0)[1], [])  # until defaults to now
         self.assertEqual(self.command("records", network="zha-entry", since="0")[1][0][1], "invalid_format")
         self.assertEqual(self.command("records", admin=False, network="n", since=0)[1][0][1], "unauthorized")
+
+    def test_a_delete_during_a_read_wins(self):
+        """A record collected before 'delete the history' is not written after it."""
+        history = self.recorder.get_history(self.hass)
+        gate = asyncio.Event()
+
+        def slow(hass, connection, msg):
+            async def later():
+                await gate.wait()
+                connection.send_result(msg["id"], self.zha)
+            asyncio.get_running_loop().create_task(later())
+
+        self.hass.data["websocket_api"] = {"zha/devices": (slow, None)}
+
+        async def scenario():
+            task = asyncio.create_task(history.record(30, DAY))
+            await asyncio.sleep(0.01)
+            await history.delete_all()
+            gate.set()
+            await task
+
+        ha_stubs.run(scenario())
+        self.assertEqual(history.files.info()["records"], 0)
+
+    def test_expiry_runs_even_when_the_source_fails_and_an_error_is_logged_once(self):
+        self.registry(self.zha)
+        self.record(DAY)
+        history = self.recorder.get_history(self.hass)
+        with mock.patch.object(self.recorder, "collect", side_effect=RuntimeError("boom")), \
+                self.assertRaises(RuntimeError):
+            self.record(DAY + 40 * 24 * H, keep=30)
+        self.assertEqual(history.files.info()["records"], 0)  # the old file expired anyway
+
+    def test_timer_logs_an_exception_once_per_change(self):
+        opts = ha_stubs.load(".options").get_options({})
+        self.recorder.start_recording(self.hass, opts)
+        tick = self.rec.intervals[-1][1]
+        with mock.patch.object(self.recorder, "collect", side_effect=RuntimeError("boom")), \
+                self.assertLogs(self.recorder._LOGGER, "ERROR") as logs:
+            ha_stubs.run(tick())
+            ha_stubs.run(tick())
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("RuntimeError: boom", self.recorder.get_history(self.hass).last_error)
 
     def test_read_commands_are_admin_only(self):
         self.assertEqual(self.command("info", admin=False)[1][0][1], "unauthorized")

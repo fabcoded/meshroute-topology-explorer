@@ -852,19 +852,22 @@ config entry, never Home Assistant. Stored in the entry's options (defaults appl
 | Show in the sidebar (administrators) | on | Off: the panel is not registered (removed on reload); the websocket commands stay. |
 | Allow radio actions (scan, attribute reads) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
 | Record reception values | on | Off stops recording; records stay until they expire. |
-| Record every (hours) | 3 | 1 to 24, else refused with the range. Under 3: the form comes back with a field error (ZHA reads its tables only every 4 h by default, so most records repeat the last values; finer needs a shorter ZHA scan period = more radio traffic) and a box "Record more often than every 3 hours anyway"; only a ticked resubmit saves. |
+| Record every (hours) | 3 | 1 to 24, else refused with the range. Under 3, when the value is changed to it: the form comes back with an error at the top (ZHA reads its tables only every 4 h by default, so most records repeat the last values; finer needs a shorter ZHA scan period = more radio traffic) and a box "Record more often than every 3 hours anyway"; only a ticked resubmit saves; later saves of other options do not ask again while that interval is stored. |
 | Keep for (days) | 30 | 1 to 90, else refused with the range. |
 | Delete the recorded history | off | Acts on Submit (when the form is valid), not stored. |
 
 ### 10.2 Reception history [v1]
 
 Records the reception values over time (board M33/M34 option A), in the integration's own files, never in the recorder
-or statistics. Every interval (first one 60 s after setup) it takes what ZHA and the Matter server already hold and never
+or statistics. Every interval (the first 30 s after Home Assistant has started, or after a reload) it takes what ZHA and the Matter server already hold and never
 starts a scan or writes to a network: the registered handlers of `zha/devices` and `matter/network_topology`
 (`refresh: false`) are called in-process (`hass.data["websocket_api"][command]`, exactly these two). Zigbee adds zigpy's
 route records (`zigpy_routes.read_routes`, in memory). Fragile parts: that registry layout and handler calling convention
 (core-internal) and the zigpy reader; any mismatch is logged once per change, shown as `last_error` by `history/info`, and
-writes nothing for that source (a failed route-record read still writes the rest). Unavailable devices' tables are skipped
+writes nothing for that source (a failed route-record read still writes the rest). A read that has not answered blocks
+the next one of that command (no piling up). The Thread side mirrors the panel's node, duplicate and "measured" rules
+(`from-matter.js`): unknown strength and link quality 0 without RSSI are no values. Expiry runs even when a source fails,
+and a delete wins over a read still under way. Unavailable devices' tables are skipped
 (stale). A network without table entries and routes is not recorded.
 
 - **Files:** `/config/.storage/meshroute_topology_explorer_history/<network id, URL-quoted>.<UTC day>.jsonl`, append only,

@@ -74,8 +74,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[_PANEL_KEY] = True
     for stop in start_recording(hass, options):
         entry.async_on_unload(stop)
-    # Saving the options form updates the entry; reload it so that sidebar, flag and timers follow, without a restart.
-    entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 
 
@@ -86,10 +84,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         frontend.async_remove_panel(hass, PANEL_URL_PATH)
     return True
 
-
-async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Update listener: apply changed options by reloading this entry only."""
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

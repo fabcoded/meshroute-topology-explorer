@@ -123,7 +123,7 @@ class FakeHass:
 def install():
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
-    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[])
+    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[])
 
     def mod(name, **attrs):
         m = types.ModuleType(name)
@@ -168,6 +168,9 @@ def install():
         def async_create_entry(self, **kwargs):
             return {"type": "create_entry", **kwargs}
 
+    class OptionsFlowWithReload(OptionsFlow):
+        """Home Assistant reloads the entry after a create_entry of this flow."""
+
     class Schema(dict):
         def __init__(self, schema):
             super().__init__({getattr(k, "schema", k): (k, v) for k, v in schema.items()})
@@ -178,7 +181,7 @@ def install():
 
     mod("voluptuous", Schema=Schema, Required=Required)
     mod("homeassistant.config_entries", ConfigEntry=object, ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
-        OptionsFlow=OptionsFlow)
+        OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))
     mod("homeassistant.core", HomeAssistant=object, callback=lambda func: func)
     event = mod("homeassistant.helpers.event",
@@ -188,8 +191,10 @@ def install():
     helpers = mod("homeassistant.helpers")
     st = mod("homeassistant.helpers.storage", Store=FakeStore)
     hjson = mod("homeassistant.helpers.json", json_bytes=fake_json_bytes)
+    start = mod("homeassistant.helpers.start",
+                async_at_started=lambda hass, cb: rec.started.append(cb) or (lambda: None))
     comps.__dict__.update(websocket_api=ws, frontend=fe, panel_custom=pc, http=http)
-    helpers.storage, helpers.json, helpers.event = st, hjson, event
+    helpers.storage, helpers.json, helpers.event, helpers.start = st, hjson, event, start
     ha.components, ha.helpers = comps, helpers
     # config_flow.py imports more of Home Assistant; the tests never load it.
     for name in list(sys.modules):

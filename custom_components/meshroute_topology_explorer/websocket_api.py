@@ -17,6 +17,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.json import json_bytes
 
+from .admin import check_admin
 from .const import DOMAIN, MAX_PAYLOAD_BYTES, NETWORK_ID_PATTERN
 from .recorder import async_info, get_history
 from .store import KINDS, PanelStore, StoreUnavailable
@@ -61,9 +62,7 @@ def _make_handler(kind: str, writing: bool):
     async def handler(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
         msg_id = msg["id"]
         # Own admin check on top of the panel's require_admin: the commands carry data of the whole house.
-        user = connection.user
-        if user is None or not user.is_admin:
-            connection.send_error(msg_id, websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+        if not check_admin(connection, msg_id):
             return
         network = msg.get("network")
         if not isinstance(network, str) or not _NETWORK_RE.fullmatch(network):
@@ -95,21 +94,12 @@ def _make_handler(kind: str, writing: bool):
     return websocket_api.async_response(handler)
 
 
-def _is_admin(connection: Any, msg_id: int) -> bool:
-    """Answer `unauthorized` and return False for anyone but an administrator."""
-    user = connection.user
-    if user is None or not user.is_admin:
-        connection.send_error(msg_id, websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
-        return False
-    return True
-
-
 @websocket_api.async_response
 async def ws_history_series(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     """Reception values of one lane since a time: {sender_to_receiver, receiver_to_sender}, each a list of
     [time, lqi(, rssi)]. sender_to_receiver is what the receiver's table reported for the sender (it hears it)."""
     msg_id = msg["id"]
-    if not _is_admin(connection, msg_id):
+    if not check_admin(connection, msg_id):
         return
     network, sender, receiver, since = (msg.get(k) for k in ("network", "sender", "receiver", "since"))
     fields_ok = all(isinstance(v, str) and _NETWORK_RE.fullmatch(v) for v in (network, sender, receiver))
@@ -134,7 +124,7 @@ async def ws_history_records(hass: HomeAssistant, connection: Any, msg: dict[str
     """All tables of a network for a time range, in the file format with one key table: {k, records} (spec 10.2).
     `until` is optional (default: now). A record `{t}` alone repeats the previous one; the first is full."""
     msg_id = msg["id"]
-    if not _is_admin(connection, msg_id):
+    if not check_admin(connection, msg_id):
         return
     network, since = msg.get("network"), msg.get("since")
     until = msg.get("until", time.time())
@@ -149,7 +139,7 @@ async def ws_history_records(hass: HomeAssistant, connection: Any, msg: dict[str
 @websocket_api.async_response
 async def ws_history_info(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     """Size of the history: records, first and last time (epoch seconds), bytes on disk, the last problem."""
-    if _is_admin(connection, msg["id"]):
+    if check_admin(connection, msg["id"]):
         connection.send_result(msg["id"], await async_info(hass))
 
 
