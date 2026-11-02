@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Test helper (also used by dev/graph.html?synthetic=300), not shipped: a seeded synthetic network for the speed
+// Test helper, not shipped: a seeded synthetic network for the speed
 // target of spec 12 (300 devices, 3 000 readings). Devices sit at random points; routers report their nearest
 // devices, LQI falls with distance plus noise, about 2 % of readings are 0 (unknown). Ratings come from the data
 // model's own rule (model/ratings.js), so lines and fills behave as on a real network.
 
 import { seededRandom } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 import { applyRatings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ratings.js";
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js";
 
 export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, routerShare = 0.6 } = {}) {
   const rnd = seededRandom(seed);

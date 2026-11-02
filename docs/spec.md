@@ -192,6 +192,7 @@ two differ by a median of 8 LQI and by more than 60 in a tenth of pairs.
   "route" or "parent", as both prove a two-way link at setup;
 - **unknown**, with a reason: "end device (no table)", "table full (n/cap)", "table nearly full (n/cap), link probably
   weak", "table has space, link probably weak or aged out", "lqi 0", "table missing or stale", "capacity unknown".
+  The model carries the reason as a code with size and capacity, not as text.
 
 **Capacity** of a model: the most router entries (routers and coordinator) in any table of its manufacturer and model
 in this network, from at least two devices. A model on one device borrows its manufacturer's largest table ("vendor
@@ -548,19 +549,18 @@ user-supplied image or map tiles from a user-configured address.
   symbol is neutral grey (`#c5c8cb` light, `#5c6166` dark) with lines in the theme's foreground; reception shows at
   the arrows, not as a fill. Under role and power the lines take the theme's foreground or background, whichever
   contrasts more with the fill (at least 3:1 on every fill used). A device without a value under the current fill is
-  grey with a slash; per theme that grey lies beyond the rating scale's lightness, on the background's side, at least
-  15 ΔE from scale and background.
+  grey with a slash, a fixed pair (`#bfbfbf` light, `#393939` dark).
 - **Category fills**: the four Okabe–Ito colours near 3:1 on white and near-black, nudged to 3:1 per theme: role
   (coordinator vermillion, router bluish green, end device blue, border router reddish purple), power source (mains
   blue, battery reddish purple, DC bluish green). ZHA's "Battery or Unknown" counts as battery, and the legend says
   so.
-- **Palettes**: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 against light and dark
+- **Palettes**: Okabe–Ito for categories; graphic elements reach 3:1 against light and dark
   Home Assistant themes. Colour never carries meaning alone (7.1). The opt-in path display coloured by reception uses
   by default red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d, #f2c230, #3fbd5c),
   CIELAB lightness at least 8 apart so they differ without hue; the user may replace each for both themes. The scale
   is interpolated between the three and nudged to 3:1 against the background; numbers and widths say the same.
 - **Labels**: a block of up to three lines, each switchable (View tab, stored 11): the **type** above the symbol in
-  grey (kind, 4.2, in the user's language; none for an unknown kind, whose symbol shows "?"; on), the readable name
+  grey (kind, 4.2; none for an unknown kind, whose symbol shows "?"; on), the readable name
   below (user's name, else model; on), and the original Home Assistant name (the integration's registry name) in a
   smaller grey line below, only where it differs (off). The type line shows only from the working scale (9.3) up.
   - Labels are text, never HTML. A name keeps the part that distinguishes it from similar names (cut shared
@@ -585,6 +585,8 @@ One place per thing; nothing appears twice.
   data, connection lost, reading) between the top groups, or below them where that leaves less than 280 px. No header
   bar: the map fills the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are
   rounded, on the theme's surface with a light shadow, targets at least 44 px. View switch **[v1.1]**.
+- If the device or area registry cannot be read, the map keeps the integrations' own names and the status line adds
+  the part "Names and areas not read".
 - The status line's source-route stage (ZHA only) sits apart on its right: "Return paths assumed for 8 devices
   (source route)", "Source route off · 8 return paths unknown", "Source route from zigpy · 6 recorded, 2 assumed",
   "zigpy not available · 8 assumed" with the reason as description; nothing when no device is concerned or in the view
@@ -780,9 +782,8 @@ again when the connection is back.
 - The panel defines its custom element only if the name is free, compares its version with the integration's and asks
   for a reload when they differ, does not reload data when Home Assistant pushes a new state object, and unsubscribes
   and stops drawing when hidden.
-- Texts in English only. The German table stays in `ui/i18n.js`, dormant and unmaintained; it returns by adding German
-  to `ACTIVE_LANGUAGES` and translating the keys added since. Dates and numbers follow the user's Home Assistant
-  locale.
+- Texts in English only: one flat table per part, merged in `ui/i18n.js`. Dates and numbers follow the user's Home
+  Assistant locale.
 
 ## 11. Settings per network [v1]
 
@@ -791,7 +792,7 @@ chosen network (`network`: `zha` or `thread`) is stored under the reserved id `p
 load shows Zigbee.
 
 Keys:
-- View, direction (v1.1), density.
+- Density.
 - Communication paths: `paths` (`coordinator`, `table`, `all`; else `coordinator`); `heard` (boolean, "additional
   heard neighbours (best 3)", default false, kept in every view, drawn in `table` only); `returnRoutes` (boolean,
   "include return routes", default false).
@@ -802,14 +803,11 @@ Keys:
 - Details on click: `openDetailsOnSelect` (boolean, else by width).
 - Source route: `sourceRoute` `off`, `assume` or `zigpy` (else `assume`, 5.1).
 - Pinned positions; later geo positions and map background address (empty by default).
-- Older keys: `paths: "heard"` reads as `all` with `heard: true`; without a valid `paths`, `nodeView: "all"` reads as
-  `all`, else `coordinator`; `receptionColors: true` without a valid `pathColors` reads as coloured with theme colours.
-  The next save leaves `nodeView`, `links`, `receptionColors` and `legendOpen` out.
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it
 reads the stored object and writes back only what it changed (last write wins per key, pins merge per device, unknown
 keys are kept). Stored settings are untrusted: pins only under device addresses, coordinates within ±1000 base
-lengths. If the commands are missing or the stored object cannot be read, settings live in memory, the View tab says
+lengths. If the stored object cannot be read, settings live in memory, the View tab says
 so, and nothing stored is overwritten. After a lost connection they are read again.
 
 ## 12. Acceptance [v1]

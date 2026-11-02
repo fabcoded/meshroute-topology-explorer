@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The adapter registry (adapters/index.js; engines cut step 9): one adapter per data source, in menu order, each with
+// The adapter registry (adapters/index.js): one adapter per data source, in menu order, each with
 // the same shape; a network finds its adapter by its source and nothing falls back to ZHA; the stored choices of the
 // network switch stay "zha" and "thread" (spec 11).
 // npm test
@@ -19,7 +19,7 @@ test("every adapter has the same shape, frozen; the keys are the stored network 
     assert.ok(Object.isFrozen(a), a.key);
     assert.deepEqual(Object.keys(a).sort(), SHAPE, a.key);
     assert.equal(typeof a.read, "function");
-    assert.ok(a.texts.en[a.reloadInfo], `${a.key}: its reload note is one of its own texts`);
+    assert.ok(a.texts[a.reloadInfo], `${a.key}: its reload note is one of its own texts`);
   }
   // Only ZHA blocks the panel, has a device page, a scan and observations.
   assert.equal(adapterByKey("zha").blocking, "zha_not_loaded");

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The fitted view per network engine (spec 9.3; engines cut step 6c): a Thread map
+// The fitted view per network engine (spec 9.3): a Thread map
 // "contains" every device and its label in the window at every density and at phone width, after load and after
 // "fit"; a Zigbee map keeps its fit at density factor 1, so at medium density it reaches past the window,
 // and its camera does not depend on the engine cut.

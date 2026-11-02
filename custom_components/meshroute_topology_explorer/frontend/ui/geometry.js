@@ -47,7 +47,6 @@ export function combinedInsets(a, b) {
 /** Floating controls on the map (spec 9.1): gap to the edges and between
  *  groups, and the smallest target. Own choice within WCAG 2.2 2.5.8 (24 px). */
 export const FLOAT_GAP = 12;
-export const FLOAT_TARGET = 44;
 /** Banners sit between the two top groups when that leaves at least this much, else below them. Own choice: room for
  *  the "incomplete" banner's two short sentences in two lines. */
 export const BAND_MIN = 280;

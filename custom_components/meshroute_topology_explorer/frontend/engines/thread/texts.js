@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-// The Thread engine's texts (engines cut step 9): the status line's link coverage and collection time, the
-// legend's parent and neighbour rows, the Details' Thread facts, the border router and end device roles. English is
-// the reference; the dormant German table moves along. Merged into the panel's tables by ui/i18n.js through
+// The Thread engine's texts: the status line's link coverage and collection time, the
+// legend's parent and neighbour rows, the Details' Thread facts, the border router and end device roles. Merged into the panel's table by ui/i18n.js through
 // engines/index.js; every key the Thread engine emits resolves in the shared table or here
 // (tests/engine-leaks.test.mjs 13). Pure data. npm test
 
-const en = {
+export const TEXTS = Object.freeze({
   "role.end device": "End device",
   "role.border router": "Border router",
   "legend.symbol_end": "Closed frame: end device",
@@ -36,14 +35,4 @@ const en = {
   "details.thread_leader": "Thread leader",
   "details.thread_unknown": "not reported",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
-};
-
-const de = {
-  "role.end device": "End-Device",
-  "role.border router": "Border Router",
-  "legend.symbol_end": "geschlossener Rahmen: Endgerät",
-  "legend.symbol_end_sleepy": "geschlossener Rahmen, Bett: Endgerät, schläft",
-};
-
-/** { en, de }: the tables, frozen. */
-export const TEXTS = Object.freeze({ en: Object.freeze(en), de: Object.freeze(de) });
+});

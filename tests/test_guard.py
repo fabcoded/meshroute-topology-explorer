@@ -83,6 +83,12 @@ class GuardTest(unittest.TestCase):
         self.assertTrue(all("allow-list" in f or "changes the network" in f for f in found), found)
         self.assertTrue(any("light/turn_on" in f for f in found))
 
+    def test_display_names_with_a_slash_are_not_commands(self):
+        root = self.tree({"custom_components/x/names.js": SPDX + "const n = ['On/Off', 'Heating/Cooling Unit'];\n"})
+        self.assertEqual(guard.check(root), [])
+        root = self.tree({"custom_components/x/bad.js": SPDX + "a('zha/network/settings'); const n = 'On/Off';\n"})
+        self.assertEqual(len(guard.check(root)), 1)
+
     def test_matter_topology_read_only(self):
         root = self.tree({
             "custom_components/x/ok.js": SPDX + "hass.callWS({ type: 'matter/network_topology', refresh: false })\n",

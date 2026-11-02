@@ -35,3 +35,11 @@ export function normalizeIeee(value) {
 export function formatNwk(nwk) {
   return typeof nwk === "number" ? "0x" + nwk.toString(16).toUpperCase().padStart(4, "0") : "?";
 }
+
+/** Make labels unique (spec 8): identical labels get " (tail)" appended, tail(device) being the network address in
+ *  hex, or the end of the IEEE address when the network address is unknown. */
+export function disambiguateLabels(devices, tail) {
+  const count = new Map();
+  for (const d of devices) count.set(d.label, (count.get(d.label) || 0) + 1);
+  for (const d of devices) if (count.get(d.label) > 1) d.label += ` (${tail(d)})`;
+}

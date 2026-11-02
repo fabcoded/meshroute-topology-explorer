@@ -14,18 +14,8 @@
 import { normalize, ZHA_CAPABILITIES } from "./from-zha.js";
 import { applyRatings } from "./ratings.js";
 import { relayLoads } from "./paths.js";
-import { computePairs, pairEvidence } from "./pairs.js";
+import { computePairs } from "./pairs.js";
 import { computeFindings, computeStatus } from "./findings.js";
-
-export { parseAddress, parseLqi, normalizeIeee } from "../../model/parse.js";
-export { upPath, downPath, routePath } from "./paths.js";
-export { nodePaths, pathHops, unknownEnd, NODE_VIEWS, DEFAULT_NODE_VIEW } from "./node-paths.js";
-export { assumedDownPaths, sourceRouteSummary, sourceRouteMode, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
-  from "./source-routes.js";
-export { pairEvidence };
-export { FINDING_KINDS } from "./findings.js";
-export { KINDS } from "./kinds.js";
-export { ZHA_CAPABILITIES };
 
 /** Build a Network from the answer of `zha/devices` and, optionally, the registry answers and the ZHA config entry
  *  list (`config_entries/get`), which names the network. capabilities: what the source holds, ZHA's by default. */
@@ -42,7 +32,7 @@ export function buildNetwork(rawDevices, { deviceRegistry, areaRegistry, configE
     capabilities,
     devices, readings, routes,
     pairs: computePairs({ devices, readings, routes }),
-    status: computeStatus({ devices, readings }),
+    status: computeStatus({ devices }),
     findings: computeFindings({ devices, readings, routes }),
     unresolved,
   };

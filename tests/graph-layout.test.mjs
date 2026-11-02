@@ -26,7 +26,7 @@ const l0Of = (network) => baseLength(displayLabels(network.devices, measure), me
 const report = (t, msg) => (t.diagnostic ? t.diagnostic(msg) : console.log(msg));
 
 test("spring factor follows f(q) = 1 + 5 (1 - q)^2; LQI 0 or no value has none", () => {
-  // The layout takes a quality 0..1 from the engine (engines cut step 6c); Zigbee's is LQI / 255.
+  // The layout takes a quality 0..1 from the engine; Zigbee's is LQI / 255.
   assert.equal(springFactor(quality({ lqi: 255 })), 1);
   assert.equal(springFactor(0.5), 1 + 5 * 0.25);
   assert.ok(Math.abs(springFactor(quality({ lqi: 1 })) - (1 + 5 * (254 / 255) ** 2)) < 1e-12);

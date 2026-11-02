@@ -6,6 +6,7 @@
 // home-assistant/frontend src/data/zha.ts readAttributeValue). Attributes are read one after another, so a sleepy or
 // busy device is not flooded; the first timeout or error stops the rest, which would fail the same way.
 // No DOM. npm test
+import { errorText } from "../../../adapters/ws.js";
 
 /** How long one read may take before the panel stops waiting. A device that sleeps answers only when awake; ZHA's own
  *  request gives up earlier and then answers with an error. Own choice. */
@@ -47,8 +48,7 @@ export async function readAttributes(ctx) {
         result = text === "None" ? { id, state: "none", value: null, message: null } : { id, state: "ok", value: text, message: null };
       }
     } catch (err) {
-      const e = err && (err.error || err);
-      result = { id, state: "error", value: null, message: (e && (e.message || e.code)) || String(err) };
+      result = { id, state: "error", value: null, message: errorText(err) };
       stop = "error";
     } finally {
       timers.clearTimeout(timer);

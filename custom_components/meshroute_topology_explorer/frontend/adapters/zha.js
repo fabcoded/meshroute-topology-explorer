@@ -7,15 +7,14 @@
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
-import { isConnectionLost } from "./ws.js";
+import { errorCode, errorText, isConnectionLost } from "./ws.js";
 import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
 import { TEXTS } from "./zha-texts.js";
 
 /** Decide which empty/error state applies before any data is shown (spec 9.4): not an administrator, or ZHA not
  *  loaded (its config entries name none in state "loaded"). Returns a phase key or null. */
-export function blockingState({ isAdmin, configEntries }) {
-  if (!isAdmin) return "not_admin";
+export function blockingState({ configEntries }) {
   const loaded = Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
   return loaded ? null : "zha_not_loaded";
 }
@@ -24,11 +23,6 @@ export function blockingState({ isAdmin, configEntries }) {
  *  IEEE goes in with its colons, as the frontend writes it: the page reads the path segment as it is, so an encoded
  *  colon would name no device. The model's ids are validated EUI-64s (model/parse.js), nothing else reaches here. */
 export const zhaDevicePath = (ieee, tab = "signature") => `/config/zha/device/${ieee}/${tab}`;
-
-/** ZHA's config entries (`config_entries/get`): whether ZHA is loaded, and the entry id that names the network. */
-export function readZhaEntries(hass) {
-  return hass.callWS({ type: "config_entries/get", domain: "zha" });
-}
 
 /** Read ZHA's devices once and build the Zigbee network from them, with zigpy's route records attached. registries():
  *  the device and area registries, read once on first need (shared with the Matter adapter). Returns { raw, network },
@@ -66,38 +60,32 @@ export function parseZigpyRoutes(answer) {
 
 /** Read the route records once; never throws except for a lost connection (the caller's load then counts as
  *  disconnected). Without them: { status: "not_supported", reason, message }, reason the key before the colon of the
- *  integration's answer (zha_not_loaded, no_gateway, internals_changed, error) or the error code (an older
- *  integration answers unknown_command). */
+ *  integration's answer (zha_not_loaded, no_gateway, internals_changed, error) or the error code. */
 export async function readZigpyRoutes(hass) {
   try {
     return parseZigpyRoutes(await hass.callWS({ type: "meshroute_topology_explorer/zigpy_routes" }));
   } catch (err) {
     if (isConnectionLost(err)) throw err;
-    const e = (err && err.error) || err || {};
-    const message = String(e.message || e.code || e);
-    const reason = e.code === "not_supported" ? String(e.message || "").split(":")[0] || "not_supported" : String(e.code || "error");
+    const code = errorCode(err);
+    const message = errorText(err);
+    const reason = code === "not_supported" ? message.split(":")[0] || "not_supported" : String(code || "error");
     return { status: "not_supported", reason, message };
   }
 }
 
 /** Send zha/topology/update without waiting: ZHA never answers it (spec 3.1). The connection's sendMessage
  *  (home-assistant-js-websocket) sends without registering an answer, so nothing waits forever; it throws without a
- *  connection, which the scan reports. Without it, callWS is called and its promise left alone. */
+ *  connection, which the scan reports. */
 export function sendScan(hass) {
-  const conn = hass && hass.connection;
-  if (conn && typeof conn.sendMessage === "function") {
-    conn.sendMessage({ type: "zha/topology/update" });
-  } else {
-    hass.callWS({ type: "zha/topology/update" }).catch(() => {});
-  }
+  hass.connection.sendMessage({ type: "zha/topology/update" });
 }
 
 /** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty" or "not_loaded"),
  *  network, raw, blocking (the phase to show when no source has a network: "zha_not_loaded"), unavailable: false }.
  *  registries(): the shared device and area registries, read once on first need. Errors are thrown to the caller. */
 export async function readSource(hass, { registries }) {
-  const configEntries = await readZhaEntries(hass);
-  const blocked = blockingState({ isAdmin: true, configEntries });
+  const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
+  const blocked = blockingState({ configEntries });
   if (blocked) return { status: "not_loaded", network: null, raw: null, blocking: blocked };
   const { raw, network } = await readZha(hass, { configEntries, registries });
   return { status: network ? "ok" : "empty", network, raw, blocking: null };

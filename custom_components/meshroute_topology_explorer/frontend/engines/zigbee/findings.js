@@ -14,15 +14,11 @@ export const FINDING_KINDS = ["offline", "parent offline", "route to offline dev
   "weak reception", "very low reading", "parent unknown", "isolated", "many end-device children"];
 
 /** Counts for the status line (spec 6). The coordinator is not counted as a router. */
-export function computeStatus({ devices, readings }) {
+export function computeStatus({ devices }) {
   const routers = devices.filter((d) => d.role === "router" && d.available);
-  const listed = new Set(readings.map((r) => r.subject));
   return {
     routersAvailable: routers.length,
     routersWithTable: routers.filter((d) => d.hasTable).length,
-    devicesListed: devices.filter((d) => listed.has(d.id)).length,
-    devicesTotal: devices.length,
-    unavailable: devices.filter((d) => !d.available).length,
     completeness: routers.length ? routers.filter((d) => d.hasTable).length / routers.length : 1,
   };
 }
@@ -76,11 +72,11 @@ export function computeFindings({ devices, readings, routes }) {
   for (const d of devices) {
     if (!d.available) continue;
     if ((d.role === "router" || d.role === "coordinator") && !d.hasTable) {
-      add("data incomplete", d.id, { reason: `${d.role} without table` }, [d.id]);
+      add("data incomplete", d.id, { reason: "no_table" }, [d.id]);
       continue;
     }
     const lacking = expectedReporters(d).filter((id) => !byId.get(id).hasTable);
-    if (lacking.length) add("data incomplete", d.id, { reason: "expected reporter without table" }, [...new Set(lacking)].sort());
+    if (lacking.length) add("data incomplete", d.id, { reason: "reporter_no_table" }, [...new Set(lacking)].sort());
   }
 
   for (const d of devices) {

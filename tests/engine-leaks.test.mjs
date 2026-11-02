@@ -83,8 +83,8 @@ function importsOf(rel) {
   return specs.map((s) => new URL(s, new URL(rel, FRONTEND)).href.slice(FRONTEND.href.length));
 }
 
-/** The shared code (engines cut, section 3): the panel, the shared parsers, the graph, the adapters and the ui/ frames.
- *  The network-specific modules have all moved into their engine (step 8). */
+/** The shared code: the panel, the shared parsers, the graph, the adapters and the ui/ frames.
+ *  The network-specific modules have all moved into their engine. */
 const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), ...jsFiles("adapters/"), ...jsFiles("ui/")];
 
 // Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
@@ -289,7 +289,7 @@ test("10a: Thread values are never on the Zigbee scale", async () => {
   const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
   const dirs = threadNet.pairs.flatMap((p) => [p.ab, p.ba]);
   dirs.push({ state: "measured", scale: "thread-lqi", lqi: 0, rssi: null }, { state: "unknown", scale: "thread-lqi",
-    lqi: 0, rssi: null, reason: "lqi 0" }, { state: "measured", scale: "thread-lqi", lqi: 3, rssi: null });
+    lqi: 0, rssi: null, reason: { code: "lqi0" } }, { state: "measured", scale: "thread-lqi", lqi: 3, rssi: null });
   for (const dir of dirs) {
     const value = thread.laneValue(dir, texts);
     assert.doesNotMatch(value, /^\d+$/, JSON.stringify(dir));
@@ -343,7 +343,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
   const { resolveTheme } = await mod("graph/palette.js");
   // The shared tables, the Thread engine's and the Matter adapter's: no Zigbee and no ZHA table.
   const matter = ADAPTERS.find((a) => a.key === "thread");
-  const base = translator("en", null, mergeTexts([SHARED, thread.texts, matter.texts]));
+  const base = translator("en", mergeTexts([SHARED, thread.texts, matter.texts]));
   const used = new Set();
   const t = Object.assign((key, params) => { used.add(key); return base(key, params); }, base,
     { has: (key) => { used.add(key); return base.has(key); } });
@@ -378,7 +378,7 @@ test("13: every text key of the Thread engine resolves without the Zigbee table"
   assert.ok(used.size > 30, `${used.size} keys`);
   assert.deepEqual([...used].filter((key) => !base.has(key)), [], "keys only the Zigbee or ZHA tables hold");
   // And the Thread table holds nothing the Zigbee engine owns: the two engines' tables share only role words.
-  const shared = Object.keys(thread.texts.en).filter((key) => key in ENGINES.zigbee.texts.en);
+  const shared = Object.keys(thread.texts).filter((key) => key in ENGINES.zigbee.texts);
   assert.deepEqual(shared.sort(), ["legend.symbol_end", "legend.symbol_end_sleepy", "role.end device"]);
 });
 

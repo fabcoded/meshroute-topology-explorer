@@ -267,7 +267,7 @@ test("a density change keeps the selection, or else the centre, where it was on 
 
 test("pins are kept in base lengths and drawn at base x D", () => {
   const { view } = setup();
-  view.pin("r2", 1, -2);
+  view.setNetwork(view.network, { pinned: { r2: { x: 1, y: -2 } } });
   const L0 = view.layout.K;
   for (const d of [0.7, 1.5]) {
     view.setDensity(d);

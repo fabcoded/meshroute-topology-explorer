@@ -17,7 +17,7 @@ import { DEFAULTS as ZIGBEE_DEFAULTS, sanitizePaths, settings as zigbeeSettings 
 import { STRINGS } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
 import { FakeCanvas, asZigbee, fakeEnv, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
-/** The shell's sanitizer and defaults with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer and defaults with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 const DEFAULTS = { ...SHELL_DEFAULTS, ...ZIGBEE_DEFAULTS };
 
@@ -51,7 +51,7 @@ const NET = asZigbee({
     { a: "e1", b: "r1", ab: { state: "implied", lqi: null, rating: null, source: "parent", reason: null }, ba: m(60, 0.3) },
     { a: "r1", b: "r2", ab: m(150, 0.7), ba: m(140, 0.7) },
     { a: "r1", b: "r4", ab: m(80, 0.4), ba: m(70, 0.3) },
-    { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: "table full (16/16)" } },
+    { a: "r2", b: "r3", ab: m(50, 0.5), ba: { state: "unknown", lqi: null, rating: null, source: null, reason: { code: "table_full", size: "16/16" } } },
     { a: "r3", b: "r4", ab: m(40, 0.2), ba: m(30, 0.1) },
   ],
 });
@@ -195,7 +195,7 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   assert.deepEqual(PATH_STAGES, ["coordinator", "table", "all"]);
   assert.equal(DEFAULT_PATHS, "coordinator");
   for (const bad of [null, undefined, "", "ALL", 3, {}]) assert.equal(pathStage(bad), "coordinator");
-  // The map passes the engine's view settings on (GraphView.setEngineView, engines cut step 6b); the Zigbee engine
+  // The map passes the engine's view settings on (GraphView.setEngineView); the Zigbee engine
   // reads a junk stage as the default, so it draws what the default draws.
   const canvas = new FakeCanvas(800, 600);
   const env = fakeEnv();
@@ -229,71 +229,24 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
     ["coordinator", "assumed", "route", "discovery", "heard"]);
 });
 
-test("the stored stage: valid stages kept, the old node view migrates, the old keys go on the next save", () => {
+test("the stored stage: valid stages kept, anything else is the default", () => {
   assert.equal(DEFAULTS.paths, "coordinator");
-  assert.ok(!("links" in DEFAULTS) && !("nodeView" in DEFAULTS));
   for (const v of PATH_STAGES) assert.equal(sanitizeSettings({ paths: v }).paths, v);
-  assert.equal(sanitizePaths(undefined, "all"), "all", "nodeView all reads as stage 2");
-  assert.equal(sanitizePaths(undefined, "coordinator"), "coordinator");
-  assert.equal(sanitizePaths("all", "coordinator"), "all", "a valid stage wins over the old key");
-  assert.equal(sanitizePaths("heard", undefined), "all", "the former third stage reads as stage 2");
-  for (const bad of [null, 5, "bogus", ["all"]]) assert.equal(sanitizePaths(bad, bad), "coordinator", JSON.stringify(bad));
-  const migrated = sanitizeSettings({ links: { up: true, route: false, heard: true }, nodeView: "all", extra: 1 });
-  assert.equal(migrated.paths, "all");
-  assert.ok(!("links" in migrated) && !("nodeView" in migrated), "dropped");
-  assert.equal(migrated.extra, 1, "unknown keys are kept");
-  assert.equal(sanitizeSettings({ links: { heard: false } }).paths, "coordinator");
-  // The third stage became a checkbox on top of stage 2.
-  const legacy = sanitizeSettings({ paths: "heard", nodeView: "coordinator" });
-  assert.deepEqual([legacy.paths, legacy.heard], ["all", true], "paths 'heard' -> all + heard");
-  assert.deepEqual([migrated.heard, sanitizeSettings({}).heard, DEFAULTS.heard], [false, false, false], "calm default");
+  for (const bad of [undefined, null, 5, "bogus", "heard", ["all"]]) assert.equal(sanitizePaths(bad), "coordinator", JSON.stringify(bad));
+  assert.equal(sanitizeSettings({ extra: 1 }).extra, 1, "unknown keys are kept");
+  assert.deepEqual([sanitizeSettings({}).heard, DEFAULTS.heard], [false, false], "calm default");
   for (const bad of [1, "yes", null, "true"]) assert.equal(sanitizeSettings({ paths: "all", heard: bad }).heard, false);
   assert.deepEqual(sanitizeSettings({ paths: "coordinator", heard: true }).paths, "coordinator", "a stored heard = true does not move the view");
   assert.equal(sanitizeSettings({ paths: "coordinator", heard: true }).heard, true, "the stored choice is kept in any view (it takes effect under the routing table only)");
-  // A round trip through JSON, as the integration stores it: the migrated shape is stable.
-  const again = sanitizeSettings(JSON.parse(JSON.stringify(legacy)));
+  // A round trip through JSON, as the integration stores it: the shape is stable.
+  const again = sanitizeSettings(JSON.parse(JSON.stringify(sanitizeSettings({ paths: "all", heard: true }))));
   assert.deepEqual([again.paths, again.heard], ["all", true]);
 });
 
-test("the three stages, their hints and the legend's words in English and German (boards M2, M7)", () => {
-  const de = {
-    "view.paths": "Kommunikationspfade", "view.paths_coordinator": "mit dem Koordinator, hin und zurück",
-    "view.paths_coordinator_hint": "ohne Auswahl alle Geräte; bei Klick nur die Wege des Geräts, mit RX",
-    "view.paths_all": "Wege zu allen Geräten (theoretisch)",
-    "view.paths_all_hint":
-      "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
-    "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
-    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu",
-    "view.paths_note": "Jede Ansicht hat ihre eigene Grundlage. Debug zeigt alles.",
-    "legend.option_heard": "(Option unter \"Routing table\", braucht eine Auswahl)",
-    "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
-    "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
-    "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
-    "legend.link.heard": "nur gehört", "legend.stage": "(Ansicht {n})", "legend.stage_computed": "(berechnet, Ansicht {n})",
-    "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm", "legend.link.reception": "farbig: schlecht · mittel · gut",
-  };
-  for (const [key, text] of Object.entries(de)) {
-    assert.equal(STRINGS.de[key], text, key);
-    assert.ok(STRINGS.en[key] && STRINGS.en[key] !== text, `en ${key}`);
-  }
-  assert.equal(STRINGS.en["view.paths_coordinator"], "with the coordinator, there and back");
-  assert.equal(STRINGS.en["view.paths_note"], "Each view has its own basis. Debug shows everything.");
-  // The routing-table view: its hint and the return-route checkbox.
-  assert.equal(STRINGS.en["view.paths_table"], "routing table");
-  assert.equal(STRINGS.en["view.paths_table_hint"],
-    "Each router's table names the next hop to a destination. This view follows those entries until the destination or a gap.");
-  assert.equal(STRINGS.en["view.paths_returns_hint"],
-    "Follow each destination's route back, using the routing table at every hop.");
-  assert.equal(STRINGS.en["view.paths_heard"], "additional heard neighbours (best 3)");
-  // Texts (on the stage-2 overview and the stage-3 click).
-  assert.equal(STRINGS.en["view.paths_all_hint"],
-    "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
-  assert.equal(STRINGS.en["view.paths_heard_hint"],
-    "needs a selection: adds the device's 3 best partners with a reading and no drawn lane");
-  assert.equal(STRINGS.en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
-  assert.equal(STRINGS.en["legend.stage_computed"], "(computed, view {n})");
-  for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
-    "legend.link.up", "legend.link.path"]) {
-    assert.ok(!(gone in STRINGS.en) && !(gone in STRINGS.de), gone);
-  }
+test("the path views carry the owner's terms (boards M2, M7, M11)", () => {
+  assert.equal(STRINGS["view.paths_coordinator"], "with the coordinator, there and back");
+  assert.equal(STRINGS["view.paths_all"], "paths to all devices (theoretical)");
+  assert.equal(STRINGS["view.paths_heard"], "additional heard neighbours (best 3)");
+  assert.equal(STRINGS["view.paths_table"], "routing table");
+  assert.equal(STRINGS["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
 });

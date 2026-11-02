@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { badgeCount, groupFindings as groupBy, missingTables, isMissingTable, HINT_KINDS } from "../custom_components/meshroute_topology_explorer/frontend/ui/findings.js";
 import { ENGINES } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 
-/** Groups in the Zigbee engine's order of finding kinds (engines cut step 8: the order is the engine's). */
+/** Groups in the Zigbee engine's order of finding kinds (the order is the engine's). */
 const groupFindings = (findings, label) => groupBy(findings, label, ENGINES.zigbee.findings.kinds);
 import { findingText } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/finding-text.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -69,7 +69,7 @@ test("an unhedged no parent stays a finding of its own and counts as one", () =>
   const findings = [
     { kind: "parent unknown", device: "e1", evidence: { verdict: "no parent" }, missing: [] },
     { kind: "parent unknown", device: "e2", evidence: { verdict: "parent unknown" }, missing: ["r1", "r2"] },
-    { kind: "data incomplete", device: "r1", evidence: { reason: "router without table" }, missing: ["r1"] },
+    { kind: "data incomplete", device: "r1", evidence: { reason: "no_table" }, missing: ["r1"] },
     { kind: "very low reading", device: "e3", evidence: { readings: [] }, missing: [] },
   ];
   assert.equal(isMissingTable(findings[0]), false);
@@ -81,16 +81,16 @@ test("an unhedged no parent stays a finding of its own and counts as one", () =>
   assert.deepEqual(grouped.groups[0].byTable.map((g) => [g.table, g.findings.length]), [["r1", 2], ["r2", 1]]);
 });
 
-test("every finding of every variant has a title and evidence without open placeholders, in English and German", () => {
-  for (const lang of ["en", "de"]) {
-    const t = translator(lang);
+test("every finding of every variant has a title and evidence without open placeholders, ", () => {
+  {
+    const t = translator("en");
     for (const variant of VARIANTS) {
       const network = sampleNetwork(variant);
       for (const f of network.findings) {
         const { title, lines } = findingText(f, t, labeller(network));
-        assert.ok(title && !title.startsWith("kind."), `${lang} ${f.kind}`);
-        assert.ok(lines.length > 0, `${lang} ${f.kind} has evidence`);
-        for (const line of lines) assert.ok(!/\{\w+\}|undefined|NaN/.test(line), `${lang} ${variant} ${f.kind}: ${line}`);
+        assert.ok(title && !title.startsWith("kind."), f.kind);
+        assert.ok(lines.length > 0, `${f.kind} has evidence`);
+        for (const line of lines) assert.ok(!/\{\w+\}|undefined|NaN/.test(line), `${variant} ${f.kind}: ${line}`);
       }
     }
   }

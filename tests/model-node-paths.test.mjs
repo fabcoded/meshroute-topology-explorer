@@ -6,8 +6,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sampleNetwork } from "./panel-fixture.mjs";
-import { buildNetwork, upPath, downPath, nodePaths, pathHops, unknownEnd, NODE_VIEWS }
-  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { upPath, downPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { nodePaths, pathHops, unknownEnd } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
 
 const sample = sampleNetwork();
 const coordinator = sample.devices.find((d) => d.role === "coordinator");
@@ -18,7 +19,6 @@ const labelOf = new Map(sample.devices.map((d) => [d.id, d.label]));
 const hopText = (h) => (h.state === "measured" ? String(h.lqi) : h.state === "implied" ? h.source : "?");
 
 test("path to coordinator: up and down path per device, the numbers of spec 12", () => {
-  assert.deepEqual(NODE_VIEWS, ["coordinator", "table", "all"]);
   let up = 0;
   let down = 0;
   let differ = 0;

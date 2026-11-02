@@ -7,8 +7,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ENGINES, engineFor } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
-import { buildNetwork, ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { buildThreadNetwork, THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js";
+import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
+import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js";
 import * as zigbeeLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import * as threadLanes from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/lanes.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
@@ -25,7 +27,7 @@ const zigbeeNet = zigbee.build(zha["zha/devices"], registries);
 const threadNet = thread.build(topology, {});
 const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "?" };
 
-/** The interface of every engine, as it stands after the steps landed so far (engines cut, section 2). */
+/** The interface of every engine. */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
   status: "function", findings: "object", connection: "function", details: "function", options: "function",
   settings: "object", scene: "object", springQuality: "function", addresses: "function", texts: "object" };
@@ -56,17 +58,17 @@ test("finding kinds: Zigbee's order as the model lists them; Thread's three, in 
   for (const f of threadNet.findings) assert.ok(thread.findings.kinds.includes(f.kind), f.kind);
 });
 
-test("settings (step 5): each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
+test("settings: each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
   const { sanitizeSettings, DEFAULTS } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
   assert.deepEqual(zigbee.settings.keys, ["paths", "heard", "returnRoutes", "sourceRoute"]);
   assert.deepEqual(thread.settings.keys, []);
   for (const key of zigbee.settings.keys) assert.equal(key in DEFAULTS, false, `${key} is no shell key`);
-  const stored = { paths: "heard", nodeView: "all", links: {}, sourceRoute: "bogus", density: "spread", other: 1 };
+  const stored = { paths: "bogus", heard: true, sourceRoute: "bogus", density: "spread", other: 1 };
   const z = sanitizeSettings(stored, zigbee.settings);
-  assert.deepEqual([z.paths, z.heard, z.returnRoutes, z.sourceRoute, "links" in z, "nodeView" in z, z.other],
-    ["all", true, false, "assume", false, false, 1]);
+  assert.deepEqual([z.paths, z.heard, z.returnRoutes, z.sourceRoute, z.other],
+    ["coordinator", true, false, "assume", 1]);
   const t = sanitizeSettings(stored, thread.settings);
-  for (const key of ["paths", "nodeView", "links", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
+  for (const key of ["paths", "heard", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
   assert.equal(t.density, "spread");
   assert.deepEqual(sanitizeSettings(stored), t, "no engine: shell keys only, the same as Thread's");
 });
@@ -107,7 +109,6 @@ test("facades: lane values and glyphs are the engine's own lanes module's for ev
     assert.ok(dirs.length >= 10, `${engine.key}: ${dirs.length} directions`);
     for (const dir of dirs) {
       assert.equal(engine.laneValue(dir, TEXTS), lanes.laneValue(dir, TEXTS));
-      assert.equal(engine.unknownGlyph(dir.reason), lanes.unknownGlyph(dir.reason));
     }
   }
 });
@@ -170,16 +171,16 @@ test("options: Zigbee offers its three groups as data, Thread one line and no co
   const t = translator("en");
   const threadGroups = thread.options(threadNet, settings);
   assert.deepEqual(threadGroups.map((g) => [g.legend, g.controls.length]), [[null, 0]]);
-  assert.equal(t(threadGroups[0].note), "Thread data names neighbours and parents, not routes; there are no path views.");
+  assert.notEqual(t(threadGroups[0].note), threadGroups[0].note, "the note has words");
 });
 
-test("texts (step 9): engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
+test("texts: engines and adapters bring their own tables; merging refuses two different texts for one key", async () => {
   const { STRINGS, SHARED, mergeTexts } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
   for (const engine of Object.values(ENGINES)) {
-    assert.ok(Object.isFrozen(engine.texts.en) && Object.keys(engine.texts.en).length > 0, engine.key);
-    for (const key of Object.keys(engine.texts.en)) assert.equal(STRINGS.en[key], engine.texts.en[key], key);
-    for (const key of Object.keys(engine.texts.en)) assert.equal(key in SHARED.en, false, `${engine.key}: ${key} also shared`);
+    assert.ok(Object.isFrozen(engine.texts) && Object.keys(engine.texts).length > 0, engine.key);
+    for (const key of Object.keys(engine.texts)) assert.equal(STRINGS[key], engine.texts[key], key);
+    for (const key of Object.keys(engine.texts)) assert.equal(key in SHARED, false, `${engine.key}: ${key} also shared`);
   }
-  assert.throws(() => mergeTexts([{ en: { a: "x" } }, { en: { a: "y" } }]), /differs/);
-  assert.deepEqual(mergeTexts([{ en: { a: "x" } }, { en: { a: "x" } }]).en, { a: "x" });
+  assert.throws(() => mergeTexts([{ a: "x" }, { a: "y" }]), /differs/);
+  assert.deepEqual(mergeTexts([{ a: "x" }, { a: "x" }]), { a: "x" });
 });

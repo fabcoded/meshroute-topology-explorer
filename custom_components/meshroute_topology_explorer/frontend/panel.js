@@ -25,7 +25,7 @@ import { engineFor } from "./engines/index.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
-import { languageOf, formatLocaleOf, translator, localize } from "./ui/i18n.js";
+import { formatLocaleOf, translator, localize } from "./ui/i18n.js";
 import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
 import { MapButtons } from "./ui/map-buttons.js";
 import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
@@ -92,14 +92,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     };
   }
 
-  // Home Assistant assigns a new hass object on every state change in the house: only language, theme and the
+  // Home Assistant assigns a new hass object on every state change in the house: only locale, theme and the
   // connection are looked at here; the data is read once (spec 10).
   set hass(value) {
     this._hass = value;
-    const lang = languageOf(value);
     const formatLocale = formatLocaleOf(value);
-    if (lang !== this._t.lang || formatLocale !== this._t.formatLocale) {
-      this._t = translator(lang, formatLocale);
+    if (formatLocale !== this._t.formatLocale) {
+      this._t = translator(formatLocale);
       if (this._ui) this._retranslate();
     }
     const key = themeKey(value);
@@ -202,7 +201,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._retranslate();
   }
 
-  /** Texts that do not depend on data; called on build and when the language changes. */
+  /** Texts that do not depend on data; called on build and when the locale changes. */
   _retranslate() {
     const t = this._t;
     const ui = this._ui;
@@ -416,7 +415,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     })() : null;
     const status = engineFor(net).status(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected,
       settings: this._settings ? this._settings.settings : null });
-    const parts = status.parts;
+    // The registries could not be read: the names and areas shown are the integrations' own.
+    const parts = this._controller.state.registriesFailed ? [...status.parts, ["status.names_missing", {}]] : status.parts;
     this._ui.status.classList.toggle("compact", compact);
     // The engine's part on the right (board M1: the source-route stage) sits apart.
     const sr = status.right;

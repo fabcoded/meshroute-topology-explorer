@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { sampleNetwork } from "./panel-fixture.mjs";
-import { buildNetwork, nodePaths, routePath }
-  from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
+import { routePath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
 import { HOWS, discoveryTree, linkCost, theoreticalPath }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js";
 

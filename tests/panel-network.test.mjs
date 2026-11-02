@@ -72,6 +72,12 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
   const err = await readThread(fakeHass({ topologyError: "home_assistant_error" }));
   assert.equal(err.status, "error");
   assert.equal((await readThread(fakeHass({ matter: false }))).status, "not_loaded");
+  const hass = fakeHass();
+  const failing = { ...hass, callWS: async (msg) => {
+    if (msg.type === "config_entries/get" && msg.domain === "matter") throw { code: "home_assistant_error", message: "entries" };
+    return hass.callWS(msg);
+  } };
+  assert.deepEqual(await readThread(failing), { status: "error", message: "entries" }, "a failed read is no 'not loaded'");
   const zhaOnly = await readNetwork(fakeHass({ topologyError: "not_supported" }));
   assert.equal(zhaOnly.network.source, "zha");
   assert.equal(zhaOnly.networks.thread, null);
@@ -156,7 +162,7 @@ test("arrow values for Thread: RSSI in dBm, link quality only without RSSI; unkn
   assert.equal(threadValue({ state: "measured", rssi: -75, lqi: 3 }), "−75 dBm");
   assert.equal(threadValue({ state: "measured", rssi: null, lqi: 2 }), "LQI 2");
   assert.equal(threadValue({ state: "measured", rssi: -75, lqi: 3 }, "lqi"), "LQI 3");
-  assert.equal(threadValue({ state: "unknown", reason: "no table (not a Matter node)" }), "?");
+  assert.equal(threadValue({ state: "unknown", reason: { code: "not_matter" } }), "?");
   assert.equal(laneValue({ state: "measured", scale: "thread-lqi", rssi: -36, lqi: 3 }, {}), "−36 dBm");
   assert.equal(threadReception({ state: "measured", rssi: -36, lqi: 3 }), "−36 dBm · LQI 3");
 });
@@ -209,4 +215,16 @@ test("Devices search finds a Thread device by its RLOC16 and its extended addres
   assert.deepEqual(found("7168"), ["1"], "RLOC16 in decimal");
   assert.deepEqual(found("aa:bb:cc:dd:00:00:00:02"), ["2"], "extended address");
   assert.equal("nwk" in net.devices[0], false, "the RLOC16 is no Zigbee network address");
+});
+
+test("a failed registry read keeps the panel working and is reported for the status line", async () => {
+  const hass = fakeHass();
+  const failing = { ...hass, callWS: async (msg) => {
+    if (msg.type === "config/area_registry/list") throw { code: "home_assistant_error", message: "areas" };
+    return hass.callWS(msg);
+  } };
+  const bad = await readNetwork(failing);
+  assert.equal(bad.phase, "ready");
+  assert.equal(bad.registriesFailed, true);
+  assert.equal((await readNetwork(hass)).registriesFailed, false);
 });

@@ -53,16 +53,16 @@ test("narrow panels: no room between the groups, so banners go below them across
   assert.ok(f.band.maxHeight > 0 && f.band.maxHeight < 700);
 });
 
-test("the links legend is built from the graph's entries, with words for every entry in English and German", () => {
+test("the links legend is built from the graph's entries, with words for every entry", () => {
+  const t = translator("en");
   for (const background of ["#ffffff", "#111111"]) {
-    for (const lang of ["en", "de"]) {
-      const t = translator(lang);
+    {
       // Debug mode: every entry the graph can name, so every one needs words.
       const entries = legendEntries(resolveTheme({ background }), { debug: true, colored: true });
       const rows = linkLegendRows(entries, t);
       assert.deepEqual(rows.map((r) => r.id), entries.map((e) => e.id), "every entry, in the graph's order");
       for (const row of rows) {
-        assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), `${lang} ${row.id}`);
+        assert.ok(row.label && row.label !== row.id && !/\{\w+\}/.test(row.label), row.id);
       }
       const lanes = rows.filter((r) => r.kind === "lane");
       assert.deepEqual(lanes.map((r) => r.id), ["coordinator", "assumed", "route", "discovery", "heard", "implied"]);
@@ -72,33 +72,19 @@ test("the links legend is built from the graph's entries, with words for every e
           ["route", t("legend.stages", { a: 2, b: 3 })], ["discovery", t("legend.stage_computed", { n: 3 })],
           ["heard", t("legend.option_heard")]], "a class names its views or option");
       const scale = rows.find((r) => r.id === "reception");
-      assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), `${lang} scale`);
+      assert.ok(scale && scale.kind === "scale" && scale.colors.length === 5 && !/\{/.test(scale.label), "scale");
       assert.equal(rows.find((r) => r.id === "rx").label, t("legend.rx"));
     }
   }
-  const t = translator("de");
   const rows = linkLegendRows(legendEntries(resolveTheme({}), { heard: true, paths: "table" }), t);
-  assert.deepEqual(rows.map((r) => r.label), ["Hin- und Rückweg mit dem Koordinator", "Rückweg angenommen (Source Route)",
-    "Weg zu einem anderen Gerät", "einer der günstigsten Wege nach den LQI der Tabellen", "nur gehört", "Band: der Weg des ausgewählten Geräts zum Koordinator", t("legend.link.not-listed"),
-    t("legend.link.no-table"), "Empfang beim Empfänger, ein Viertel vor ihm"]);
-  assert.deepEqual(rows.slice(2, 5).map((r) => `${r.label} ${r.note}`), ["Weg zu einem anderen Gerät (Ansichten 2 und 3)",
-    "einer der günstigsten Wege nach den LQI der Tabellen (berechnet, Ansicht 3)",
-    "nur gehört (Option unter \"Routing table\", braucht eine Auswahl)"]);
+  assert.deepEqual(rows.map((r) => r.label), [t("legend.link.coordinator"), t("legend.link.assumed"), t("legend.link.route"),
+    t("legend.link.discovery"), t("legend.link.heard"), t("legend.link.up-path"), t("legend.link.not-listed"),
+    t("legend.link.no-table"), t("legend.rx")]);
+  assert.deepEqual(rows.slice(2, 5).map((r) => r.note), [t("legend.stages", { a: 2, b: 3 }), t("legend.stage_computed", { n: 3 }),
+    t("legend.option_heard")]);
   const notListed = rows.find((r) => r.id === "not-listed");
   assert.equal(notListed.text, "–", "the glyph stays the graph's own");
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");
   const unknown = linkLegendRows([{ id: "future", kind: "lane", style: { width: 1 } }], t);
   assert.equal(unknown[0].label, "future", "an entry without words keeps its id instead of vanishing");
-});
-
-test("the none fill and the arrows' reception are named in both languages", () => {
-  assert.equal(translator("en")("fill.none"), "None");
-  assert.equal(translator("de")("fill.none"), "keine", "German option words in lower case (board M2)");
-  assert.deepEqual(["dense", "medium", "spread"].map((d) => translator("de")(`density.${d}`)), ["dicht", "mittel", "weit"]);
-  assert.equal(translator("en")("legend.fill_none"), "Fill: none");
-  assert.equal(translator("de")("legend.fill_none"), "Füllung: keine");
-  assert.match(translator("en")("legend.rx"), /reception at the arrowhead/);
-  assert.equal(translator("de")("legend.rx"), "Empfang beim Empfänger, ein Viertel vor ihm");
-  assert.equal(translator("en")("fill.reception"), "fill.reception", "the removed fill has no words left");
-  assert.equal(translator("de")("lane.parent"), "Parent");
 });

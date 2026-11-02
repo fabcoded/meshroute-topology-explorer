@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Texts of the panel (spec 10). The panel is English only for
-// now; the German table `de` below stays in the file, dormant and no longer maintained, so German can be switched on
-// later by adding "de" to ACTIVE_LANGUAGES and translating the keys that were added since. languageOf() therefore
-// always answers "en"; translator("de") still renders the dormant table (tests and a later switch-on use it).
-// Dates and numbers are not "German texts": they keep following the user's locale (t.formatLocale), independent of
-// the text language. Placeholders are {name}; values are inserted as text, never as HTML. No DOM.
-// tests/panel-i18n.test.mjs: English is the complete reference; every key of the dormant table must exist in English
-// with the same placeholders.
-// The tables below are the shared ones; each engine and adapter holds its own words (engines/<type>/texts.js,
-// adapters/<source>-texts.js, engines cut step 9), merged here into STRINGS through the two registries.
+// Texts of the panel (spec 10). The panel is English only: one flat table per part, merged into STRINGS. Dates and
+// numbers keep following the user's locale (t.formatLocale). Placeholders are {name}; values are inserted as text,
+// never as HTML. No DOM. The shared table is below; each engine and adapter holds its own words (engines/<type>/texts.js,
+// adapters/<source>-texts.js), merged through the two registries.
 import { ENGINES } from "../engines/index.js";
 import { ADAPTERS } from "../adapters/index.js";
 
-const en = {
+/** The shared table. */
+export const SHARED = Object.freeze({
   "header.sidebar": "Open sidebar",
   "header.findings_label": "Findings: {count}",
   "density.dense": "Dense",
@@ -100,7 +95,6 @@ const en = {
   "fill.power": "Power source",
   "storage.loading": "Reading the stored settings …",
   "storage.stored": "Saved in Home Assistant for this network, shared by all administrators.",
-  "storage.unsupported": "Kept only until this page is closed: the installed integration offers no storage. Update it to keep settings.",
   "storage.unauthorized": "Kept only until this page is closed: saving needs an administrator.",
   "storage.unreadable": "Kept only until this page is closed: the stored settings could not be read ({message}).",
   "storage.offline": "Kept here until the connection is back; then the stored settings are read and your changes saved.",
@@ -212,243 +206,38 @@ const en = {
   "legend.stages": "(views {a} and {b})",
   "legend.stage_computed": "(computed, view {n})",
   "legend.symbol_wired": "Plug only, no arcs: wired device",
+  "status.names_missing": "Names and areas not read",
   "status.network_menu": "Network: {source}. Choose another network",
   "status.network_unavailable": "{source} is not available: {reason}",
   "status.age_minutes": "{n} min ago",
   "status.age_hours": "{n} h ago",
   "status.age_now": "just now",
-};
+});
 
-const de = {
-  "header.sidebar": "Seitenleiste öffnen",
-  "header.findings_label": "Befunde: {count}",
-  "density.dense": "dicht",
-  "density.medium": "mittel",
-  "density.spread": "weit",
-  "zoom.in": "Vergrößern",
-  "zoom.out": "Verkleinern",
-  "zoom.fit": "Einpassen",
-  "map.label": "Netzkarte. Pfeiltasten und Enter funktionieren in der Geräteliste.",
-  "map.incomplete": "Unvollständig",
-  "map.incomplete_detail": "{x} von {y} Router-Tabellen: Befunde nennen, was fehlt.",
-  "map.connection_lost": "Verbindung zu Home Assistant verloren. Die Karte zeigt die letzten Daten und lädt neu, sobald sie zurück ist.",
-  "map.loading": "Daten werden gelesen …",
-  "drawer.close": "Schließen",
-  "drawer.expand": "Aufklappen",
-  "drawer.collapse": "Zuklappen",
-  "tab.details": "Details",
-  "tab.devices": "Geräte",
-  "tab.findings": "Befunde",
-  "tab.legend": "Legende",
-  "status.label": "Datenstand",
-  "status.source": "Quelle: {source}",
-  "status.unchanged": "unverändert seit {time}",
-  "message.loading": "Netz wird gelesen …",
-  "message.not_admin": "Dieses Panel braucht ein Administratorkonto.",
-  "message.disconnected": "Keine Verbindung zu Home Assistant. Das Panel versucht es selbst erneut, sobald sie zurück ist.",
-  "message.error": "Das Netz konnte nicht gelesen werden: {message}",
-  "message.version": "Die Panel-Dateien im Browser sind veraltet: bitte die Seite neu laden.",
-  "message.retry": "Erneut versuchen",
-  "message.reload": "Seite neu laden",
-  "live.selected": "{name} ausgewählt: {role}, {reception}.",
-  "live.cleared": "Auswahl aufgehoben.",
-  "live.lost": "Verbindung verloren.",
-  "live.reloaded": "Daten neu gelesen.",
-  "role.router": "Router",
-  "role.unknown": "Rolle unbekannt",
-  "lqi.uncertain": "0 (unsicher)",
-  "lqi.none": "kein Wert",
-  "rank.value": "Rang {pct} %",
-  "rank.weakest": "Rang {pct} %, schwächstes Zehntel dessen, was {reporter} hört",
-  "rank.none": "nicht bewertet",
-  "reception.value": "Empfangsrang {pct} %",
-  "reception.none": "Empfang nicht bewertet",
-  "details.empty": "Wähle ein Gerät auf der Karte, in der Geräteliste oder bei den Befunden.",
-  "devices.filter": "Name, Modell, Bereich, Adresse",
-  "devices.count": "{shown} von {total} Geräten",
-  "devices.none": "Kein Gerät passt.",
-  "devices.list": "Geräte",
-  "devices.unavailable": "nicht verfügbar",
-  "findings.none": "Keine Befunde.",
-  "findings.hints": "Hinweise ({count})",
-  "findings.hints_note": "Hinweise zählen nicht zur Befundzahl.",
-  "findings.missing_table": "Tabelle von {name} fehlt ({count})",
-  "findings.group": "{kind} ({count})",
-  "findings.incomplete_group": "{kind} (fehlende Tabellen: {tables}, Geräte: {count})",
-  "kind.offline": "Offline",
-  "kind.parent offline": "Parent offline",
-  "kind.route to offline device": "Route zu einem Offline-Gerät",
-  "kind.data incomplete": "Daten unvollständig",
-  "kind.weak reception": "Schwacher Empfang",
-  "kind.very low reading": "Sehr niedriger Messwert",
-  "kind.parent unknown": "Parent unbekannt",
-  "kind.no parent": "Kein Parent",
-  "kind.isolated": "Isoliert",
-  "kind.many end-device children": "Viele End-Device-Kinder",
-  "evidence.offline": "In Home Assistant nicht verfügbar; zuletzt gesehen {time}.",
-  "evidence.parent_offline": "Parent {parent} ist nicht verfügbar (zuletzt gesehen {time}).",
-  "legend.fill_none": "Füllung: keine",
-  "legend.fill_role": "Füllung: Rolle",
-  "legend.fill_power": "Füllung: Stromquelle",
-  "legend.symbols_title": "Symbole",
-  "legend.symbol_router": "Rahmen mit Lücken und Strichen: Router, leitet weiter",
-  "legend.states_title": "Zustände",
-  "legend.state_offline": "offline: ohne Füllung",
-  "legend.state_selected": "ausgewählt: dicker Rahmen",
-  "legend.state_pinned": "angepinnt: Nadel",
-  "power.mains": "Netzstrom",
-  "power.dc": "Gleichstrom",
-  "power.none": "Nicht gemeldet",
-  "fill.none": "keine",
-  "fill.role": "Rolle",
-  "fill.power": "Stromquelle",
-  "storage.loading": "Gespeicherte Einstellungen werden gelesen …",
-  "storage.stored": "In Home Assistant für dieses Netz gespeichert, gemeinsam für alle Administratoren.",
-  "storage.unsupported": "Nur bis diese Seite geschlossen wird: die installierte Integration bietet keinen Speicher. Aktualisiere sie, um Einstellungen zu behalten.",
-  "storage.unauthorized": "Nur bis diese Seite geschlossen wird: Speichern braucht einen Administrator.",
-  "storage.unreadable": "Nur bis diese Seite geschlossen wird: die gespeicherten Einstellungen ließen sich nicht lesen ({message}).",
-  "storage.offline": "Hier gehalten, bis die Verbindung zurück ist; dann werden die gespeicherten Einstellungen gelesen und deine Änderungen gespeichert.",
-  "storage.error": "Speichern fehlgeschlagen ({message}). Die nächste Änderung versucht es erneut.",
-  "storage.too_large": "Zu groß zum Speichern ({kib} KiB, Grenze 256 KiB). Löse einige Pins.",
-  "status.unchanged_note": "Beobachtet: ein Panel bemerkt eine Änderung nur, solange eines offen ist; eine Tabelle kann sich also früher geändert haben als angezeigt.",
-  "status.scan_running": "Scan läuft: seit Scanbeginn geänderte Tabellen: {changed} von {total} (auch eine unveränderte Tabelle kann geantwortet haben)",
-  "status.scan_stop": "Stopp",
-  "status.short_unchanged": "unverändert seit {time}",
-  "status.short_scan_running": "Scan: {changed}/{total} Tabellen geändert",
-  "status.scan_stop_label": "Scan nicht mehr verfolgen",
-  "live.scan_started": "Scan gestartet. Die Tabellen werden alle 15 Sekunden neu gelesen.",
-  "live.scan_over": "Das Panel verfolgt den Scan nicht mehr.",
-  "observations.stored": "Beobachtungen: in Home Assistant für dieses Netz gespeichert ({count} Tabellen).",
-  "observations.memory": "Beobachtungen: nur bis diese Seite geschlossen wird ({reason}).",
-  "observations.dropped": "Die {count} ältesten Einträge wurden verworfen, um unter 256 KiB zu bleiben.",
-  "legend.link.route": "Weg zu einem anderen Gerät",
-  "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
-  "legend.link.heard": "nur gehört",
-  "legend.link.implied": "kein Verkehr, kein Messwert: nur ein Routing- oder Parent-Eintrag belegt diese Richtung",
-  "legend.link.width": "Breite: unteres, mittleres oder oberes Drittel dessen, was das hörende Gerät hört",
-  "legend.link.not-listed": "Die Tabelle des hörenden Geräts führt den Sender nicht",
-  "lane.parent": "Parent",
-  "lane.route": "Route",
-  "legend.link.path-end": "Gestrichelter Stummel mit ?: ab hier ist der Weg unbekannt (eine Tabelle oder ein Eintrag fehlt)",
-  "legend.link.reception": "farbig: schlecht · mittel · gut",
-  "lane.rx": "RX:",
-  "lane.path_unknown": "Weg unbekannt",
-  "map.devices": "Geräte",
-  "map.devices_label": "Geräte öffnen, {count} Befunde",
-  "map.details_on_click": "Details bei Klick",
-  "map.details_on_click_note": "An: ein Klick auf ein Gerät öffnet links seine Details.",
-  "map.view": "Ansicht",
-  "map.view_label": "Ansicht öffnen",
-  "map.legend": "Legende",
-  "map.legend_label": "Legende öffnen",
-  "panel.left_label": "Geräte, Befunde und Details",
-  "panel.right_label": "Ansicht und Legende",
-  "tab.view": "Ansicht",
-  "view.paths": "Kommunikationspfade",
-  "view.path_display": "Pfaddarstellung",
-  "view.grey": "grau",
-  "view.coloured": "farbig nach Empfang",
-  "view.bad": "schlecht",
-  "view.medium": "mittel",
-  "view.good": "gut",
-  "view.color_bad_label": "Farbe für schlechten Empfang",
-  "view.color_medium_label": "Farbe für mittleren Empfang",
-  "view.color_good_label": "Farbe für guten Empfang",
-  "view.colors_note": "frei wählbar, z. B. für Farbenblinde",
-  "view.colors_reset": "Zurück zu den Standardfarben",
-  "view.on_click": "Bei Klick auf ein Gerät",
-  "view.open_details": "Details öffnen",
-  "view.density": "Knotenentfernung (Dichte)",
-  "view.density_info": "Die Entfernung zwischen den Geräten ist aus Feldstärke und Empfangsqualität abgeleitet; die Dichte vervielfacht sie.",
-  "view.density_info_label": "Info zur Knotenentfernung",
-  "view.fill": "Füllung der Symbole",
-  "view.labels": "Beschriftung auf der Karte",
-  "view.label_type": "Gerätetyp über dem Symbol",
-  "view.label_name": "lesbarer Name unter dem Symbol",
-  "view.label_ha": "Original-HA-Bezeichnung",
-  "view.debug": "Debug-Modus",
-  "view.reload": "Daten neu lesen",
-  "view.release": "Alle Pins lösen",
-  "view.release_count": "Alle Pins lösen ({count})",
-  "view.scan": "Topologie scannen …",
-  "view.scan_running": "Scan läuft …",
-  "view.scan_stop": "Scan nicht mehr verfolgen",
-  "legend.paths_title": "Kommunikationspfade",
-  "legend.rx": "Empfang beim Empfänger, ein Viertel vor ihm",
-  "devices.search": "Suchen",
-  "devices.hint_on": "Klick auf ein Gerät, hier oder auf der Karte, öffnet seine Details.",
-  "devices.hint_off": "Details bei Klick ist aus: ein Klick wählt aus und zoomt; Rechtsklick oder langes Drücken öffnet die Details.",
-  "kind_short.light": "Lampe",
-  "kind_short.outlet": "Steckdose",
-  "kind_short.relay": "Relais",
-  "kind_short.button": "Taster",
-  "kind_short.sensor": "Sensor",
-  "kind_short.motion": "Bewegungsmelder",
-  "kind_short.temperature": "Temperatur",
-  "kind_short.thermostat": "Thermostat",
-  "kind_short.blind": "Rollo",
-  "kind_short.lock": "Schloss",
-  "kind_short.hub": "Hub",
-  "details.tab_entity": "Entität",
-  "devices.network": "Netzwerk",
-  "devices.sleeps": "schläft",
-  "devices.via": "über {name}",
-  "view.source_route": "Rückwege ohne Tabelleneintrag (Source Route)",
-  "view.sr_off": "aus: Rückweg bleibt „unbekannt“",
-  "view.sr_assume": "annehmen: Umkehr des Hinwegs (gepunktet)",
-  "view.sr_experimental": "experimentell",
-  "view.paths_all_hint": "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
-  "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
-  "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu",
-  "view.paths_note": "Jede Ansicht hat ihre eigene Grundlage. Debug zeigt alles.",
-  "view.reload_info_label": "Info zum Neulesen der Daten",
-  "legend.link.assumed": "Rückweg angenommen (Source Route)",
-  "legend.option_heard": "(Option unter \"Routing table\", braucht eine Auswahl)",
-  "legend.stage": "(Ansicht {n})",
-  "legend.stages": "(Ansichten {a} und {b})",
-  "legend.stage_computed": "(berechnet, Ansicht {n})",
-  "legend.symbol_wired": "nur Stecker, keine Bögen: Kabelgerät",
-};
-
-/** The shared tables alone, { en, de }. */
-export const SHARED = Object.freeze({ en: Object.freeze(en), de: Object.freeze(de) });
-
-/** One { en, de } from several: shared first, then each part's; a key two parts share must have the same text in both
+/** One table from several: shared first, then each part's; a key two parts share must have the same text in both
  *  (two engines naming the same role), anything else is an error. */
 export function mergeTexts(parts) {
-  const out = { en: {}, de: {} };
+  const out = {};
   for (const part of parts) {
-    for (const lang of ["en", "de"]) {
-      for (const [key, text] of Object.entries(part[lang] || {})) {
-        if (key in out[lang] && out[lang][key] !== text) throw new Error(`text ${lang}:${key} differs between tables`);
-        out[lang][key] = text;
-      }
+    for (const [key, text] of Object.entries(part)) {
+      if (key in out && out[key] !== text) throw new Error(`text ${key} differs between tables`);
+      out[key] = text;
     }
   }
-  return Object.freeze({ en: Object.freeze(out.en), de: Object.freeze(out.de) });
+  return Object.freeze(out);
 }
 
-/** Every text of the panel: the shared tables, every engine's and every adapter's. */
+/** Every text of the panel: the shared table, every engine's and every adapter's. */
 export const STRINGS = mergeTexts([SHARED, ...Object.values(ENGINES).map((e) => e.texts),
   ...ADAPTERS.map((a) => a.texts)]);
-
-/** Languages the panel selects from the user's locale. "de" is dormant. */
-export const ACTIVE_LANGUAGES = Object.freeze(["en"]);
 
 function primaryTag(hass) {
   const tag = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "en";
   return String(tag).toLowerCase().split(/[-_]/)[0];
 }
 
-/** The panel's text language: the user's locale (hass.locale.language, else hass.language) reduced to its primary
- *  subtag, if that language is active; English otherwise, which today means always. */
-export function languageOf(hass) {
-  const primary = primaryTag(hass);
-  return ACTIVE_LANGUAGES.includes(primary) ? primary : "en";
-}
-
-/** The locale for dates and numbers: the user's primary language subtag if the browser's Intl knows it, else English.
- *  Independent of the text language (English texts, local number and date format). */
+/** The locale for dates and numbers: the user's primary language subtag if the browser's Intl knows it, else English
+ *  (English texts, local number and date format). */
 export function formatLocaleOf(hass) {
   const primary = primaryTag(hass);
   try {
@@ -458,18 +247,15 @@ export function formatLocaleOf(hass) {
   }
 }
 
-/** t(key, params) for a language, with English and finally the key itself as fallbacks. Also: t.lang, t.formatLocale, t.number(n),
- *  t.list(items), t.time(text). strings: the tables, all of the panel's by default (tests pass fewer: mergeTexts). */
-export function translator(lang, formatLocale = null, strings = STRINGS) {
-  const english = strings.en;
-  const table = strings[lang] || english;
+/** t(key, params) with the key itself as fallback. Also: t.formatLocale, t.number(n), t.list(items), t.time(text).
+ *  strings: the table, all of the panel's by default (tests pass fewer: mergeTexts). */
+export function translator(formatLocale = "en", strings = STRINGS) {
   const t = (key, params = {}) => {
-    const text = table[key] ?? english[key] ?? key;
+    const text = strings[key] ?? key;
     return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
   };
-  t.lang = lang in strings ? lang : "en";
-  t.formatLocale = formatLocale || t.lang;
-  t.has = (key) => key in table || key in english;
+  t.formatLocale = formatLocale;
+  t.has = (key) => key in strings;
   /** A time the panel recorded (ISO, UTC) in the browser's local time: "14:32" today, with the date otherwise. */
   t.when = (iso, now = new Date()) => {
     const d = new Date(iso);

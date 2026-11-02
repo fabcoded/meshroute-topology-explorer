@@ -16,12 +16,12 @@ import { settings as zigbeeSettings } from "../custom_components/meshroute_topol
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 import { sampleNetwork } from "./panel-fixture.mjs";
 
-/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 
 const theme = resolveTheme({});
 const m = (lqi, rating) => ({ state: "measured", lqi, rating, source: "table", reason: null });
-const none = { state: "unknown", lqi: null, rating: null, source: null, reason: "table has space, link probably weak or aged out" };
+const none = { state: "unknown", lqi: null, rating: null, source: null, reason: { code: "table_space" } };
 const route = (owner, destination, nextHop, status = "Active") => ({ owner, destination, nextHop, status, stale: false });
 const router = (id) => ({ id, role: "router", label: id.toUpperCase(), available: true, hasTable: true, children: [] });
 
@@ -160,12 +160,9 @@ test("Details: the routing-table card's rows, the return walks only with the che
   assert.equal(detailsOf(net, "a", "coordinator").table, null, "only in the view routing table");
 });
 
-test("settings: the view 'table' and 'include return routes' are stored; older stores keep working", () => {
+test("settings: the view 'table' and 'include return routes' are stored and bad values fall back", () => {
   assert.equal(sanitizeSettings({ paths: "table" }).paths, "table");
   assert.equal(sanitizeSettings({}).returnRoutes, false);
   assert.equal(sanitizeSettings({ returnRoutes: "yes" }).returnRoutes, false);
   assert.equal(sanitizeSettings({ paths: "table", returnRoutes: true }).returnRoutes, true);
-  const old = sanitizeSettings({ paths: "heard" });
-  assert.deepEqual([old.paths, old.heard, old.returnRoutes], ["all", true, false], "stage 'heard' of the earlier stored settings");
-  assert.equal(sanitizeSettings({ nodeView: "all" }).paths, "all", "the node view of an earlier version");
 });

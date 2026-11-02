@@ -6,13 +6,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sampleNetwork } from "./panel-fixture.mjs";
-import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { downPath, upPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
 import { assumedDownPaths, downPathWith, sourceRouteMode, sourceRouteSummary, SOURCE_ROUTE_MODES, DEFAULT_SOURCE_ROUTE }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 import { sanitizeSettings as shellSettings } from "../custom_components/meshroute_topology_explorer/frontend/ui/settings.js";
 import { settings as zigbeeSettings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/settings.js";
 
-/** The shell's sanitizer with the Zigbee engine's keys (engines cut step 5). */
+/** The shell's sanitizer with the Zigbee engine's keys. */
 const sanitizeSettings = (stored) => shellSettings(stored, zigbeeSettings);
 import { sourceRoutePart } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -121,15 +123,12 @@ test("the setting: off, assume and zigpy, anything else counts as assume", () =>
   assert.equal(sanitizeSettings(null).sourceRoute, "assume");
 });
 
-test("the status line names the stage on the right, in both languages, and says nothing when no device is concerned", () => {
+test("the status line names the stage on the right, and says nothing when no device is concerned", () => {
   const en = translator("en");
-  const de = translator("de");
   const on = sourceRoutePart({ mode: "assume", count: 7 });
   const off = sourceRoutePart({ mode: "off", count: 7 });
   assert.equal(en(on[0], on[1]), "Return paths assumed for 7 devices (source route)");
-  assert.equal(de(on[0], on[1]), "Rückwege für 7 Geräte angenommen (Source Route)");
   assert.equal(en(off[0], off[1]), "Source route off · 7 return paths unknown");
-  assert.equal(de(off[0], off[1]), "Source Route aus · 7 Rückwege unbekannt");
   const short = sourceRoutePart({ mode: "assume", count: 7 }, true);
   assert.equal(en(short[0], short[1]), "7 return paths assumed");
   assert.equal(short[2], "status.sr_assumed", "the long form is the short part's description");

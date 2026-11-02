@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Zigbee map draws (spec 5.7, 7.1, 9.3; board M11; engines cut,
+// What a Zigbee map draws (spec 5.7, 7.1, 9.3; board M11,
 // section 2). "Communication paths" says what is drawn: the view "coordinator" (default) shows the up and down lanes
 // of all devices and, on click, only the device's way up and down; "table" every usable routing entry and, on click,
 // the device's own entries walked hop by hop; "all" the backbone of every lane a theoretical path uses and, on click,
@@ -18,8 +18,7 @@ import { drawMode } from "./source-routes.js";
 export { CLASSES };
 
 /** Pairs and lanes from the network (shared renderer, buildScene), each lane with everything it carries: up,
- *  downMeasured, downAssumed, downRecorded, downZigpyAssumed and route (lanes.js classifyLanes; until the engines cut's
- *  fix the two zigpy flags were left out, so the "zigpy" overview missed those return lanes); extra: every device's
+ *  downMeasured, downAssumed, downRecorded, downZigpyAssumed and route (lanes.js classifyLanes); extra: every device's
  *  up path and the cleaned network its paths are walked on, for classify(). */
 export function lanes(network) {
   const c = classifyLanes(network);

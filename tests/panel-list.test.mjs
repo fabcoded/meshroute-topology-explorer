@@ -55,20 +55,18 @@ test("rows as on board M3: the coordinator first, the parent of end devices, 'di
   const { rowMeta } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
   const { connectionOf } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/connection.js");
   const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
-  const { upPath } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js");
+  const { upPath } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js");
   const network = sampleNetwork();
   const rows = deviceRows(network);
   const coordinator = network.devices.find((d) => d.role === "coordinator");
   assert.equal(rows[0].id, coordinator.id, "the coordinator comes first");
   assert.deepEqual(rows.slice(1).map((r) => r.label), [...rows.slice(1).map((r) => r.label)].sort((a, b) => a.localeCompare(b)));
-  const de = translator("de");
   const en = translator("en");
   const row = (label) => rows.find((r) => r.label === label);
-  assert.equal(rowMeta(rows[0], de).split(" \u00B7 ").slice(0, 2).join(" \u00B7 "), "Koordinator \u00B7 Netzwerk");
+  assert.equal(rowMeta(rows[0], en).split(" \u00B7 ").slice(0, 2).join(" \u00B7 "), "Coordinator \u00B7 Network");
   // An end device names its parent; a sleepy one says it sleeps instead of its role.
   const end = network.devices.find((d) => d.role === "end device" && d.parent && d.parent !== coordinator.id && d.sleepy);
   const parent = network.devices.find((d) => d.id === end.parent);
-  assert.match(rowMeta(row(end.label), de), new RegExp(`^Taster|^[^·]+ \\u00B7 schläft \\u00B7 über ${parent.label}`));
   assert.ok(rowMeta(row(end.label), en).includes(`sleeps \u00B7 via ${parent.label}`));
   // A router whose way up is the one hop to the coordinator.
   const direct = network.devices.filter((d) => d.role === "router" && upPath(network, d.id).complete
@@ -76,7 +74,7 @@ test("rows as on board M3: the coordinator first, the parent of end devices, 'di
   assert.ok(direct.length > 0);
   for (const d of direct) {
     assert.deepEqual(connectionOf(network, d, coordinator.id), { kind: "direct" });
-    assert.ok(rowMeta(row(d.label), de).includes("Router \u00B7 direkt am Koordinator"), d.label);
+    assert.ok(rowMeta(row(d.label), en).includes("Router \u00B7 direct to the coordinator"), d.label);
   }
   const far = network.devices.find((d) => d.role === "router" && upPath(network, d.id).ids.length > 2);
   assert.equal(connectionOf(network, far, coordinator.id), null, "a router's next hop is a route, not a bond");

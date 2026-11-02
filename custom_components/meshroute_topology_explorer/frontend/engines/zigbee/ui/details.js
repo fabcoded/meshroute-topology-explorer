@@ -7,7 +7,7 @@
 import { nodePaths, unknownEnd } from "../node-paths.js";
 import { zigpyRecords } from "../source-routes.js";
 import { lqiText } from "../../../ui/format.js";
-import { unknownGlyph } from "../lanes.js";
+import { unknownGlyph } from "../../unknown-reason.js";
 
 const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -1) - (a.lqi ?? -1))
   || a.device.label.localeCompare(b.device.label);
@@ -25,9 +25,8 @@ export function hopValue(hop, t) {
  *  hop, "?" included (no table to ask: nothing to name). name(id) gives a device's label. */
 export function hopBasis(hop, t, name) {
   if (hop.state !== "unknown" || unknownGlyph(hop.reason) !== "–") return null;
-  const r = String(hop.reason);
-  const size = (/\(([^),]*)/.exec(r) || [])[1] || "";
-  const key = /^table full/.test(r) ? "full" : /^table nearly full/.test(r) ? "nearly" : /^table has space/.test(r) ? "space" : "capacity";
+  const { code, size = "" } = hop.reason;
+  const key = { table_full: "full", table_nearly_full: "nearly", table_space: "space" }[code] || "capacity";
   const parts = [];
   if (typeof hop.backLqi === "number") parts.push(t("details.basis_heard", { sender: name(hop.sender), hearer: name(hop.hearer), lqi: hop.backLqi }));
   parts.push(t(`details.basis_${key}`, { hearer: name(hop.hearer), size }));
@@ -115,13 +114,13 @@ export function tableRows(network, id, returns, name) {
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", ../node-paths.js; the view "table" lists the way with the coordinator here
+ *  `stage` (PATH_STAGES in ../lanes.js; the view "table" lists the way with the coordinator here
  *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
  *  then empty), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
  *  ../source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */
-export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRoutes = false } = {}) {
+export function detailsOf(network, id, stage, { sourceRoute = "off", returnRoutes = false } = {}) {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const device = byId.get(id);
   if (!device) return null;
@@ -136,8 +135,8 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRo
       direct: r.direct, stale: r.stale }))
     .sort((a, b) => a.destination.label.localeCompare(b.destination.label));
   const parent = device.parent ? byId.get(device.parent) || null : null;
-  const paths = nodeView === "table" && device.role === "coordinator" ? []
-    : nodePaths(network, id, nodeView === "table" ? "coordinator" : nodeView, { sourceRoute });
+  const paths = stage === "table" && device.role === "coordinator" ? []
+    : nodePaths(network, id, stage === "table" ? "coordinator" : stage, { sourceRoute });
   const label = (x) => (byId.get(x) || { label: x }).label;
   const differs = sourceRoute === "zigpy" ? zigpyRecords(network).differs.get(id) : null;
   const record = sourceRoute === "zigpy" ? { radio: (network.zigpy && network.zigpy.radio) || null,
@@ -160,6 +159,6 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRo
     paths,
     record,
     theory: theoryRows(paths, label),
-    table: nodeView === "table" ? tableRows(network, id, returnRoutes === true, label) : null,
+    table: stage === "table" ? tableRows(network, id, returnRoutes === true, label) : null,
   };
 }

@@ -7,7 +7,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 import { fakeZigpyRoutes } from "./zigpy-fake.mjs";
-import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { downPath, upPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
 import { assumedDownPaths, downPathWith, returnPaths, sourceRouteSummary, zigpyRecords }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 import { parseZigpyRoutes, readZigpyRoutes } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha.js";
@@ -169,7 +171,7 @@ test("status line: recorded and assumed counts, and why zigpy could not be read"
   const compact = sourceRoutePart({ mode: "zigpy", count: 8, zigpy: { status: "missing" } }, true);
   assert.equal(en(compact[0], compact[1]), "zigpy not available");
   assert.equal(sourceRoutePart({ mode: "zigpy", count: 0, recorded: 0, zigpy: { status: "ok" } }), null);
-  for (const key of ["zha_not_loaded", "no_gateway", "internals_changed", "error", "unknown_command"]) {
+  for (const key of ["zha_not_loaded", "no_gateway", "internals_changed", "error"]) {
     assert.notEqual(en(`status.zigpy_reason_${key}`), `status.zigpy_reason_${key}`, key);
   }
 });
@@ -200,7 +202,7 @@ test("reading: one command, its errors become a reason, a lost connection is pas
   const fail = (err) => readZigpyRoutes({ callWS: async () => { throw err; } });
   assert.deepEqual(await fail({ code: "not_supported", message: "internals_changed: the gateway has no application_controller" }),
     { status: "not_supported", reason: "internals_changed", message: "internals_changed: the gateway has no application_controller" });
-  assert.equal((await fail({ code: "unknown_command", message: "Unknown command." })).reason, "unknown_command");
+  assert.equal((await fail({ code: "unknown_command", message: "Unknown command." })).reason, "unknown_command", "any other code is shown as it came");
   assert.equal((await fail(new Error("boom"))).reason, "error");
   await assert.rejects(fail({ type: "result", success: false, error: { code: 3 } }));
 });
@@ -226,10 +228,10 @@ test("one call per data load: readNetwork attaches zigpy's answer, and a failure
   assert.equal(lost.phase, "disconnected");
 });
 
-// Found after the engines cut and fixed after step 10: buildScene copied only
+// Regression: buildScene once copied only
 // up, downMeasured, downAssumed and route onto the scene's lanes, so under "zigpy" the overview never drew a recorded
 // return lane or a zigpy-assumed one as down, while the click's walks did. The one intended Zigbee parity difference
-// of the cut, in the zigpy stage only.
+// in the zigpy stage only.
 test("zigpy stage: the overview draws the recorded and the zigpy-assumed return lanes as down, as the walks do", async () => {
   const { buildScene } = await import("../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js");
   const { sceneClasses } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js");

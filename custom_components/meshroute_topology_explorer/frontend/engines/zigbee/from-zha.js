@@ -6,7 +6,7 @@
 // IEEE is unusable and to resolve routing entries, which carry no IEEE. The tables of an unavailable device are
 // stale: its readings are dropped; its routes are kept but flagged `stale` and never followed by path walks
 // (a later "last known" view may use them).
-import { parseAddress, parseLqi, normalizeIeee, formatNwk } from "../../model/parse.js";
+import { parseAddress, parseLqi, normalizeIeee, formatNwk, disambiguateLabels } from "../../model/parse.js";
 import { deviceKind, receiverOffWhenIdle } from "./kinds.js";
 import { entityIds } from "./signature.js";
 
@@ -48,16 +48,6 @@ function baseLabel(device, userName) {
   if (userName) return { label: userName, labelKind: "user" };
   if (device.role === "coordinator") return { label: "Coordinator", labelKind: "coordinator" };
   return { label: device.model || device.name, labelKind: "model" };
-}
-
-/** Make labels unique (spec 8): identical labels get the network address appended in upper-case hex, or the IEEE
- *  tail when the address is unknown. */
-function disambiguate(devices) {
-  const count = new Map();
-  for (const d of devices) count.set(d.label, (count.get(d.label) || 0) + 1);
-  for (const d of devices) {
-    if (count.get(d.label) > 1) d.label += ` (${d.nwk === null ? d.id.slice(-5) : formatNwk(d.nwk)})`;
-  }
 }
 
 /** Table capacity per model: the largest router-entry count seen in any table of the same manufacturer and model,
@@ -135,7 +125,7 @@ export function normalize(rawDevices, { deviceRegistry, areaRegistry } = {}) {
     devices.push(device);
     byId.set(id, device);
   }
-  disambiguate(devices);
+  disambiguateLabels(devices, (d) => (d.nwk === null ? d.id.slice(-5) : formatNwk(d.nwk)));
 
   // NWK addresses can collide in stale tables; an ambiguous address resolves to nothing rather than to a guess.
   const nwkOwner = new Map();

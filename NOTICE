@@ -16,12 +16,6 @@ Design input
   symbols.js) were designed by Fabian Schwamborn with design input from ChatGPT (OpenAI),
   passed on by him, and completed by Claude (Anthropic). No icon set or logo was used.
 
-Data
-  The cividis colour values in custom_components/meshroute_topology_explorer/frontend/
-  graph/palette.js are 17 entries of the table published by Nuñez, Anderton and Renslow
-  (2018), PLOS ONE, doi:10.1371/journal.pone.0199239, supplement S2, licensed under the
-  Creative Commons Attribution 4.0 licence (https://creativecommons.org/licenses/by/4.0/).
-
 Trademarks
   Zigbee and Matter are trademarks of the Connectivity Standards Alliance. Thread is a
   trademark of the Thread Group, Inc. Wi-Fi is a trademark of the Wi-Fi Alliance.

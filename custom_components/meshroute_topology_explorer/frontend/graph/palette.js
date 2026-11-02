@@ -1,16 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Colours of the map (spec 8): theme resolution, WCAG contrast, the cividis sequence and its contrast-safe part, the
-// Okabe–Ito colours of the category fills (role, power source) and the grey for "no value". Pure functions, no DOM.
+// Colours of the map (spec 8): theme resolution, WCAG contrast, the Okabe–Ito colours of the category fills (role,
+// power source) and the grey for "no value". Pure functions, no DOM.
 // The panel passes theme colours in; nothing here depends on Home Assistant.
 // Tested in Node: npm test
-
-/** cividis at t = 0, 1/16, ..., 1: 17 values of the published table (Nuñez, Anderton and Renslow 2018, PLOS ONE,
- *  doi:10.1371/journal.pone.0199239, supplement S2, CC BY 4.0; see NOTICE). Linear interpolation between them stays
- *  within about 4 ΔE of the full 256-entry table. */
-const CIVIDIS = [
-  "#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073", "#7c7c78",
-  "#8b8779", "#9b9477", "#aca174", "#bcaf6f", "#cebc68", "#e0cb5e", "#f2da50", "#ffea46",
-].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
 
 /** Light and dark defaults, used for anything the caller leaves out. */
 export const LIGHT = Object.freeze({
@@ -77,82 +69,6 @@ export function ensureContrast(color, background, min = MIN_CONTRAST) {
   return out;
 }
 
-/** cividis at t in [0, 1] as [r, g, b]. Linear interpolation between the anchors. */
-export function cividis(t) {
-  const x = Math.max(0, Math.min(1, Number.isFinite(t) ? t : 0)) * (CIVIDIS.length - 1);
-  const i = Math.min(CIVIDIS.length - 2, Math.floor(x));
-  return mix(CIVIDIS[i], CIVIDIS[i + 1], x - i).map(Math.round);
-}
-
-/** The widest stretch [lo, hi] of cividis that keeps 3:1 against the background. Lines have no outline of their own,
- *  so on a light theme they use the dark part and on a dark theme the light part; the legend shows the same stretch.
- *  If less than a third of the map qualifies (a mid-grey background), the whole map is used and lines get a casing. */
-export function contrastRange(background, min = MIN_CONTRAST) {
-  const steps = 100;
-  let best = [0, -1];
-  let start = -1;
-  for (let i = 0; i <= steps + 1; i++) {
-    const ok = i <= steps && contrastRatio(cividis(i / steps), background) >= min;
-    if (ok && start < 0) start = i;
-    if (!ok && start >= 0) {
-      if (i - 1 - start > best[1] - best[0]) best = [start, i - 1];
-      start = -1;
-    }
-  }
-  const lo = best[0] / steps;
-  const hi = best[1] / steps;
-  return hi - lo >= 1 / 3 ? { lo, hi, casing: false } : { lo: 0, hi: 1, casing: true };
-}
-
-/** CIELAB of an sRGB colour (D65 white; IEC 61966-2-1 matrix, CIE 15 formulas), for colour distances. */
-export function toLab([r, g, b]) {
-  const lin = (v) => {
-    const c = v / 255;
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  const [R, G, B] = [lin(r), lin(g), lin(b)];
-  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : t / (3 * (6 / 29) ** 2) + 4 / 29);
-  const fx = f((0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047);
-  const fy = f(0.2126729 * R + 0.7151522 * G + 0.072175 * B);
-  const fz = f((0.0193339 * R + 0.119192 * G + 0.9503041 * B) / 1.08883);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-/** Colour distance ΔE (CIE 1976) between two sRGB colours. */
-export function deltaE(a, b) {
-  const p = toLab(a);
-  const q = toLab(b);
-  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-}
-
-/** The grey for "no value under this fill" (not rated, no category). It lies in the lightness gap between the
- *  theme's stretch of the rating scale and the background (lighter than every rating colour on a light theme, darker
- *  on a dark one), as far (ΔE) from both as possible. A fixed grey sat inside the scale: #707070 matched the weakest
- *  tenth on dark themes, #a3a3a3 the strongest on light ones, so weak reception looked unrated. Black or white would
- *  be further in ΔE but read like the scale's navy or yellow end at symbol size. Returns the grey and its smallest
- *  distance to scale and background. */
-export function noValueGrey(background, range) {
-  const scale = [];
-  for (let t = range.lo; t <= range.hi + 1e-9; t += (range.hi - range.lo) / 64) scale.push(toLab(cividis(t)));
-  const bg = toLab(background);
-  const lightest = Math.max(...scale.map((c) => c[0]));
-  const darkest = Math.min(...scale.map((c) => c[0]));
-  const inGap = (l) => {
-    if (bg[0] > lightest) return l > lightest && l < bg[0];
-    if (bg[0] < darkest) return l < darkest && l > bg[0];
-    return true; // a background inside the scale's lightness: no gap, take the best grey anywhere
-  };
-  let best = { grey: [128, 128, 128], gap: -1 };
-  for (let v = 0; v <= 255; v++) {
-    const lab = toLab([v, v, v]);
-    if (!inGap(lab[0])) continue;
-    let gap = Math.hypot(lab[0] - bg[0], lab[1] - bg[1], lab[2] - bg[2]);
-    for (const s of scale) gap = Math.min(gap, Math.hypot(lab[0] - s[0], lab[1] - s[1], lab[2] - s[2]));
-    if (gap > best.gap) best = { grey: [v, v, v], gap };
-  }
-  return best;
-}
-
 /** Okabe–Ito colours for categories (Okabe and Ito 2008, "Color Universal Design"), spec 8. */
 export const OKABE_ITO = Object.freeze({
   black: "#000000", orange: "#e69f00", skyBlue: "#56b4e9", bluishGreen: "#009e73", yellow: "#f0e442",
@@ -162,6 +78,9 @@ export const OKABE_ITO = Object.freeze({
 /** Fills a user can choose (spec 8); "none" (neutral grey) is the default. Reception is shown at the arrows, not in
  *  the symbols. Relay load arrives with the route view (v1.1). */
 export const FILLS = Object.freeze(["none", "role", "power"]);
+
+/** Grey of a device without a value under the current fill, per theme brightness: a fixed pair (spec 8). */
+export const NO_VALUE = Object.freeze({ light: "#bfbfbf", dark: "#393939" });
 
 /** Neutral symbol grey of the "none" fill per theme brightness, as designed (spec 8). */
 export const NEUTRAL = Object.freeze({ light: "#c5c8cb", dark: "#5c6166" });
@@ -240,8 +159,7 @@ export function receptionColor(rating, theme) {
 }
 
 /** Complete theme with derived colours as hex strings. Unknown or unparsable entries fall back to the light or dark
- *  default, picked by the background's luminance. The grey of devices without a value (node) is always derived
- *  (noValueGrey), so it cannot be mistaken for a rating. input.receptionStops: the user's [bad, medium, good] (each
+ *  default, picked by the background's luminance. input.receptionStops: the user's [bad, medium, good] (each
  *  a colour or null) for colour by reception. */
 export function resolveTheme(input = {}) {
   const bgIn = parseColor(input.background);
@@ -250,7 +168,6 @@ export function resolveTheme(input = {}) {
   const bg = pick("background");
   const fg = ensureContrast(pick("foreground"), bg, 4.5);
   const muted = ensureContrast(pick("muted"), bg);
-  const range = contrastRange(bg);
   const categories = {};
   for (const [fill, map] of Object.entries(CATEGORY_FILLS)) {
     categories[fill] = Object.fromEntries(Object.entries(map).map(([key, name]) =>
@@ -261,11 +178,10 @@ export function resolveTheme(input = {}) {
     foreground: toHex(fg),
     outline: toHex(fg),
     muted: toHex(muted),
-    node: toHex(noValueGrey(bg, range).grey),
+    node: luminance(bg) < 0.18 ? NO_VALUE.dark : NO_VALUE.light,
     neutral: luminance(bg) < 0.18 ? NEUTRAL.dark : NEUTRAL.light,
     accent: toHex(ensureContrast(pick("accent"), bg)),
     font: typeof input.font === "string" && input.font ? input.font : base.font,
-    lineRange: range,
     categories,
     reception: receptionScale(bg, input.receptionStops),
     dark: luminance(bg) < 0.18,
@@ -281,12 +197,4 @@ export function lineColorOn(fill, theme) {
   const fg = parseColor(theme.foreground);
   const bg = parseColor(theme.background);
   return contrastRatio(fg, f) >= contrastRatio(bg, f) ? theme.foreground : theme.background;
-}
-
-/** Colour of a rating (0..1, spec 5.4) inside the theme's contrast-safe stretch of cividis; null for unknown. Lines,
- *  lanes and device fills share this one scale, so the legend needs a single bar per theme. */
-export function ratingColor(rating, theme) {
-  if (typeof rating !== "number" || !Number.isFinite(rating)) return null;
-  const { lo, hi } = theme.lineRange;
-  return toHex(cividis(lo + (hi - lo) * Math.max(0, Math.min(1, rating))));
 }

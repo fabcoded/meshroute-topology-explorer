@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   BAND, DASH, DIM, LANE_GAP, STEM, STROKES, VALUE_AT, laneGeometry, laneStyle, stemGeometry, widthStep, textBeside, WIDTHS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/links.js";
-import { CLASSES, legendEntries, strokeOf, unknownGlyph }
+import { CLASSES, legendEntries, strokeOf }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { sceneClasses } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js";
 import { GRID, OUTER, OUTER_RADIUS } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
@@ -18,7 +18,7 @@ import { receptionColor, resolveTheme, RECEPTION_STOPS, contrastRatio, parseColo
 import { asZigbee, recordingContext, labelWidth } from "./graph-fakes.mjs";
 
 const cross = (ax, ay, bx, by) => ax * by - ay * bx;
-/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle (engines cut step 6a). */
+/** A Zigbee class's style: its look (strokeOf, board M11) through the shared laneStyle. */
 const classStyle = (cls, rating, t, opts = {}) => laneStyle(strokeOf(cls, opts), rating, t, opts);
 const theme = resolveTheme({});
 
@@ -83,10 +83,13 @@ test("classes are told apart by dash and weight, not colour; widths follow the l
   assert.deepEqual(CLASSES.map((c) => strokeOf(c)), ["dashed", "dashdot", "solid", "solid"]);
 });
 
+import { unknownGlyph } from "../custom_components/meshroute_topology_explorer/frontend/engines/unknown-reason.js";
+
 test("glyphs: '–' where the hearer's table does not list the sender, '?' where there is no table or LQI 0", () => {
-  for (const reason of ["table full (16/16)", "table nearly full (14/16), link probably weak",
-    "table has space, link probably weak or aged out", "capacity unknown"]) assert.equal(unknownGlyph(reason), "–");
-  for (const reason of ["end device (no table)", "table missing or stale", "lqi 0", null, undefined]) {
+  for (const code of ["table_full", "table_nearly_full", "table_space", "capacity_unknown", "not_listed"]) {
+    assert.equal(unknownGlyph({ code }), "–", code);
+  }
+  for (const reason of [{ code: "no_table_end_device" }, { code: "table_missing" }, { code: "lqi0" }, null, undefined]) {
     assert.equal(unknownGlyph(reason), "?");
   }
 });
@@ -114,7 +117,7 @@ const NET = {
     { a: "e1", b: "r1", ab: dir("implied", null, null, "parent"), ba: dir("measured", 90, 0.4, "table") },
     { a: "r1", b: "r2", ab: dir("implied", null, null, "route"), ba: dir("implied", null, null, "route") },
     { a: "r2", b: "r3", ab: dir("measured", 60, 0.2, "table"),
-      ba: dir("unknown", null, null, null, "table full (16/16)") },
+      ba: dir("unknown", null, null, null, { code: "table_full", size: "16/16" }) },
   ],
 };
 // Positions (screen = layout at zoom 1, centred): c left, r1 middle, r2 right, r3 below r2, e1 above r1.

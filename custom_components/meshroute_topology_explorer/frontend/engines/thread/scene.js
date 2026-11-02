@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Thread map draws (spec 3.2, 4.6, 7.1; engines cut, section 2): Thread data names neighbours and parents, not
+// What a Thread map draws (spec 3.2, 4.6, 7.1): Thread data names neighbours and parents, not
 // routes, so there are no views and no paths. The overview draws every lane with a class, parent links solid
 // ("parent", the end device's lane to its parent above the parent's lane back) and measured neighbours dashed
 // ("neighbour"); debug mode every lane. A click shows the device's own lanes with their values and the glyph of each

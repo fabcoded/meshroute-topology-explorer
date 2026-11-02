@@ -7,19 +7,17 @@
 // Pure, no DOM. npm test
 import { THREAD_CAPABILITIES, THREAD_SOURCE, fromMatter } from "./from-matter.js";
 
-export { RECEIVER_OF_SOURCE_TO_TARGET, THREAD_CAPABILITIES, THREAD_SOURCE, extAddress, isoTime, threadLqi, threadRssi }
-  from "./from-matter.js";
-
 const ROUTER_ROLES = new Set(["router", "border router"]);
 
 /** Why direction "hearer hears sender" has no reading (spec 4.3 wording where it fits). "–" glyph: the hearer's table
- *  was read and does not list the sender; "?": there is no table to ask (engines/thread/lanes.js unknownGlyph). */
+ *  was read and does not list the sender; "?": there is no table to ask (unknown-reason.js). */
 function unknownReason(hearer, r) {
-  if (r && r.strength === "none") return "reported as no link";
-  if (r) return "lqi 0";
-  if (!hearer.tableRead) return hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false
-    ? "no table (not a Matter node)" : "table missing or stale";
-  return "not in the neighbour table";
+  if (r && r.strength === "none") return { code: "no_link" };
+  if (r) return { code: "lqi0" };
+  if (!hearer.tableRead) {
+    return { code: hearer.kind === "hub" || hearer.role === "border router" || hearer.matter === false ? "not_matter" : "table_missing" };
+  }
+  return { code: "not_listed" };
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
@@ -72,7 +70,7 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
     capabilities,
     collectedAt,
     devices, readings, staleReadings: stale, routes: [], links, pairs,
-    status: threadStatus(devices, pairs, collectedAt),
+    status: threadStatus(devices, pairs),
     findings: threadFindings(devices),
     unresolved,
   };
@@ -101,20 +99,14 @@ export function threadPairs(devices, readings, links) {
     .map(({ a, b }) => ({ a, b, ab: direction(a, b), ba: direction(b, a) }));
 }
 
-/** Status line numbers (spec 6) of a Thread network: devices listed in a link, devices, unavailable ones, nodes, links
- *  (pairs), links measured in both directions, border routers listed, the collection time. No "router tables x/y"
- *  and no completeness (engines cut, step 7): every Matter node's table comes with the snapshot. */
-export function threadStatus(devices, pairs, collectedAt) {
+/** Status line numbers (spec 6) of a Thread network: links (pairs), links measured in both directions, border routers
+ *  listed. No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
+export function threadStatus(devices, pairs) {
   const both = pairs.filter((p) => p.ab.state === "measured" && p.ba.state === "measured").length;
   return {
-    devicesListed: devices.filter((d) => pairs.some((p) => p.a === d.id || p.b === d.id)).length,
-    devicesTotal: devices.length,
-    unavailable: devices.filter((d) => !d.available).length,
-    nodes: devices.length,
     links: pairs.length,
     linksBoth: both,
     borderRouters: devices.filter((d) => d.role === "border router").length,
-    collectedAt,
   };
 }
 
@@ -127,8 +119,8 @@ export function threadFindings(devices) {
   for (const d of devices) {
     if (!d.available) out.push({ kind: "offline", device: d.id, evidence: { lastSeen: d.lastSeen }, missing: [] });
     if (d.role === "end device" && d.parent && !byId.get(d.parent).available) {
-      out.push({ kind: "parent offline", device: d.id, evidence: { parent: d.parent, parentLastSeen: byId.get(d.parent).lastSeen,
-        listedInStaleTable: false, lastKnown: false }, missing: [] });
+      out.push({ kind: "parent offline", device: d.id,
+        evidence: { parent: d.parent, parentLastSeen: byId.get(d.parent).lastSeen }, missing: [] });
     }
   }
   for (const d of devices) {

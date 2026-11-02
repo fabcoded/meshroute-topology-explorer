@@ -33,14 +33,14 @@ const PATHS_OPEN = 12;
 const WEAKEST = 0.1;
 
 /** Fill `container` with the details of `id`. ctx: { network, t, id, debug, raw (Map id -> zha/devices entry),
- *  nodeView ("coordinator" | "table" | "all"), returnRoutes (view "table"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
+ *  stage (PATH_STAGES: "coordinator" | "table" | "all"), returnRoutes (view "table"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
  *  (formatted time the table was first seen as it is now, or null), pinned, idPrefix, onSub(sub, { focus }),
  *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener), onFindings(opener) (show
  *  the Findings tab) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
-  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView, { sourceRoute: ctx.sourceRoute,
+  const info = ctx.id ? detailsOf(network, ctx.id, ctx.stage, { sourceRoute: ctx.sourceRoute,
     returnRoutes: ctx.returnRoutes }) : null;
   if (!info) {
     container.append(h("p", { class: "empty", text: t("details.empty") }));
@@ -200,7 +200,7 @@ function pathsCard(all_, ctx, name, record = null) {
 function theoryCard(rows, ctx, name) {
   const t = ctx.t;
   // Per direction the hop count only: a "weakest RX" would mix a missing value with a low one and compare receivers
-  // on different scales (review 1.4b); the values are in the opened row, hop by hop.
+  // on different scales; the values are in the opened row, hop by hop.
   const way = (p, arrow) => h("span", { class: "theory-way", text: p ? `${arrow} ${p.complete ? p.hops.length : "?"}` : "" });
   const line = (p, label) => {
     const { steps, tail } = pathParts(p, t, name);
@@ -403,7 +403,7 @@ function clusters(panel, d, raw, ctx) {
   const body = h("tbody");
   for (const ep of table) {
     const profile = profileName(ep.profile);
-    const type = ep.profile !== null && ep.deviceType !== null ? deviceTypeName(ep.profile, ep.deviceType, t.lang) : null;
+    const type = ep.profile !== null && ep.deviceType !== null ? deviceTypeName(ep.profile, ep.deviceType) : null;
     const head = [t("cluster.endpoint", { n: ep.endpoint }),
       ep.profile !== null ? `${profile || t("cluster.profile_unknown")} ${formatNwk(ep.profile)}` : null,
       ep.deviceType !== null ? `${type || t("cluster.type_unknown")} ${formatNwk(ep.deviceType)}` : null]
@@ -411,7 +411,7 @@ function clusters(panel, d, raw, ctx) {
     body.append(h("tr", { class: "ep-row" }, h("th", { colSpan: 3, scope: "colgroup", text: head })));
     for (const c of ep.clusters) {
       const open = (opener) => ctx.onCluster({ endpoint: ep.endpoint, profile: ep.profile, cluster: c.id, direction: c.direction }, opener);
-      const label = c.manufacturerSpecific ? (d.vendor || t("cluster.vendor_unknown")) : clusterName(c.id, t.lang) || t("cluster.unknown");
+      const label = c.manufacturerSpecific ? (d.vendor || t("cluster.vendor_unknown")) : clusterName(c.id) || t("cluster.unknown");
       const button = h("button", { type: "button", class: "row-button", on: { click: (e) => { e.stopPropagation(); open(e.currentTarget); } } },
         label, c.manufacturerSpecific ? h("span", { class: "tag", text: t("cluster.manufacturer") }) : null);
       body.append(h("tr", { class: "cluster-row", on: { click: () => open(button) } },

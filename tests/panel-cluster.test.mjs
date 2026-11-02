@@ -14,8 +14,8 @@ import { zhaDevicePath } from "../custom_components/meshroute_topology_explorer/
 /** The source page a network's adapter gives where the capability says the source has one (as the Zigbee Details do). */
 const pageOf = (device, capabilities, key) => (capabilities && capabilities.devicePage ? adapterByKey(key).devicePage(device, "signature") : null);
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js";
+import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js";
 
 const st = (state, attributes = {}) => ({ state, attributes });
 
@@ -28,8 +28,8 @@ test("known values: the one obvious entity's state, else nothing", () => {
     { entityId: "light.lamp", kind: "number", value: 180, unit: null, from: "brightness" });
   assert.equal(knownValue(0x0300, 0x0007, "in", ids, states).value, 2700);
   assert.deepEqual(knownValue(0x0b04, 0x050b, "in", ids, states), { entityId: "sensor.lamp_power", kind: "number", value: "4.2", unit: "W" });
-  const t = translator("de");
-  assert.equal(valueText(knownValue(0x0006, 0x0000, "in", ids, states), t), "an");
+  const t = translator("en");
+  assert.equal(valueText(knownValue(0x0006, 0x0000, "in", ids, states), t), "on");
   assert.equal(valueText(knownValue(0x0300, 0x0007, "in", ids, states), t), "2700 K");
   assert.equal(valueText(knownValue(0x0b04, 0x050b, "in", ids, states), t), "4.2 W");
   // Not obvious, or no value: nothing.

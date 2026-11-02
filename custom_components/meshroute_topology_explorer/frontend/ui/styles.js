@@ -113,7 +113,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .drawer[data-collapsed="true"] .drawer-head { border-bottom: none; height: 100%; }
 .tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
-/* Where the tabs do not fit (a narrow side panel, long German names) the row scrolls and fades out at the edge that
+/* Where the tabs do not fit (a narrow side panel, long names) the row scrolls and fades out at the edge that
    hides more (data-more-* set by drawer.js). */
 .tabs[data-more-end] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }

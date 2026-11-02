@@ -8,16 +8,16 @@ import { isActive } from "./from-zha.js";
 
 const NEARLY_FULL = 2; // "nearly full" = capacity minus this or more
 
-/** Why direction A->B has no reading: the most specific honest reason, never a verdict about the radio link. */
+/** Why direction A->B has no reading (unknown-reason.js): the most specific honest reason, never a verdict about the radio link. */
 function unknownReason(a, reading) {
-  if (reading) return "lqi 0";                      // listed, but the table says 0: unmeasured or very weak
-  if (a.role === "end device") return "end device (no table)";
-  if (!a.hasTable) return "table missing or stale";
-  if (a.tableCapacity === null) return "capacity unknown";   // no other device of the model or the manufacturer has a table
-  const size = `${a.tableSize}/${a.tableCapacity}${a.tableCapacitySource === "vendor" ? ", vendor estimate" : ""}`;
-  if (a.tableFull) return `table full (${size})`;
-  if (a.tableSize >= a.tableCapacity - NEARLY_FULL) return `table nearly full (${size}), link probably weak`;
-  return "table has space, link probably weak or aged out";
+  if (reading) return { code: "lqi0" };                      // listed, but the table says 0: unmeasured or very weak
+  if (a.role === "end device") return { code: "no_table_end_device" };
+  if (!a.hasTable) return { code: "table_missing" };
+  if (a.tableCapacity === null) return { code: "capacity_unknown" }; // no other device of the model or manufacturer has a table
+  const fill = { size: `${a.tableSize}/${a.tableCapacity}`, vendorEstimate: a.tableCapacitySource === "vendor" };
+  if (a.tableFull) return { code: "table_full", ...fill };
+  if (a.tableSize >= a.tableCapacity - NEARLY_FULL) return { code: "table_nearly_full", ...fill };
+  return { code: "table_space" };
 }
 
 /** All pairs with evidence in at least one direction: [{ a, b, ab, ba }], a < b by id, ab = "a hears b".
