@@ -548,19 +548,18 @@ user-supplied image or map tiles from a user-configured address.
   symbol is neutral grey (`#c5c8cb` light, `#5c6166` dark) with lines in the theme's foreground; reception shows at
   the arrows, not as a fill. Under role and power the lines take the theme's foreground or background, whichever
   contrasts more with the fill (at least 3:1 on every fill used). A device without a value under the current fill is
-  grey with a slash; per theme that grey lies beyond the rating scale's lightness, on the background's side, at least
-  15 ΔE from scale and background.
+  grey with a slash, a fixed pair (`#bfbfbf` light, `#393939` dark).
 - **Category fills**: the four Okabe–Ito colours near 3:1 on white and near-black, nudged to 3:1 per theme: role
   (coordinator vermillion, router bluish green, end device blue, border router reddish purple), power source (mains
   blue, battery reddish purple, DC bluish green). ZHA's "Battery or Unknown" counts as battery, and the legend says
   so.
-- **Palettes**: Okabe–Ito for categories, cividis for sequences; graphic elements reach 3:1 against light and dark
+- **Palettes**: Okabe–Ito for categories; graphic elements reach 3:1 against light and dark
   Home Assistant themes. Colour never carries meaning alone (7.1). The opt-in path display coloured by reception uses
   by default red, yellow and green per theme (light #d93a26, #b58300, #1d6f31; dark #f2604d, #f2c230, #3fbd5c),
   CIELAB lightness at least 8 apart so they differ without hue; the user may replace each for both themes. The scale
   is interpolated between the three and nudged to 3:1 against the background; numbers and widths say the same.
 - **Labels**: a block of up to three lines, each switchable (View tab, stored 11): the **type** above the symbol in
-  grey (kind, 4.2, in the user's language; none for an unknown kind, whose symbol shows "?"; on), the readable name
+  grey (kind, 4.2; none for an unknown kind, whose symbol shows "?"; on), the readable name
   below (user's name, else model; on), and the original Home Assistant name (the integration's registry name) in a
   smaller grey line below, only where it differs (off). The type line shows only from the working scale (9.3) up.
   - Labels are text, never HTML. A name keeps the part that distinguishes it from similar names (cut shared

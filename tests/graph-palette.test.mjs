@@ -1,33 +1,23 @@
 // SPDX-License-Identifier: MIT
-// Tests of the colours (spec 8): the published cividis values, ratings drawn with 3:1 against light and dark
-// backgrounds, theme colours corrected to 3:1, unknown values without colour, the Okabe–Ito fills for role and power,
-// the grey for "no value" clear of the scale, with a slash.  node --test "tests/**/*.test.mjs"
+// Tests of the colours (spec 8): theme colours corrected to 3:1, the Okabe–Ito fills for role and power, the fixed
+// grey for "no value", with a slash.  node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  resolveTheme, ratingColor, parseColor, contrastRatio, cividis, toHex, MIN_CONTRAST, OKABE_ITO, CATEGORY_FILLS,
-  fillColor, lineColorOn, powerCategory, FILLS, toLab, deltaE,
+  resolveTheme, receptionColor, parseColor, contrastRatio, MIN_CONTRAST, OKABE_ITO, CATEGORY_FILLS,
+  fillColor, lineColorOn, powerCategory, FILLS,
 } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { buildScene, drawScene } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { SLASH } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { asZigbee, drawnSymbols, recordingContext } from "./graph-fakes.mjs";
 
-test("cividis passes through the 17 published values at t = 0, 1/16, ..., 1", () => {
-  const published = ["#00204d", "#002c69", "#05366e", "#2d426c", "#414d6b", "#52596c", "#61646f", "#6f7073",
-    "#7c7c78", "#8b8779", "#9b9477", "#aca174", "#bcaf6f", "#cebc68", "#e0cb5e", "#f2da50", "#ffea46"];
-  published.forEach((hex, i) => assert.equal(toHex(cividis(i / 16)), hex));
-  const lum = (t) => contrastRatio(cividis(t), [0, 0, 0]);
-  for (let t = 0; t < 1; t += 0.01) assert.ok(lum(t + 0.01) > lum(t), "lightness rises throughout");
-});
-
-test("every rating colour reaches 3:1 against common light and dark backgrounds", (t) => {
-  for (const background of ["#ffffff", "#fafafa", "#f0f0f0", "#111111", "#1c1c1c", "#303030"]) {
-    const theme = resolveTheme({ background });
-    assert.equal(theme.lineRange.casing, false, background);
-    t.diagnostic && t.diagnostic(`${background}: cividis ${theme.lineRange.lo}..${theme.lineRange.hi}`);
-    for (let r = 0; r <= 1.0001; r += 0.01) {
-      assert.ok(contrastRatio(parseColor(ratingColor(r, theme)), parseColor(background)) >= MIN_CONTRAST, `${background} ${r}`);
-    }
+test("the grey for 'no value' is a fixed pair, clear of the background and of the neutral grey of the none fill", () => {
+  const light = resolveTheme({ background: "#ffffff" });
+  const dark = resolveTheme({ background: "#111111" });
+  assert.deepEqual([light.node, dark.node], ["#bfbfbf", "#393939"]);
+  for (const theme of [light, dark]) {
+    assert.ok(contrastRatio(parseColor(theme.node), parseColor(theme.background)) >= 1.5, theme.background);
+    assert.notEqual(theme.node, theme.neutral);
   }
 });
 
@@ -38,14 +28,6 @@ test("theme colours are corrected to 3:1, unparsable ones fall back to the defau
   }
   assert.equal(theme.foreground, "#212121");
   assert.equal(resolveTheme({ background: "#000" }).dark, true);
-});
-
-test("unknown ratings have no colour; higher ratings are lighter on light and on dark themes", () => {
-  for (const theme of [resolveTheme({}), resolveTheme({ background: "#111111" })]) {
-    for (const v of [null, undefined, NaN, "0.5"]) assert.equal(ratingColor(v, theme), null);
-    const lum = (r) => contrastRatio(parseColor(ratingColor(r, theme)), [0, 0, 0]);
-    assert.ok(lum(1) > lum(0.5) && lum(0.5) > lum(0));
-  }
 });
 
 test("role and power fills: Okabe–Ito colours, 3:1 against light and dark backgrounds, distinct within a fill", () => {
@@ -87,28 +69,6 @@ test("fillColor follows the chosen fill; devices without a category stay grey (n
   assert.equal(powerCategory("DC Source"), "dc");
   assert.equal(powerCategory("Unknown"), null);
   assert.equal(powerCategory(null), null);
-});
-
-test("the grey for 'no value' stays clear of the rating scale and the background in every theme", (t) => {
-  for (const background of ["#ffffff", "#fafafa", "#f0f0f0", "#111111", "#1c1c1c", "#303030"]) {
-    const theme = resolveTheme({ background });
-    const grey = parseColor(theme.node);
-    const { lo, hi } = theme.lineRange;
-    let toScale = Infinity;
-    for (let x = lo; x <= hi + 1e-9; x += 0.005) toScale = Math.min(toScale, deltaE(grey, cividis(x)));
-    const toBackground = deltaE(grey, parseColor(background));
-    t.diagnostic && t.diagnostic(`${background}: grey ${theme.node}, ΔE to the scale ${toScale.toFixed(1)}, to the background ${toBackground.toFixed(1)}`);
-    assert.ok(toScale >= 15 && toBackground >= 15, `${background}: ${toScale} / ${toBackground}`);
-    // Outside the scale's lightness, on the background's side.
-    const L = toLab(grey)[0];
-    const scaleL = [toLab(cividis(lo))[0], toLab(cividis(hi))[0]];
-    assert.ok(theme.dark ? L < Math.min(...scaleL) : L > Math.max(...scaleL), `${background}: L* ${L}`);
-  }
-  // The greys this replaces sat inside the scale (the review's finding): dark #707070 within 2 ΔE of a rating colour.
-  const dark = resolveTheme({ background: "#111111" });
-  let old = Infinity;
-  for (let x = dark.lineRange.lo; x <= dark.lineRange.hi; x += 0.005) old = Math.min(old, deltaE([112, 112, 112], cividis(x)));
-  assert.ok(old < 2);
 });
 
 test("a device without a value under the fill (here: role unknown) is grey with a slash; rated and offline devices have none", () => {
@@ -160,7 +120,7 @@ test("symbol lines keep 3:1 against every fill the map uses, in light and dark t
   for (const background of ["#ffffff", "#fafafa", "#111111", "#1c1c1c"]) {
     const theme = resolveTheme({ background });
     const fills = [theme.node, theme.background, ...Object.values(theme.categories).flatMap(Object.values)];
-    for (let r = 0; r <= 1.0001; r += 0.01) fills.push(ratingColor(r, theme));
+    for (let r = 0; r <= 1.0001; r += 0.01) fills.push(receptionColor(r, theme));
     for (const fill of fills) {
       const line = lineColorOn(fill, theme);
       assert.ok([theme.foreground, theme.background].includes(line));

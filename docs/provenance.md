@@ -47,7 +47,7 @@ Origin of the code, its inputs and the numbers in the specification. Each commit
 - Platform: WCAG 2.2; WAI-ARIA Authoring Practices (tabs, listbox, menu button, switch, dialog, disclosure); MDN on
   Canvas 2D, Pointer Events, the dialog element, the colour input and CSS container queries; SVG 1.1 implementation
   notes F.6.5 (arc conversion); RFC 6455; Python documentation.
-- Palettes: Okabe and Ito 2008; cividis (Nuñez, Anderton and Renslow 2018, CC BY 4.0, see NOTICE).
+- Palettes: Okabe and Ito 2008.
 
 ## Numbers in the specification
 
@@ -82,8 +82,6 @@ Origin of the code, its inputs and the numbers in the specification. Each commit
 | tap below 8 px, long press 500 ms, wheel × 1.2 per notch, double tap 400 ms; zoom animation 200 ms; layout 12 ms per frame (40 ms before the first) | 9.3 | platform conventions; timings are choices |
 | zoom 0.1–8 × fit; tap zoom below a 24 px focus lane | 9.3 | choice; lanes under 4 px are not drawn |
 | hit area: symbol + 4 px, at least 24 px; 3:1 contrast | 8, 9.3 | WCAG 2.2 SC 2.5.8 and 1.4.11; + 4 px covers the rounded corners (0.58 × size from the centre) at every size |
-| cividis: 17 values at t = 0, 1/16 … 1 | A2 `graph/palette.js` | Nuñez, Anderton and Renslow 2018, PLOS ONE, doi:10.1371/journal.pone.0199239, supplement S2; linear interpolation stays within about 4 ΔE of the full table |
-| the rating scale uses the part of cividis with 3:1 against the background (white 0–0.63, #111111 0.35–1) | `graph/palette.js` | derivation from WCAG 2.2 1.4.11 |
 | category fills: the four Okabe–Ito colours near 3:1 on white and near-black, nudged to 3:1 per theme | 8 | derivation from WCAG 2.2 1.4.11; reddish purple needs a nudge on #fafafa (2.93:1) |
 | symbol lines in foreground or background, whichever contrasts more: at least 3.63:1 on #1c1c1c, 3.84 on #111111, 3.95 on #fafafa, 4.02 on white | 8 | derivation from WCAG 2.2 1.4.11; `tests/graph-palette.test.mjs` |
 | grey for "no value" in the lightness gap furthest from scale and background, at least 15 ΔE, plus a slash | 8 | ΔE 1976 via CIELAB, D65: 18.9 on #111111, 22.2 on white; the fixed greys #707070 and #a3a3a3 lay within 1.5 and 13.5 ΔE of the scale |
