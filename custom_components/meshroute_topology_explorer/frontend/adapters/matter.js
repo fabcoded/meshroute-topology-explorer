@@ -17,7 +17,7 @@ export async function readThread(hass, registries = {}) {
     entries = await hass.callWS({ type: "config_entries/get", domain: "matter" });
   } catch (err) {
     if (isConnectionLost(err)) throw err;
-    return { status: "not_loaded" };
+    return { status: "error", message: errorText(err) };
   }
   if (!(Array.isArray(entries) && entries.some((e) => e && e.domain === "matter" && e.state === "loaded"))) {
     return { status: "not_loaded" };

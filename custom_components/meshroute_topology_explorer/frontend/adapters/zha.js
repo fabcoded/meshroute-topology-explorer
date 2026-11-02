@@ -81,14 +81,9 @@ export async function readZigpyRoutes(hass) {
 
 /** Send zha/topology/update without waiting: ZHA never answers it (spec 3.1). The connection's sendMessage
  *  (home-assistant-js-websocket) sends without registering an answer, so nothing waits forever; it throws without a
- *  connection, which the scan reports. Without it, callWS is called and its promise left alone. */
+ *  connection, which the scan reports. */
 export function sendScan(hass) {
-  const conn = hass && hass.connection;
-  if (conn && typeof conn.sendMessage === "function") {
-    conn.sendMessage({ type: "zha/topology/update" });
-  } else {
-    hass.callWS({ type: "zha/topology/update" }).catch(() => {});
-  }
+  hass.connection.sendMessage({ type: "zha/topology/update" });
 }
 
 /** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty" or "not_loaded"),

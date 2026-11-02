@@ -72,6 +72,12 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
   const err = await readThread(fakeHass({ topologyError: "home_assistant_error" }));
   assert.equal(err.status, "error");
   assert.equal((await readThread(fakeHass({ matter: false }))).status, "not_loaded");
+  const hass = fakeHass();
+  const failing = { ...hass, callWS: async (msg) => {
+    if (msg.type === "config_entries/get" && msg.domain === "matter") throw { code: "home_assistant_error", message: "entries" };
+    return hass.callWS(msg);
+  } };
+  assert.deepEqual(await readThread(failing), { status: "error", message: "entries" }, "a failed read is no 'not loaded'");
   const zhaOnly = await readNetwork(fakeHass({ topologyError: "not_supported" }));
   assert.equal(zhaOnly.network.source, "zha");
   assert.equal(zhaOnly.networks.thread, null);
