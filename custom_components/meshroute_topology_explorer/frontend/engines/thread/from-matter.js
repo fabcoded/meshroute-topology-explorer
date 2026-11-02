@@ -18,7 +18,7 @@
 // both observed directions are kept): the reporting node is `source` and the entry is its neighbour-table record of
 // `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the capture: links to a border router (not a Matter node, no table read) carry only
 // source_to_target. RECEIVER_OF_SOURCE_TO_TARGET is the one place to flip it.
-import { normalizeIeee } from "../../model/parse.js";
+import { disambiguateLabels, formatNwk, normalizeIeee } from "../../model/parse.js";
 
 export const RECEIVER_OF_SOURCE_TO_TARGET = "source";
 /** Text of the status line's source part. */
@@ -171,12 +171,7 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry } = {}) {
     devices.push(device);
     byNode.set(nodeKey, device);
   }
-  // Labels must tell devices apart (spec 8): identical ones get the RLOC16 or the address tail.
-  const seen = new Map();
-  for (const d of devices) seen.set(d.label, (seen.get(d.label) || 0) + 1);
-  for (const d of devices) {
-    if (seen.get(d.label) > 1) d.label += ` (${d.rloc16 !== null ? "0x" + d.rloc16.toString(16).toUpperCase().padStart(4, "0") : d.id.slice(-5)})`;
-  }
+  disambiguateLabels(devices, (d) => (d.rloc16 !== null ? formatNwk(d.rloc16) : d.id.slice(-5)));
 
   const readings = [];
   const stale = [];
