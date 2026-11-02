@@ -43,6 +43,8 @@ stays calm, and raw values, tables and scans are one click away.
 - Every commit carries `Provenance: human` or `Provenance: agent <tool>/<model>` (optionally `; brief <id>`). Agents
   never add `Signed-off-by`; the person who reviewed and submits the change signs off (`git commit -s`, the
   [Developer Certificate of Origin](https://developercertificate.org/)).
+- Sign-off is required from the release commit 0.1.0 on and for every external pull request. Older commits stay as
+  they are.
 
 ## Code
 

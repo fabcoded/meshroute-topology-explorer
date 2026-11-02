@@ -1,7 +1,8 @@
 # Provenance
 
-Origin of the code, its inputs and the numbers in the specification. Each commit names its author in a
-`Provenance:` trailer.
+Origin of the code, its inputs and the numbers in the specification. All commits but one name their author in a
+`Provenance:` trailer (`human` or `agent <tool>/<model>`); one early merge commit does not. Sign-off (DCO) is required
+from the release commit 0.1.0 on (AGENTS.md).
 
 ## How the code was written
 

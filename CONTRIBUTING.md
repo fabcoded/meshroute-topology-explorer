@@ -1,8 +1,9 @@
 # Contributing
 
 Setup, checks and bug reports. The project rules for people and AI agents, including scope, clean-room origin,
-provenance trailers, sign-off and captures, are in [AGENTS.md](AGENTS.md). By contributing you agree that your work
-is published under the MIT License.
+provenance trailers, sign-off (DCO, `git commit -s`) and captures, are in [AGENTS.md](AGENTS.md). By contributing you
+agree that your work is published
+under the MIT License.
 
 ## Development setup
 
