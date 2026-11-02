@@ -6,7 +6,7 @@
 // strongest. The stroke says the evidence, the same in every view (strokeOf: read from a routing table or a parent
 // link solid, assumed or derived dash-dot, computed dash-dot in the lighter grey, heard only dashed); the weight says
 // the role (weightOf: the way to the coordinator and back strong). "Communication paths" says what is drawn
-// (scene.js). Also the value under "RX:" (the raw LQI at the hearer, "Parent" or "Route" where only they imply the
+// (scene.js). Also the value in the lane (the raw LQI at the hearer, "Parent" or "Route" where only they imply the
 // direction), the glyph of a direction without a reading ("–" when the hearer's table does not list the sender, "?"
 // when there is no table to ask), and the legend rows of every path class with the view or option that draws it.
 // Pure. npm test
@@ -183,7 +183,7 @@ export function laneValue(dir, texts) {
  *  view), assumed or derived (views 1 and 3), computed (view 3, marked computed), heard (the option under the routing
  *  table, needs a selection); the weight by role; the band under a selected device's way up; the glyphs for directions
  *  without a reading where the option draws them (on click, debug); debug mode adds the lane without traffic or
- *  reading, the width steps and the unknown end; "RX:" at the hearer with a sample value, and with colored the
+ *  reading, the width steps and the unknown end; the value pill at the hearer with a sample value, and with colored the
  *  reception scale. */
 export function legendEntries(theme, { debug = false, colored = false, heard = false, paths = DEFAULT_PATHS } = {}) {
   const sample = (stroke, weight) => laneStyle(stroke, 1, theme, { weight });

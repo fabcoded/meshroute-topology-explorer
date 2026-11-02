@@ -92,7 +92,7 @@ export class GraphView extends EventTarget {
    *  "role" or "power"), engineView (the network engine's own view settings, which only the engine reads; Zigbee:
    *  paths, heard, returnRoutes, sourceRoute), receptionColors (lanes coloured by their reading), receptionStops (the
    *  user's [bad, medium, good] colours, each a colour or null for the theme's own), labels ({ type, name, haName }:
-   *  the lines of a device's label), texts ({ uncertain, parent, route, rx, pathUnknown, kinds: { light: "Light",
+   *  the lines of a device's label), texts ({ uncertain, parent, route, pathUnknown, kinds: { light: "Light",
    *  ... } }), seed, debug, env (timers and media queries, injectable for tests). */
   constructor(canvas, options = {}) {
     super();
@@ -109,7 +109,7 @@ export class GraphView extends EventTarget {
     this.engineView = { ...(options.engineView || {}) };
     this.receptionColors = options.receptionColors === true;
     this.labels = cleanLabels(options.labels);
-    this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx: "RX:", pathUnknown: "path unknown",
+    this.texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", pathUnknown: "path unknown",
       kinds: {}, ...(options.texts || {}) };
     this.width = 0;
     this.height = 0;
@@ -249,7 +249,7 @@ export class GraphView extends EventTarget {
   }
 
   /** Words the map draws itself, translated by the panel: { uncertain } for LQI 0 on a lane, { parent, route } on
-   *  a lane that a parent link or a route implies, { rx } above a lane's value, { pathUnknown } at an unknown end,
+   *  a lane that a parent link or a route implies, { pathUnknown } at an unknown end,
    *  { kinds } the device types above the symbols, by picture. */
   setTexts(texts) {
     this.texts = { ...this.texts, ...texts };

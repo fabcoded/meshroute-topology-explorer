@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Thread lane says (spec 3.2, 4.6, 7.1): the value under "RX:" (the RSSI in dBm, else the link quality 0-3,
+// What a Thread lane says (spec 3.2, 4.6, 7.1): the value in the lane (the RSSI in dBm, else the link quality 0-3,
 // "Parent" where only the parent link implies the direction), the glyph of a direction without a reading, and the
 // legend rows of what a Thread map draws: parent links, measured neighbours, the glyphs, RX in dBm; no views, no
 // stages. Drawn by the shared renderer through the engine (engines/index.js). Pure. npm test

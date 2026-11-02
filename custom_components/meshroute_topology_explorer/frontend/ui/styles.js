@@ -347,9 +347,10 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .view-tools .actions { margin: 6px 0; }
 .view-tools .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px;
   border-color: color-mix(in srgb, var(--mte-fg) 25%, transparent); }
-/* "RX:" over a value, as the map writes it beside a lane. */
-.rx-sample { display: inline-flex; flex-direction: column; align-items: center; width: 36px; flex: none; font-size: 11px;
-  line-height: 13px; }
+/* The pill the map draws in a lane around a value: thin outline, rounded ends, upright number. */
+.rx-sample { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 36px;
+  height: 16px; padding: 0 6px; flex: none; border: 1px solid var(--mte-fg); border-radius: 8px; font-size: 11.5px;
+  line-height: 14px; white-space: nowrap; }
 /* Confirmation dialog (scan): native <dialog> in the top layer, themed like the panels. */
 dialog.confirm { max-width: min(30em, calc(100vw - 32px)); padding: 20px 24px 16px; border: none; border-radius: 12px;
   background: var(--mte-card); color: var(--mte-fg); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); }

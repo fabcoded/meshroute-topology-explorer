@@ -510,15 +510,22 @@ its value: raw LQI at the hearer; "Parent" or "Route" where implied; "–" or "?
 - On a click (not hover) the up path also lies as a wide translucent band under its hops; in stage 2 it sets the way
   to the coordinator apart. Devices on the paths, their goals and the partners keep full strength and their labels.
 
-**Values at the arrows.** A value sits beside its lane on the right of travel, a quarter of the lane before the
-hearer, in two lines with a halo: "RX:" and the value below; so the two values of a pair never share a side. On a
-short lane it moves back just enough to stay beside its lane.
-- Values of the focus's lanes (click and hover) are never dropped and stay at that place even over another value, a
-  label or a symbol (overlap accepted), except over the label of the selected or hovered device (type line and name,
-  on a light plate): such a value takes the next place along its lane, else the same places on the other side, else
-  the place covering least. A lane too short for two lines shows its value at its middle beside the lane.
-- In the debug overview, values look for a free place (60 % and 88 % of the lane next); a lane too short or without
-  room shows none, and Details list every value.
+**Values at the arrows.** A value is an upright number in a small pill that interrupts its lane (decision 2026-11-02):
+the lane stops about 2 px before the pill and continues after it; the pill is about 16 px high with rounded ends, the
+number about 11.5 px, no "RX:" prefix. Fill is the map's background (light or dark theme); a 1 px outline in the lane's
+own colour (grey by default, the reception colour when lanes are coloured by reception).
+- Position: measured back from the arrow tip along the lane, the pill's centre sits at min(a quarter of the lane
+  length, 4 symbol diameters on screen), so long lanes keep the value near the hearer. Each direction of a pair has
+  its own pill on its own lane, so the two never meet.
+- A lane shorter than about 60 px on screen, or one where the pill would touch the arrowhead or a symbol, puts it at the
+  lane's middle; where it fits nowhere, the map shows no value and Details keep it.
+- Text values ("Parent", "Route", "–", "?") use the same pill, wider.
+- Values of the focus's lanes (click and hover) are never dropped. They keep their place unless it covers the label of
+  the selected or hovered device (type line and name, on a light plate) or a symbol: then the pill slides to the next
+  free place along its own lane, else the place covering least; on a lane with a single place it stays there, overlap
+  accepted. Focus labels choose their places clear of the pills' first places.
+- In the debug overview, values slide along their lane for a free place; a lane without room shows none, and Details
+  list every value.
 - Placement order: up and down, routes, computed hops, heard only. The overview without debug shows ratings by width
   only.
 - **Known limit**: at dense hubs values and neighbour labels overlap; the selected label stays readable, and the
@@ -667,8 +674,9 @@ One place per thing; nothing appears twice.
     assumed or derived "(views 1 and 3)"; computed, "a candidate, not observed traffic" "(computed, view 3)"; heard only
     "(option under "Routing table", needs a selection)"; one row for the width by role; the band; the glyphs "–" and "?" wherever
     the map can show them (option on in the routing table view, debug); in debug mode also the lane without traffic,
-    the width steps and the unknown end; "RX:" (the reception reported by the receiver at the arrowhead, a quarter of
-    the lane before it; receivers may use different scales); the colour bar while paths are coloured. These rows come
+    the width steps and the unknown end; the number in the line (the reception reported by the receiver at the
+    arrowhead, drawn in a pill; receivers may use different scales), with the text "Number in the line = reception at
+    the arrowhead"; the colour bar while paths are coloured. These rows come
     from the graph's own legend entries.
   - The fill while one is chosen.
   - **Symbols**: one row per sign, drawn at 40 px by the map's own code on a device of the network with its picture

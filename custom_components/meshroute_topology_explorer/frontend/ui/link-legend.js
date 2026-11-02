@@ -3,7 +3,7 @@
 // engines/*/lanes.js legendEntries): Zigbee's strokes by evidence whatever the view (read solid, assumed or derived
 // dash-dot, computed dash-dot in grey, heard only dashed grey, each with the views or option that draw it) and the
 // width by role, Thread's parent and neighbour lanes; the band under a selected device's way up, in debug mode also
-// the lane without traffic or reading, the width steps and the unknown end, the glyphs "–" and "?" where the stage draws them, "RX:" at the hearer, and the scale of the reception colours
+// the lane without traffic or reading, the width steps and the unknown end, the glyphs "–" and "?" where the stage draws them, the value pill at the hearer, and the scale of the reception colours
 // while paths are coloured. The samples use the entries' own stroke styles, so legend and map cannot drift apart; the
 // words come from i18n by entry id.
 // linkLegendRows is pure (tested in Node); the sample drawings run in the browser.
@@ -14,7 +14,7 @@ import { h, svg } from "./dom.js";
  *  nothing the map draws goes unexplained silently. */
 export function linkLegendRows(entries, t) {
   return entries.map((e) => {
-    // "RX:" rows are keyed by their id ("rx" -> legend.rx), every other row under legend.link.
+    // value rows are keyed by their id ("rx" -> legend.rx), every other row under legend.link.
     const key = e.kind === "rx" ? `legend.${e.id.replaceAll("-", "_")}` : `legend.link.${e.id}`;
     const row = { ...e, label: t.has(key) ? t(key) : e.id };
     // A computed class says so in the same brackets as its stage: "(computed, stage 2)".
@@ -75,10 +75,9 @@ function scaleSample(entry) {
     style: { background: `linear-gradient(90deg, ${entry.colors.join(", ")})` } });
 }
 
-/** "RX:" over a value, as the map writes it beside a lane (the row's own sample value). */
-function rxSample(t, value) {
-  return h("span", { class: "rx-sample", "aria-hidden": "true" }, h("span", { class: "muted", text: t("lane.rx") }),
-    h("strong", { text: value }));
+/** The pill the map draws in a lane around a value (the row's own sample value). */
+function rxSample(value) {
+  return h("span", { class: "rx-sample", "aria-hidden": "true", text: value });
 }
 
 /** The drawing for one row. */
@@ -89,7 +88,7 @@ function sampleFor(row, t) {
   if (row.kind === "band") return bandSample(row);
   if (row.kind === "stem") return stemSample(row);
   if (row.kind === "scale") return scaleSample(row);
-  if (row.kind === "rx") return rxSample(t, row.sample);
+  if (row.kind === "rx") return rxSample(row.sample);
   return h("span", { class: "glyph-sample" });
 }
 

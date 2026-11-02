@@ -21,9 +21,11 @@ export const LANE_GAP = 1;
 export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;
-/** Where a lane's value sits, as a share of the lane from the sender: a quarter before the hearer, the device the value
- *  belongs to. */
-export const VALUE_AT = 0.75;
+/** The value pill in a lane (decision 2026-11-02, spec 7.1): its height and text padding, CSS pixels; its centre sits
+ *  min(share of the lane, `diameters` symbol diameters) from the arrowhead's tip, so long lanes keep the value near
+ *  the hearer. A lane shorter than minLane, or one where the pill would touch the arrowhead (tip clearance) or the
+ *  sender's end, puts it at the lane's middle instead. */
+export const VALUE = Object.freeze({ share: 0.25, diameters: 4, minLane: 60, height: 16, font: 11.5, pad: 12, tip: 10, end: 2 });
 /** An incomplete path's end: a dashed stem this long at zoom 1 (CSS pixels, grows with the symbols, at most this share
  *  of the way to the goal), then "?". Own choice: long enough to point, short enough not to read as a link. */
 export const STEM = Object.freeze({ length: 30, share: 0.45, width: 1.5, dash: Object.freeze([3, 3]) });
@@ -95,13 +97,30 @@ export function laneGeometry(x1, y1, x2, y2, s1, s2, offset) {
   return { x0, y0, x1: x1e, y1: y1e, ux, uy, nx, ny, mx: (x0 + x1e) / 2, my: (y0 + y1e) / 2, len };
 }
 
-/** Centre for a text of size w × h beside a lane, on its right side, clear of the stroke, at share `at` of the lane
- *  from the sender (the middle by default; lane values use VALUE_AT, a quarter before the hearer). */
-export function textBeside(lane, w, h, gap = 2, at = 0.5) {
-  const reach = Math.abs(lane.nx) * (w / 2) + Math.abs(lane.ny) * (h / 2) + gap;
-  const px = lane.x0 + lane.ux * lane.len * at;
-  const py = lane.y0 + lane.uy * lane.len * at;
-  return [px + lane.nx * reach, py + lane.ny * reach];
+/** Size { w, h } of the pill around a value text of width textWidth. */
+export function pillSize(textWidth) {
+  return { w: Math.max(VALUE.height, textWidth + VALUE.pad), h: VALUE.height };
+}
+
+/** Pill centre at distance d back from the lane's arrowhead tip, on the lane's line. */
+export function pillCentre(lane, d) {
+  return [lane.x1 - lane.ux * d, lane.y1 - lane.uy * d];
+}
+
+/** Distances from the tip where a w x h pill may sit on the lane, best first: min(share of the lane, diameters x
+ *  symbol size) on a lane of at least VALUE.minLane, then the middle. A place counts only if the pill (its extent
+ *  along the lane, the box being upright) stays clear of the arrowhead and of the lane's start. Empty: no room. */
+export function pillDistances(lane, size, w, h) {
+  const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
+  const fits = (d) => d - along / 2 >= VALUE.tip && d + along / 2 <= lane.len - VALUE.end;
+  const out = [];
+  if (lane.len >= VALUE.minLane) {
+    const d = Math.min(lane.len * VALUE.share, VALUE.diameters * size);
+    if (fits(d)) out.push(d);
+  }
+  const middle = lane.len / 2;
+  if (fits(middle) && !out.some((d) => Math.abs(d - middle) < 1)) out.push(middle);
+  return out;
 }
 
 /** The dashed stem of an incomplete path from the device where its walk stopped towards its goal (screen positions),

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Values in the lane:** a lane's reception value is an upright number in a small pill that interrupts the lane, near the
+  arrowhead (a quarter of the lane or 4 symbol diameters back, whichever is less; the middle on short lanes). The "RX:"
+  prefix is gone; the legend explains the number once.
+
 ## 0.1.1 – Custom spread, direct delivery to neighbours
 
 - **Custom spread:** a fourth node distance "Custom" with its own steps (25 % each, ×0.6 to ×8) in the View tab, a

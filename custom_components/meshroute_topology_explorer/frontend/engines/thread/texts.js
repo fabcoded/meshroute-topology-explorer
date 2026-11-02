@@ -19,7 +19,7 @@ export const TEXTS = Object.freeze({
   "legend.link.parent": "Parent link: end device and its parent",
   "legend.link.neighbour": "Neighbour (measured, from the neighbour table); no route data for Thread",
   "legend.link.no-table-thread": "No reception value in this direction: no table to ask (border router or a node not read). This alone does not indicate a weak link.",
-  "legend.rx_thread": "Reception (RX) as reported by the receiver: RSSI in dBm; link quality (LQI 0–3) where no RSSI was reported.",
+  "legend.rx_thread": "Number in the line = reception at the arrowhead, as reported by the receiver: RSSI in dBm; link quality (LQI 0–3) where no RSSI was reported.",
   "evidence.thread_no_parent": "The topology lists no link between this end device and a router.",
   "details.thread_title": "Neighbours (Thread)",
   "details.thread_note": "From the neighbour tables in the Matter server's snapshot. Thread data has no routes, so no paths are shown.",
