@@ -4,7 +4,7 @@
 // Layout (spec 9.1; "one place per thing"): no header bar; the map fills the
 // panel. On the map only: top left "Devices" with the findings count and below it the slide switch "Details on click"
 // (with the sidebar button on narrow screens), top right "View" and below it "Legend", the zoom group bottom right,
-// the status line. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide
+// the status pill at the bottom centre. Two panels: left (Devices, Findings, Details) and right (View, Legend), side panels on wide
 // screens and bottom sheets on narrow ones (one sheet at a time).
 // There is no view switch yet: the quality view is the only view of v1; the switch comes with the route view (v1.1).
 // Data: ui/controller.js (load, errors, reconnect) over the adapters (adapters/index.js); settings: ui/settings.js;
@@ -34,7 +34,8 @@ import { renderLegend } from "./ui/legend-tab.js";
 import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
 import { ageParts } from "./ui/status.js";
-import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice, sourcePart }
+import { pillModel, statusPill } from "./ui/status-pill.js";
+import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice }
   from "./ui/network-switch.js";
 import { receptionText, roleText } from "./ui/format.js";
 import { readTheme, themeKey } from "./ui/theme.js";
@@ -59,7 +60,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._view = null;
     this._settings = null;
     this._networkKey = null; // the network the user chose (an adapter's key; ui/network-switch.js), null: default
-    this._networkMenu = false; // the status line's network menu is open
+    this._networkMenu = false; // the status pill's menu is open
     this._choice = "unread"; // the stored choice: "unread", "reading", "read"
     this._source = null; // the model's network as loaded
     this._network = null; // the same, labels translated: what every view shows
@@ -192,13 +193,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._devicesTab = new DevicesTab({ onSelect: (id) => this._select(id, "devices") });
     this._left.panel("devices").append(this._devicesTab.el);
 
-    // Reading and tab order: the controls top left and top right, the map, the zoom group, then the panels.
+    // Reading and tab order: the controls top left and top right, the map, the zoom group, the status pill, then the panels.
+    ui.status = h("section", { class: "status-pill" });
     ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.spread, ui.zoom,
-      this._left.el, this._right.el, ui.message);
-    ui.status = h("section", { class: "status", id: "mte-status" });
+      ui.status, this._left.el, this._right.el, ui.message);
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
-    ui.app = h("div", { class: "app" }, ui.map, ui.status, ui.live);
+    ui.app = h("div", { class: "app" }, ui.map, ui.live);
     this._root.append(h("style", { text: STYLES }), ui.app, ui.probe);
     this._resize = new ResizeObserver(() => this._layout());
     this._retranslate();
@@ -398,7 +399,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (this._view) this._view.resize();
     this._renderButtons();
 
-    // Status line (spec 6): source, tables, completeness, "observed unchanged since" and a followed scan.
+    // Status pill (spec 6): network, tables, "observed unchanged since", a followed scan; the banner "incomplete".
     const { incomplete } = this._renderStatus();
     ui.incomplete.hidden = !incomplete;
     if (incomplete) {
@@ -410,59 +411,43 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._renderTabs();
   }
 
-  /** Status line (spec 6): the network engine's parts (source, tables or links, "unchanged since" with its
-   *  caveat as the part's description, a followed scan with its stop button) and its part on the right (the
-   *  source-route stage). Below the wide breakpoint it is compact: short forms in at most two lines; the long forms
-   *  are the parts' descriptions. Returns the engine's status ({ parts, right, incomplete }). */
+  /** The panel itself is admin only (spec 10); the check is repeated for the link to the integration's page. */
+  _isAdmin() {
+    return Boolean(this._hass && this._hass.user && this._hass.user.is_admin);
+  }
+
+  /** Status pill (spec 6): the network engine's status line twice, compact for the pill's second line and in full for
+   *  the menu, plus the network switch and the link to the integration's page. Returns the engine's status
+   *  ({ parts, right, incomplete, level }). */
   _renderStatus() {
     const t = this._t;
     const net = this._network;
     const caps = net.capabilities;
     const newest = this._observations && caps.observations ? this._observations.newest(net) : null;
     const scan = this._scan && caps.scan && this._scan.state.status !== "idle" ? this._scan.state : null;
-    const compact = !this._wide;
     const collected = net.collectedAt ? (() => {
       const [ageKey, ageParams] = ageParts(net.collectedAt);
       return { time: t.when(net.collectedAt), age: t(ageKey, ageParams) };
     })() : null;
-    const status = engineFor(net).status(net, { unchangedSince: newest ? t.when(newest) : null, scan, compact, collected,
-      settings: this._settings ? this._settings.settings : null });
-    // The registries could not be read: the names and areas shown are the integrations' own.
-    const parts = this._controller.state.registriesFailed ? [...status.parts, ["status.names_missing", {}]] : status.parts;
-    this._ui.status.classList.toggle("compact", compact);
-    // The engine's part on the right (spec 6: the source-route stage) sits apart.
-    const sr = status.right;
-    // The source part is the network switch when there is more than one network (ui/network-switch.js).
-    const choices = networkChoices(this._controller.state);
-    const source = sourcePart({ t, choices, active: adapterFor(net).key, open: this._networkMenu, compact,
+    const extras = { unchangedSince: newest ? t.when(newest) : null, scan, collected,
+      settings: this._settings ? this._settings.settings : null };
+    const engine = engineFor(net);
+    const status = engine.status(net, { ...extras, compact: false });
+    const model = pillModel({ t, status, short: engine.status(net, { ...extras, compact: true }),
+      // The registries could not be read: the names and areas shown are the integrations' own.
+      namesMissing: this._controller.state.registriesFailed, lost: this._controller.state.connection === "lost",
+      choices: networkChoices(this._controller.state), active: adapterFor(net).key,
+      admin: this._isAdmin() });
+    keepFocus(this._root, this._ui.status, () => this._ui.status.replaceChildren(...statusPill({ t, model, open: this._networkMenu,
       onToggle: (open) => {
         this._networkMenu = open;
         this._renderStatus();
         if (open) {
-          const first = this._ui.status.querySelector('.network-item[aria-checked="true"]');
-          if (first) first.focus();
+          const menu = this._ui.status;
+          (menu.querySelector('[aria-checked="true"]') || menu.querySelector('[role="menuitem"]') || menu.querySelector(".pill-menu")).focus();
         }
       },
-      onChoose: (key) => this._chooseNetwork(key) });
-    const spans = parts.filter(([key]) => key !== "status.source").map(([key, params, long], i, all) => {
-      const span = h("span", { class: i < all.length - 1 ? "part sep" : "part", text: t(key, params) });
-      if (long) span.title = t(long, params);
-      if (key === "status.unchanged" || key === "status.short_unchanged") {
-        span.title = long ? `${t(long, params)}. ${t("status.unchanged_note")}` : t("status.unchanged_note");
-      }
-      if (key === "status.scan_running" || key === "status.short_scan_running") {
-        span.append(" ", h("button", { type: "button", class: "link status-stop", text: t("status.scan_stop"),
-          "aria-label": t("status.scan_stop_label"), on: { click: () => this._scan.stop() } }));
-      }
-      return span;
-    });
-    if (sr) {
-      const span = h("span", { class: "part right", text: t(sr[0], sr[1]) });
-      if (sr[2]) span.title = t(sr[2], sr[1]);
-      spans.push(span);
-    }
-    const showSource = !compact || choices.length > 1;
-    this._ui.status.replaceChildren(...(showSource ? [source] : []), ...spans);
+      onChoose: (key) => this._chooseNetwork(key), onStop: () => this._scan.stop() })));
     return status;
   }
 
@@ -554,7 +539,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       } else if (d.tab === "view") {
         // The network engine's groups (hidden, not greyed, where the network type has none) and the scan where the
         // source has one.
-        keepFocus(this._root, panel, () => renderView(panel, { t, settings: this._settings.settings,
+        keepFocus(this._root, panel, () => renderView(panel, { t, canSettings: this._isAdmin(), settings: this._settings.settings,
           groups: engineFor(this._network).options(this._network, this._settings.settings),
           canScan: Boolean(this._network.capabilities.scan),
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
@@ -660,7 +645,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       this._dirty.add("view");
       // Two sheets would cover each other: on a narrow screen the right one gives way.
       if (!wide && this._left.isOpen && this._right.isOpen) this._right.close();
-      if (this._network && !this._ui.status.hidden) this._render(); // status forms, "Details on click" by width
+      if (this._network && !this._ui.status.hidden) this._render(); // "Details on click" by width
     }
     const size = (d) => drawerGeometry({ width: rect.width, height: rect.height, open: d.isOpen, expanded: d.expanded, side: d.side });
     const gl = size(this._left);

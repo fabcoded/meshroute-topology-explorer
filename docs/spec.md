@@ -26,7 +26,7 @@ that reports late, a garden corner that hangs on one weak link.
 | Question a user brings | Where the answer lives | Tag |
 |---|---|---|
 | Which devices are badly connected, and to whom? | quality view, default fill, findings, details | v1 |
-| Can I trust this picture right now? | status line, "data incomplete" findings | v1 |
+| Can I trust this picture right now? | status pill, "data incomplete" findings | v1 |
 | Which router carries my battery devices? | details, findings | v1 |
 | Which way does a packet travel, there and back? | selection (node view), details; route view, playback | v1, v1.1 |
 | Which routers relay most traffic; what depends on one? | route view, subtree, relay-load fill | v1.1 |
@@ -283,7 +283,7 @@ others are "possibly stale". `PreviousChild` is ignored.
     it; its network address equals the record's; every relay is a known, available device holding the recorded
     address now; no device repeats; every hop joins a pair of the model. Other devices get the assumption. A record
     never replaces a complete measured down path; if it differs, Details says "Route record differs: via …" and
-    nothing is drawn. If zigpy cannot be read, the stage assumes and the status line says why.
+    nothing is drawn. If zigpy cannot be read, the stage assumes and the pill's menu says why.
 
 ### 5.2 Relay load [v1]
 
@@ -374,11 +374,18 @@ show whether two devices really talk. At each holder H of the frame, in this ord
 
 ## 6. Data status and the scan [v1]
 
-- **Status line**, always visible: source; "Router tables: x/y" (available routers with a table of all available
-  routers, coordinator not counted, no percentage); the newest observed change ("unchanged since …"); on the right
-  the source-route stage (5.1), except in the view "routing table", which draws no assumed or recorded return path.
-  Findings name devices missing from every table. ZHA's own 4-hourly table reads are explained by an info button
-  beside "Read data again" (9.1).
+- **Status pill**, always visible (9.1): the pill's name is the network ("Zigbee (ZHA)"); its second line is the data
+  state: "Router tables: x/y" as "{x}/{y} router tables" (available routers with a table of all available routers,
+  coordinator not counted, no percentage) and the newest observed change ("unchanged since …"), or a followed scan.
+  The menu has the full state: the same parts, the source-route stage (5.1) except in the view "routing table", which
+  draws no assumed or recorded return path, and "Names and areas not read". Findings name devices missing from every
+  table. ZHA's own 4-hourly table reads are explained by an info button beside "Read data again" (9.1).
+- **The dot** (11 px, last in the pill): green = every available router's table read (Thread: every linked pair measured
+  both ways, a border router listed, snapshot younger than 4 hours); amber = anything else (a table missing, a one-way
+  link, no border router, a snapshot of 4 hours and older); red = connection to Home Assistant lost (sources that
+  cannot be loaded show their message instead of the map, 9.4). Colour is never the only signal: the second line says
+  the same and takes a matching text tone in amber and red. ZHA gives no scan time and "unchanged since" can be days
+  old on a quiet network, so ZHA's age plays no part; 4 hours is ZHA's default scan interval, reused for Thread.
 - **Thread**: source "Thread (Matter)"; "Links with both directions: x/y" (pairs measured both ways of all linked
   pairs; sample 3/5); "read {time} ({age})" from the snapshot's `collected_at`, noted as read from the Matter server's
   cache; "no border router listed" when there is none. No banner, no "unchanged since".
@@ -387,7 +394,7 @@ show whether two devices really talk. At each holder H of the frame, in this ord
 - **Observations**: ZHA has no scan timestamp, and the integration cannot read ZHA's tables publicly. The panel keeps
   per router a fingerprint of its sorted neighbour and routing tables (with LQI) and when it first saw it, stored
   through the integration (10) as `routers: { <ieee>: { fingerprint, firstSeen } }`.
-  - The status line's "unchanged since {time}" therefore means observed unchanged since, accurate only for times a
+  - The pill's "unchanged since {time}" therefore means observed unchanged since, accurate only for times a
     panel was open; its tooltip says "observed, not reported", and Details have the row "Table observed unchanged
     since".
   - Saves merge per router (the same fingerprint keeps the earlier time, another the newest view) and keep unknown
@@ -616,20 +623,29 @@ user-supplied image or map tiles from a user-configured address.
 One place per thing; nothing appears twice.
 - **On the map, only:** top left a button **Devices** with the findings count as badge and below it a slide switch
   **Details on click** (`role="switch"`), shown only while the left panel is closed; top right a button **View** and
-  below it **Legend**; bottom right the zoom group (+, −, fit) with the "Spread" group above it (7.1); the status line below the map; banners (incomplete
+  below it **Legend**; bottom right the zoom group (+, −, fit) with the "Spread" group above it (7.1); the status pill at the bottom centre (below); banners (incomplete
   data, connection lost, reading) between the top groups, or below them where that leaves less than 280 px. No header
   bar: the map fills the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are
   rounded, on the theme's surface with a light shadow, targets at least 44 px. View switch **[v1.1]**.
-- If the device or area registry cannot be read, the map keeps the integrations' own names and the status line adds
-  the part "Names and areas not read".
-- The status line's source-route stage (ZHA only) sits apart on its right: "Return paths assumed for 8 devices
-  (source route)", "Source route off · 8 return paths unknown", "Source route from zigpy · 6 recorded, 2 assumed",
-  "zigpy not available · 8 assumed" with the reason as description; nothing when no device is concerned or in the view
-  "routing table" (5.1).
-- **Network switch** (draft design, not yet approved; `sourcePart` in `ui/network-switch.js`): with two or more
-  networks the status line's "Source: …" is a chip with a caret opening a small menu upward (WAI-ARIA menu button,
-  `menuitemradio`, Esc closes); with one network plain text. An unreadable network is a greyed entry with its reason.
-  Switching clears the selection, keeps the panels on their tab and refits the map; the first load shows Zigbee.
+- If the device or area registry cannot be read, the map keeps the integrations' own names and the pill's menu adds
+  the line "Names and areas not read".
+- **Status pill** [spec 6; boards M31, M32]: a floating control at the bottom centre of the map, between the panels' insets,
+  styled like the other floating controls (48 px high, 14 px corners, theme surface, light shadow). Left to right: a
+  round arrow button (30 px, light grey, chevron up; down while the menu is open), two lines (the network's name,
+  bold 15 px; the data state, 12 px, 6), and the dot last. The whole pill is a WAI-ARIA menu button (`ui/status-pill.js`;
+  `menuitemradio` for networks, `menuitem` for the rest, arrows move, Esc closes and returns focus) opening upwards;
+  hover: outline, darker arrow button, pointer. The menu holds, top to bottom: **Network** (the networks, an unreadable
+  one greyed with its reason; omitted with one network, the pill still opens the menu), the full data state (6; including
+  the source-route stage "Return paths assumed for 8 devices (source route)", "Source route off · 8 return paths
+  unknown", "Source route from zigpy · 6 recorded, 2 assumed", "zigpy not available · 8 assumed"; nothing when no device
+  is concerned or in the view "routing table", 5.1; a followed scan with its Stop button), and **⚙ Settings ↗**.
+  Settings opens Home Assistant's page of this integration, `/config/integrations/integration/meshroute_topology_explorer`, in
+  the same tab the way Home Assistant's panels navigate (`history.pushState`, then the event `location-changed`;
+  modified clicks keep the browser's behaviour); shown to administrators only. The View tab ends with the same link below a
+  divider ("⚙ Settings (Home Assistant) ↗", and the grey line "Integration options in Home Assistant"). Where the map is
+  narrower than 600 px the second line is hidden and the name is the network's short one ("Zigbee", "Thread"); the dot
+  keeps the state. The pill leaves 72 px at each side for the zoom group, and the fit leaves room below the map for the pill.
+  Switching networks clears the selection, keeps the panels on their tab and refits the map; the first load shows Zigbee.
 - **Two panels.** The **left panel** has the tabs Devices, Findings (with count) and Details; the button Devices opens
   it on Devices. The **right panel** has View and Legend, each opened by its button. A button pressed while its tab is
   in view closes the panel. Wide screens: side panels on their own side (both may be open), hiding their corner's
@@ -787,7 +803,7 @@ One place per thing; nothing appears twice.
 - Keys: arrows and Enter in the device list, the keyboard path to every device (its filter matches words in any order
   in name, model, vendor, area and addresses); Esc clears selection and stops playback; Space plays again; Right
   arrow steps; +, −, 0 zoom; `[` and `]` less and more space between devices (7.1), on the focused map like the zoom keys. Closing a panel returns focus to where it was opened. Hit areas at least 24 px.
-- Every canvas value also exists as text; the status line describes the canvas; playback is announced in a live
+- Every canvas value also exists as text; the status pill describes the canvas; playback is announced in a live
   region ("path: 3 hops, LQI 120 / 89 / 45").
 
 ### 9.4 Errors and empty states

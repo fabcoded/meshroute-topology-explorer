@@ -5,6 +5,7 @@
 
 export const TEXTS = Object.freeze({
   "source.thread": "Thread (Matter)",
+  "source_short.thread": "Thread",
   "status.thread_not_supported": "Home Assistant 2026.9 or newer is required",
   "status.thread_error": "the topology could not be read ({message})",
   "status.thread_empty": "the topology lists no Thread device",

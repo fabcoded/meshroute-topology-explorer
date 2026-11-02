@@ -79,7 +79,7 @@ test("narrow screens get the short status line: no source, long forms as descrip
     ["status.short_tables", "status.short_unchanged"]);
   assert.ok(idle.every(([, , long]) => long && en.has(long)), "every short part names its long form");
   const line = (t, parts) => parts.map(([key, params]) => t(key, params)).join(" · ");
-  assert.equal(line(en, idle), "Router tables 29/29 · unchanged since 18:20");
+  assert.equal(line(en, idle), "29/29 router tables · unchanged since 18:20");
   const running = statusParts(network, { unchangedSince: "18:20", compact: true, scan: { status: "running", changed: 5, total: 29 } });
   assert.equal(running.at(-1)[0], "status.short_scan_running");
   assert.equal(running.at(-1)[2], "status.scan_running", "the long form with the note stays as the description");

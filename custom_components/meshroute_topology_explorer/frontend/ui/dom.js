@@ -46,6 +46,8 @@ const ICONS = {
   close: [["path", { d: "M6 6l12 12M18 6L6 18" }]],
   up: [["path", { d: "M6 15l6-6 6 6" }]],
   down: [["path", { d: "M6 9l6 6 6-6" }]],
+  // A gear: the settings (spec 9.1, own drawing).
+  settings: [["circle", { cx: 12, cy: 12, r: 3.5 }], ["path", { d: "M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" }]],
   link: [["path", { d: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" }]],
   // A list with round markers: the devices.
   list: [["path", { d: "M9 6h11M9 12h11M9 18h11" }], ["circle", { cx: 4.5, cy: 6, r: 1.2 }], ["circle", { cx: 4.5, cy: 12, r: 1.2 }],

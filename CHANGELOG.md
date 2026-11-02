@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Status pill:** the status line at the bottom is now a pill floating at the bottom centre of the map: a round arrow
+  button, the network's name over its data state ("29/29 router tables · unchanged since 15:50"), and a dot last (green:
+  all tables read; amber: something missing or old; red: connection lost). It is the network menu; the menu also holds
+  the full data state and a Settings link to Home Assistant's page of the integration (administrators only), repeated at
+  the end of the View tab. The map gains the status row's height; on narrow maps only the short name and the dot show.
 - **Values in the lane:** a lane's reception value is an upright number in a small pill that interrupts the lane, near the
   arrowhead (a quarter of the lane or 4 symbol diameters back, whichever is less; the middle on short lanes). The "RX:"
   prefix is gone; the legend explains the number once.

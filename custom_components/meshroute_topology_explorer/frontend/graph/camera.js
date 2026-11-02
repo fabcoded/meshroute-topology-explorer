@@ -30,16 +30,17 @@ export function bounds(xs, ys) {
   return { minX, minY, maxX, maxY };
 }
 
-/** Camera that shows the whole box with a margin in screen pixels. A single point or an empty map is shown at
- *  zoom 1, so the fitted view never becomes infinite. */
-export function fitCamera(box, width, height, margin = 48) {
+/** Camera that shows the whole box with a margin in screen pixels, and `bottom` more at the bottom (room for the
+ *  status pill: the box moves up by half of it). A single point or an empty map is shown at zoom 1, so the fitted
+ *  view never becomes infinite. */
+export function fitCamera(box, width, height, margin = 48, bottom = 0) {
   if (!box) return { k: 1, cx: 0, cy: 0 };
   const w = Math.max(box.maxX - box.minX, 1);
   const h = Math.max(box.maxY - box.minY, 1);
   const availW = Math.max(width - 2 * margin, 1);
-  const availH = Math.max(height - 2 * margin, 1);
+  const availH = Math.max(height - 2 * margin - bottom, 1);
   const k = box.maxX - box.minX < 1 && box.maxY - box.minY < 1 ? 1 : Math.min(availW / w, availH / h);
-  return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 };
+  return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 + bottom / (2 * k) };
 }
 
 /** Zoom by factor keeping the layout point under (sx, sy) in place; k is clamped to [kMin, kMax]. */

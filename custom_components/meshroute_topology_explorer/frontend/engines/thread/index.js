@@ -37,7 +37,7 @@ export const thread = Object.freeze({
   springQuality,
   /** The link rows of the legend: parent links, measured neighbours, the glyphs, RX in dBm; no stages. */
   legend: legendEntries,
-  /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner. */
+  /** The status line (spec 3.2, 6): links measured both ways, the collection time; no right part, no banner; level as in Zigbee. */
   status: (network, extras = {}) => statusLine(network, extras),
   /** Its finding kinds in the order the Findings tab groups them (offline, parent offline, parent unknown;
    *  model.js threadFindings), and the words of a finding: { title, lines }. */

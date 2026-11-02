@@ -15,6 +15,10 @@
 //   (src/state/more-info-mixin.ts).
 // Pure path builders plus two small browser helpers. npm test
 
+/** Home Assistant's page of this integration (its settings and options; src/panels/config/integrations/
+ *  ha-config-integrations.ts, route "integration/<domain>"). */
+export const INTEGRATION_PATH = "/config/integrations/integration/meshroute_topology_explorer";
+
 /** Home Assistant's device page. */
 export const devicePagePath = (registryId) => `/config/devices/device/${encodeURIComponent(registryId)}`;
 

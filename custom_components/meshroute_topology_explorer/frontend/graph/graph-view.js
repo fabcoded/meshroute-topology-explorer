@@ -37,6 +37,8 @@ const FIRST_BUDGET_MS = 40;
 const ZOOM_ANIMATION_MS = 200;
 /** Screen margin of the fitted view: room for labels under the outer devices. */
 const FIT_MARGIN = 56;
+/** Extra room at the bottom of a fit for the status pill (48 px and its gap, spec 9.1), beyond FIT_MARGIN. Own choice. */
+const FIT_PILL = 28;
 /** Room beyond half the widest label at the sides of a "contain" fit (CSS pixels). Own choice. */
 const CONTAIN_GAP = 8;
 /** A revealed device keeps this much room to the edge of the free area (CSS pixels): its label fits beside it. */
@@ -501,7 +503,7 @@ export class GraphView extends EventTarget {
     const engine = this.scene && this.scene.engine;
     if (engine && engine.scene.fit === "contain") return this._containCamera(box);
     const base = box && { minX: box.minX / d, minY: box.minY / d, maxX: box.maxX / d, maxY: box.maxY / d };
-    const cam = fitCamera(base, this.width, this.height, FIT_MARGIN);
+    const cam = fitCamera(base, this.width, this.height, FIT_MARGIN, FIT_PILL);
     return { k: cam.k, cx: cam.cx * d, cy: cam.cy * d };
   }
 
@@ -515,8 +517,8 @@ export class GraphView extends EventTarget {
     const w = box.maxX - box.minX;
     const h = box.maxY - box.minY;
     const k = w < 1 && h < 1 ? 1 : Math.min(Math.max(this.width - 2 * side, 1) / Math.max(w, 1),
-      Math.max(this.height - 2 * FIT_MARGIN, 1) / Math.max(h, 1));
-    return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 };
+      Math.max(this.height - 2 * FIT_MARGIN - FIT_PILL, 1) / Math.max(h, 1));
+    return { k, cx: (box.minX + box.maxX) / 2, cy: (box.minY + box.maxY) / 2 + FIT_PILL / (2 * k) };
   }
 
   _screenOf(i) {

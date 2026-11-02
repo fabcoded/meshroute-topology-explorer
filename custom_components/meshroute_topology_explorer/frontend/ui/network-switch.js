@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Which network the map shows, Zigbee (ZHA) or Thread (Matter), and the control that switches it (spec 9.1,
-// draft design, not yet approved): with two or more networks the first part of the status line ("Source: ZHA") is a chip with a caret that
-// opens a small menu upward; with one network it stays plain text, no extra element. A network that cannot be read
-// is a greyed entry with the reason. sourcePart() is the one place that builds the control, so the approved design
-// can replace it. The choice is stored under the reserved network id PANEL_STORE through the integration's settings
-// commands (spec 10, 11); settings of each network stay under its own id. Runs in the browser; the choice logic is
-// pure and tested in Node: npm test
-import { h } from "./dom.js";
-import { ADAPTERS, adapterByKey } from "../adapters/index.js";
+// Which network the map shows, Zigbee (ZHA) or Thread (Matter): the choices, the shown one and the stored choice (spec 9.1,
+// 11). The control that switches it is the status pill's menu (ui/status-pill.js). A network that cannot be read is a
+// greyed entry with the reason. The choice is stored under the reserved network id PANEL_STORE through the integration's
+// settings commands (spec 10, 11); settings of each network stay under its own id. The choice logic is pure and
+// tested in Node: npm test
+import { ADAPTERS } from "../adapters/index.js";
 import { getStored, setStored } from "./store-client.js";
 
 /** Networks the panel can show, in menu order: one per adapter (adapters/index.js); the keys are stored values. */
@@ -60,48 +57,4 @@ export async function saveNetworkChoice(callWS, key) {
   } catch {
     return false;
   }
-}
-
-/** Why a network cannot be shown, in its adapter's words. */
-function reasonText(choice, t) {
-  return adapterByKey(choice.key).reasonText(choice, t);
-}
-
-/** The status line's source part (the one place that builds the switch). ctx: { t, choices, active, open (menu
- *  shown), compact, onToggle(open), onChoose(key) }. One choice or none: plain text "Source: X". */
-export function sourcePart({ t, choices, active, open = false, compact = false, onToggle, onChoose }) {
-  const name = (key) => t(`source.${key}`);
-  const label = t("status.source", { source: name(active) });
-  if (!choices || choices.length < 2) {
-    return h("span", { class: "part sep", text: compact ? name(active) : label });
-  }
-  const menuId = "mte-network-menu";
-  const chip = h("button", { type: "button", class: "network-chip", "aria-haspopup": "menu", "aria-expanded": String(open),
-    "aria-controls": menuId, "aria-label": t("status.network_menu", { source: name(active) }),
-    on: { click: () => onToggle(!open) } },
-  h("span", { text: compact ? name(active) : label }), h("span", { class: "caret", "aria-hidden": "true", text: "▴" }));
-  const wrap = h("span", { class: "part sep network-switch" }, chip);
-  if (!open) return wrap;
-  const items = choices.map((c) => {
-    const why = c.available ? null : reasonText(c, t);
-    const item = h("button", { type: "button", role: "menuitemradio", class: "network-item",
-      "aria-checked": String(c.key === active), "aria-disabled": String(!c.available),
-      title: why ? t("status.network_unavailable", { source: name(c.key), reason: why }) : "",
-      on: { click: () => { if (c.available) onChoose(c.key); } } },
-    h("span", { text: name(c.key) }), why ? h("span", { class: "muted small", text: why }) : null);
-    return item;
-  });
-  const menu = h("div", { class: "network-menu", role: "menu", id: menuId,
-    on: { keydown: (e) => {
-      const list = items.filter((el) => el.getAttribute("aria-disabled") !== "true");
-      const at = list.indexOf(e.target);
-      if (e.key === "Escape") { e.preventDefault(); onToggle(false); chip.focus(); }
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        const next = list[(at + (e.key === "ArrowDown" ? 1 : list.length - 1)) % list.length];
-        if (next) next.focus();
-      }
-    } } }, ...items);
-  wrap.append(menu);
-  return wrap;
 }
