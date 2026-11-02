@@ -2,7 +2,7 @@
 // The viewer engines (engines/index.js): both engines offer the same hooks and nothing more (no hook without a caller
 // in both), engineFor finds a network's engine and never falls back, the builds stamp engine and capabilities, and
 // each facade gives exactly what the module it wraps gives (parity while the cut moves code).
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -177,4 +177,3 @@ test("texts (step 9): engines and adapters bring their own tables; merging refus
   assert.throws(() => mergeTexts([{ en: { a: "x" } }, { en: { a: "y" } }]), /differs/);
   assert.deepEqual(mergeTexts([{ en: { a: "x" } }, { en: { a: "x" } }]).en, { a: "x" });
 });
-

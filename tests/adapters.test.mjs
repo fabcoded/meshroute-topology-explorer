@@ -2,7 +2,7 @@
 // The adapter registry (adapters/index.js; engines cut step 9): one adapter per data source, in menu order, each with
 // the same shape; a network finds its adapter by its source and nothing falls back to ZHA; the stored choices of the
 // network switch stay "zha" and "thread" (spec 11).
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ADAPTERS, adapterByKey, adapterFor } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";

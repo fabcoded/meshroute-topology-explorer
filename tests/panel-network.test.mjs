@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Tests for the Thread network in the panel (brief a7, spec 3.2, 6, 9, 11): reading the Matter topology (refresh false,
 // not_supported), the network switch's choices and stored choice, settings kept per network, the status line, the map's
-// lanes and values for Thread, the legend and the details rows. Run: node --test tests/
+// lanes and values for Thread, the legend and the details rows. Run: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

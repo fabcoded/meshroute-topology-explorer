@@ -2,7 +2,7 @@
 // A tap on the map zooms to the working scale only when the selection's focus lanes would be shorter than
 // TAP_ZOOM_MIN_LANE on screen (spec 9.3, owner decision 2026-11-01); hover never zooms; no focus lane is skipped
 // afterwards. Uses the sample at a phone and a desktop size, stages 1 and 2.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

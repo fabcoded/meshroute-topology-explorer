@@ -4,7 +4,7 @@
 // checkbox ("additional heard neighbours (best 3)"), whose states follow the settings and whose changes are reported at
 // once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 

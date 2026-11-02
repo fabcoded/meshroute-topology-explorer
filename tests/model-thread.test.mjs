@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Tests for the Thread through Matter adapter (spec 3.2, 4.6) on the anonymized Matter sample and small synthetic
 // snapshots: roles, directions (the reporting node is the receiver), parents, missing values staying unknown.
-// Run: node --test tests/
+// Run: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

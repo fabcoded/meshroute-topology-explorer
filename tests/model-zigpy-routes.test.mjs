@@ -2,7 +2,7 @@
 // The source-route stage "read from zigpy" (spec 5.1; brief a4w): parsing the command's answer, the strict gate a
 // route record passes before it is drawn as measured, that it only fills gaps (never replaces a complete measured down
 // path, and says so when it differs), the assumption for the rest, lanes, Details, the status line, and the one call per
-// data load. node --test tests/
+// data load. npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";

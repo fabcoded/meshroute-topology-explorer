@@ -3,7 +3,7 @@
 // "contains" every device and its label in the window at every density and at phone width, after load and after
 // "fit"; a Zigbee map keeps the owner's fit at density factor 1, so at medium density it reaches past the window
 // (owner decision, Fabian Schwamborn, 2026-11-01), and its camera does not depend on the engine cut.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

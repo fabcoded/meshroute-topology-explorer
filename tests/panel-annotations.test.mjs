@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Wording of the panel's short annotations (owner decision 2026-11-01, Codex review 1.3-1.6): relative ranks are not
 // reliability, terms are used the same way everywhere, notes exist with their keys. Texts are English only.
-// node --test tests/
+// npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { STRINGS, translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
