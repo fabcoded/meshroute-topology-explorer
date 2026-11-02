@@ -11,7 +11,8 @@ import { errorText } from "./ws.js";
 export const SCAN_SCHEDULE = Object.freeze({ fastEvery: 15000, fastUntil: 120000, slowEvery: 60000, stopAt: 900000 });
 
 /** The re-read times after the start: 15, 30, ... 120 s, then 180, 240, ... 900 s. */
-export function readTimes(schedule = SCAN_SCHEDULE) {
+export function readTimes() {
+  const schedule = SCAN_SCHEDULE;
   const times = [];
   for (let t = schedule.fastEvery; t <= schedule.fastUntil; t += schedule.fastEvery) times.push(t);
   for (let t = schedule.fastUntil + schedule.slowEvery; t <= schedule.stopAt; t += schedule.slowEvery) times.push(t);
@@ -42,13 +43,13 @@ export function tablesDiffer(a, b) {
 export class ScanFollower extends EventTarget {
   /** send(): sends the scan command, may throw if there is no connection; read(): resolves to a Network or null;
    *  timers: { setTimeout, clearTimeout }; now(): ms. */
-  constructor({ send, read, timers = globalThis, now = () => Date.now(), schedule = SCAN_SCHEDULE }) {
+  constructor({ send, read, timers = globalThis, now = () => Date.now() }) {
     super();
     this._send = send;
     this._read = read;
     this._timers = timers;
     this._now = now;
-    this._times = readTimes(schedule);
+    this._times = readTimes();
     this.state = { status: "idle", startedAt: null, failedReads: 0, changed: 0, total: 0, message: null };
     this._timer = null;
     this._token = 0;

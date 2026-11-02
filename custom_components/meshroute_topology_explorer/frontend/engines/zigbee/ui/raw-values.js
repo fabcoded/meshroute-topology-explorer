@@ -5,10 +5,6 @@
 // mode the raw text stays next to the translation. Pure; t is the translator of i18n.js.
 // Tested in Node: npm test
 
-/** Kinds of raw values and where they occur. */
-export const RAW_KINDS = Object.freeze(["power", "available", "relationship", "device_type", "rx_on_when_idle",
-  "permit_joining", "route_status", "flag"]);
-
 /** Columns of ZHA's raw tables (neighbours, routes) -> kind of raw value. Columns not listed are shown as they are. */
 export const RAW_COLUMNS = Object.freeze({
   relationship: "relationship", device_type: "device_type", rx_on_when_idle: "rx_on_when_idle",

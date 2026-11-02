@@ -25,11 +25,6 @@ export function blockingState({ isAdmin, configEntries }) {
  *  colon would name no device. The model's ids are validated EUI-64s (model/parse.js), nothing else reaches here. */
 export const zhaDevicePath = (ieee, tab = "signature") => `/config/zha/device/${ieee}/${tab}`;
 
-/** ZHA's config entries (`config_entries/get`): whether ZHA is loaded, and the entry id that names the network. */
-export function readZhaEntries(hass) {
-  return hass.callWS({ type: "config_entries/get", domain: "zha" });
-}
-
 /** Read ZHA's devices once and build the Zigbee network from them, with zigpy's route records attached. registries():
  *  the device and area registries, read once on first need (shared with the Matter adapter). Returns { raw, network },
  *  network null when ZHA lists no device; errors are thrown to the caller, which turns them into its states. */
@@ -90,7 +85,7 @@ export function sendScan(hass) {
  *  network, raw, blocking (the phase to show when no source has a network: "zha_not_loaded"), unavailable: false }.
  *  registries(): the shared device and area registries, read once on first need. Errors are thrown to the caller. */
 export async function readSource(hass, { registries }) {
-  const configEntries = await readZhaEntries(hass);
+  const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
   const blocked = blockingState({ isAdmin: true, configEntries });
   if (blocked) return { status: "not_loaded", network: null, raw: null, blocking: blocked };
   const { raw, network } = await readZha(hass, { configEntries, registries });

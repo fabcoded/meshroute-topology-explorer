@@ -8,7 +8,7 @@
 // "long-press" | "context-menu" | "key" }, hover { id|null }, pin-change { id, pinned, x, y }.
 // Density only lengthens or shortens the lines: the layout is computed
 // once in base units (D = 1) and drawn at base × D; symbols, labels, fit and the working scale never depend on D.
-// Pinned positions (events, pin(), setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
+// Pinned positions (events, setNetwork's pinned) are in base lengths L0 of that layout, from its centre, so a
 // stored pin keeps its place in the picture whatever the density or the label font.
 // npm test
 
@@ -334,15 +334,6 @@ export class GraphView extends EventTarget {
 
   /** Stored positions of pinned devices, for the settings (spec 11). */
   pinnedPositions() { return new Map(this.pinned); }
-
-  /** Pin a device at (x, y) in base lengths. */
-  pin(id, x, y) {
-    if (!this.layout || !this.layout.has(id)) return;
-    this.layout.pin(id, x * this.layout.K, y * this.layout.K);
-    this.pinned.set(id, { x, y });
-    this.layout.reheat();
-    this._invalidate();
-  }
 
   unpin(id) {
     if (!this.layout || !this.layout.has(id)) return;
