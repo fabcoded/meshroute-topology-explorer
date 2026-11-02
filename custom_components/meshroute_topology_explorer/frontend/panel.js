@@ -385,7 +385,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const st = this._controller.state;
     const mismatch = this._versionMismatch();
     const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === this._chosen(st);
-    for (const el of [ui.canvas, ui.top, ui.spread, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
+    ui.spread.hidden = !ready || !this._spreadFits;
+    for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
       this._left.close();
       this._right.close();
@@ -675,6 +676,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     };
     const f = floatingLayout({ width: rect.width, height: rect.height, insets, left: box(this._buttons.left),
       right: box(this._buttons.right) });
+    this._spreadFits = Boolean(f.spread);
+    this._ui.spread.hidden = !this._spreadFits || this._ui.zoom.hidden;
+    if (f.spread) this.style.setProperty("--spread-bottom", `${f.spread.bottom}px`);
     this.style.setProperty("--inset-left", `${insets.left}px`);
     this.style.setProperty("--inset-right", `${insets.right}px`);
     this.style.setProperty("--inset-bottom", `${insets.bottom}px`);

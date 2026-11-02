@@ -93,7 +93,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .banner.loading { border-left: 4px solid var(--mte-accent); }
 .zoom { position: absolute; z-index: 5; right: calc(var(--inset-right) + 12px); bottom: calc(var(--inset-bottom) + 12px);
   display: flex; flex-direction: column; overflow: hidden; border: none; border-radius: 14px; }
-.zoom.spread { bottom: calc(var(--inset-bottom) + 12px + 146px + 8px); }
+.zoom.spread { bottom: var(--spread-bottom, 170px); }
 .zoom .icon-button { border-radius: 0; width: 48px; height: 48px; }
 .zoom .icon-button + .icon-button { border-top: 1px solid var(--mte-divider); }
 .message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
