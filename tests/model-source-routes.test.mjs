@@ -52,8 +52,8 @@ test("spec 12: measured down paths stay 33 of 44, the assumption adds 8 (41 of 4
 
 test("an end device the coordinator has an entry for is reached through its parent, never assumed", () => {
   const assumed = assumedDownPaths(sample);
-  // The coordinator's entries for these end devices lead to their parents, which deliver to their children. A4i read
-  // the stop at the parent as a gap that only the assumption could hide; it was the walk (A4k).
+  // The coordinator's entries for these end devices lead to their parents, which deliver to their children. An earlier version read
+  // the stop at the parent as a gap that only the assumption could hide; it was the walk.
   for (const l of ["TRADFRI on/off switch", "RWL022", "End device 08", "End device 10"]) {
     const down = downPath(sample, byLabel(l));
     assert.equal(down.complete, true, l);
@@ -110,7 +110,7 @@ test("a small network: the rule step by step", () => {
   assert.ok(!a.has(ieee(0)));
 });
 
-test("the setting: off, assume and zigpy (brief a4w), anything else counts as assume", () => {
+test("the setting: off, assume and zigpy, anything else counts as assume", () => {
   assert.deepEqual(SOURCE_ROUTE_MODES, ["off", "assume", "zigpy"]);
   assert.equal(DEFAULT_SOURCE_ROUTE, "assume");
   for (const [input, out] of [["off", "off"], ["assume", "assume"], ["zigpy", "zigpy"], ["Zigpy", "assume"], [null, "assume"],

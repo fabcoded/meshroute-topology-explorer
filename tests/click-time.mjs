@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Test helper, not shipped and not a test file of its own: the model time of a click in the view "all" on the sample
-// (spec 12, Speed), run by model-theoretical.test.mjs in a child process with V8's --single-threaded flag (decision of
-// the main session, 2026-11-01, brief a4z): without background compiler and garbage collector threads,
+// (spec 12, Speed), run by model-theoretical.test.mjs in a child process with V8's --single-threaded flag:
+// without background compiler and garbage collector threads,
 // process.cpuUsage() counts the click's own work, not helper threads that run longer when the machine is busy. Two
 // warm-up rounds over the four clicks compile the code; each click counts its best of three fresh networks (no
 // cached lookups or discovery trees). Prints { worst, clicks: { label: ms } } as JSON.

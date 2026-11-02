@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The view "routing table" of "Communication paths" (spec 5.1, 7.1, 9.1, 9.2, 11; feedback
-// contribution 5, Codex recommendation 4.4, 4.5 and 5; brief a4z): the walks of a device's own usable
+// contribution 5): the walks of a device's own usable
 // routing entries, hop by hop through every holder's entry for the same destination, the optional return routes, the
 // overview of every usable entry, the heard option on top, and the Details card. Run: npm test
 import test from "node:test";
@@ -25,7 +25,7 @@ const none = { state: "unknown", lqi: null, rating: null, source: null, reason: 
 const route = (owner, destination, nextHop, status = "Active") => ({ owner, destination, nextHop, status, stale: false });
 const router = (id) => ({ id, role: "router", label: id.toUpperCase(), available: true, hasTable: true, children: [] });
 
-// The acceptance example of Codex 4.5: A holds four usable entries, to C (via B), D (direct), the end device E (via
+// The acceptance example: A holds four usable entries, to C (via B), D (direct), the end device E (via
 // its parent D) and the coordinator Z, and one inactive entry (to F) that is no destination. Back: C names F for A and
 // F names A (a return route over another router than the way out); D's entry for A is inactive (a gap, and E's way
 // back runs into it through its parent); Z names B and B names A. A measures H1-H4 and C, none of them on a walk.
@@ -64,14 +64,14 @@ test("table walks: the device's own usable entries, each followed by every holde
   assert.ok(out.every((p) => p.kind === "out"), "no up or down paths: the view has its own basis");
   assert.deepEqual(ids(out, "out"), ["a>b>c", "a>d", "a>d>e", "a>z"], "four destinations; the inactive entry is none");
   assert.ok(out.every((p) => p.complete));
-  assert.deepEqual(out.find((p) => p.to === "e").hops.map((h) => h.how), ["table", "child"], "the parent delivers (A4k)");
+  assert.deepEqual(out.find((p) => p.to === "e").hops.map((h) => h.how), ["table", "child"], "the parent delivers");
   assert.deepEqual(out.find((p) => p.to === "c").hops.map((h) => h.how), ["table", "table"], "B's own entry for C");
 });
 
 test("return routes: walked back from each destination by every hop's entry for the device; gaps stay gaps", () => {
   const paths = nodePaths(NET, "a", "table", { returns: true });
   const back = Object.fromEntries(paths.filter((p) => p.kind === "in").map((p) => [p.from, p]));
-  assert.deepEqual(Object.keys(back), ["c", "d", "e", "z"], "the same destinations, no more (Codex 4.5)");
+  assert.deepEqual(Object.keys(back), ["c", "d", "e", "z"], "the same destinations, no more");
   assert.deepEqual(back.c.ids, ["c", "f", "a"], "over another router than the way out, from the tables");
   assert.ok(back.c.complete);
   assert.deepEqual(back.z.ids, ["z", "b", "a"]);
@@ -166,6 +166,6 @@ test("settings: the view 'table' and 'include return routes' are stored; older s
   assert.equal(sanitizeSettings({ returnRoutes: "yes" }).returnRoutes, false);
   assert.equal(sanitizeSettings({ paths: "table", returnRoutes: true }).returnRoutes, true);
   const old = sanitizeSettings({ paths: "heard" });
-  assert.deepEqual([old.paths, old.heard, old.returnRoutes], ["all", true, false], "A4j/A4k stage 'heard'");
-  assert.equal(sanitizeSettings({ nodeView: "all" }).paths, "all", "the node view of before A4j");
+  assert.deepEqual([old.paths, old.heard, old.returnRoutes], ["all", true, false], "stage 'heard' of the earlier stored settings");
+  assert.equal(sanitizeSettings({ nodeView: "all" }).paths, "all", "the node view of an earlier version");
 });

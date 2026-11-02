@@ -218,7 +218,7 @@ const fixture = await (await fetch(fixtureUrl)).json();
 // A Matter capture (capture=matter-...) has no ZHA part: ZHA then comes from the sample.
 const responses = fixture.responses["zha/devices"] ? fixture.responses
   : (await (await fetch("../tests/fixtures/zha-sample.json")).json()).responses;
-// Thread through Matter (brief a7): matter=1 loads the Matter integration with the anonymized Matter sample,
+// Thread through Matter: matter=1 loads the Matter integration with the anonymized Matter sample,
 // matter=notsupported answers like a Matter server too old for the topology; network=thread starts on Thread (as a
 // stored choice); a capture that holds a Matter topology implies both, with its own (real) data.
 const captureTopology = fixture.responses["matter/network_topology"] || null;
@@ -242,7 +242,7 @@ if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
 if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all|heard (heard: legacy)
 if (q.get("heard")) initial.heard = q.get("heard") === "1";
 if (q.get("returns")) initial.returnRoutes = q.get("returns") === "1"; // "include return routes" of the view "table"
-if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored before A4j (migration)
+if (q.get("nodeview")) initial.nodeView = q.get("nodeview"); // nodeview=all: a setting as stored by an earlier version (migration)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {
   const hex = (key) => (q.get(key) ? `#${q.get(key)}` : null);
@@ -252,7 +252,7 @@ if (q.has("labels")) { // labels=type,name,ha: the lines that are on
   const on = q.get("labels").split(",");
   initial.labels = { type: on.includes("type"), name: on.includes("name"), haName: on.includes("ha") };
 }
-if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as A4g stored it (migration)
+if (q.get("receptioncolors")) initial.receptionColors = true; // a setting as an earlier version stored it (migration)
 if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume | zigpy
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 const store = { settings: new Map(), observations: new Map() };

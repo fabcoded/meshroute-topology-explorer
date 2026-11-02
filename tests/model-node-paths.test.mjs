@@ -62,7 +62,7 @@ test("reception at every hop: the hearer's LQI of the sender, or what implies th
   const [u, w] = nodePaths(sample, byLabel("End device 06"));
   assert.deepEqual(u.ids.map((id) => labelOf.get(id)), ["End device 06", "Router 17", "Router 13", "Coordinator"]);
   assert.deepEqual(u.hops.map(hopText), ["103", "111", "51"]);
-  // The coordinator's own entry for the end device leads to its parent Router 17, which delivers to its child (A4k).
+  // The coordinator's own entry for the end device leads to its parent Router 17, which delivers to its child.
   assert.deepEqual(w.ids.map((id) => labelOf.get(id)), ["Coordinator", "Router 13", "Router 17", "End device 06"]);
   // The end device has no table: that it hears its parent is implied by the parent link.
   assert.deepEqual(w.hops.map(hopText), ["104", "124", "parent"]);

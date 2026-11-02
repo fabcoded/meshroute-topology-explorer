@@ -188,8 +188,8 @@ test("5b: shared code reaches the engines only through engines/index.js", async 
   }
 });
 
-/** Source text without comments (line and block comments outside string literals; main session decision
- *  2026-11-01: leak test 6 counts identifiers and string literals, not comments). */
+/** Source text without comments (line and block comments outside string literals;
+ *  leak test 6 counts identifiers and string literals, not comments). */
 function withoutComments(src) {
   let out = "";
   let quote = null;
@@ -242,7 +242,7 @@ test("7: the Thread focus is the device's own lanes: no band, no ends", async ()
 });
 
 // A save writes the whole sanitized object (shell defaults included, tests/panel-settings.test.mjs); what matters
-// here is that the Zigbee keys under a Thread id come back and go out exactly as stored (main session, 2026-11-01).
+// here is that the Zigbee keys under a Thread id come back and go out exactly as stored.
 test("8: Thread settings are untouched: stored Zigbee keys come back verbatim and are never rewritten", async () => {
     const { thread, threadNet } = await engines();
     const { SettingsClient } = await mod("ui/settings.js");

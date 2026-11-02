@@ -23,7 +23,7 @@
   `meshroute_topology_explorer/` namespace). MIME types are skipped. A call to callWS/sendMessage/subscribeMessage
   whose argument is built by concatenation or a template, and a computed ["type"] key, are findings because the
   command cannot be resolved by reading.
-- Thread through Matter (spec 3.2, brief a7): `matter/network_topology` is read with `refresh: false` (the server's
+- Thread through Matter (spec 3.2): `matter/network_topology` is read with `refresh: false` (the server's
   cached snapshot). `refresh: true` makes the Matter server read every node's tables over the radio: only a button
   the user presses may send it, and none exists yet, so a literal `refresh: true` (or `"refresh": True`) in shipped
   code is a finding (REFRESH_TRUE). Thread dataset, TLV and OTBR commands stay denied (DENY: `thread/get_dataset`,

@@ -162,7 +162,7 @@ test("selection: only its lanes, its way up as a band, every hop with RX at its 
   assert.equal(stats.lanes, 2, "everything else is off");
   assert.deepEqual(stats.paths.values.map((v) => [v.s, v.h, v.text, v.drawn, v.cls]),
     [[4, 1, "90", true, "up"], [1, 0, "200", true, "up"]]);
-  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (main session, 2026-11-01: it tells the way
+  // The band: alpha 0.18, width 7, through e1 -> r1 -> c, under the lanes (it tells the way
   // to the coordinator apart from the other paths).
   const bandAt = calls.findIndex((c, j) => c[0] === "set" && c[1] === "lineWidth" && c[2] === BAND.width &&
     calls.slice(Math.max(0, j - 3), j).some((x) => x[0] === "set" && x[1] === "globalAlpha" && x[2] === BAND.alpha));

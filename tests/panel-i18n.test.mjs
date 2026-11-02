@@ -69,13 +69,13 @@ test("communication paths, path display and the path texts have words in English
   assert.equal(en("view.paths_all"), "paths to all devices (theoretical)");
   assert.equal(de("view.paths_all"), "Wege zu allen Geräten (theoretisch)");
   assert.equal(en("lane.rx"), "RX:");
-  assert.equal(de("lane.rx"), "RX:", "the owner's own abbreviation, in both languages");
+  assert.equal(de("lane.rx"), "RX:", "the established abbreviation, in both languages");
 });
 
 test("the new menu: every control on the map and in both panels has words in English and German (design 2026-11-01)", () => {
   const de = translator("de");
   const en = translator("en");
-  // The owner's German words, as on the design boards M1-M7.
+  // The German words, as on the design boards M1-M7.
   const words = {
     "map.devices": "Geräte", "map.details_on_click": "Details bei Klick", "map.view": "Ansicht", "map.legend": "Legende",
     "tab.devices": "Geräte", "tab.findings": "Befunde", "tab.details": "Details", "tab.view": "Ansicht", "tab.legend": "Legende",
@@ -108,7 +108,7 @@ test("the new menu: every control on the map and in both panels has words in Eng
   }
 });
 
-test("Details, cluster popup, device rows and the source-route stage use the owner's words (boards M1-M4, M8-M10)", () => {
+test("Details, cluster popup, device rows and the source-route stage use the board words (boards M1-M4, M8-M10)", () => {
   const words = {
     "details.tab_communication": "Kommunikation", "details.tab_entity": "Entität", "details.tab_cluster": "Cluster",
     "details.paths_coordinator": "Kommunikationsweg mit dem Koordinator", "details.path_up": "hin", "details.path_down": "zurück",
@@ -153,7 +153,7 @@ test("area names from Home Assistant's hass.areas win over the registry's; the c
     device.area, "an empty name does not win");
 });
 
-test("legend, View and Details texts of the A4j boards (M2, M7) in German, with English counterparts", () => {
+test("legend, View and Details texts of the boards (M2, M7) in German, with English counterparts", () => {
   const words = {
     "legend.symbol_router": "Rahmen mit Lücken und Strichen: Router, leitet weiter",
     "legend.symbol_end_sleepy": "geschlossener Rahmen, Bett: Endgerät, schläft",
@@ -176,7 +176,7 @@ test("legend, View and Details texts of the A4j boards (M2, M7) in German, with 
   }
 });
 
-test("board texts M1 and M8: fit button, IEEE label and mains power badge (brief a4o)", () => {
+test("board texts M1 and M8: fit button, IEEE label and mains power badge", () => {
   const want = { "zoom.fit": ["Fit", "Einpassen"], "details.ieee": ["IEEE", "IEEE"], "power.mains": ["Mains power", "Netzstrom"],
     "raw.power.mains": ["Mains", "Netzstrom"] };
   for (const [key, [en, de]] of Object.entries(want)) {
@@ -185,7 +185,7 @@ test("board texts M1 and M8: fit button, IEEE label and mains power badge (brief
   }
 });
 
-test("the style sheet module loads, with the code font on linked ids and a 20 px device row indent (brief a4o)", async () => {
+test("the style sheet module loads, with the code font on linked ids and a 20 px device row indent", async () => {
   const { STYLES } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/styles.js");
   assert.match(STYLES, /\.link\.mono \{ font-family: var\(--ha-font-family-code/);
   assert.match(STYLES, /\.device-row \{[^}]*padding: 10px 0;/);

@@ -65,7 +65,7 @@ export function upPath(network, id) {
  *  missing entry, a loop or an unavailable hop. Complete only if `to` is reached and available. A hop that is the
  *  parent of an end-device goal delivers to its child directly: a parent keeps no routing entry for its own child
  *  (Zigbee r22, 3.6.3.3, the child check comes first). Without this, a walk that had reached the parent was thrown
- *  away for the shorter walk towards the parent (A4k; it hid four down paths on the sample). */
+ *  away for the shorter walk towards the parent (it hid four down paths on the sample). */
 function followRoutes(c, from, to) {
   const ids = [from];
   const seen = new Set(ids);
@@ -133,9 +133,9 @@ export function usableRoutes(network) {
   return out;
 }
 
-/** The walk of the routing-table view (spec 5.1, 7.1; Codex 4.4 and 5): from `from` towards
+/** The walk of the routing-table view (spec 5.1, 7.1): from `from` towards
  *  `to`, every holder H forwards by its own usable entry for the same destination `to` ("table"); a parent delivers to
- *  its end-device child ("child", A4k rule, Zigbee r22 3.6.3.3), and an end device sends to its parent ("parent": it
+ *  its end-device child ("child", Zigbee r22 3.6.3.3), and an end device sends to its parent ("parent": it
  *  keeps no routing table, the protocol leaves it no other way). Nothing else fills a gap: no neighbour, no route
  *  discovery, no reversed path, no source route; the walk stops and says why: "no entry", "entry inactive" (an entry
  *  that is not active or comes from a stale table), "table not read", "loop", "unavailable" (a hop or the goal),

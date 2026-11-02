@@ -18,8 +18,7 @@ export const LANE_OFFSET = 3;
 /** Room between a lane's end (or its arrowhead's tip) and the symbol's contour, CSS pixels: the tip stays readable
  *  against the frame. Own choice. */
 export const LANE_GAP = 1;
-/** The selected device's up path: a band in the foreground colour under its lanes (decision 2026-10-31; kept in A4j
- *  by the main session, 2026-11-01: in the stage "all" it tells the way to the coordinator apart). */
+/** The selected device's up path: a band in the foreground colour under its lanes (kept because in the stage "all" it tells the way to the coordinator apart). */
 export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;

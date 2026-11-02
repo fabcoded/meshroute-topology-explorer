@@ -160,7 +160,7 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(guard.DENY_EXCEPT, ("zha/devices/clusters/attributes/value",))
 
     def test_shipped_python_reads_only_route_records(self):
-        """PY_DENY (decision 2026-11-01, brief a4w): zigpy's network settings, keys, saved copies and radio calls."""
+        """PY_DENY: zigpy's network settings, keys, saved copies and radio calls."""
         py = "# SPDX-License-Identifier: MIT\n"
         denied = {
             "settings": "info = app.state.network_info",

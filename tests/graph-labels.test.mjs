@@ -208,7 +208,7 @@ test("a label block moves as a whole and never covers another device or label", 
   assert.equal(stats.labels + stats.dropped, 9, "every device placed or counted as left out");
 });
 
-test("the type line shows only from the working scale up; the overview stays calm (A4h review)", () => {
+test("the type line shows only from the working scale up; the overview stays calm", () => {
   assert.equal(typeShown(1, 1), true);
   assert.equal(typeShown(0.99, 1), false);
   assert.equal(typeShown(0.2, undefined), true, "without a working scale: always");

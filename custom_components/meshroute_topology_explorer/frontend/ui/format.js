@@ -23,7 +23,7 @@ export function rankText(rating, reporterLabel, t) {
 }
 
 /** Tooltip of a reading row: the rank and the comparison basis the model used (engines/zigbee/ratings.js applyRatings).
- *  In a vendor pool no claim is made about the single reporter's readings (Codex review round 2, 3.5). */
+ *  In a vendor pool no claim is made about the single reporter's readings. */
 export function rankTooltip(r, t) {
   if (typeof r.rating !== "number") return t("rank.none");
   const pct = percent(r.rating);

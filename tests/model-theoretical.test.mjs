@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Tests of the theoretical paths (spec 5.7; brief a4k): the rules per hop
+// Tests of the theoretical paths (spec 5.7): the rules per hop
 // (parent, child, table, neighbour, discovery) on small synthetic networks, the link cost, the tie-break, both
-// directions apart, where a walk stops and why; then on the sample: the owner's cases, every pair complete, the
+// directions apart, where a walk stops and why; then on the sample: the reported cases, every pair complete, the
 // counts per device, the table routes kept, and the CPU time of a click. node --test "tests/**/*.test.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -135,7 +135,7 @@ test("a walk stops at a loop, an unavailable device, without any link or parent,
   assert.equal(walk(n, 1, 5), "1 (no parent)");
   assert.equal(theoreticalPath(n, ieee(1), "nobody").reason, "unknown device");
   assert.equal(walk(n, 8, 1), "8 (unavailable)");
-  // A discovery that would lead back over a device the walk already passed is a loop too (main session, 2026-11-01).
+  // A discovery that would lead back over a device the walk already passed is a loop too.
   const back = synth([[0, C, { nb: [[1, 255]] }], [1, R, { nb: [[0, 255], [2, 255], [3, 255]], rt: [[4, 2]] }],
     [2, R, { nb: [[1, 255]] }], [3, R, { nb: [[1, 255], [4, 255]] }], [4, R, { nb: [[3, 255]] }]]);
   assert.equal(walk(back, 1, 4), "1>2 table (loop)", "2 has no entry; its only way to 4 runs back over 1");
@@ -175,7 +175,7 @@ const names = (p) => p.ids.map((id) => labelOf.get(id));
 const kinds = (p) => p.hops.map((h) => h.how);
 const others = (id) => sample.devices.filter((d) => d.id !== id && d.id !== coordinator.id && d.available);
 
-test("sample, the owner's cases: Router 13 to End device 06 and to Router 24 by the tables", () => {
+test("sample, the reported cases: Router 13 to End device 06 and to Router 24 by the tables", () => {
   const r13 = byLabel("Router 13");
   const e06 = theoreticalPath(sample, r13, byLabel("End device 06"));
   assert.deepEqual(names(e06), ["Router 13", "Router 17", "End device 06"]);
@@ -260,19 +260,19 @@ test("sample, stage 2 of a click: an out and an in path to every other available
 });
 
 test("a click stays well under 100 ms of model time on the sample (CPU time, fresh caches)", (t) => {
-  // Measured in a child process with V8's --single-threaded flag (tests/click-time.mjs; decision of the main session,
-  // 2026-11-01, brief a4z): in this process the CPU time also counted the compiler's and garbage collector's helper
+  // Measured in a child process with V8's --single-threaded flag (tests/click-time.mjs):
+  // in this process the CPU time also counted the compiler's and garbage collector's helper
   // threads, 3 to 6 times the click's wall time, and beside the other suites a click read up to 110 ms.
   const out = execFileSync(process.execPath, ["--single-threaded", fileURLToPath(new URL("./click-time.mjs", import.meta.url))],
     { encoding: "utf8" });
   const { worst, clicks } = JSON.parse(out);
-  // About 8 to 30 ms here, median 14 of 7 runs (2026-11-01, Node 18 under WSL, brief a4z); the limit is the brief's.
+  // About 8 to 30 ms here, median 14 of 7 runs (2026-11-01, Node 18 under WSL); the limit is the brief's.
   t.diagnostic && t.diagnostic(`slowest click ${worst} ms CPU ${JSON.stringify(clicks)}`);
   assert.equal(Object.keys(clicks).length, 4);
   assert.ok(worst < 100, `${worst} ms CPU`);
 });
 
-test("on the sample the cheapest way hits the real next hop of 11 of 37 active non-direct router entries (note of brief a4o)", async () => {
+test("on the sample the cheapest way hits the real next hop of 11 of 37 active non-direct router entries", async () => {
   const { sampleNetwork } = await import("./panel-fixture.mjs");
   const { discoveryTree } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js");
   const n = sampleNetwork();

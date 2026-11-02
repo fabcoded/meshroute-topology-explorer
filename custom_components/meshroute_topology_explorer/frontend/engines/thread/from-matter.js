@@ -16,8 +16,7 @@
 // "source_to_target: source -> target observation, when that direction reported the link", and its websocket schema
 // changelog, schema 13: Thread links come "from the nodes' own ThreadNetworkDiagnostics (neighbor + route tables)",
 // both observed directions are kept): the reporting node is `source` and the entry is its neighbour-table record of
-// `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the main session,
-// 2026-11-01, and by the capture: links to a border router (not a Matter node, no table read) carry only
+// `target`, so `source_to_target` is "source hears target", received at the source. Confirmed by the capture: links to a border router (not a Matter node, no table read) carry only
 // source_to_target. RECEIVER_OF_SOURCE_TO_TARGET is the one place to flip it.
 import { normalizeIeee } from "../../model/parse.js";
 

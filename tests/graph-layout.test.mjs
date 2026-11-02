@@ -99,7 +99,7 @@ test("density factors are pinned: dense 0.96, medium 1.44, spread 2.28 (spec 7.1
 
 test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
   // The target is computing time (spec 12). Measured in a child process with V8's --single-threaded flag
-  // (tests/layout-time.mjs; decision of the main session, 2026-11-01, brief eng1), as for a click: in this process the
+  // (tests/layout-time.mjs), as for a click: in this process the
   // CPU time also counted the compiler's and garbage collector's helper threads, and beside the other suites on a
   // loaded machine it once exceeded 5 s (2026-11-01). Best of three runs of the same deterministic layout.
   const out = execFileSync(process.execPath, ["--single-threaded", fileURLToPath(new URL("./layout-time.mjs", import.meta.url))],
@@ -107,7 +107,7 @@ test("speed: 300 devices and 3 000 readings settle within 5 s", (t) => {
   const r = JSON.parse(out);
   assert.equal(r.devices, 300);
   assert.equal(r.readings, 3000);
-  // About 0.9 to 1.2 s here alone (2026-11-01, Node 18 under WSL, brief eng1); the limit is spec 12's.
+  // About 0.9 to 1.2 s here alone (2026-11-01, Node 18 under WSL); the limit is spec 12's.
   report(t, `synthetic 300/3000: settled in ${r.ms} ms CPU (${r.wallMs} ms wall), ${r.steps} steps, ` +
     `largest last move ${r.lastMove.toFixed(3)}, fidelity ${r.fidelity.toFixed(3)}`);
   assert.ok(r.lastMove < SETTLE_MOVE, "settled by movement, not by the step budget");

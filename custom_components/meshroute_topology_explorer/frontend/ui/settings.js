@@ -91,7 +91,7 @@ export function sanitizeSettings(input, engineSettings = null) {
   out.openDetailsOnSelect = typeof src.openDetailsOnSelect === "boolean" ? src.openDetailsOnSelect : null;
   if (engineSettings) engineSettings.sanitize(src, out);
   out.pathColors = sanitizePathColors(src.pathColors, src.receptionColors);
-  // Replaced by pathColors, and the legend pill is gone (A4h): the next save leaves both out.
+  // Replaced by pathColors, and the legend pill is gone: the next save leaves both out.
   delete out.receptionColors;
   delete out.legendOpen;
   out.labels = sanitizeLabels(src.labels);

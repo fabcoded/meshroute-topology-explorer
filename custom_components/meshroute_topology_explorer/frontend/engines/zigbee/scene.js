@@ -270,7 +270,7 @@ export function focus(scene, i, view) {
   const selecting = view.selected === i;
   const route = scenePaths(scene, i, stage, sourceRoute, selecting && Boolean(view.heard), Boolean(view.returnRoutes));
   const sc = sceneClasses(scene, sourceRoute);
-  // Stage 1: a lane keeps its strongest class whatever is in focus (main session, 2026-11-01): a hop of the focus's
+  // Stage 1: a lane keeps its strongest class whatever is in focus: a hop of the focus's
   // ways on someone's up or down lane is drawn as that lane. From stage 2 on the focus's own tree decides (main
   // session, 2026-11-01, board M11 rule 5): scenePaths already gives each hop the strongest of the selection's own
   // ways (its up and down lanes, tables, neighbours, parent and child links, else discovery = computed); the
@@ -278,7 +278,7 @@ export function focus(scene, i, view) {
   // Only the selection's stage-1 lanes (its up and down paths; the coordinator's routes down and up) override: they
   // are the same lanes in both stages for a device, but the coordinator's trees come as routes in stage 2.
   // The view "routing table" draws its walks as they are (a route each, heard lanes of the option): no other class
-  // overrides them, as up and down are another basis (main session, 2026-11-01).
+  // overrides them, as up and down are another basis.
   const own = stage === "all" ? scenePaths(scene, i, "coordinator", sourceRoute).hops : null;
   const strongest = (hop) => {
     if (stage === "table") return hop;
@@ -317,7 +317,7 @@ export function focus(scene, i, view) {
     ends,
     glyphs: route.glyphs,
     nodes: route.nodes,
-    // No band in the view "routing table": the way up is another basis (main session, 2026-11-01).
+    // No band in the view "routing table": the way up is another basis.
     band: stage !== "table" ? scene.upPaths[i] : null,
   };
 }

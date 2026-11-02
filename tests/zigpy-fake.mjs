@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// A synthetic answer of meshroute_topology_explorer/zigpy_routes for the sample (brief a4w), shaped like
+// A synthetic answer of meshroute_topology_explorer/zigpy_routes for the sample, shaped like
 // custom_components/meshroute_topology_explorer/zigpy_routes.py read_routes: { radio, devices: [{ ieee, nwk, relays:
 // [{ nwk, ieee }] }] }. A route record is the way a frame took up to the coordinator, so every available device with a
 // complete up path gets its up path's relays (from the device towards the coordinator, as zigpy lists them). Two of

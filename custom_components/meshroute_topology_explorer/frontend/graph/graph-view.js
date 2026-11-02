@@ -492,7 +492,7 @@ export class GraphView extends EventTarget {
    *  (D = 1, the reference of every density since the 2026-11-01 factors), centred on the map: fit never undoes the
    *  density, so a dense map sits smaller inside the margin and a spread one reaches past the window. "contain"
    *  (Thread): the drawn map at the active density, every device inside with room for its label beside and below
-   *  it (main session, 2026-11-01). */
+   *  it. */
   _fitCamera() {
     if (!this.pos) return fitCamera(null, this.width, this.height, FIT_MARGIN);
     const d = this.density;

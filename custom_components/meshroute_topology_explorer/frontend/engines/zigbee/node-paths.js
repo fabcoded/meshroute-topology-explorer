@@ -12,7 +12,7 @@ import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
 import { drawMode, returnPaths } from "./source-routes.js";
 
-/** The node views (spec 7.1, 9.1, 11; Codex 5): the default shows the way to and from the
+/** The node views (spec 7.1, 9.1, 11): the default shows the way to and from the
  *  coordinator, which stands for Home Assistant; "table" the device's own routing-table entries followed hop by hop;
  *  "all" adds to the first the device's theoretical way to every other device and back (spec 5.7). */
 export const NODE_VIEWS = Object.freeze(["coordinator", "table", "all"]);
@@ -54,7 +54,7 @@ export function pathHops(network, ids) {
 /** Paths of device `id` in a node view: [{ kind: "up" | "down" | "out" | "in", from, to, ids, complete, hops,
  *  assumed, reason, cost }]. "table" gives only the walks of the routing-table view (tableWalk): an out path to every
  *  destination of the device's own usable entries and, with `returns`, an in path from each of them, every hop with
- *  `how` ("table", "child", "parent"); never up or down paths, never more destinations (Codex 4.4); an unavailable device has none (its table is stale).
+ *  `how` ("table", "child", "parent"); never up or down paths, never more destinations; an unavailable device has none (its table is stale).
  *  ids run in the direction of travel from `from`; an incomplete path ends where its walk stopped, short of `to` or
  *  at an unavailable `to`. "coordinator" mode: the up path (device to coordinator) and the down path (coordinator to
  *  device); "all" adds, for every other available device except the coordinator (in the network's order), the

@@ -16,7 +16,7 @@ import { downPath, routePath, upPath } from "./paths.js";
 import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "./source-routes.js";
 import { isActive } from "./from-zha.js";
 
-/** "Communication paths" (spec 7.1, 9.1, 11; board M11; routing-table view, Codex 5): three views, each its own basis, none containing another: with the
+/** "Communication paths" (spec 7.1, 9.1, 11; board M11; routing-table view): three views, each its own basis, none containing another: with the
  *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
  *  an option (checkbox) under the routing table. */
 export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);

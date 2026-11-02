@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Test helper, not shipped and not a test file of its own: the layout's settling time on the synthetic network of
 // spec 12 (Speed: 300 devices, 3 000 readings), run by graph-layout.test.mjs in a child process with V8's
-// --single-threaded flag, as tests/click-time.mjs does for a click (decision of the main session, 2026-11-01, brief
-// eng1): without background compiler and garbage collector threads, process.cpuUsage() counts the layout's own work,
+// --single-threaded flag, as tests/click-time.mjs does for a click: without background compiler and garbage collector threads, process.cpuUsage() counts the layout's own work,
 // not helper threads that run longer when the machine is busy. The layout is deterministic (fixed seeds); it runs
 // three times from the start and the best CPU time counts. Prints { ms, wallMs, steps, lastMove, temperature,
 // fidelity, devices, readings } of the best run as JSON.

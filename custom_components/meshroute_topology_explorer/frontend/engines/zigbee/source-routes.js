@@ -24,7 +24,7 @@ export function sourceRouteMode(value) {
 }
 
 /** The stage as the map draws it: like sourceRouteMode, but a missing or unknown value is "off" (the graph's default
- *  before the settings arrive, unchanged since A4i). */
+ *  before the settings arrive, unchanged since the first version). */
 export function drawMode(value) {
   return SOURCE_ROUTE_MODES.includes(value) ? value : "off";
 }

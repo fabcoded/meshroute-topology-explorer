@@ -259,7 +259,7 @@ test("a stage or checkbox change redraws at once, with and without a selection "
   assert.deepEqual([tablePlain, view.lastDraw.lanes], [6, 11], "Router 13 under the routing table: 6 lanes, 11 with the option");
 });
 
-test("a device on the selected device's paths keeps its label in a hub position (A4m)", () => {
+test("a device on the selected device's paths keeps its label in a hub position", () => {
   // End device 06 with every theoretical path: Router 17 is the hub of the lanes, and their values had taken every
   // place around it, so its label vanished (blocks were left out when no place was free).
   const { view, env } = show();
@@ -293,7 +293,7 @@ test("every hop of the focus carries its value on click, overlap accepted (board
   env.flush();
 });
 
-test("no value covers the label of the selected device, its lanes and values stay (A4s, Codex review 1.6)", () => {
+test("no value covers the label of the selected device, its lanes and values stay", () => {
   // Stage 2 on a hub put the many RX values over the name of the clicked device. Values now take the next spot on their
   // own lane; the label (type line and name) is drawn and no value box intersects it.
   const { view, env } = show();

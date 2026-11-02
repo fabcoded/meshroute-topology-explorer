@@ -11,7 +11,7 @@ import { lineColorOn, CATEGORY_FILLS } from "../graph/palette.js";
 import { drawSymbol, legendSigns, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { linkLegendList } from "./link-legend.js";
 
-/** Symbols in the Legend tab are drawn at 40 px (board M7 and brief A4j). */
+/** Symbols in the Legend tab are drawn at 40 px (board M7). */
 const SWATCH = 40;
 
 /** [{ label, color, slash }] of the category fill; the grey "none" entry last. */

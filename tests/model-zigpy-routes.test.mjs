@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The source-route stage "read from zigpy" (spec 5.1; brief a4w): parsing the command's answer, the strict gate a
+// The source-route stage "read from zigpy" (spec 5.1): parsing the command's answer, the strict gate a
 // route record passes before it is drawn as measured, that it only fills gaps (never replaces a complete measured down
 // path, and says so when it differs), the assumption for the rest, lanes, Details, the status line, and the one call per
 // data load. npm test
@@ -226,7 +226,7 @@ test("one call per data load: readNetwork attaches zigpy's answer, and a failure
   assert.equal(lost.phase, "disconnected");
 });
 
-// Found by eng2 (engines cut, 2026-11-01) and fixed after step 10 by main session decision: buildScene copied only
+// Found after the engines cut and fixed after step 10: buildScene copied only
 // up, downMeasured, downAssumed and route onto the scene's lanes, so under "zigpy" the overview never drew a recorded
 // return lane or a zigpy-assumed one as down, while the click's walks did. The one intended Zigbee parity difference
 // of the cut, in the zigpy stage only.

@@ -5,7 +5,7 @@ Spec 3.4 and 5.1 ("read from zigpy"). Read only and in memory: the handler reads
 sends anything to the radio, awaits nothing and touches nothing but each device's IEEE address, network address and
 relay list. Network settings, keys and their saved copies stay out of reach (tools/guard.py PY_DENY).
 
-Where the data lives (Home Assistant core 2026.10.1, zigpy 2.4.0; research of brief a4w):
+Where the data lives (Home Assistant core 2026.10.1, zigpy 2.4.0):
 - homeassistant/components/zha/helpers.py get_zha_gateway(hass) returns ZHA's gateway; its `application_controller`
   is zigpy's ControllerApplication, which core itself reads for zha/devices (helpers.py, zha_device_info).
 - zigpy ControllerApplication.devices maps EUI64 to devices; a Zigbee device's `relays` is None until a route record

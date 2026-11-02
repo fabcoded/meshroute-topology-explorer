@@ -192,7 +192,7 @@ export function renderView(container, ctx) {
   container.append(tools);
 }
 
-/** Where the settings live, in words (the fallback must be said, brief A4a). */
+/** Where the settings live, in words (the fallback must be said). */
 export function storageText(client, t) {
   if (client.error && client.error.kind === "too-large") return t("storage.too_large", { kib: Math.ceil(client.error.bytes / 1024) });
   if (client.mode === "loading") return t("storage.loading");

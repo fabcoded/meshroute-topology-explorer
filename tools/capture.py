@@ -133,7 +133,7 @@ def build_capture(ha_version: str, answers: dict) -> dict:
 
 
 def write_private(path: Path, data: dict) -> None:
-    """Write JSON readable by the owner only; a capture is personal even after anonymizing."""
+    """Write JSON readable by the current user only; a capture is personal even after anonymizing."""
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=1, ensure_ascii=False)
