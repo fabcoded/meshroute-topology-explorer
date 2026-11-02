@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Wording of the panel's short annotations (owner decision 2026-11-01, Codex review 1.3-1.6): relative ranks are not
+// Wording of the panel's short annotations (Codex review 1.3-1.6): relative ranks are not
 // reliability, terms are used the same way everywhere, notes exist with their keys. Texts are English only.
 // npm test
 import test from "node:test";

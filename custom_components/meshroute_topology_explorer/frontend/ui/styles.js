@@ -51,7 +51,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .map > canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--mte-fg); }
 .float { background: var(--mte-card); color: var(--mte-fg); border: 1px solid var(--mte-divider); border-radius: 10px;
   box-shadow: var(--mte-float-shadow); }
-/* Controls on the map (design by Fabian Schwamborn, 2026-11-01): "Devices" and the switch top left, "View" and
+/* Controls on the map: "Devices" and the switch top left, "View" and
    "Legend" top right; places from geometry.js floatingLayout. */
 .map-group { position: absolute; z-index: 5; top: 12px; display: flex; flex-direction: column; gap: 8px;
   pointer-events: none; }
@@ -145,7 +145,7 @@ p { margin: 4px 0; }
 .small { font-size: 12px; }
 .mono { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 13px; }
 .empty { color: var(--mte-muted); margin: 16px 0; }
-/* Details (design by Fabian Schwamborn, 2026-11-01, boards M4, M8, M9): name, one line, a segmented control and a
+/* Details (boards M4, M8, M9): name, one line, a segmented control and a
    stack of cards. Surfaces mix the theme's text colour into the card colour, so light and dark themes both work. */
 .details-head { margin-bottom: 12px; }
 .details-head p { margin-top: 2px; }
@@ -288,7 +288,7 @@ ul.plain, .finding-list { list-style: none; margin: 0; padding: 0; }
 .small svg { vertical-align: middle; }
 fieldset { border: none; margin: 0 0 14px; padding: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
-/* View tab (design by Fabian Schwamborn, 2026-11-01, board M2): groups of real checkboxes and radios, titles 13 px
+/* View tab (board M2): groups of real checkboxes and radios, titles 13 px
    bold, rows of 32 px with a fine pointer and 44 px targets with a coarse one (WCAG 2.2 2.5.8 needs 24 px). */
 .view-group { display: flex; flex-direction: column; margin: 0 0 18px; }
 .view-group > legend { font-size: 13px; font-weight: 700; color: var(--mte-muted); margin-bottom: 4px; }

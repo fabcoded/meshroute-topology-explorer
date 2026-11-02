@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// The View tab of the right panel (spec 9.1, 11; design by Fabian Schwamborn, 2026-11-01, board M2): everything that
+// The View tab of the right panel (spec 9.1, 11; board M2): everything that
 // changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
 // communication paths and the path display), then what a click on a device does (open details), the engine's groups
 // placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
 // fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (the source's own
 // note, from its adapter), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
-// are not kept in Home Assistant. A group the network type does not have is not shown (owner decision 2026-11-01:
-// hidden, not greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
+// are not kept in Home Assistant. A group the network type does not have is not shown (hidden, not
+// greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";

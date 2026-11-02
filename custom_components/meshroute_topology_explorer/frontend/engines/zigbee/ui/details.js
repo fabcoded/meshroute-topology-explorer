@@ -94,7 +94,7 @@ export function pathLine(path, t, name) {
   return `${prefix}: ${items.join(" \u2192 ")}`;
 }
 
-/** The walks of the view "routing table" per destination (spec 7.1, 9.2; owner proposal 2026-11-01): { rows: [{ id,
+/** The walks of the view "routing table" per destination (spec 7.1, 9.2): { rows: [{ id,
  *  out, in }] by destination name (natural order), with `in` null unless return routes are included, and `none`:
  *  null, or why there are no rows ("end device": it keeps no routing table; "unavailable": its table is stale; "no
  *  entries": no usable entry). */

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Tests of the device symbols (spec 8; design by Fabian Schwamborn, 2026-10-31): which parts a device gets, the
+// Tests of the device symbols (spec 8): which parts a device gets, the
 // router frame and strokes, the shift for right marks, selected and pinned states, the size rule, the contour that
 // lanes end at, and the path conversion every drawing goes through.
 // node --test "tests/**/*.test.mjs"

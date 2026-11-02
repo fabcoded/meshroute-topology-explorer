@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Zigbee lane carries and says (spec 4.3, 7.1, 8; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01,
-// boards M2, M7, M11). Classes belong to a lane, not to a pair: "up" (the hearer is the sender's next hop on the
+// What a Zigbee lane carries and says (spec 4.3, 7.1, 8; boards M2, M7, M11). Classes belong to a lane, not to a pair: "up" (the hearer is the sender's next hop on the
 // sender's way to the coordinator), "down" (the lane lies on the coordinator's way to a device, measured from the
 // tables or assumed as the reversed way up, source-routes.js), "route" (on an active route between two devices,
 // neither of them the coordinator) and "heard" (a reading, no traffic). A lane can carry several; it is drawn as its
@@ -17,8 +16,7 @@ import { downPath, routePath, upPath } from "./paths.js";
 import { assumedDownPaths, drawMode, returnPaths, zigpyRecords } from "./source-routes.js";
 import { isActive } from "./from-zha.js";
 
-/** "Communication paths" (spec 7.1, 9.1, 11; decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view
- *  by owner proposal 2026-11-01, Codex 5): three views, each its own basis, none containing another: with the
+/** "Communication paths" (spec 7.1, 9.1, 11; board M11; routing-table view, Codex 5): three views, each its own basis, none containing another: with the
  *  coordinator there and back, the routing table, paths to all devices (theoretical); "additional heard neighbours" is
  *  an option (checkbox) under the routing table. */
 export const PATH_STAGES = Object.freeze(["coordinator", "table", "all"]);
@@ -48,8 +46,7 @@ export function laneClass(lane, sourceRoute = "off") {
   return lane.dir && lane.dir.state === "measured" ? "heard" : null;
 }
 
-/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1; decisions by Fabian Schwamborn,
- *  2026-11-01): in "coordinator" and "all" up and down always; in "all" the backbone, every lane a theoretical path
+/** Whether a lane of class `cls` carries traffic of the stage's overview (spec 7.1): in "coordinator" and "all" up and down always; in "all" the backbone, every lane a theoretical path
  *  between two devices uses (backbone: the lane is one), drawn as a route; in "table" only the lane of a usable routing
  *  entry (table: owner -> next hop), drawn as a route, and no up or down lane; heard only never without a selection
  *  (the option adds its partners on click); everything in debug mode. */
@@ -177,7 +174,7 @@ export function laneValue(dir, texts) {
 }
 
 /** What the legend explains, for the panel to draw with its own words (ids are stable keys for translations; board
- *  M7): every path class whatever the view (decision by Fabian Schwamborn, 2026-11-01), each with its stroke sample:
+ *  M7): every path class whatever the view, each with its stroke sample:
  *  there and back with the coordinator (up and down share one row) and the assumed return path (views 1 and 3), paths
  *  to other devices (views 2 and 3) and the computed route discovery (view 3, marked computed), heard (the option under the routing table,
  *  needs a selection); the band under a selected device's way up; the glyphs for directions without a reading where
@@ -187,7 +184,7 @@ export function legendEntries(theme, { debug = false, colored = false, heard = f
   const sample = (stroke) => laneStyle(stroke, 1, theme);
   const glyphs = debug || (heard && paths === "table");
   return [
-    // The views that draw each class (owner proposal 2026-11-01): up and down in 1 and 3, routes in 2 and 3.
+    // The views that draw each class: up and down in 1 and 3, routes in 2 and 3.
     { id: "coordinator", kind: "lane", style: sample("solid"), stage: [1, 3] },
     { id: "assumed", kind: "lane", style: sample("dotted"), stage: [1, 3] },
     { id: "route", kind: "lane", style: sample("dashdot"), stage: [2, 3] },

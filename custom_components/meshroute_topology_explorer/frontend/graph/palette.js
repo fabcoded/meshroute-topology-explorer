@@ -160,7 +160,7 @@ export const OKABE_ITO = Object.freeze({
 });
 
 /** Fills a user can choose (spec 8); "none" (neutral grey) is the default. Reception is shown at the arrows, not in
- *  the symbols (decision by Fabian Schwamborn, 2026-11-01). Relay load arrives with the route view (v1.1). */
+ *  the symbols. Relay load arrives with the route view (v1.1). */
 export const FILLS = Object.freeze(["none", "role", "power"]);
 
 /** Neutral symbol grey of the "none" fill per theme brightness, as designed (spec 8). */
@@ -198,12 +198,12 @@ export function fillColor(node, fill, theme) {
   return theme.neutral;
 }
 
-/** Opt-in colours of lanes by reception (request by Fabian Schwamborn, 2026-11-01: red over yellow to green), per
+/** Opt-in colours of lanes by reception (red over yellow to green), per
  *  theme brightness: weakest, middle and strongest rating. Own choice of shades: each keeps 3:1 against the default
  *  light (#ffffff, #fafafa) or dark (#111111, #1c1c1c) background, and the three differ by at least 8 in CIELAB
  *  lightness (light: 49, 58, 41; dark: 60, 81, 68), so they stay apart without hue too. Dash, width and the value
  *  beside the lane still say everything: colour never carries meaning alone (spec 8).
- *  The user may replace any of the three with an own colour (design by Fabian Schwamborn, 2026-11-01: "frei wählbar,
+ *  The user may replace any of the three with an own colour ("frei wählbar,
  *  z. B. für Farbenblinde"); it is nudged to 3:1 like these. */
 export const RECEPTION_STOPS = Object.freeze({
   light: Object.freeze(["#d93a26", "#b58300", "#1d6f31"]),

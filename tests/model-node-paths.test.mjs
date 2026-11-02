@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Tests of the node view's paths (spec 5.1, 7.1; request by Fabian Schwamborn, 2026-11-01): up and down path per
+// Tests of the node view's paths (spec 5.1, 7.1): up and down path per
 // device with the reception at every hop, the numbers of spec 12, unknown ends, and "all paths" (out along the
 // device's own routes, in along other devices' routes towards it) with loops guarded and missing tables shown as
 // unknown. node --test "tests/**/*.test.mjs"
@@ -49,7 +49,7 @@ test("path to coordinator: up and down path per device, the numbers of spec 12",
   // Every incomplete path on the sample stops short of its goal, so it has a visible unknown end.
   assert.deepEqual(ends, { up: 3, down: 11 });
   // The coordinator stands for Home Assistant: in stage 1 its paths are the routes it holds and the routes towards it;
-  // stage 2 gives it the theoretical trees like any device (decision by Fabian Schwamborn, 2026-11-01).
+  // stage 2 gives it the theoretical trees like any device.
   const own = nodePaths(sample, coordinator.id);
   assert.ok(own.length && own.every((p) => (p.kind === "out" || p.kind === "in") && !p.hops.some((h) => h.how)));
   const trees = nodePaths(sample, coordinator.id, "all");

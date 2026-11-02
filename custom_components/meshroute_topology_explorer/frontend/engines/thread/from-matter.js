@@ -89,8 +89,7 @@ function registryIndex(deviceRegistry) {
 
 /** One reading "reporter hears subject" from a direction object { strength, lqi, rssi } of the snapshot, or null when
  *  the direction is missing. measured: a valid RSSI, or link quality above 0, says the link was heard. Link quality 0
- *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2, owner decision
- *  2026-11-01). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
+ *  ("none") with a valid RSSI is a measured low reading: the stack still lists the neighbour (tq2). Link quality 0 without a valid RSSI (a fresh entry without samples) and strength "unknown" (no
  *  measurement) are not measured and never drawn as a dead link (spec 3.2). */
 function reading(reporter, subject, dir, connection) {
   if (!dir || typeof dir !== "object") return null;

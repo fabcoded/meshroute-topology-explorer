@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Which network the map shows, Zigbee (ZHA) or Thread (Matter), and the control that switches it (owner request
-// 2026-11-01 "how would we switch it in our app?"; board design "Variant A" by the design agent, not yet approved by
-// the owner): with two or more networks the first part of the status line ("Source: ZHA") is a chip with a caret that
+// Which network the map shows, Zigbee (ZHA) or Thread (Matter), and the control that switches it (board design
+// "Variant A", not yet approved): with two or more networks the first part of the status line ("Source: ZHA") is a chip with a caret that
 // opens a small menu upward; with one network it stays plain text, no extra element. A network that cannot be read
 // is a greyed entry with the reason. sourcePart() is the one place that builds the control, so the approved design
 // can replace it. The choice is stored under the reserved network id PANEL_STORE through the integration's settings

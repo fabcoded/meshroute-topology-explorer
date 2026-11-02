@@ -20,7 +20,7 @@
 // The server's per-direction `strength` is not used: matter.js documents it as a renaming of link quality 0-3
 // (none / weak / medium / strong), so it adds nothing to the link quality the band already uses. The server's `rssi`
 // is the neighbour's average RSSI, the last one only as fallback (matterjs-server topology-utils.ts).
-// Cap rule (tq2, owner decision 2026-11-01): where both RSSI and the receiver's own link quality exist, the band is
+// Cap rule: where both RSSI and the receiver's own link quality exist, the band is
 // the lower of the RSSI band and the link-quality band, because the receiver's class accounts for its own constant.
 // Link quality 0 with a valid RSSI is a measured low reading (basis "rssi"); with no valid RSSI it gives no band.
 import { threadLqi, threadRssi } from "./from-matter.js";

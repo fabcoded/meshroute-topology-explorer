@@ -6,15 +6,14 @@
 
 - No file may name Home Assistant commands or Python helpers that return network keys or change the network
   (DENY, matched as prefixes), nor ZHA's cluster, binding and attribute-writing commands and services. The only radio
-  traffic the project may cause is a scan the user starts (`zha/topology/update`) and, since 2026-11-01 (decision by
-  Fabian Schwamborn), reading a cluster's attributes once on the user's request: `zha/devices/clusters/attributes/value`
+  traffic the project may cause is a scan the user starts (`zha/topology/update`) and, since 2026-11-01, reading a cluster's attributes once on the user's request: `zha/devices/clusters/attributes/value`
   is the one exception to the `zha/devices/clusters` prefix, and only as that exact quoted literal (DENY_EXCEPT).
 - Files Home Assistant serves (everything under custom_components/, any text format) must not contain outside URLs,
   including ws://, wss:// and protocol-relative ones; a map background URL comes from user configuration, never from
   code. URL_ALLOW is matched exactly up to a path boundary. NAMESPACES are XML namespace names, matched exactly: they
   name a vocabulary and are never fetched, and document.createElementNS() needs the SVG one to draw icons.
 - Shipped Python may read zigpy's route records (custom_components/*/zigpy_routes.py: each device's address and relay
-  list, decision by Fabian Schwamborn, 2026-11-01) and nothing else of zigpy or ZHA: PY_DENY names the internals that
+  list) and nothing else of zigpy or ZHA: PY_DENY names the internals that
   hold network settings, keys or their saved copies, and the calls that send to the radio or change the network.
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.

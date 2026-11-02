@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Label text and visibility rules of the map (spec 8). A device's label is a block of up to three lines (design by
-// Fabian Schwamborn, 2026-11-01): its type above the symbol, its readable name below it (the data model's
+// Label text and visibility rules of the map (spec 8). A device's label is a block of up to three lines: its type above the symbol, its readable name below it (the data model's
 // device.label, already unique) and, optionally, the original Home Assistant name in a smaller grey line under that.
 // This module composes the block, shortens names to fit and decides when everyone is labelled. Pure functions, no
 // DOM: text width comes from an injected measure(text) function. Labels are drawn as canvas text, never as HTML.

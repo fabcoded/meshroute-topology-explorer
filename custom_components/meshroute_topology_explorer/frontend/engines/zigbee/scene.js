@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What a Zigbee map draws (spec 5.7, 7.1, 9.3; decisions by Fabian Schwamborn, 2026-11-01, board M11; engines cut,
+// What a Zigbee map draws (spec 5.7, 7.1, 9.3; board M11; engines cut,
 // section 2). "Communication paths" says what is drawn: the view "coordinator" (default) shows the up and down lanes
 // of all devices and, on click, only the device's way up and down; "table" every usable routing entry and, on click,
 // the device's own entries walked hop by hop; "all" the backbone of every lane a theoretical path uses and, on click,
@@ -51,8 +51,7 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** Order of two pairs for the default view: higher rating first, then higher LQI; unknown last. */
 const better = (r, s) => ((num(s.rating) ?? -1) - (num(r.rating) ?? -1)) || ((num(s.lqi) ?? -1) - (num(r.lqi) ?? -1));
 
-/** The backbone the overview draws from the stage "all" on (spec 5.7, 7.1; decision by Fabian Schwamborn,
- *  2026-11-01): every lane a theoretical path between two devices uses, computed once per scene (the network's
+/** The backbone the overview draws from the stage "all" on (spec 5.7, 7.1): every lane a theoretical path between two devices uses, computed once per scene (the network's
  *  theoretical lanes are cached as well), not per frame. { kind (per lane: null, "route" when a table, neighbour or
  *  parent link takes it, "predicted" when only a computed route discovery does), counts: { route, predicted } }. */
 export function sceneBackbone(scene) {
@@ -69,7 +68,7 @@ export function sceneBackbone(scene) {
   return scene.backbone;
 }
 
-/** The overview of the view "routing table" (spec 7.1; owner proposal 2026-11-01): per lane whether it is the hop of
+/** The overview of the view "routing table" (spec 7.1): per lane whether it is the hop of
  *  a usable routing entry, owner -> next hop, of any device (paths.js usableRoutes), computed once per scene.
  *  { table (per lane: boolean), count }. */
 export function sceneTableLanes(scene) {
@@ -111,7 +110,7 @@ const strength = (cls, assumed, predicted = false) => (cls === "route" ? (predic
 const measured = (lane) => Boolean(lane.dir && lane.dir.state === "measured");
 
 /** The partners of device i for the option "additional heard neighbours (best 3)", which exists in the view
- *  "table" only (owner decision 2026-11-02): pairs with a reading in either direction none of whose lanes the view's
+ *  "table" only: pairs with a reading in either direction none of whose lanes the view's
  *  walks (`hops`) take; up and down lanes are not drawn there, so they do not count. The best BEST_HEARD by the
  *  reading's rating at its hearer. */
 function heardPartners(scene, i, hops) {
@@ -176,7 +175,7 @@ export function scenePaths(scene, i, stage = DEFAULT_PATHS, sourceRoute = "off",
     nodes.add(at(end.toward)); // the goal is named, so the stem points at something the user can read
   }
   if (withHeard) {
-    // The checkbox "heard only (best 3)" (decision by Fabian Schwamborn, 2026-11-02: under "Routing table" only): the
+    // The checkbox "heard only (best 3)" (under "Routing table" only): the
     // 3 best partners of device i with a reading and no lane in the device's walks.
     for (const pair of heardPartners(scene, i, hops)) {
       nodes.add(pair.a);
@@ -219,7 +218,7 @@ export function labelRank(node) {
 }
 
 /** How the fitted view frames a Zigbee map: "base", the base layout at density factor 1, so medium density reaches
- *  about a fifth past the window and spread further (owner decision, Fabian Schwamborn, 2026-11-01). */
+ *  about a fifth past the window and spread further. */
 export const FIT = "base";
 
 /** Cache key of this engine's view settings: the view of "Communication paths", the source-route stage, debug. */
@@ -227,8 +226,7 @@ export function viewKey(view) {
   return `${pathStage(view.paths)}|${drawMode(view.sourceRoute)}|${view.debug ? 1 : 0}`;
 }
 
-/** Per lane its look in the overview, or null where the view leaves it out (decisions by Fabian Schwamborn,
- *  2026-11-01): up and down lanes; from "all" on the backbone of theoretical paths as routes, lanes only a computed
+/** Per lane its look in the overview, or null where the view leaves it out: up and down lanes; from "all" on the backbone of theoretical paths as routes, lanes only a computed
  *  discovery takes lighter; in "table" the lane of every usable routing entry, as a route, and nothing else (its basis
  *  is the tables, not the ways to the coordinator); never heard-only lanes (the option adds partners on click); every
  *  lane in its own class in debug mode. Cached per viewKey. */

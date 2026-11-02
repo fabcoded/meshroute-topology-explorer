@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Tests of the theoretical paths (spec 5.7; decision by Fabian Schwamborn, 2026-11-01, brief a4k): the rules per hop
+// Tests of the theoretical paths (spec 5.7; brief a4k): the rules per hop
 // (parent, child, table, neighbour, discovery) on small synthetic networks, the link cost, the tie-break, both
 // directions apart, where a walk stops and why; then on the sample: the owner's cases, every pair complete, the
 // counts per device, the table routes kept, and the CPU time of a click. node --test "tests/**/*.test.mjs"
@@ -248,7 +248,7 @@ test("sample, stage 2 of a click: an out and an in path to every other available
     assert.ok(kinds(now).every((k) => k === "table" || k === "child"), labelOf.get(r.destination));
   }
   // An unavailable device has no theoretical paths. The coordinator gets its trees in stage 2 like any device, from
-  // its own table on (decision by Fabian Schwamborn, 2026-11-01); stage 1 keeps its routes.
+  // its own table on; stage 1 keeps its routes.
   const off = sample.devices.find((d) => !d.available);
   assert.deepEqual(nodePaths(sample, off.id, "all").map((p) => p.kind), ["up", "down"]);
   const tally = Object.fromEntries(HOWS.map((h) => [h, 0]));

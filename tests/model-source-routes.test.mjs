@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Return paths without a table entry (spec 5.1 source route; decision by Fabian Schwamborn, 2026-11-01): which devices
+// Return paths without a table entry (spec 5.1 source route): which devices
 // get an assumed down path (the up path reversed), that it is marked as assumed on the path and every hop, the stages
 // off and assume, the numbers of spec 12, and that the assumption never covers a gap of another kind.
 // node --test "tests/**/*.test.mjs"

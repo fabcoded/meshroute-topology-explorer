@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Theoretical paths (spec 5.7; decision by Fabian Schwamborn, 2026-11-01, board M11, brief a4k): the way a frame from
+// Theoretical paths (spec 5.7; board M11, brief a4k): the way a frame from
 // one device would most likely take to another today, worked out hop by hop at the device holding it, after the
 // unicast routing of the Zigbee specification r22 (05-3474-22): 3.6.3.3 (child, routing table, neighbour table) and
 // 3.6.3.5 (route discovery, path cost 3.6.3.1). "Theoretical": computed, not observed; Home Assistant does not show
@@ -229,7 +229,7 @@ const laneCache = new WeakMap(); // network -> theoreticalLanes
 
 /** Every lane the theoretical paths between any two available devices use, the coordinator's included: Map
  *  "sender>hearer" -> { sender, hearer, hows (Set of how it is taken) }. The stage-2 overview draws this backbone
- *  (decisions by Fabian Schwamborn, 2026-11-01: every lane any path uses). Computed once per network; on the sample
+ *  (every lane any path uses). Computed once per network; on the sample
  *  1722 paths and 570 lanes. */
 export function theoreticalLanes(network) {
   let lanes = laneCache.get(network);

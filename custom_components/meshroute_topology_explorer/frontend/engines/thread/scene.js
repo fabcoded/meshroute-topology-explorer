@@ -36,7 +36,7 @@ export function classify(scene) {
   return scene;
 }
 
-/** Devices always labelled, the anchors of a Thread map (owner decision, Fabian Schwamborn, 2026-11-01): the leader
+/** Devices always labelled, the anchors of a Thread map: the leader
  *  and the border routers. */
 export function anchors(scene) {
   const out = [];

@@ -130,7 +130,7 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(guard.check(ok), [])
 
     def test_attribute_read_is_the_one_cluster_command(self):
-        # The user-started read of one attribute value (decision by Fabian Schwamborn, 2026-11-01) is allowed exactly.
+        # The user-started read of one attribute value is allowed exactly.
         ok = self.tree({"custom_components/x/p.js": SPDX
                         + "callWS({ type: \"zha/devices/clusters/attributes/value\", ieee })\n"
                         + "const k = 'zha/devices/clusters/attributes/value';\n"})

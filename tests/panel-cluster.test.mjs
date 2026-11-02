@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The cluster popup's logic (spec 9.2; decision by Fabian Schwamborn, 2026-11-01): values Home Assistant already knows
+// The cluster popup's logic (spec 9.2): values Home Assistant already knows
 // as entity states, the user-started attribute read (success, no value, timeout, error, closing the dialog), and the
 // ways into Home Assistant's own pages. node --test "tests/**/*.test.mjs"
 import test from "node:test";

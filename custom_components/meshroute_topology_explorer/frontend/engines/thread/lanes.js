@@ -19,9 +19,9 @@ export function unknownGlyph(reason) {
   return typeof reason === "string" && /^not in the neighbour table/.test(reason) ? "–" : "?";
 }
 
-/** What a Thread lane shows at its arrow (spec 7.1; board recommendation, main session 2026-11-01, M15 asks the owner):
+/** What a Thread lane shows at its arrow (spec 7.1; board recommendation, M15 asks for a choice):
  *  "rssi" = the RSSI in dBm, the link quality 0-3 only where no RSSI was reported (the details list both); "lqi" = the
- *  link quality first. The one switch for the owner's choice. */
+ *  link quality first. The one switch for that choice. */
 export const THREAD_VALUE = "rssi";
 
 /** A Thread direction's value at the arrow: "-75 dBm", or "LQI 3" (THREAD_VALUE); the unknown glyph without either. */

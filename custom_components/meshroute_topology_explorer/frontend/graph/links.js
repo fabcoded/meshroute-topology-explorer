@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// How the quality view draws links (spec 7.1, 8; decisions by Fabian Schwamborn, 2026-10-31 and 2026-11-01, boards
+// How the quality view draws links (spec 7.1, 8; boards
 // M2, M7, M11): every pair as two lanes, one per direction (sender -> hearer), each on the right of its own direction
 // of travel, with an arrowhead at the hearer, shortened to the symbols' contours; a value beside a lane, the dashed
 // stem of an unknown end, the band under a selection's way, the dimming of what is out of focus. Line styles are
@@ -24,7 +24,7 @@ export const BAND = Object.freeze({ alpha: 0.18, width: 7 });
 /** Opacity of everything that does not touch the selection or the device under the pointer. */
 export const DIM = 0.2;
 /** Where a lane's value sits, as a share of the lane from the sender: a quarter before the hearer, the device the value
- *  belongs to (decision by Fabian Schwamborn, 2026-11-01). */
+ *  belongs to. */
 export const VALUE_AT = 0.75;
 /** An incomplete path's end: a dashed stem this long at zoom 1 (CSS pixels, grows with the symbols, at most this share
  *  of the way to the goal), then "?". Own choice: long enough to point, short enough not to read as a link. */
@@ -58,8 +58,7 @@ export function widthStep(rating) {
  *  dotted grey, no head). The look sets the dash; the lane's own rating (0..1) sets the width. state "unknown" (a
  *  hop nothing proves) keeps the look's dash in grey at the thinnest width. colored: "colour by reception" is on, so a
  *  rated solid, dash-dot or dashed lane takes its rating's colour (palette.js receptionColor); dash and width stay, so
- *  the look still reads without colour. Dotted and dash-dot in the lighter grey are never coloured (decisions by
- *  Fabian Schwamborn and the main session, 2026-11-01: an assumed or computed hop never looks like a measured one). */
+ *  the look still reads without colour. Dotted and dash-dot in the lighter grey are never coloured (an assumed or computed hop never looks like a measured one). */
 export function laneStyle(stroke, rating, theme, { colored = false, state = "measured" } = {}) {
   if (!stroke || stroke === "faint") {
     return { color: theme.muted, width: WIDTHS.faint[0], dash: [0.01, 3], cap: "round", head: false };

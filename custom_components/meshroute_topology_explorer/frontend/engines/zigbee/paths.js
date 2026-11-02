@@ -133,7 +133,7 @@ export function usableRoutes(network) {
   return out;
 }
 
-/** The walk of the routing-table view (spec 5.1, 7.1; owner proposal 2026-11-01, Codex 4.4 and 5): from `from` towards
+/** The walk of the routing-table view (spec 5.1, 7.1; Codex 4.4 and 5): from `from` towards
  *  `to`, every holder H forwards by its own usable entry for the same destination `to` ("table"); a parent delivers to
  *  its end-device child ("child", A4k rule, Zigbee r22 3.6.3.3), and an end device sends to its parent ("parent": it
  *  keeps no routing table, the protocol leaves it no other way). Nothing else fills a gap: no neighbour, no route

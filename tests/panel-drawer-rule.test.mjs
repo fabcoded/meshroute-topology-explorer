@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// What the two panels do on a selection or a request (spec 9.1, 9.2; design by Fabian Schwamborn, 2026-11-01;
+// What the two panels do on a selection or a request (spec 9.1, 9.2;
 // ui/drawer-rule.js): "Details on click" opens the left panel on Details from the map and the Devices list, never
 // takes Findings away, never pushes the right sheet away on narrow screens; buttons toggle their tab; one sheet at a
 // time on narrow screens. node --test "tests/**/*.test.mjs"

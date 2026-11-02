@@ -90,7 +90,7 @@ const sharedFiles = () => ["panel.js", "model/parse.js", ...jsFiles("graph/"), .
 // Zigbee ids of the legend (graph/links.js legendEntries) that must never show on a Thread map.
 const ZIGBEE_LEGEND = ["coordinator", "assumed", "route", "discovery", "heard", "up-path", "no-table", "path-end"];
 
-test("1: the Thread View tab has no Zigbee options (owner decision 2026-11-01: hidden, not greyed)", async () => {
+test("1: the Thread View tab has no Zigbee options (hidden, not greyed)", async () => {
     const { zigbee, thread, zigbeeNet, threadNet } = await engines();
     const { sanitizeSettings } = await mod("ui/settings.js");
     const s = sanitizeSettings({}, zigbee.settings);

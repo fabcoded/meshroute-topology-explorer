@@ -14,7 +14,7 @@ import { DEFAULT_SOURCE_ROUTE, sourceRouteMode } from "./source-routes.js";
 export const DEFAULTS = Object.freeze({ paths: DEFAULT_PATHS, heard: false, returnRoutes: false,
   sourceRoute: DEFAULT_SOURCE_ROUTE });
 
-/** The stage of "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11). Before it, the panel
+/** The stage of "Communication paths" (board M11). Before it, the panel
  *  stored class switches (`links`) and the node view (`nodeView`: "coordinator" or "all"); without a valid `paths`
  *  the node view decides: "all" reads as the stage "all", anything else as the default. */
 export function sanitizePaths(input, legacyNodeView) {

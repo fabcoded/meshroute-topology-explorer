@@ -33,7 +33,7 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, cap
   if (!mapped) return null;
   const { pan, devices, readings, stale, links, unresolved, collectedAt } = mapped;
 
-  // Parent of an end device (tq2, owner decision 2026-11-01). A Thread child holds exactly one neighbour entry, its
+  // Parent of an end device. A Thread child holds exactly one neighbour entry, its
   // parent, so when the child's own table was read the parent is the router it lists (REED/FED: the best of several,
   // the others are real links, not stale parents). Only when the child reported nothing do the routers' readings
   // decide (best link quality, then RSSI at the router). Other routers that list the child are "possibly stale".

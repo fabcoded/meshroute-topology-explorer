@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Device symbols of the map (spec 8; design by Fabian Schwamborn, 2026-10-31): one closed rounded square per device on
+// Device symbols of the map (spec 8): one closed rounded square per device on
 // a 24-unit grid that holds everything about it. Inside, scaled 0.92 about the centre: the device picture, radio arcs
 // above it, a cable below it for wired devices; on the right a bed (sleepy end device) or a crown with C (coordinator)
 // or L (Thread leader), which moves picture, arcs and cable 3 units left together. Routers have a frame interrupted

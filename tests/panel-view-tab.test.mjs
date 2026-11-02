@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The View tab's "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view by
-// owner proposal 2026-11-01): three radios (the views), and under the routing table the checkboxes "include return
-// routes" and "additional heard neighbours (best 3)" (owner decision 2026-11-02), whose states follow the settings and whose changes are reported at
+// The View tab's "Communication paths" (board M11; routing-table view): three radios (the views), and under the routing table the checkboxes "include return
+// routes" and "additional heard neighbours (best 3)", whose states follow the settings and whose changes are reported at
 // once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.
 // npm test

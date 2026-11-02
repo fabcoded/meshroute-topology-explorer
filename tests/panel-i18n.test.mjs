@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Texts of the panel (spec 10): English only (owner decision 2026-11-01), English is the complete reference, the dormant
+// Texts of the panel (spec 10): English only, English is the complete reference, the dormant
 // German table may lack keys, and the coordinator label is translated.
 // node --test "tests/**/*.test.mjs"
 import test from "node:test";
@@ -17,7 +17,7 @@ test("English is the complete reference: every key of the dormant German table e
   for (const [key, text] of Object.entries(STRINGS.en)) assert.ok(text.trim(), `${key} is not empty`);
 });
 
-test("the panel is English only: any Home Assistant locale gets English texts (owner decision 2026-11-01)", () => {
+test("the panel is English only: any Home Assistant locale gets English texts", () => {
   assert.deepEqual([...ACTIVE_LANGUAGES], ["en"]);
   for (const hass of [{ locale: { language: "de" }, language: "en" }, { language: "de-CH" }, { locale: { language: "fr" } }, null]) {
     assert.equal(languageOf(hass), "en");

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Names for what a device's signature carries (spec 9.2 "Cluster"; design by Fabian Schwamborn, 2026-11-01): profiles,
+// Names for what a device's signature carries (spec 9.2 "Cluster"): profiles,
 // device types and clusters with their names in English and German, a sentence on what each common cluster does, and
 // the known attributes of the common clusters (id, name, data type, side). Written for this project from the public
 // Zigbee Cluster Library specification (07-5123, revision 8), the Zigbee Home Automation and Zigbee Light Link profile

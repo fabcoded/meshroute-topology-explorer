@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The view "routing table" of "Communication paths" (spec 5.1, 7.1, 9.1, 9.2, 11; owner proposal 2026-11-01 via
-// feedback contribution 5, Codex recommendation 4.4, 4.5 and 5; brief a4z): the walks of a device's own usable
+// The view "routing table" of "Communication paths" (spec 5.1, 7.1, 9.1, 9.2, 11; feedback
+// contribution 5, Codex recommendation 4.4, 4.5 and 5; brief a4z): the walks of a device's own usable
 // routing entries, hop by hop through every holder's entry for the same destination, the optional return routes, the
 // overview of every usable entry, the heard option on top, and the Details card. Run: npm test
 import test from "node:test";

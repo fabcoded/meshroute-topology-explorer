@@ -23,12 +23,11 @@ export const NODE_DIAMETER = SYMBOL_SIZE;
 /** Hit areas are at least 24 CSS pixels across (spec 9.3, WCAG 2.2 2.5.8). */
 export const MIN_HIT = 24;
 const LINE_HEIGHT = 14;
-/** The original Home Assistant name is a smaller line (design by Fabian Schwamborn, 2026-11-01): 10 px in a 12 px
+/** The original Home Assistant name is a smaller line: 10 px in a 12 px
  *  label font, scaled by this share; its line is a little lower too. Own choice. */
 const SMALL_SHARE = 10 / 12;
 const SMALL_LINE_HEIGHT = 12;
-/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT,
- *  decision by Fabian Schwamborn, 2026-11-01), then a little further back, then closer to the hearer. Own choice. */
+/** Places a lane's value tries, as shares of the lane from the sender: a quarter before the hearer first (VALUE_AT), then a little further back, then closer to the hearer. Own choice. */
 /** Opacity of the plate under a focus device's label. */
 const PLATE_ALPHA = 0.85;
 const VALUE_SPOTS = Object.freeze([VALUE_AT, 0.6, 0.88]);
@@ -327,7 +326,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     const w = Math.max(measure(texts.rx), measure(text));
     const h = 2 * LINE_HEIGHT;
     const along = w * Math.abs(lane.ux) + h * Math.abs(lane.uy);
-    // A focus lane's value is never dropped (board M11 rule 8, owner 2026-11-01): on a short lane it sits at its
+    // A focus lane's value is never dropped (board M11 rule 8): on a short lane it sits at its
     // middle, beside the lane, where the lane is long enough for nothing else. Other values yield (spec 9.3).
     if (along + 8 > lane.len && !extra.path) return null;
     const half = Math.min(0.5, along / 2 / lane.len);
@@ -482,7 +481,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const placed = obstacles; // labels become obstacles for later labels
-  // The type line shows from the working scale up (A4h review, Fabian Schwamborn, 2026-11-01): the overview stays calm.
+  // The type line shows from the working scale up: the overview stays calm.
   const shownLabels = view.labels || DEFAULT_LABELS;
   const lineSwitches = typeShown(k, view.typeZoom) ? shownLabels : { ...shownLabels, type: false };
   let values = 0;
@@ -562,7 +561,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   const value = (t) => {
     let rect = null;
-    // The focus's values sit at their preferred place whatever is there (board M11 rule 8, owner decision 2026-11-01:
+    // The focus's values sit at their preferred place whatever is there (board M11 rule 8,
     // "every value at its place, overlap accepted"); only the debug overview's values look for a free spot.
     // A focus value keeps off the focus labels (A4s): the next spot on its lane, else the one covering least of them.
     let least = Infinity;
@@ -620,7 +619,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
   for (const e of ends) endText(e);
-  // A device on the focus's paths is always labelled (A4m, owner report 2026-11-01: Router 17 lost its label in a hub
+  // A device on the focus's paths is always labelled (A4m: Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
   // place over them if none is free ("overlap is accepted", 7.1); only the rest of the map yields.
   for (const i of near) if (!focusSet.has(i) && !always.includes(i)) label(i, true);

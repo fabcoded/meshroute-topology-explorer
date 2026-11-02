@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Texts of the panel (spec 10). Decision of the owner (Fabian Schwamborn, 2026-11-01): the panel is English only for
+// Texts of the panel (spec 10). The panel is English only for
 // now; the German table `de` below stays in the file, dormant and no longer maintained, so German can be switched on
 // later by adding "de" to ACTIVE_LANGUAGES and translating the keys that were added since. languageOf() therefore
 // always answers "en"; translator("de") still renders the dormant table (tests and a later switch-on use it).
@@ -432,7 +432,7 @@ export function mergeTexts(parts) {
 export const STRINGS = mergeTexts([SHARED, ...Object.values(ENGINES).map((e) => e.texts),
   ...ADAPTERS.map((a) => a.texts)]);
 
-/** Languages the panel selects from the user's locale. "de" is dormant (owner decision 2026-11-01). */
+/** Languages the panel selects from the user's locale. "de" is dormant. */
 export const ACTIVE_LANGUAGES = Object.freeze(["en"]);
 
 function primaryTag(hass) {
@@ -448,7 +448,7 @@ export function languageOf(hass) {
 }
 
 /** The locale for dates and numbers: the user's primary language subtag if the browser's Intl knows it, else English.
- *  Independent of the text language (owner decision 2026-11-01: English texts, local number and date format). */
+ *  Independent of the text language (English texts, local number and date format). */
 export function formatLocaleOf(hass) {
   const primary = primaryTag(hass);
   try {

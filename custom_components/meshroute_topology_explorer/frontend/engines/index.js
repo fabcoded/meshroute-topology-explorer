@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The viewer engines, one per network type (decision by Fabian Schwamborn, 2026-11-01: each network type gets its own
+// The viewer engines, one per network type (each network type gets its own
 // viewer engine, engines are at most derived from each other). An engine holds the meaning of its network type: the
 // model it builds, what each lane carries and how the map draws it (scene), lane values, legend, options, settings
 // keys, status line, findings, Details, searchable addresses and texts. Shared code reaches an engine only through
