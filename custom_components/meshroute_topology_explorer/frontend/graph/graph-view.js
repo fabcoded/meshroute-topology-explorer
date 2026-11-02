@@ -734,6 +734,8 @@ export class GraphView extends EventTarget {
         e.preventDefault(); this.zoomIn();
       } else if (e.key === "-") {
         e.preventDefault(); this.zoomOut();
+      } else if (e.key === "[" || e.key === "]") {
+        e.preventDefault(); this._emit("spread-step", { dir: e.key === "]" ? 1 : -1 });
       } else if (e.key === "0") {
         e.preventDefault(); this.fit();
       }

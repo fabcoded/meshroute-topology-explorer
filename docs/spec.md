@@ -409,14 +409,16 @@ Two core views, switchable; the choice is stored per network.
   of 0 or without value (3.1) is no spring. A pair with two readings has two springs. Origin of the curve and the
   numbers below: [provenance.md](provenance.md).
 - L0, the base length: node diameter plus mean label width in the label font, at zoom 1. D, the **density**: 0.96
-  dense, 1.44 medium (default), 2.28 spread. Repulsion scales with (L0 × D)², so the balance of forces, and the
+  dense, 1.44 medium (default), 2.28 wide (stored name `spread`), or a custom factor (below). Repulsion scales with (L0 × D)², so the balance of forces, and the
   picture's meaning, is the same in every density: the layout is computed once with D = 1 and drawn at D times its
   positions.
 - Any standard spring-electrical integrator is acceptable if deterministic with a fixed seed and meeting the fidelity
   and speed targets (12).
 - Density changes only the distances between connected devices: the same layout is redrawn at D times its positions,
   symbols and labels keep their size, the selection (else the view's centre) stays in place, and the stored density
-  (11) applies on load. **Zigbee fit "base"**: "fit" and the first view fit the layout at D = 1, so dense sits
+  (11) applies on load. **Custom density**: D chosen in steps of 25 % (× or ÷ 1.25) within 0.6 to 8, shown as "×" and
+  one decimal. A step, from the View tab's stepper or the map's "Spread" buttons or the keys `[` (less) and `]` (more), switches to Custom
+  starting from the active density's factor. **Zigbee fit "base"**: "fit" and the first view fit the layout at D = 1, so dense sits
   slightly smaller than the window and medium and spread reach about 44 % and 128 % past it. **Thread fit
   "contain"**: every device and its label inside the window at the active density (a few devices, each an extreme of
   its box, would otherwise reach past it), refitted on a density change while the user has not moved the view. The
@@ -598,7 +600,7 @@ user-supplied image or map tiles from a user-configured address.
 One place per thing; nothing appears twice.
 - **On the map, only:** top left a button **Devices** with the findings count as badge and below it a slide switch
   **Details on click** (`role="switch"`), shown only while the left panel is closed; top right a button **View** and
-  below it **Legend**; bottom right the zoom group (+, −, fit); the status line below the map; banners (incomplete
+  below it **Legend**; bottom right the zoom group (+, −, fit) with the "Spread" group above it (7.1); the status line below the map; banners (incomplete
   data, connection lost, reading) between the top groups, or below them where that leaves less than 280 px. No header
   bar: the map fills the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are
   rounded, on the theme's surface with a light shadow, targets at least 44 px. View switch **[v1.1]**.
@@ -642,7 +644,7 @@ One place per thing; nothing appears twice.
   - **Return paths without a table entry (source route)**: off (return path "unknown"), assume (the way up reversed,
     dash-dot), read from zigpy (tagged "experimental") (5.1); info button "The return path is assumed to follow the
     outbound path in reverse. It has not been verified."
-  - **Node distance (density)**: dense, medium, spread (lower case) (7.1); info button "Spacing helps arrange the
+  - **Node distance (density)**: Dense, Medium, Wide, Custom with the stepper "− ×3.3 +" (7.1); info button "Spacing helps arrange the
     network. It does not show physical distance."
   - **Symbol fill**: none, role, power source. **Labels on the map**: device type above, readable name below,
     original Home Assistant name (8).
@@ -755,10 +757,10 @@ One place per thing; nothing appears twice.
 
 - One gesture model: a press moving less than 8 px is a tap, more a drag (node: pin and move; background: pan). Long
   press: 500 ms within 8 px. Pinch zooms. Wheel: × 1.2 per notch around the pointer. Zoom 0.1 to 8 times the fitted
-  view. Buttons +, −, fit.
+  view. Buttons +, −, fit. Above them, the group "Spread" (own icons, apart / together; tooltips "More space between devices" / "Less space between devices") steps the custom node distance (7.1).
 - Selecting in the list or a finding, a double click or Enter zooms and pans to the **working scale**, at which
   devices of the base layout (D = 1) sit one mean label width from their nearest neighbour (density not compensated:
-  spread shows 2.28, medium 1.44, dense 0.96 label widths; never out past the overview), and keeps the device clear of
+  wide shows 2.28, medium 1.44, dense 0.96 label widths; never out past the overview), and keeps the device clear of
   the panels.
 - A tap on the map zooms the same way only if the shortest lane of the selection's paths (`shortestFocusLane` in
   `graph/renderer.js`) would be under 24 px on screen (`TAP_ZOOM_MIN_LANE`): lanes under 4 px are not drawn, and a
@@ -766,7 +768,7 @@ One place per thing; nothing appears twice.
 - Hover previews the selection highlight on pointer devices; nothing depends on hover.
 - Keys: arrows and Enter in the device list, the keyboard path to every device (its filter matches words in any order
   in name, model, vendor, area and addresses); Esc clears selection and stops playback; Space plays again; Right
-  arrow steps; +, −, 0 zoom. Closing a panel returns focus to where it was opened. Hit areas at least 24 px.
+  arrow steps; +, −, 0 zoom; `[` and `]` less and more space between devices (7.1), on the focused map like the zoom keys. Closing a panel returns focus to where it was opened. Hit areas at least 24 px.
 - Every canvas value also exists as text; the status line describes the canvas; playback is announced in a live
   region ("path: 3 hops, LQI 120 / 89 / 45").
 
@@ -812,7 +814,7 @@ chosen network (`network`: `zha` or `thread`) is stored under the reserved id `p
 load shows Zigbee.
 
 Keys:
-- Density.
+- Density: `density` (`dense`, `medium`, `spread`, `custom`; else `medium`) and `densityFactor` (the custom D, a number clamped to 0.6 to 8; else 1.44).
 - Communication paths: `paths` (`coordinator`, `table`, `all`; else `coordinator`); `heard` (boolean, "additional
   heard neighbours (best 3)", default false, kept in every view, drawn in `table` only); `returnRoutes` (boolean,
   "include return routes", default false).

@@ -93,6 +93,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .banner.loading { border-left: 4px solid var(--mte-accent); }
 .zoom { position: absolute; z-index: 5; right: calc(var(--inset-right) + 12px); bottom: calc(var(--inset-bottom) + 12px);
   display: flex; flex-direction: column; overflow: hidden; border: none; border-radius: 14px; }
+.zoom.spread { bottom: calc(var(--inset-bottom) + 12px + 146px + 8px); }
 .zoom .icon-button { border-radius: 0; width: 48px; height: 48px; }
 .zoom .icon-button + .icon-button { border-top: 1px solid var(--mte-divider); }
 .message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
@@ -316,6 +317,12 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .view-note { margin: 0 0 18px; }
 .info-note { margin: 2px 0 6px; }
 .findings-jump { align-self: flex-start; min-height: 32px; }
+.spread-stepper { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.spread-value { min-width: 3.5ch; text-align: center; font-variant-numeric: tabular-nums; }
+.step-button { min-width: 32px; min-height: 32px; border: 1px solid var(--mte-divider); border-radius: 8px;
+  background: var(--mte-card); color: var(--mte-fg); font: inherit; cursor: pointer; }
+.step-button:disabled { color: var(--mte-muted); cursor: default; }
+@media (pointer: coarse) { .step-button { min-width: 44px; min-height: 44px; } }
 .radio-line { display: flex; flex-wrap: wrap; column-gap: 20px; }
 .radio-line .check-row { margin: 0; }
 .color-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding-left: 24px; margin-top: 2px; }

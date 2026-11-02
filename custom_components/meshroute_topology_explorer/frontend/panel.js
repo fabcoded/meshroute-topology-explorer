@@ -15,7 +15,6 @@
 // Assistant hands every panel (hass.states, hass.areas). Names are always set as text, never as HTML.
 // Try it without Home Assistant: dev/panel.html.
 import { GraphView } from "./graph/graph-view.js";
-import { DENSITY } from "./graph/layout.js";
 import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/parse.js";
 import { KINDS } from "./graph/symbols.js";
@@ -23,7 +22,7 @@ import { PanelController, readNetwork } from "./ui/controller.js";
 import { ADAPTERS, adapterFor } from "./adapters/index.js";
 import { engineFor } from "./engines/index.js";
 import { confirmDialog } from "./ui/dialog.js";
-import { SettingsClient, pinsForView, presentPins } from "./ui/settings.js";
+import { SettingsClient, densityFactor, pinsForView, presentPins, spreadStep } from "./ui/settings.js";
 import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/drawer-rule.js";
 import { formatLocaleOf, translator, localize } from "./ui/i18n.js";
 import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
@@ -181,6 +180,10 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.zoomOut = iconButton("minus", "", () => this._view && this._view.zoomOut());
     ui.zoomFit = iconButton("fit", "", () => this._view && this._view.fit());
     ui.zoom = h("div", { class: "zoom float" }, ui.zoomIn, ui.zoomOut, ui.zoomFit);
+    // Node distance buttons above the zoom group (spec 9.1): own icons, so they are not mistaken for zoom.
+    ui.spreadMore = iconButton("spread-more", "", () => this._stepSpread(1));
+    ui.spreadLess = iconButton("spread-less", "", () => this._stepSpread(-1));
+    ui.spread = h("div", { class: "zoom spread float", role: "group" }, ui.spreadMore, ui.spreadLess);
     ui.message = h("div", { class: "message" });
 
     this._left = new Drawer({ tabs: LEFT_TABS, side: "left", onChange: () => this._onDrawer() });
@@ -190,7 +193,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._left.panel("devices").append(this._devicesTab.el);
 
     // Reading and tab order: the controls top left and top right, the map, the zoom group, then the panels.
-    ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.zoom,
+    ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.spread, ui.zoom,
       this._left.el, this._right.el, ui.message);
     ui.status = h("section", { class: "status", id: "mte-status" });
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
@@ -209,7 +212,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.lost.textContent = t("map.connection_lost");
     ui.loading.textContent = t("map.loading");
     ui.status.setAttribute("aria-label", t("status.label"));
-    for (const [button, key] of [[ui.zoomIn, "zoom.in"], [ui.zoomOut, "zoom.out"], [ui.zoomFit, "zoom.fit"]]) {
+    ui.spread.setAttribute("aria-label", t("spread.label"));
+    for (const [button, key] of [[ui.zoomIn, "zoom.in"], [ui.zoomOut, "zoom.out"], [ui.zoomFit, "zoom.fit"],
+      [ui.spreadMore, "spread.more"], [ui.spreadLess, "spread.less"]]) {
       button.setAttribute("aria-label", t(key));
       button.title = t(key);
     }
@@ -336,10 +341,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _ensureView() {
     if (this._view) return;
     const s = this._settings.settings;
-    const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: DENSITY[s.density], fill: s.fill,
+    const view = new GraphView(this._ui.canvas, { theme: this._readTheme(), density: densityFactor(s), fill: s.fill,
       debug: this._debug, engineView: this._engineView(), receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
+    view.addEventListener("spread-step", (e) => this._stepSpread(e.detail.dir));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
       const d = e.detail;
@@ -351,10 +357,15 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._layout();
   }
 
+  /** One step of the custom node distance (spec 7.1), from the map buttons or the keys "[" and "]". */
+  _stepSpread(dir) {
+    this._settings.update(spreadStep(this._settings.settings, dir));
+  }
+
   _onSettings() {
     const s = this._settings.settings;
     if (this._view) {
-      this._view.setDensity(DENSITY[s.density]);
+      this._view.setDensity(densityFactor(s));
       this._view.setFill(s.fill);
       if (this._network) this._view.setEngineView(this._engineView());
       this._view.setReceptionColors(s.pathColors.mode === "coloured");
@@ -374,7 +385,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const st = this._controller.state;
     const mismatch = this._versionMismatch();
     const ready = !mismatch && st.phase === "ready" && Boolean(this._network) && this._source === this._chosen(st);
-    for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
+    for (const el of [ui.canvas, ui.top, ui.spread, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
       this._left.close();
       this._right.close();

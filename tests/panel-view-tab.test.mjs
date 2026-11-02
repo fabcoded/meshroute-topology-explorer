@@ -146,3 +146,22 @@ test("View tab: the reload note comes from the network's adapter; a Thread tab n
   // Without a note from the caller there is no info button, never a borrowed text.
   assert.ok(!render({}).all.some((n) => n.attrs.id === "v-reload-info" || n.attrs.id === "v-reload-note"));
 });
+
+test("View tab: node distance has four radios and a stepper that switches to Custom from the active factor", () => {
+  const { all, patches } = render({ density: "medium" });
+  const radios = all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-density");
+  assert.deepEqual(radios.map((r) => [r.value, r.checked]), [["dense", false], ["medium", true], ["spread", false], ["custom", false]]);
+  const value = all.find((n) => n.className === "spread-value");
+  assert.equal(value.textContent, "×1.4");
+  const [less, more] = all.filter((n) => n.className === "step-button");
+  more.fire("click");
+  less.fire("click");
+  assert.deepEqual(patches, [{ density: "custom", densityFactor: 1.8 }, { density: "custom", densityFactor: 1.152 }]);
+});
+
+test("View tab: the stepper stops at the ends of the range", () => {
+  const top = render({ density: "custom", densityFactor: 8 }).all.filter((n) => n.className === "step-button");
+  assert.deepEqual(top.map((b) => Boolean(b.disabled)), [false, true]);
+  const low = render({ density: "custom", densityFactor: 0.6 }).all.filter((n) => n.className === "step-button");
+  assert.deepEqual(low.map((b) => Boolean(b.disabled)), [true, false]);
+});

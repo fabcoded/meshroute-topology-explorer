@@ -40,6 +40,9 @@ const ICONS = {
   minus: [["path", { d: "M5 12h14" }]],
   // Two diagonal arrows pointing outwards (spec 6, own drawing).
   fit: [["path", { d: "M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" }]],
+  // Two dots with arrows pointing apart / together (spec 9.1, own drawings): node distance, not zoom.
+  "spread-more": [["path", { d: "M8 12H3M5.5 9.5L3 12l2.5 2.5M16 12h5M18.5 9.5L21 12l-2.5 2.5" }], ["circle", { cx: 12, cy: 12, r: 1.6 }]],
+  "spread-less": [["path", { d: "M3 12h5M5.5 9.5L8 12l-2.5 2.5M21 12h-5M18.5 9.5L16 12l2.5 2.5" }], ["circle", { cx: 12, cy: 12, r: 1.6 }]],
   close: [["path", { d: "M6 6l12 12M18 6L6 18" }]],
   up: [["path", { d: "M6 15l6-6 6 6" }]],
   down: [["path", { d: "M6 9l6 6 6-6" }]],

@@ -90,3 +90,24 @@ test("Zigbee: the fit stays at density factor 1 (medium reaches past the window)
   });
   assert.ok(outside.length > 0, "medium density reaches past the window");
 });
+
+test("custom factors at the range ends: Thread still contains the map, Zigbee keeps its fit at factor 1", () => {
+  for (const size of SIZES) for (const density of [0.6, 8]) {
+    const t = show(threadNet, size, density);
+    assertContained(t.view, t.canvas, `thread ${size} ${density}`);
+    const { view } = show(zigbeeNet, size, density);
+    const box = bounds(view.pos.x, view.pos.y);
+    const base = { minX: box.minX / density, minY: box.minY / density, maxX: box.maxX / density, maxY: box.maxY / density };
+    const fit = fitCamera(base, size[0], size[1], 56);
+    assert.equal(view.cam.k, fit.k, `zigbee ${size} ${density}`);
+  }
+});
+
+test("Thread: stepping the custom factor refits an unmoved view", () => {
+  const { view, canvas, env } = show(threadNet, SIZES[0], DENSITY.medium);
+  for (const d of [1.8, 2.25, 2.8125, 2.25, 1.8]) {
+    view.setDensity(d);
+    env.flush();
+    assertContained(view, canvas, `step ${d}`);
+  }
+});
