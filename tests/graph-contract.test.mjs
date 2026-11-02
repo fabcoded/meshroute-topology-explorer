@@ -246,9 +246,17 @@ test("a stage or checkbox change redraws at once, with and without a selection (
   };
   // Without a selection the checkbox changes nothing: the backbone in stage 2, the up and down lanes in stage 1.
   assert.deepEqual(steps(-1), [570, 570, 95, 95, 95, 570]);
-  // Router 13 selected: its way up and down (2 lanes), plus its 3 heard-only partners (7 lanes); its trees in stage 2
-  // (82), where every measured neighbour is a lane of its paths, so the checkbox adds none (spec 12).
-  assert.deepEqual(steps(r13), [82, 82, 7, 2, 7, 82]);
+  // Router 13 selected: its way up and down (2 lanes) in stage 1 and its trees in stage 2 (82), whatever the checkbox
+  // says: it works under the routing table only (owner decision 2026-11-02, spec 12).
+  assert.deepEqual(steps(r13), [82, 82, 2, 2, 2, 82]);
+  // Under the routing table the checkbox draws the heard partners.
+  view.selected = r13;
+  view.setEngineView({ paths: "table", heard: false });
+  env.flush();
+  const tablePlain = view.lastDraw.lanes;
+  view.setEngineView({ heard: true });
+  env.flush();
+  assert.deepEqual([tablePlain, view.lastDraw.lanes], [6, 11], "Router 13 under the routing table: 6 lanes, 11 with the option");
 });
 
 test("a device on the selected device's paths keeps its label in a hub position (A4m, owner report 2026-11-01)", () => {

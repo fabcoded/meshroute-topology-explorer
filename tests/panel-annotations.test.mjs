@@ -65,14 +65,14 @@ test("1.3: the View tab carries one info note per group at most, with the agreed
     onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
   const all = container.walk();
   const notes = Object.fromEntries(all.filter((n) => /^v-.*-note$/.test(n.attrs.id || "")).map((n) => [n.attrs.id, n.attrs.text ?? n.text]));
-  for (const key of ["colors", "assumed", "density", "reload", "heard"]) {
+  for (const key of ["colors", "assumed", "density", "reload"]) {
     assert.ok(all.some((n) => n.attrs.id === `v-${key}-info` && n.attrs["aria-controls"] === `v-${key}-note`), `${key} button`);
   }
   assert.equal(en["view.colors_info"], "Colour shows the relative reception rank, not connection reliability.");
   assert.equal(en["view.assumed_info"], "The return path is assumed to follow the outbound path in reverse. It has not been verified.");
   assert.equal(en["view.density_info"], "Spacing helps arrange the network. It does not show physical distance.");
   assert.match(en["view.zha_reload_info"], /^Reloads the tables currently held by ZHA\. It does not start a radio scan\./);
-  assert.ok(Object.keys(notes).length >= 5, JSON.stringify(Object.keys(notes)));
+  assert.ok(Object.keys(notes).length >= 4, JSON.stringify(Object.keys(notes)));
   const buttons = all.filter((n) => n.tag === "button" && /-info$/.test(n.attrs.id || ""));
   assert.equal(new Set(buttons.map((b) => b.attrs.id)).size, buttons.length, "no duplicate buttons");
 });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The View tab's "Communication paths" (decision by Fabian Schwamborn, 2026-11-01, board M11; routing-table view by
-// owner proposal 2026-11-01): three radios (the views), "include return routes" under the routing table only, and one
-// checkbox ("additional heard neighbours (best 3)"), whose states follow the settings and whose changes are reported at
+// owner proposal 2026-11-01): three radios (the views), and under the routing table the checkboxes "include return
+// routes" and "additional heard neighbours (best 3)" (owner decision 2026-11-02), whose states follow the settings and whose changes are reported at
 // once.
 // A minimal fake DOM stands in for the browser; the tab is rendered by the real renderView.
 // npm test
@@ -66,23 +66,36 @@ test("View tab: 'include return routes' sits under the routing table and works o
   assert.equal(render({ paths: "all", returnRoutes: true }).returns.disabled, true, "kept, but greyed in another view");
 });
 
-test("View tab: the checkbox follows the settings, in both stages, and migrates from the old third stage", () => {
+test("View tab: the checkbox follows the settings in every view (kept, greyed outside the routing table) and migrates", () => {
   for (const [stored, stage, heard] of [[{ paths: "all", heard: true }, "all", true],
     [{ paths: "coordinator", heard: true }, "coordinator", true], [{ paths: "heard" }, "all", true]]) {
     const { radios, box } = render(stored);
     assert.equal(radios.find((r) => r.checked).value, stage, JSON.stringify(stored));
     assert.equal(box.checked, heard, JSON.stringify(stored));
+    assert.equal(Boolean(box.disabled), stage !== "table", `${JSON.stringify(stored)}: greyed outside the routing table`);
   }
 });
 
-test("View tab: the info note about heard only appears in stage 2 only", () => {
-  const info = (stored) => render(stored).all.filter((n) => n.attrs.id === "v-heard-info" || n.attrs.id === "v-heard-note");
-  assert.equal(info({ paths: "coordinator" }).length, 0);
-  assert.equal(info({ paths: "all" }).length, 2, "button and note");
+test("View tab: 'additional heard neighbours' sits under the routing table after the return routes and has no info note", () => {
+  const { all, box, patches } = render({ paths: "table", heard: true });
+  assert.deepEqual([box.checked, Boolean(box.disabled)], [true, false]);
+  const ids = all.filter((n) => n.attrs && n.attrs.id).map((n) => n.attrs.id);
+  const at = (x) => ids.indexOf(x);
+  assert.ok(at("v-paths-returns-hint") < at("v-paths-heard") && at("v-paths-heard") < at("v-paths-heard-hint")
+    && at("v-paths-heard-hint") < at("v-paths-all-hint"), "after the return routes, before the third view");
+  const row = (r) => r.all.find((n) => n.tag === "label" && n.children.includes(r.box)).className;
+  assert.match(row({ all, box }), /sub-option/, "indented like the return routes");
+  assert.ok(!/ off/.test(row({ all, box })));
+  const other = render({ paths: "all", heard: true });
+  assert.match(row(other), / off/, "greyed in another view, the stored choice kept");
+  assert.ok(!all.some((n) => n.attrs.id === "v-heard-info"), "no info button");
+  box.checked = false;
+  box.fire("change");
+  assert.deepEqual(patches, [{ heard: false }]);
 });
 
 test("View tab: a change of the checkbox or a radio is reported at once, as one setting", () => {
-  const { radios, box, patches } = render({});
+  const { radios, box, patches } = render({ paths: "table" });
   box.checked = true;
   box.fire("change");
   radios[1].fire("change");

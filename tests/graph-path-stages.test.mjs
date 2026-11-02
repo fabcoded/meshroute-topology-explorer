@@ -93,9 +93,6 @@ test("classes per direction: up, down measured or assumed, routes between device
   // r2 -> r1 carries r2's way up and the route r2 -> r4: the strongest wins.
   const lane = scene.laneByKey.get(`${at("r2")}>${at("r1")}`);
   assert.ok(lane.up && lane.route);
-  // Heard-only pairs: a reading and no traffic in either direction.
-  const heardOnly = scene.pairs.filter((p) => sc.heardOnly[p.index]).map((p) => `${scene.nodes[p.a].id}|${scene.nodes[p.b].id}`);
-  assert.deepEqual(heardOnly, ["r2|r3", "r3|r4"]);
 });
 
 test("overview: up and down lanes in every stage; from 'all' the backbone of all theoretical paths; 'heard only' no more", () => {
@@ -117,7 +114,7 @@ test("overview: up and down lanes in every stage; from 'all' the backbone of all
   assert.deepEqual(off.classes, { heard: 0, route: 0, down: 4, up: 5, assumed: 0, predicted: 0, none: 0 }, "no assumed return path");
 });
 
-test("click: everything else off; stage 1 the way up and down, stage 2 adds routes, the checkbox the heard partners", () => {
+test("click: everything else off; stage 1 the way up and down, stage 2 adds routes, the routing table view the checkbox's heard partners", () => {
   const r2 = at("r2");
   const one = draw({ selected: r2 }).stats;
   assert.deepEqual(one.classes, { heard: 0, route: 0, down: 2, up: 2, assumed: 0, predicted: 0, none: 0 });
@@ -139,19 +136,23 @@ test("click: everything else off; stage 1 the way up and down, stage 2 adds rout
     ["r4", "r1", "80", "route", true]]);
   assert.deepEqual(two.classes, { heard: 0, route: 6, down: 2, up: 2, assumed: 0, predicted: 2, none: 0 });
   assert.equal(two.paths.ends, 0, "every way complete");
-  // The checkbox in stage 1 adds r2's heard-only partner r3 (no up, down or route lane between them): r3 -> r2 as
-  // heard, r2 -> r3 has no reading, so its glyph "–".
-  const withHeard = draw({ selected: r2, heard: true }).stats;
-  assert.deepEqual(withHeard.classes, { heard: 1, route: 0, down: 2, up: 2, assumed: 0, predicted: 0, none: 0 });
-  assert.equal(withHeard.lanes, 5);
-  // In stage 2 the pair is no partner: r2's theoretical paths take r2 -> r3 (a lane drawn between the two), so the
-  // checkbox adds nothing here (decision of the main session, 2026-11-01: no lane of the selection's paths between them).
-  const three = draw({ selected: r2, paths: "all", heard: true }).stats;
-  assert.deepEqual(three.classes, two.classes);
-  assert.equal(three.paths.values.length, two.paths.values.length);
-  // r3 and r4 hear each other, r3 hears r2: no up, down or route lane between them in stage 1.
-  const r3h = draw({ selected: at("r3"), heard: true }).stats;
-  assert.equal(r3h.classes.heard, 3, "r3 has two partners: r4 (both lanes) and r2 (r3 -> r2)");
+  // The checkbox exists in the view "table" only (owner decision 2026-11-02): with the coordinator and in the
+  // theoretical view a stored heard = true draws nothing extra.
+  for (const paths of ["coordinator", "all"]) {
+    const plain = draw({ selected: r2, paths }).stats;
+    const stored = draw({ selected: r2, paths, heard: true }).stats;
+    assert.deepEqual(stored.classes, plain.classes, `${paths}: heard = true adds no lane`);
+    assert.deepEqual([stored.lanes, stored.glyphs, stored.paths.values.length],
+      [plain.lanes, plain.glyphs, plain.paths.values.length], `${paths}: nor values or glyphs`);
+  }
+  const tablePlain = draw({ selected: r2, paths: "table" }).stats;
+  const tableHeard = draw({ selected: r2, paths: "table", heard: true }).stats;
+  // In the view "table" the checkbox adds r2's heard-only partner r3 (a reading, no lane of r2's walks): r3 -> r2 as
+  // heard, r2 -> r3 has no reading, so its glyph "-".
+  assert.deepEqual([tablePlain.classes.heard, tablePlain.lanes, tablePlain.glyphs], [0, 3, 0]);
+  assert.deepEqual([tableHeard.classes.heard, tableHeard.lanes, tableHeard.glyphs], [1, 4, 1]);
+  const r3Table = draw({ selected: at("r3"), paths: "table", heard: true }).stats;
+  assert.equal(r3Table.classes.heard, 3, "r3 has two partners: r4 (both lanes) and r2 (r3 -> r2)");
   // The assumed return path of r3 on its own click: dotted, its value the hearer's reading.
   const r3 = draw({ selected: at("r3") }).stats;
   assert.equal(r3.classes.assumed, 1);
@@ -176,7 +177,8 @@ test("hover previews the device's lanes of the stage, dims the rest, and never a
   assert.equal(draw({ hovered: r2, paths: "all" }).stats.paths.hops, draw({ selected: r2, paths: "all" }).stats.paths.hops);
   assert.equal(draw({ hovered: r2, paths: "all" }).stats.paths.hops, 10);
   assert.equal(draw({ hovered: r2, paths: "all", heard: true }).stats.paths.hops, 10, "heard-only partners wait for the click");
-  assert.equal(draw({ hovered: r2, heard: true }).stats.paths.hops, 4, "also in stage 1");
+  assert.equal(draw({ hovered: r2, paths: "table", heard: true }).stats.paths.hops, draw({ hovered: r2, paths: "table" }).stats.paths.hops,
+    "also in the routing table view");
 });
 
 test("debug mode draws every lane of every class with values on both lanes, with and without a selection", () => {
@@ -215,8 +217,10 @@ test("the stage only filters the drawing: the layout never moves; junk counts as
   assert.equal(view.engineView.heard, true);
   assert.equal(JSON.stringify([...view.pos.x, ...view.pos.y]), before);
   // The legend lists every class whatever the stage (decision by Fabian Schwamborn, 2026-11-01); only the glyph rows
-  // follow it.
-  assert.ok(view.legend().some((e) => e.id === "not-listed"), "glyph rows with the checkbox");
+  // follow the checkbox, which works under the routing table only (2026-11-02).
+  assert.ok(!view.legend().some((e) => e.id === "not-listed"), "no glyph rows: heard has no effect in this view");
+  view.setEngineView({ paths: "table" });
+  assert.ok(view.legend().some((e) => e.id === "not-listed"), "glyph rows with the checkbox under the routing table");
   view.setEngineView({ heard: false, paths: "everything" });
   env.flush();
   assert.equal(drawn(), junk);
@@ -245,8 +249,8 @@ test("the stored stage: valid stages kept, the old node view migrates, the old k
   assert.deepEqual([legacy.paths, legacy.heard], ["all", true], "paths 'heard' -> all + heard");
   assert.deepEqual([migrated.heard, sanitizeSettings({}).heard, DEFAULTS.heard], [false, false, false], "calm default");
   for (const bad of [1, "yes", null, "true"]) assert.equal(sanitizeSettings({ paths: "all", heard: bad }).heard, false);
-  assert.deepEqual(sanitizeSettings({ paths: "coordinator", heard: true }).paths, "coordinator", "the checkbox works in stage 1");
-  assert.equal(sanitizeSettings({ paths: "coordinator", heard: true }).heard, true);
+  assert.deepEqual(sanitizeSettings({ paths: "coordinator", heard: true }).paths, "coordinator", "a stored heard = true does not move the view");
+  assert.equal(sanitizeSettings({ paths: "coordinator", heard: true }).heard, true, "the stored choice is kept in any view (it takes effect under the routing table only)");
   // A round trip through JSON, as the integration stores it: the migrated shape is stable.
   const again = sanitizeSettings(JSON.parse(JSON.stringify(legacy)));
   assert.deepEqual([again.paths, again.heard], ["all", true]);
@@ -260,9 +264,9 @@ test("the three stages, their hints and the legend's words in English and German
     "view.paths_all_hint":
       "ohne Auswahl alle Spuren, die irgendein Weg nutzt (berechnete heller); bei Klick der Baum des Geräts hin und zurück",
     "view.paths_heard": "zusätzlich gehörte Nachbarn (beste 3)",
-    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu, in jeder Ansicht",
+    "view.paths_heard_hint": "braucht eine Auswahl: fügt die 3 besten Partner mit Messwert und ohne gezeichnete Spur hinzu",
     "view.paths_note": "Jede Ansicht hat ihre eigene Grundlage. Debug zeigt alles.",
-    "legend.option_heard": "(Option \"zusätzlich gehörte Nachbarn\", braucht eine Auswahl)",
+    "legend.option_heard": "(Option unter \"Routing table\", braucht eine Auswahl)",
     "legend.link.coordinator": "Hin- und Rückweg mit dem Koordinator", "legend.link.assumed": "Rückweg angenommen (Source Route)",
     "legend.link.up-path": "Band: der Weg des ausgewählten Geräts zum Koordinator",
     "legend.link.route": "Weg zu einem anderen Gerät", "legend.link.discovery": "einer der günstigsten Wege nach den LQI der Tabellen",
@@ -286,7 +290,7 @@ test("the three stages, their hints and the legend's words in English and German
   assert.equal(STRINGS.en["view.paths_all_hint"],
     "without a selection every lane any path uses (computed lighter); on click the device's trees there and back");
   assert.equal(STRINGS.en["view.paths_heard_hint"],
-    "needs a selection: adds the device's 3 best partners with a reading and no drawn lane, in any view");
+    "needs a selection: adds the device's 3 best partners with a reading and no drawn lane");
   assert.equal(STRINGS.en["legend.link.discovery"], "Computed path: a candidate, not observed traffic.");
   assert.equal(STRINGS.en["legend.stage_computed"], "(computed, view {n})");
   for (const gone of ["view.link_up", "view.link_route", "view.link_heard", "view.nodeview_coordinator", "view.nodeview_all",
