@@ -43,7 +43,7 @@ export const zigbee = Object.freeze({
   /** Fill the Details tab (three sub-tabs, boards M4, M8-M10). ctx: the panel's Details context; the paths follow
    *  this engine's own settings (paths, returnRoutes, sourceRoute); a cluster's details open as a dialog through the
    *  panel's ctx.openDialog(open(host)). */
-  details: (container, ctx) => renderDetails(container, { ...ctx, nodeView: ctx.settings.paths,
+  details: (container, ctx) => renderDetails(container, { ...ctx, stage: ctx.settings.paths,
     returnRoutes: ctx.settings.returnRoutes, sourceRoute: ctx.settings.sourceRoute,
     onCluster: (spec, opener) => {
       const device = ctx.network.devices.find((d) => d.id === ctx.id);

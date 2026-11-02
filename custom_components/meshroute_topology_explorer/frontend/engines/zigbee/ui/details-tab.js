@@ -33,14 +33,14 @@ const PATHS_OPEN = 12;
 const WEAKEST = 0.1;
 
 /** Fill `container` with the details of `id`. ctx: { network, t, id, debug, raw (Map id -> zha/devices entry),
- *  nodeView ("coordinator" | "table" | "all"), returnRoutes (view "table"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
+ *  stage (PATH_STAGES: "coordinator" | "table" | "all"), returnRoutes (view "table"), sourceRoute ("off" | "assume"), sub (one of DETAIL_TABS), observedSince
  *  (formatted time the table was first seen as it is now, or null), pinned, idPrefix, onSub(sub, { focus }),
  *  onSelect(id), onRelease(id), onCluster({ endpoint, profile, cluster, direction }, opener), onFindings(opener) (show
  *  the Findings tab) }. */
 export function renderDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
-  const info = ctx.id ? detailsOf(network, ctx.id, ctx.nodeView, { sourceRoute: ctx.sourceRoute,
+  const info = ctx.id ? detailsOf(network, ctx.id, ctx.stage, { sourceRoute: ctx.sourceRoute,
     returnRoutes: ctx.returnRoutes }) : null;
   if (!info) {
     container.append(h("p", { class: "empty", text: t("details.empty") }));

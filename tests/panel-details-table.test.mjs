@@ -30,9 +30,9 @@ const network = sampleNetwork();
 const idOf = (label) => network.devices.find((d) => d.label === label).id;
 
 /** The card titles the Communication sub-tab shows for a device in a view. */
-function titles(label, nodeView) {
+function titles(label, stage) {
   const container = new FakeNode("div");
-  renderDetails(container, { network, t, id: idOf(label), debug: false, raw: new Map(), nodeView, returnRoutes: true,
+  renderDetails(container, { network, t, id: idOf(label), debug: false, raw: new Map(), stage, returnRoutes: true,
     sourceRoute: "assume", sub: "communication", idPrefix: "d", pinned: false, onSub() {}, onSelect() {},
     onRelease() {}, onCluster() {}, onFindings() {} });
   return container.walk().filter((n) => n.className && n.className.split(" ").includes("card-title")).map((n) => n.textContent);

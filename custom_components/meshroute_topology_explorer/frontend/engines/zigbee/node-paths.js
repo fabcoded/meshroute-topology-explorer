@@ -11,12 +11,7 @@ import { downPath, routeEnds, routePath, tableWalk, upPath } from "./paths.js";
 import { theoreticalPath } from "./theoretical.js";
 import { pairEvidence } from "./pairs.js";
 import { drawMode, returnPaths } from "./source-routes.js";
-
-/** The node views (spec 7.1, 9.1, 11): the default shows the way to and from the
- *  coordinator, which stands for Home Assistant; "table" the device's own routing-table entries followed hop by hop;
- *  "all" adds to the first the device's theoretical way to every other device and back (spec 5.7). */
-export const NODE_VIEWS = Object.freeze(["coordinator", "table", "all"]);
-export const DEFAULT_NODE_VIEW = "coordinator";
+import { DEFAULT_PATHS } from "./lanes.js";
 
 const evidenceCache = new WeakMap(); // network -> Map "hearer|sender" -> direction
 
@@ -68,7 +63,7 @@ export function pathHops(network, ids) {
  *  down path by the up path reversed where source-routes.js says the assumption applies; that path carries assumed:
  *  true, and so do its hops. "zigpy" replaces it by zigpy's route record where one passes the gate (recorded: true,
  *  drawn as measured), else assumes as "assume" does. The default "off" gives the measured paths of spec 5.1 only. */
-export function nodePaths(network, id, mode = DEFAULT_NODE_VIEW, { sourceRoute = "off", returns = false } = {}) {
+export function nodePaths(network, id, mode = DEFAULT_PATHS, { sourceRoute = "off", returns = false } = {}) {
   const devices = network.devices || [];
   const device = devices.find((d) => d.id === id);
   if (!device) return [];

@@ -114,13 +114,13 @@ export function tableRows(network, id, returns, name) {
 
 /** Details of device `id`, or null if the network does not have it. Reading rows: { device (the other end), lqi,
  *  rating, pool, poolMedian, reporter (whose scale the rating is on) }. paths: the device's paths in the node view
- *  `nodeView` ("coordinator" or "all", ../node-paths.js; the view "table" lists the way with the coordinator here
+ *  `stage` (PATH_STAGES in ../lanes.js; the view "table" lists the way with the coordinator here
  *  and its walks in `table`, but not for the coordinator, whose view-1 list of routes would repeat them: its paths are
  *  then empty), with the source-route stage `sourceRoute` ("off", "assume" or "zigpy",
  *  ../source-routes.js). table (view "table" only, else null): tableRows, with return walks when `returnRoutes`. record (stage "zigpy" only, else null): { radio, differs } with
  *  differs the relays of a usable route record that takes another way than the complete measured down path (ids from
  *  the coordinator's side, without both ends), or null. */
-export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRoutes = false } = {}) {
+export function detailsOf(network, id, stage, { sourceRoute = "off", returnRoutes = false } = {}) {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const device = byId.get(id);
   if (!device) return null;
@@ -135,8 +135,8 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRo
       direct: r.direct, stale: r.stale }))
     .sort((a, b) => a.destination.label.localeCompare(b.destination.label));
   const parent = device.parent ? byId.get(device.parent) || null : null;
-  const paths = nodeView === "table" && device.role === "coordinator" ? []
-    : nodePaths(network, id, nodeView === "table" ? "coordinator" : nodeView, { sourceRoute });
+  const paths = stage === "table" && device.role === "coordinator" ? []
+    : nodePaths(network, id, stage === "table" ? "coordinator" : stage, { sourceRoute });
   const label = (x) => (byId.get(x) || { label: x }).label;
   const differs = sourceRoute === "zigpy" ? zigpyRecords(network).differs.get(id) : null;
   const record = sourceRoute === "zigpy" ? { radio: (network.zigpy && network.zigpy.radio) || null,
@@ -159,6 +159,6 @@ export function detailsOf(network, id, nodeView, { sourceRoute = "off", returnRo
     paths,
     record,
     theory: theoryRows(paths, label),
-    table: nodeView === "table" ? tableRows(network, id, returnRoutes === true, label) : null,
+    table: stage === "table" ? tableRows(network, id, returnRoutes === true, label) : null,
   };
 }
