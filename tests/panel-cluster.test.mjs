@@ -14,8 +14,8 @@ import { zhaDevicePath } from "../custom_components/meshroute_topology_explorer/
 /** The source page a network's adapter gives where the capability says the source has one (as the Zigbee Details do). */
 const pageOf = (device, capabilities, key) => (capabilities && capabilities.devicePage ? adapterByKey(key).devicePage(device, "signature") : null);
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
-import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js";
+import { THREAD_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js";
 
 const st = (state, attributes = {}) => ({ state, attributes });
 

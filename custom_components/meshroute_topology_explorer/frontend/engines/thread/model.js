@@ -7,9 +7,6 @@
 // Pure, no DOM. npm test
 import { THREAD_CAPABILITIES, THREAD_SOURCE, fromMatter } from "./from-matter.js";
 
-export { RECEIVER_OF_SOURCE_TO_TARGET, THREAD_CAPABILITIES, THREAD_SOURCE, extAddress, isoTime, threadLqi, threadRssi }
-  from "./from-matter.js";
-
 const ROUTER_ROLES = new Set(["router", "border router"]);
 
 /** Why direction "hearer hears sender" has no reading (spec 4.3 wording where it fits). "–" glyph: the hearer's table

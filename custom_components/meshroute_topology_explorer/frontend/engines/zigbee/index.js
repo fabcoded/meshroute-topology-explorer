@@ -4,7 +4,8 @@
 // status.js, connection.js, texts.js, the Details in ui/); every hook has a caller in the shell, and both engines offer
 // the same hooks.
 // Pure except details(), which fills the Details tab. npm test
-import { buildNetwork, FINDING_KINDS } from "./model.js";
+import { buildNetwork } from "./model.js";
+import { FINDING_KINDS } from "./findings.js";
 import { laneValue, legendEntries, springQuality } from "./lanes.js";
 import { unknownGlyph } from "../unknown-reason.js";
 import { renderDetails } from "./ui/details-tab.js";

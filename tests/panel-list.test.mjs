@@ -55,7 +55,7 @@ test("rows as on board M3: the coordinator first, the parent of end devices, 'di
   const { rowMeta } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js");
   const { connectionOf } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/connection.js");
   const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
-  const { upPath } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js");
+  const { upPath } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js");
   const network = sampleNetwork();
   const rows = deviceRows(network);
   const coordinator = network.devices.find((d) => d.role === "coordinator");

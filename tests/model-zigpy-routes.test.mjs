@@ -7,7 +7,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 import { fakeZigpyRoutes } from "./zigpy-fake.mjs";
-import { buildNetwork, downPath, upPath, nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { downPath, upPath } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js";
+import { nodePaths } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js";
 import { assumedDownPaths, downPathWith, returnPaths, sourceRouteSummary, zigpyRecords }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js";
 import { parseZigpyRoutes, readZigpyRoutes } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha.js";

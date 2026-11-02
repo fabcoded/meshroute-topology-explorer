@@ -6,7 +6,7 @@
 
 import { seededRandom } from "../custom_components/meshroute_topology_explorer/frontend/graph/layout.js";
 import { applyRatings } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ratings.js";
-import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
+import { ZHA_CAPABILITIES } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js";
 
 export function syntheticNetwork({ devices = 300, readings = 3000, seed = 7, routerShare = 0.6 } = {}) {
   const rnd = seededRandom(seed);
