@@ -1,0 +1,41 @@
+name: Bug report
+description: Something in the panel is wrong or missing
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste tokens, real device names or IEEE addresses. Security problems: use the private advisory link on the issue chooser, not this form.
+  - type: input
+    id: ha
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: seen
+    attributes:
+      label: What you saw, and the steps
+    validations:
+      required: true
+  - type: textarea
+    id: capture
+    attributes:
+      label: Anonymized capture
+      description: Made with `tools/capture.py` (anonymized by default) or `tools/anonymize_capture.py`. Look through the file first. Attach it, do not paste secrets.
