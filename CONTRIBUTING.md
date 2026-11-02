@@ -35,6 +35,7 @@ CI runs the same script. Single steps:
 - `tools/guard.py` enforces the ground rules: allowed Home Assistant commands, no outside URLs or HTML sinks in
   shipped files, SPDX lines.
 - The whitespace and end-of-file hooks fix files in place and fail; review the change, stage it and commit again.
+- `python3 tools/screenshots.py` regenerates `docs/images/*.png` from the dev page (needs Pillow from `requirements-dev.txt` and a Chromium; `--chrome PATH` overrides the Playwright cache).
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.
 - Versions are locked in `package-lock.json` and `.pre-commit-config.yaml`; Dependabot proposes updates monthly.
 - Hassfest and, once the repository is public, HACS validation run only in CI.
