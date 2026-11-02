@@ -243,19 +243,21 @@ test("a lane keeps its look in all three views: the stroke says the evidence, th
   // Router 02 (routing entries of the fixture): way up over Router 04, its own entry and Router 04's. Its return is
   // assumed (the coordinator holds no entry for it), but on lanes tables name: Coordinator -> RWL022 via Router 04,
   // Router 04 -> End device 10 via Router 02. Before, the way up was dash-dot under "Routing table" and the return
-  // dotted in "all". The routing table view draws no return: the coordinator's walk back stops at once.
+  // dotted in "all". In the routing table view the walks back are direct neighbour hops (5.1): the coordinator and
+  // Router 04 list Router 02 (162, 200) without an entry for it; Router 04's hop is read, as its entry for End device
+  // 10 names Router 02, the coordinator's derived, as no entry names Router 02 there (the fixture, by hand).
   const r02 = drawn(at("Router 02"));
-  for (const k of [key("Router 02", "Router 04"), key("Router 04", "Coordinator")]) {
+  for (const k of [key("Router 02", "Router 04"), key("Router 04", "Coordinator"), key("Router 04", "Router 02")]) {
     assert.deepEqual(look(r02, k), ["solid strong", "solid strong", "solid strong"], k);
   }
-  for (const k of [key("Coordinator", "Router 04"), key("Router 04", "Router 02")]) {
-    assert.deepEqual(look(r02, k), ["solid strong", null, "solid strong"], k);
-  }
-  // Router 06: its own entry to the coordinator; no table names Router 06 as next hop, so its assumed return stays
-  // dash-dot wherever it is drawn.
+  assert.deepEqual(look(r02, key("Coordinator", "Router 04")), ["solid strong", null, "solid strong"]);
+  // In "all" End device 07's way to Router 02 takes the same hop over its parent, the coordinator (5.7 rule 4).
+  assert.deepEqual(look(r02, key("Coordinator", "Router 02")), [null, "dashdot regular", "dashdot regular"]);
+  // Router 06: its own entry to the coordinator; no table names Router 06 as next hop, so its return (assumed, or
+  // in the routing table view the coordinator's direct hop to its neighbour, LQI 79) stays dash-dot wherever drawn.
   const r06 = drawn(at("Router 06"));
   assert.deepEqual(look(r06, key("Router 06", "Coordinator")), ["solid strong", "solid strong", "solid strong"]);
-  assert.deepEqual(look(r06, key("Coordinator", "Router 06")), ["dashdot strong", null, "dashdot strong"]);
+  assert.deepEqual(look(r06, key("Coordinator", "Router 06")), ["dashdot strong", "dashdot strong", "dashdot strong"]);
   // Router 13: a direct neighbour of the coordinator both ways by entries on both sides.
   const r13 = drawn(at("Router 13"));
   for (const k of [key("Router 13", "Coordinator"), key("Coordinator", "Router 13")]) {
@@ -389,4 +391,31 @@ test("no value covers the label of the selected device, its lanes and values sta
     }
   }
   env.flush();
+});
+
+test("no label covers a value of the selection's paths: a device on the paths keeps off it where it can", () => {
+  // A device on the paths is always labelled; with no free place its label took the first place, over a value drawn
+  // before it (a router lying on the lane to the coordinator hid "RX: 111", 2026-11-02). Before the change the sample
+  // had 10, 17 and 250 such values in the three views; now the label takes the place covering least of the values,
+  // and a value it still covers is drawn again on top.
+  const { view } = show();
+  const labels = new Set(view.scene.nodes.map((n) => n.label));
+  for (const paths of ["coordinator", "table", "all"]) {
+    view.setEngineView({ paths, returnRoutes: true, heard: paths === "table" });
+    let checked = 0;
+    for (let i = 0; i < view.scene.nodes.length; i++) {
+      view.selected = i;
+      view.ctx.calls.length = 0;
+      view.draw();
+      const { calls } = view.ctx;
+      for (const v of view.lastDraw.paths.values.filter((x) => x.drawn)) {
+        const at = calls.reduce((last, c, j) => (c[0] === "fillText" && c[1] === v.text && Math.abs(c[2] - v.x) < 0.5 ? j : last), -1);
+        const cover = calls.find((c, j) => j > at && c[0] === "fillText" && labels.has(c[1])
+          && Math.abs(c[2] - v.x) * 2 < labelWidth(c[1]) + 4 + v.w && Math.abs(c[3] - v.y) * 2 < 14 + v.height);
+        assert.ok(at >= 0 && !cover, `${paths}, ${view.scene.nodes[i].label}: "${v.text}" under "${cover && cover[1]}"`);
+        checked++;
+      }
+    }
+    assert.ok(checked > 200, `${paths}: ${checked} values checked`);
+  }
 });

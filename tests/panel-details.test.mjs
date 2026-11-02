@@ -130,7 +130,7 @@ test("theoretical paths per device: a row per other device, shortest first, hops
   assert.equal(detailsOf(network, coordinator, "coordinator").theory.length, 0, "the coordinator's stage 1: its routes");
   assert.equal(detailsOf(network, coordinator, "all").theory.length, 41, "stage 2: its trees, like any device");
   assert.deepEqual(["table", "neighbour", "discovery", "parent", "child"].map((x) => howText(x, en)),
-    ["routing table entry", "direct neighbour (from the neighbour table)", "route discovery (computed)", "parent", "child"]);
+    ["routing table entry", "direct to a neighbour (no table entry needed)", "route discovery (computed)", "parent", "child"]);
   assert.equal(stopText("loop", en), "loop");
   assert.deepEqual(theoryRows([], name), []);
   // Rows with the same hop counts sort by name in natural order: Router 2 before Router 10.

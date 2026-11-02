@@ -75,12 +75,13 @@ test("return routes: walked back from each destination by every hop's entry for 
   assert.deepEqual(back.c.ids, ["c", "f", "a"], "over another router than the way out, from the tables");
   assert.ok(back.c.complete);
   assert.deepEqual(back.z.ids, ["z", "b", "a"]);
-  // D's entry for A is inactive: the walk stops at D, nothing is guessed (no reversed way out, no discovery).
+  // D's entry for A is inactive and D's neighbour table (no readings here) does not list A: the walk stops at D,
+  // nothing is guessed (no reversed way out, no discovery; a measured pair is no listing).
   assert.deepEqual([back.d.ids, back.d.complete, back.d.reason], [["d"], false, "entry inactive"]);
   assert.deepEqual([back.e.ids, back.e.complete, back.e.reason], [["e", "d"], false, "entry inactive"]);
   assert.deepEqual(back.e.hops.map((h) => h.how), ["parent"], "an end device sends to its parent: protocol, no guess");
   const hows = new Set(paths.flatMap((p) => p.hops.map((h) => h.how)));
-  assert.deepEqual([...hows].sort(), ["child", "parent", "table"], "never neighbour or discovery");
+  assert.deepEqual([...hows].sort(), ["child", "parent", "table"], "no neighbour hop without a listing, never discovery");
   assert.ok(paths.every((p) => !p.assumed && !p.recorded), "no source route in this view");
 });
 
@@ -130,8 +131,12 @@ test("the sample: Router 13's table walks, the gaps of its return routes, the ov
   const line = (p) => `${p.ids.map((x) => label.get(x)).join(" > ")}${p.complete ? "" : ` | ${p.reason}`}`;
   assert.deepEqual(paths.filter((p) => p.kind === "out").map(line), ["Router 13 > Coordinator", "Router 13 > Router 14",
     "Router 13 > Router 17 > Router 24", "Router 13 > Router 26", "Router 13 > Router 17 > End device 06"]);
-  assert.deepEqual(paths.filter((p) => p.kind === "in").map(line), ["Coordinator > Router 13", "Router 14 | no entry",
-    "Router 24 | no entry", "Router 26 | no entry", "End device 06 > Router 17 | no entry"]);
+  // Back: Router 14, 24, 26 and 17 hold no entry for Router 13 but list it (Sibling, LQI 71, 100, 90, 124 in the
+  // fixture): each delivers directly (before, all four stopped with "no entry").
+  assert.deepEqual(paths.filter((p) => p.kind === "in").map(line), ["Coordinator > Router 13", "Router 14 > Router 13",
+    "Router 24 > Router 13", "Router 26 > Router 13", "End device 06 > Router 17 > Router 13"]);
+  assert.deepEqual(paths.filter((p) => p.kind === "in").map((p) => p.hops.map((h) => h.how).join(",")),
+    ["table", "neighbour", "neighbour", "neighbour", "parent,neighbour"]);
   assert.equal(tableWalk(n, id, id).complete, true);
   const scene = buildScene(n, labelWidth);
   // 129 entries, 127 usable, 101 distinct owner -> next hop; 99 of them have a lane (2 lead to an unavailable device).

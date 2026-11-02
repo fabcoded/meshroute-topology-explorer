@@ -392,3 +392,60 @@ test("legend entries: one row per evidence with its views, the role, RX, the sca
   assert.deepEqual([row("role").kind, row("role").widths], ["width", [WIDTHS.regular[2], WIDTHS.strong[2]]]);
   assert.equal(entries.find((e) => e.id === "not-listed").text, "–");
 });
+
+test("a focus lane lies above a third device on its line; a label there keeps off its value or the value is redrawn", () => {
+  // The way up of s runs straight to the coordinator over t, which lies on the line and on s's way down (c -> t -> s),
+  // so t is drawn at full strength. Before 2026-11-02 t's symbol covered the middle of the lane s -> c, and the map
+  // read as s -> t -> c.
+  const net = {
+    devices: [
+      { id: "c", role: "coordinator", label: "Coordinator", available: true },
+      { id: "s", role: "router", label: "Panel large", available: true },
+      { id: "t", role: "router", label: "Panel small", available: true },
+    ],
+    readings: [],
+    routes: [
+      { owner: "s", destination: "c", nextHop: "c", status: "Active", stale: false },
+      { owner: "c", destination: "s", nextHop: "t", status: "Active", stale: false },
+      { owner: "t", destination: "s", nextHop: "s", status: "Active", stale: false },
+    ],
+    pairs: [
+      { a: "c", b: "s", ab: dir("measured", 111, 0.5, "table"), ba: dir("measured", 172, 0.7, "table") },
+      { a: "c", b: "t", ab: dir("measured", 150, 0.6, "table"), ba: dir("measured", 160, 0.6, "table") },
+      { a: "s", b: "t", ab: dir("measured", 219, 0.9, "table"), ba: dir("measured", 220, 0.9, "table") },
+    ],
+  };
+  // Screen at zoom 1: s at 200, t at 500, the coordinator at 800, all at y 400.
+  const pos = { x: [300, -300, 0], y: [0, 0, 0], pinned: [0, 0, 0], mesh: [1, 1, 1] };
+  const scene = buildScene(asZigbee(net), labelWidth);
+  const ctx = recordingContext({ props: true });
+  const stats = drawScene(ctx, scene, pos, { cam: { k: 1, cx: 0, cy: 0 }, width: 1000, height: 800, dpr: 1, labelZoom: 1,
+    debug: false, selected: 1, hovered: -1, fps: null, fill: "none", sourceRoute: "off" }, theme, labelWidth);
+  const { calls } = ctx;
+  // Up: s -> c (the coordinator hears s at 111); down: c -> t (t hears c at 160), t -> s (s hears t at 219).
+  assert.deepEqual(stats.paths.values.map((v) => `${scene.nodes[v.s].id}>${scene.nodes[v.h].id} ${v.text} ${v.cls}`).sort(),
+    ["c>t 160 down", "s>c 111 up", "t>s 219 down"]);
+  const up = stats.paths.values.find((v) => scene.nodes[v.s].id === "s" && scene.nodes[v.h].id === "c");
+  assert.deepEqual([up.text, up.cls, up.drawn], ["111", "up", true]);
+  // t's symbol: one transform per symbol (graph/symbols.js), its centre at (500, 400).
+  const symbolT = calls.findIndex((c) => c[0] === "setTransform" && c[1] !== 1
+    && Math.abs(c[5] + c[1] * 12 - 500) < 0.5 && Math.abs(c[6] + c[1] * 12 - 400) < 0.5);
+  // The lane s -> c: from beside s to beside the coordinator, on the right of its travel (y just below 400).
+  const laneSC = calls.findIndex((c, j) => c[0] === "moveTo" && c[1] > 200 && c[1] < 260 && c[2] > 400 && c[2] < 406
+    && calls[j + 1][0] === "lineTo" && calls[j + 1][1] > 700);
+  assert.ok(symbolT > 0 && laneSC > 0, `${symbolT} ${laneSC}`);
+  assert.ok(laneSC > symbolT, "the lane is stroked after the symbol it crosses");
+  // A device's own symbols are not crossed: every lane ends outside them (its own two ends drawn before it as well).
+  const symbolS = calls.findIndex((c) => c[0] === "setTransform" && c[1] !== 1 && Math.abs(c[5] + c[1] * 12 - 200) < 0.5);
+  assert.ok(symbolS > 0 && laneSC > symbolS);
+  // Every focus value stays readable: a label drawn later over its box is followed by the value drawn again.
+  const textAt = (text) => calls.map((c, j) => [c, j]).filter(([c]) => c[0] === "fillText" && c[1] === text).map(([, j]) => j);
+  const lastValue = Math.max(...textAt("111"));
+  for (const name of ["Panel small", "Panel large", "Coordinator"]) {
+    const [j] = textAt(name);
+    const [, , x, y] = calls[j];
+    const w = labelWidth(name) + 4;
+    const over = Math.abs(x - up.x) * 2 < w + up.w && Math.abs(y - up.y) * 2 < 14 + up.height;
+    assert.ok(!over || j < lastValue, `${name} does not cover the value 111`);
+  }
+});
