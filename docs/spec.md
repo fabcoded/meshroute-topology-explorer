@@ -796,7 +796,9 @@ again when the connection is back.
   - Home Assistant moves a corrupt store file aside, which counts as never set; `storage_unavailable` only for a newer
     store version or I/O errors. Validity is checked with Home Assistant's JSON writer, so anything the store could
     not write (e.g. nesting deeper than 254 levels) is `invalid_format`. Removing the integration deletes the file.
-- Panel files are served from a path containing the version, so caching is safe; the path is registered once.
+- Panel files are served from a path containing a content hash of the frontend folder, computed on entry setup, so
+  caching is safe and an entry reload ships changed panel files without a restart; each hash's path is registered
+  once per run.
 - The panel defines its custom element only if the name is free, compares its version with the integration's and asks
   for a reload when they differ, does not reload data when Home Assistant pushes a new state object, and unsubscribes
   and stops drawing when hidden.
