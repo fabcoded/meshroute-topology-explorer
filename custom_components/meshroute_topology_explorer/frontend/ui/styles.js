@@ -5,7 +5,9 @@
 // keeps 3:1 where the theme's primary colour may not.
 export const STYLES = `
 :host {
-  display: block; height: 100%; position: relative; box-sizing: border-box;
+  /* The viewport's height, not the container's: Home Assistant's custom-panel container has no height of its own,
+     so 100% gave the map zero height there (dev page unaffected). dvh follows mobile browser bars. */
+  display: block; height: 100vh; height: 100dvh; position: relative; box-sizing: border-box;
   --mte-bg: var(--primary-background-color, #fafafa);
   --mte-card: var(--card-background-color, var(--ha-card-background, #ffffff));
   --mte-fg: var(--primary-text-color, #212121);

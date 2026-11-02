@@ -10,6 +10,7 @@ import { linkLegendRows } from "../custom_components/meshroute_topology_explorer
 import { legendEntries } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js";
 import { resolveTheme } from "../custom_components/meshroute_topology_explorer/frontend/graph/palette.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { STYLES } from "../custom_components/meshroute_topology_explorer/frontend/ui/styles.js";
 
 test("wide panels: Devices top left, View top right, banners between them at the top", () => {
   const left = { width: 150, height: 100 };
@@ -87,4 +88,11 @@ test("the links legend is built from the graph's entries, with words for every e
   assert.equal(rows.find((r) => r.id === "no-table").text, "?");
   const unknown = linkLegendRows([{ id: "future", kind: "lane", style: { width: 1 } }], t);
   assert.equal(unknown[0].label, "future", "an entry without words keeps its id instead of vanishing");
+});
+
+test("the panel takes the viewport's height: Home Assistant's custom-panel container has none (spec 10)", () => {
+  // In Home Assistant the host sat in a container without a height, so "height: 100%" gave the map zero height.
+  const host = STYLES.slice(STYLES.indexOf(":host {"), STYLES.indexOf("}", STYLES.indexOf(":host {")));
+  assert.match(host, /height:\s*100dvh/);
+  assert.doesNotMatch(host, /height:\s*100%/);
 });
