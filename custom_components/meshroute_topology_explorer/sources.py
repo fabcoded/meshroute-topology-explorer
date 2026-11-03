@@ -22,8 +22,10 @@ from homeassistant.core import HomeAssistant
 from .history import Entries, Snapshot
 from .zigpy_routes import NotSupported, read_routes
 
-# Exactly these two commands, with exactly these parameters.
+# Exactly these two read commands, with exactly these parameters (SCAN_COMMAND is handled by request_update alone).
 ALLOWED: dict[str, dict[str, Any]] = {"zha/devices": {}, "matter/network_topology": {"refresh": False}}
+# The one command that causes radio traffic: ZHA's own topology scan, asked for once after a start if the owner chose so.
+SCAN_COMMAND = "zha/topology/update"
 CALL_TIMEOUT = 30  # seconds; the handlers answer from memory, a slow answer is a broken one
 _EUI64 = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){7}$")
 _RSSI_RANGE = (-128, 10)  # the panel's bounds (from-matter.js); 127 (no value) lies outside
@@ -82,6 +84,22 @@ async def call_command(hass: HomeAssistant, command: str) -> Any:
         raise
     except Exception as err:  # noqa: BLE001 - another integration's handler: never raise into Home Assistant
         raise SourceError(f"{command} failed: {type(err).__name__}") from None
+
+
+def request_update(hass: HomeAssistant) -> None:
+    """Ask ZHA to scan, through its registered `zha/topology/update` handler (never the topology's own scan method).
+    ZHA answers that command only when the scan is over, so nothing is awaited: the handler's task runs on its own and
+    the scan's events reach the normal recording path. Raises SourceError when the handler is not there."""
+    registry = hass.data.get("websocket_api")
+    entry = registry.get(SCAN_COMMAND) if isinstance(registry, dict) else None
+    if not (isinstance(entry, tuple) and len(entry) == 2 and callable(entry[0])):
+        raise SourceError(f"{SCAN_COMMAND} is not registered or the websocket registry has another layout")
+    future: asyncio.Future = asyncio.get_running_loop().create_future()
+    future.add_done_callback(lambda f: f.cancelled() or f.exception())
+    try:
+        entry[0](hass, _Connection(future), {"id": 1, "type": SCAN_COMMAND})
+    except Exception as err:  # noqa: BLE001 - another integration's handler: never raise into Home Assistant
+        raise SourceError(f"{SCAN_COMMAND} failed: {type(err).__name__}") from None
 
 
 def _ieee(value: Any) -> str | None:

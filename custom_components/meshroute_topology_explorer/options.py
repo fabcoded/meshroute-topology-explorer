@@ -17,6 +17,7 @@ from .const import (
     CONF_PENDING_ZHA_PERIOD,
     CONF_RADIO_ACTIONS,
     CONF_RECORD,
+    CONF_SCAN_AFTER_START,
     CONF_SIDEBAR,
     CONF_ZHA_PERIOD,
     DEFAULT_OPTIONS,
@@ -63,7 +64,7 @@ def validate_options(user_input: Mapping[str, Any], previous: Mapping[str, Any] 
     errors: dict[str, str] = {}
     if not _in_range(merged[CONF_KEEP_DAYS], KEEP_DAYS_RANGE):
         errors[CONF_KEEP_DAYS] = ERR_DAYS_RANGE
-    for key in (CONF_SIDEBAR, CONF_RADIO_ACTIONS, CONF_RECORD):
+    for key in (CONF_SIDEBAR, CONF_RADIO_ACTIONS, CONF_RECORD, CONF_SCAN_AFTER_START):
         merged[key] = bool(merged[key])
     pending = get_options(previous)[CONF_PENDING_ZHA_PERIOD]
     period = user_input.get(CONF_ZHA_PERIOD)

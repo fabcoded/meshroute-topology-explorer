@@ -18,6 +18,7 @@ from .const import (
     CONF_PENDING_ZHA_PERIOD,
     CONF_RADIO_ACTIONS,
     CONF_RECORD,
+    CONF_SCAN_AFTER_START,
     CONF_SIDEBAR,
     CONF_ZHA_PERIOD,
     DOMAIN,
@@ -88,6 +89,7 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
         history = vol.Schema({
             vol.Required(CONF_RECORD, default=current[CONF_RECORD]): bool,
             vol.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
+            vol.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool,
             vol.Required(CONF_DELETE_HISTORY, default=False): bool,
         })
         zha_fields: dict[Any, Any] = {}

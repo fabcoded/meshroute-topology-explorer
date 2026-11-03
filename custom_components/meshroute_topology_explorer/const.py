@@ -23,13 +23,15 @@ CONF_SIDEBAR = "sidebar"
 CONF_RADIO_ACTIONS = "radio_actions"
 CONF_RECORD = "record"
 CONF_KEEP_DAYS = "keep_days"
+CONF_SCAN_AFTER_START = "scan_after_start"  # ask ZHA for one scan 30 min after Home Assistant has started
 # Stored only after the ZHA period helper: the period the user was told to put into configuration.yaml.
 CONF_PENDING_ZHA_PERIOD = "pending_zha_period"
 # Form-only fields, never stored: the new ZHA period, the confirmation of a short one and the delete-on-submit switch.
 CONF_ZHA_PERIOD = "zha_period"
 CONF_CONFIRM_SHORT = "confirm_short"
 CONF_DELETE_HISTORY = "delete_history"
-DEFAULT_OPTIONS = {CONF_SIDEBAR: True, CONF_RADIO_ACTIONS: True, CONF_RECORD: True, CONF_KEEP_DAYS: 30}
+DEFAULT_OPTIONS = {CONF_SIDEBAR: True, CONF_RADIO_ACTIONS: True, CONF_RECORD: True, CONF_KEEP_DAYS: 30,
+                   CONF_SCAN_AFTER_START: False}
 KEEP_DAYS_RANGE = (1, 90)
 # ZHA's topology scan period in minutes: zigpy's schema minimum is 20, its default 240. Under 180 mostly adds radio
 # traffic (every scan asks each router for its tables), so the helper asks for a confirmation.

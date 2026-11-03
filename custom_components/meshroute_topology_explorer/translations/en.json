@@ -27,11 +27,13 @@
             "data": {
               "record": "Record reception values",
               "keep_days": "Keep for (days)",
-              "delete_history": "Delete the recorded history"
+              "delete_history": "Delete the recorded history",
+              "scan_after_start": "Scan once 30 minutes after Home Assistant starts"
             },
             "data_description": {
               "keep_days": "{days_range} days; older records are deleted.",
-              "delete_history": "Deletes all records when you save. Not kept as a setting."
+              "delete_history": "Deletes all records when you save. Not kept as a setting.",
+              "scan_after_start": "Asks ZHA for one topology scan, once per start, if radio actions are allowed, no scan is running and the last Zigbee record is older than ZHA's period. It is ZHA's own scan (radio traffic); the result is recorded like any other."
             }
           },
           "zha": {

@@ -219,6 +219,14 @@ class HistoryFiles:
                     points.append([int(t), value[0]] + ([value[1]] if value[1] is not None else []))
         return points
 
+    def last_time(self, network: str) -> float | None:
+        """Time of the newest record of a network, or None."""
+        for _n, _d, path in reversed(self._files(network)):
+            records = list(_parse(path))
+            if records:
+                return records[-1][0]
+        return None
+
     def info(self) -> dict[str, Any]:
         """Number of records, first and last time (epoch seconds, None when empty) and bytes on disk."""
         count, first, last, size = 0, None, None, 0

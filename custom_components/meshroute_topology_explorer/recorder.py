@@ -29,10 +29,19 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.start import async_at_started
 
-from .const import CONF_KEEP_DAYS, CONF_PENDING_ZHA_PERIOD, CONF_RECORD, DOMAIN, HISTORY_DIR, ZHA_DEFAULT_PERIOD
+from .const import (
+    CONF_KEEP_DAYS,
+    CONF_PENDING_ZHA_PERIOD,
+    CONF_RADIO_ACTIONS,
+    CONF_RECORD,
+    CONF_SCAN_AFTER_START,
+    DOMAIN,
+    HISTORY_DIR,
+    ZHA_DEFAULT_PERIOD,
+)
 from .history import HistoryFiles
 from .options import get_options
-from .sources import collect
+from .sources import collect, request_update
 from .zha_scan import ScanSettings, attach, read_settings, scan_state, topology
 from .zigpy_routes import NotSupported
 
@@ -43,6 +52,8 @@ DEBOUNCE = 60  # seconds without a topology event (and no running scan) before t
 DEBOUNCE_UNKNOWN = 300  # the same where the scan task cannot be seen: a longer quiet instead of a certain end
 MIN_GAP = 600  # seconds between two records of a network, whatever triggers them (manual scans in between)
 PRUNE_ONLY_HOURS = 6  # recording off: old files still expire
+FORCED_SCAN_DELAY = 1800  # seconds after Home Assistant has started: the optional one-time scan
+_FORCED_KEY = f"{DOMAIN}_forced_scan_done"  # per Home Assistant run: reloads of the entry do not repeat the scan
 THREAD_PREFIX = "thread-"
 
 
@@ -63,6 +74,8 @@ class History:
         self.follow_mode: str | None = None  # "events" | "timer"; None while recording is off or not started
         self.options: dict[str, Any] = {}
         self.scan_busy: Callable[[], bool] = lambda: False  # set by Recording: is a ZHA scan running now?
+        self.forced_scan_time: float | None = None  # the optional one-time scan: when it was asked for ...
+        self.forced_scan_note: str | None = None  # ... or why it was not
 
     async def run(self, func: Callable[..., Any], *args: Any, generation: int | None = None) -> Any:
         """Run a HistoryFiles method in the executor, one at a time; with `generation`, only if no delete happened
@@ -128,6 +141,7 @@ class Recording:
         self.history = get_history(hass)
         self.history.options, self.history.follow_mode, self.history.follow_note = options, None, None
         self.keep, self.recording = options[CONF_KEEP_DAYS], options[CONF_RECORD]
+        self.scan_after_start, self.radio_actions = options[CONF_SCAN_AFTER_START], options[CONF_RADIO_ACTIONS]
         self.period = ZHA_DEFAULT_PERIOD  # minutes
         self.topology: Any = None  # the topology our listener sits on
         self._detach: Callable[[], None] | None = None
@@ -217,6 +231,34 @@ class Recording:
         # Events mode: no read of ZHA at start (zigpy restores its last scan from its database; it would be dated as
         # new). Thread and the timer mode have nothing else to wait for.
         self._cancels.append(async_call_later(self.hass, FIRST_RECORD_DELAY, self._tick))
+        if self.scan_after_start and not self.hass.data.get(_FORCED_KEY):
+            self._cancels.append(async_call_later(self.hass, FORCED_SCAN_DELAY, self._one_time))
+
+    async def _one_time(self, _now: Any = None) -> None:
+        """The optional one-time scan, 30 min after the start: only with radio actions on, ZHA running, no scan under
+        way and no Zigbee record younger than ZHA's period. The scan is ZHA's own (its command handler); the records
+        follow from its events by the normal path. Why not is kept for the info command."""
+        self.hass.data[_FORCED_KEY] = True  # once per run, whatever the outcome
+        history = self.history
+        try:
+            self._follow()
+            zha = self.hass.config_entries.async_entries("zha")
+            state = scan_state(self.topology)[0] if self.topology is not None else None
+            last = await history.run(history.files.last_time, zha[0].entry_id) if zha else None
+            age = None if last is None else (time.time() - last) / 60
+            if not self.radio_actions:
+                history.forced_scan_note = "skipped: radio actions are off"
+            elif not zha or self.topology is None:
+                history.forced_scan_note = "skipped: ZHA is not running"
+            elif state != "idle":
+                history.forced_scan_note = f"skipped: scan state is {state}"
+            elif age is not None and age < self.period:
+                history.forced_scan_note = f"skipped: the last Zigbee record is {age:.0f} min old (period {self.period})"
+            else:
+                request_update(self.hass)
+                history.forced_scan_time, history.forced_scan_note = time.time(), None
+        except Exception as err:  # noqa: BLE001 - a timer callback: never raise into Home Assistant
+            history.forced_scan_note = f"failed: {type(err).__name__}: {err}"
 
     async def _tick(self, _now: Any = None) -> None:
         """Timer: the Thread read in events mode, everything in timer mode; expiry only when recording is off."""
@@ -310,7 +352,8 @@ async def async_info(hass: HomeAssistant) -> dict[str, Any]:
             "last_error": "; ".join(filter(None, [history.follow_note, history.last_error])) or None,
             "zha_scan_period": reported, "zha_scan_enabled": zha.enabled if zha else None,
             "follow_mode": history.follow_mode, "scan_state": state, "pending_zha_period": pending,
-            "pending_note": note, "record": options[CONF_RECORD], "keep_days": options[CONF_KEEP_DAYS]}
+            "pending_note": note, "last_forced_scan": history.forced_scan_time,
+            "forced_scan_note": history.forced_scan_note, "record": options[CONF_RECORD], "keep_days": options[CONF_KEEP_DAYS]}
 
 
 async def async_delete_history(hass: HomeAssistant) -> None:

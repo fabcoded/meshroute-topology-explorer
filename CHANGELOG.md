@@ -10,7 +10,8 @@
   period where that is not possible, and for Thread), from what ZHA and the Matter server already hold, never starting
   a scan, in the integration's own day files (kept 30 days, 1 to 90). The options show ZHA's scan period and offer the
   snippet for configuration.yaml to change it (the integration never writes it). New administrator commands
-  `history/series`, `history/records`, `history/info`; no display yet. English translations only.
+  `history/series`, `history/records`, `history/info`; no display yet. An optional, default-off "scan once 30 minutes after Home Assistant starts" asks ZHA for one topology scan
+  when radio actions are allowed and the last record is older than ZHA's period. English translations only.
 - **Status pill:** the status line at the bottom is now a pill floating at the bottom centre of the map: a round arrow
   button, the network's name over its data state ("29/29 router tables · unchanged since 15:50"), and a dot last (green:
   all tables read; amber: something missing or old; red: connection lost). It is the network menu; the menu also holds

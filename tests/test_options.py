@@ -36,7 +36,8 @@ class ValidationTest(Base):
 
     def test_defaults_fill_missing_keys(self):
         stored, delete, errors = self.check()
-        self.assertEqual(stored, {"sidebar": True, "radio_actions": True, "record": True, "keep_days": 30})
+        self.assertEqual(stored, {"sidebar": True, "radio_actions": True, "record": True, "keep_days": 30,
+                                  "scan_after_start": False})  # the one-time scan is off by default
         self.assertFalse(delete)
         self.assertEqual(errors, {})
         self.assertNotIn("record_hours", stored)  # the own interval is gone: ZHA's scans trigger records
@@ -155,7 +156,8 @@ class FlowTest(Base):
     def test_saving_other_options_does_not_touch_zha(self):
         result = self.submit(self.flow(), keep_days=10, sidebar=False, radio=False)
         self.assertEqual(result["type"], "create_entry")
-        self.assertEqual(result["data"], {"sidebar": False, "radio_actions": False, "record": True, "keep_days": 10})
+        self.assertEqual(result["data"], {"sidebar": False, "radio_actions": False, "record": True, "keep_days": 10,
+                                          "scan_after_start": False})
 
     def test_out_of_range_names_the_range(self):
         result = self.submit(self.flow(), keep_days=91)

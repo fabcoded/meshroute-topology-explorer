@@ -7,6 +7,7 @@ import asyncio
 import json
 import sys
 import tempfile
+import time
 import types
 import unittest
 from pathlib import Path
@@ -52,6 +53,9 @@ class FakeTopology:
 
     def remove_listener(self, listener):
         self.listeners.remove(listener)
+
+    def scan(self):
+        raise AssertionError("the integration must never call the topology's scan itself")
 
     def fire(self, name="neighbors_updated"):
         for listener in list(self.listeners):
@@ -289,6 +293,101 @@ class FollowTest(unittest.TestCase):
         self.assertEqual(self.topology.listeners, [])
         self.assertEqual([i[0].total_seconds() for i in self.rec.intervals], [6 * 3600])
         self.assertIsNone(self.history().follow_mode)
+
+    # -- the optional one-time scan ----------------------------------------------------------------------------
+
+    def forced(self):
+        return [t for t in self.rec.later if t.delay == 1800 and not t.cancelled]
+
+    def with_scan_handler(self):
+        calls = []
+        self.hass.data["websocket_api"]["zha/topology/update"] = (lambda h, c, m: calls.append(m), None)
+        return calls
+
+    def run_forced(self, **options):
+        stops = self.start(scan_after_start=True, **options)
+        timer = self.forced()[0]
+        timer.cancelled = True  # a fired timer is gone
+        ha_stubs.run(timer.action())
+        return stops
+
+    def test_the_scan_is_off_by_default_and_not_scheduled(self):
+        self.with_scan_handler()
+        self.start()
+        self.assertEqual(self.forced(), [])
+
+    def test_the_one_time_scan_asks_zha_through_its_command_handler(self):
+        calls = self.with_scan_handler()
+        self.run_forced()
+        self.assertEqual([c["type"] for c in calls], ["zha/topology/update"])
+        self.assertEqual(calls[0].keys(), {"id", "type"})  # no parameters
+        info = ha_stubs.run(self.recorder.async_info(self.hass))
+        self.assertIsNotNone(info["last_forced_scan"])
+        self.assertIsNone(info["forced_scan_note"])
+
+    def test_once_per_run_even_after_a_skip_and_across_reloads(self):
+        calls = self.with_scan_handler()
+        stops = self.run_forced()
+        stops[0]()
+        self.start(scan_after_start=True)  # the entry was reloaded
+        self.assertEqual(self.forced(), [])
+        self.assertEqual(len(calls), 1)
+        self.hass.data.pop("meshroute_topology_explorer_forced_scan_done")
+        calls.clear()
+        self.run_forced(radio_actions=False)  # skipped ...
+        self.start(scan_after_start=True)
+        self.assertEqual(self.forced(), [])  # ... still counts as the one attempt
+
+    def test_unload_before_the_time_cancels_the_scan(self):
+        calls = self.with_scan_handler()
+        stops = self.start(scan_after_start=True)
+        timer = self.forced()[0]
+        stops[0]()
+        self.assertTrue(timer.cancelled)
+        self.assertEqual(calls, [])
+        self.assertNotIn("meshroute_topology_explorer_forced_scan_done", self.hass.data)  # not used up
+
+    def skipped(self, expected, prepare=None, **options):
+        calls = self.with_scan_handler()
+        if prepare:
+            prepare()
+        self.run_forced(**options)
+        self.assertEqual(calls, [])
+        self.assertIn(expected, ha_stubs.run(self.recorder.async_info(self.hass))["forced_scan_note"])
+
+    def test_skip_when_radio_actions_are_off(self):
+        self.skipped("radio actions are off", radio_actions=False)
+
+    def test_skip_when_zha_is_not_running(self):
+        gone = ha_stubs.load(".zigpy_routes").NotSupported("no_gateway", "x")
+        patch = mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone)
+        self.skipped("ZHA is not running", prepare=patch.start)
+        patch.stop()
+
+    def test_skip_when_a_scan_is_running_or_unknown(self):
+        self.skipped("scan state is running", prepare=lambda: setattr(self.topology, "_scan_task", FakeTask()))
+
+    def test_skip_when_the_scan_state_cannot_be_seen(self):
+        self.skipped("scan state is unknown", prepare=lambda: delattr(self.topology, "_scan_task"))
+
+    def test_skip_when_the_last_zigbee_record_is_younger_than_zha_period(self):
+        snapshot = ha_stubs.load(".history").Snapshot({("a", "b"): (1, None)})
+
+        def record():
+            self.history().files.append("zha-entry", time.time() - 600, snapshot)  # 10 min old, period 360 min
+
+        self.skipped("10 min old", prepare=record)
+
+    def test_an_old_zigbee_record_does_not_stop_the_scan(self):
+        calls = self.with_scan_handler()
+        snapshot = ha_stubs.load(".history").Snapshot({("a", "b"): (1, None)})
+        self.history().files.append("zha-entry", time.time() - 361 * 60, snapshot)
+        self.run_forced()
+        self.assertEqual(len(calls), 1)
+
+    def test_a_missing_handler_is_reported_not_raised(self):
+        self.run_forced()
+        self.assertIn("failed", ha_stubs.run(self.recorder.async_info(self.hass))["forced_scan_note"])
 
     def test_info_reports_zha_state_and_the_pending_period(self):
         self.start(record=True, keep_days=14)

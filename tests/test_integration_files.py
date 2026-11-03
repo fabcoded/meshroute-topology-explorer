@@ -56,7 +56,7 @@ class IntegrationFilesTest(unittest.TestCase):
         init = en["options"]["step"]["init"]
         self.assertEqual(set(init["data"]), {"sidebar", "radio_actions"})
         self.assertEqual(set(init["sections"]["history"]["data"]),
-                         {"record", "keep_days", "delete_history"})
+                         {"record", "keep_days", "scan_after_start", "delete_history"})
         self.assertEqual(set(init["sections"]["zha"]["data"]), {"zha_period", "confirm_short"})
         self.assertIn("snippet", en["options"]["step"]["snippet"]["description"])
         self.assertEqual(set(en["options"]["error"]), {"days_range", "zha_range", "zha_short"})
