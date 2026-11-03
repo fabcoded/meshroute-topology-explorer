@@ -213,15 +213,17 @@ export function meshLayout({ route, positionOf, width, height, measure, size = S
   for (const dir of ["there", "back"]) route.ids[dir].forEach(addId);
   for (const it of route.items) { addId(it.sender); addId(it.hearer); }
   const known = ids.map((id) => [id, positionOf(id)]).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
-  // Room for the labels beside the outermost symbols; the route's bounding box fills the rest, one scale for both axes.
+  // Room for the labels beside the outermost symbols; the route's bounding box fills the rest, the thinner axis stretched by at most 2.2.
   const [mx, my] = [size + 70, size + 36];
   const xs = known.map(([, p]) => p.x);
   const ys = known.map(([, p]) => p.y);
   const spanX = Math.max(...xs) - Math.min(...xs) || 1;
   const spanY = Math.max(...ys) - Math.min(...ys) || 1;
-  const k = known.length > 1 ? Math.min((width - 2 * mx) / spanX, (height - 2 * my) / spanY) : 1;
+  // Both axes are fitted; the stretch of the thinner one is limited, so the layout stays recognisable as the map's.
+  const [fx, fy] = known.length > 1 ? [(width - 2 * mx) / spanX, (height - 2 * my) / spanY] : [1, 1];
+  const [kx, ky] = [Math.min(fx, Math.min(fx, fy) * 2.2), Math.min(fy, Math.min(fx, fy) * 2.2)];
   const [cx, cy] = [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2];
-  const at = new Map(known.map(([id, p]) => [id, { x: width / 2 + (p.x - cx) * k, y: height / 2 + (p.y - cy) * k }]));
+  const at = new Map(known.map(([id, p]) => [id, { x: width / 2 + (p.x - cx) * kx, y: height / 2 + (p.y - cy) * ky }]));
   const lost = ids.filter((id) => !at.has(id));
   lost.forEach((id, i) => {
     const angle = (2 * Math.PI * i) / lost.length;

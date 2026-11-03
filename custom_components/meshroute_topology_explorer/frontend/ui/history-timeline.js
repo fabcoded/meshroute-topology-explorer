@@ -90,14 +90,19 @@ export function renderTimeline(container, ctx) {
     let drawn = 0;
     for (const n of m.notes) {
       const nx = x(n.t);
-      chart.append(svg("circle", { cx: nx, cy: y(n.pct), r: 4, fill: color, class: "note-dot" }));
-      const w = n.text.length * CHAR;
-      const end = nx + w > width - 8;
-      const [x0, x1] = end ? [nx - w - 4, nx] : [nx + 4, nx + w + 4];
-      if (x0 < free) continue;
-      free = x1 + 8;
-      const tx = svg("text", { x: end ? nx - 4 : nx + 4, y: y(n.pct) + (drawn % 2 ? 18 : -8), "text-anchor": end ? "end" : "start", class: "lbl note" });
-      tx.textContent = n.text;
+      const dot = svg("circle", { cx: nx, cy: y(n.pct), r: 4, fill: color, class: "note-dot" });
+      const tip = svg("title", {}); tip.textContent = n.text; dot.append(tip);
+      chart.append(dot);
+      // The name goes on the side with more room, cut with an ellipsis where it does not fit; too little room: the dot's hover.
+      const [right, left] = [width - 8 - nx - 4, nx - 4 - free];
+      const need = n.text.length * CHAR;
+      const toRight = right >= need || (left < need && right >= left);
+      const chars = Math.floor((toRight ? right : left) / CHAR);
+      if (chars < 12) continue;
+      const shown = n.text.length <= chars ? n.text : `${n.text.slice(0, chars - 1)}…`;
+      free = toRight ? nx + 4 + shown.length * CHAR + 8 : nx + 8;
+      const tx = svg("text", { x: toRight ? nx + 4 : nx - 4, y: y(n.pct) + (drawn % 2 ? 18 : -8), "text-anchor": toRight ? "start" : "end", class: "lbl note" });
+      tx.textContent = shown;
       chart.append(tx);
       drawn += 1;
     }
