@@ -55,11 +55,10 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertIn("title", en["config"]["step"]["user"])
         init = en["options"]["step"]["init"]
         self.assertEqual(set(init["data"]), {"sidebar", "radio_actions"})
-        self.assertEqual(set(init["sections"]["history"]["data"]),
-                         {"record", "keep_days", "scan_after_start", "delete_history"})
-        self.assertEqual(set(init["sections"]["zha"]["data"]), {"zha_period", "confirm_short"})
-        self.assertIn("snippet", en["options"]["step"]["snippet"]["description"])
-        self.assertEqual(set(en["options"]["error"]), {"days_range", "zha_range", "zha_short"})
+        self.assertEqual(set(init["sections"]["history"]["data"]), {"record", "keep_days", "delete_history"})
+        self.assertEqual(set(init["sections"]["zha"]["data"]), {"scan_after_start"})
+        self.assertIn("topology_scan_period", init["sections"]["zha"]["description"])
+        self.assertEqual(set(en["options"]["error"]), {"days_range"})
 
     def test_hacs_json(self):
         h = load(ROOT / "hacs.json")
