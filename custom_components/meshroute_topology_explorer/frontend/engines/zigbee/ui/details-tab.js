@@ -268,8 +268,15 @@ function tableCard(table, ctx, name) {
     ...notes.map((text) => h("p", { class: "muted small", text })), ...items));
 }
 
+/** The row's cell for the 48 h sparkline: empty until the history host fills it (ui/history-host.js); `slots` collects it. */
+function sparkCell(r, kind, slots) {
+  const cell = h("span", { role: "cell", class: "reading-spark" });
+  if (slots) slots.push({ cell, other: r.device.id, kind });
+  return cell;
+}
+
 /** Reading rows: name, RX value (bold) and the rank on the reporter's scale, right-aligned (spec 9.2). */
-function readingRows(list, ctx) {
+function readingRows(list, ctx, kind, slots) {
   const t = ctx.t;
   return h("div", { class: "reading-rows", role: "table" }, list.map((r) => {
     const rated = typeof r.rating === "number";
@@ -280,7 +287,8 @@ function readingRows(list, ctx) {
       h("span", { role: "cell", class: "reading-name" }, h("button", { type: "button", class: "link", text: r.device.label,
         on: { click: () => ctx.onSelect(r.device.id) } })),
       h("span", { role: "cell", class: "reading-rx" }, h("small", { text: `${t("details.rx")} ` }), h("b", { text: lqiText(r.lqi, t) })),
-      h("span", { role: "cell", class: "reading-rank", text: rank }));
+      h("span", { role: "cell", class: "reading-rank", text: rank }),
+      sparkCell(r, kind, slots));
   }));
 }
 
@@ -290,18 +298,21 @@ function heardCard(info, ctx) {
   const t = ctx.t;
   const reception = typeof info.reception === "number" ? t("rank.value", { pct: percent(info.reception) }) : t("rank.none");
   const body = [h("div", { class: "muted small", text: `${t("details.reception")}: ${reception}` })];
+  const slots = ctx.history ? [] : null;
   const top = info.heardBy.slice(0, TOP_READINGS);
   const rest = info.heardBy.slice(TOP_READINGS);
-  body.push(top.length ? readingRows(top, ctx) : h("div", { class: "muted", text: t("details.no_readings") }));
+  body.push(top.length ? readingRows(top, ctx, "heardBy", slots) : h("div", { class: "muted", text: t("details.no_readings") }));
   // Every rank is relative; the note names what it is relative to (the receiving device's own readings or its vendor group).
   if (top.length || info.hears.length) body.push(h("p", { class: "muted small", text: t("details.rank_note") }));
   if (rest.length || info.hears.length) {
     const more = h("details", { class: "more all-readings" },
       h("summary", { text: t("details.readings_all", { count: info.heardBy.length + info.hears.length }) }));
-    if (rest.length) more.append(readingRows(rest, ctx));
-    if (info.hears.length) more.append(h("h4", { text: t("details.hears", { count: info.hears.length }) }), readingRows(info.hears, ctx));
+    if (rest.length) more.append(readingRows(rest, ctx, "heardBy", slots));
+    if (info.hears.length) more.append(h("h4", { text: t("details.hears", { count: info.hears.length }) }), readingRows(info.hears, ctx, "hears", slots));
     body.push(more);
   }
+  const note = h("p", { class: "muted small history-note" });
+  if (slots && slots.length) { body.push(note); ctx.history.fill(slots, note); }
   return card(t("details.heard_title", { by: info.heardBy.length, hears: info.hears.length }), ...body);
 }
 

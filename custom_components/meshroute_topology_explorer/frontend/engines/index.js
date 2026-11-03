@@ -7,6 +7,23 @@
 // Pure, no DOM. npm test
 import { zigbee } from "./zigbee/index.js";
 import { thread } from "./thread/index.js";
+import { createHistory, hopContext, weakestHop } from "./zigbee/history.js";
+import { tableWalk } from "./zigbee/paths.js";
+
+export { hopContext, weakestHop };
+export { RANGES, LANE_HALF_WINDOW } from "./history-records.js";
+
+/** What the path history window needs to know of a network type: { walks (a routing table, so routes are walked),
+ *  lqiMax (top of the LQI axis), entryText(entry) (the pill text of a lane value where there is no walk) }. */
+export const historyCaps = (network) => engineFor(network).history;
+
+/** The path history of a network over one recorded range (spec 5.8): createHistory with the network's engine and, for
+ *  Zigbee, the live input the adapter kept (`network.live`). The history module serves both engines (Thread has no
+ *  walks), so the shared UI reaches it here and not through an engine's folder. */
+export function historyFor(network, response) {
+  const engine = engineFor(network).key;
+  return createHistory({ engine, response, live: engine === "zigbee" ? network.live : null });
+}
 
 /** Every engine by its key (a network's `engine`). */
 export const ENGINES = Object.freeze({ zigbee, thread });
@@ -22,4 +39,11 @@ export function engineFor(network) {
     throw new Error(`the ${key} network declares no capabilities`);
   }
   return ENGINES[key];
+}
+
+/** Hops of the walk there (a to b) and back (b to a) on the shown network, for the badge's tooltip: { there, back } or
+ *  null where the network type has no routing table (Thread, spec 5.8). */
+export function pairHops(network, a, b) {
+  if (engineFor(network).key !== "zigbee") return null;
+  return { there: tableWalk(network, a, b).hops.length, back: tableWalk(network, b, a).hops.length };
 }

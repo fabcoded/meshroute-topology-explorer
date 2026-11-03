@@ -13,8 +13,9 @@
 // npm test
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
-import { relabelScene, buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane } from "./renderer.js";
+import { relabelScene, buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane, BADGE, badgeCentre } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
+import { symbolSize } from "./symbols.js";
 import { DEFAULT_LABELS, LABEL_SCALE, MAX_LABEL_CHARS } from "./labels.js";
 import { resolveTheme, FILLS } from "./palette.js";
 import {
@@ -123,6 +124,9 @@ export class GraphView extends EventTarget {
     this.insets = { top: 0, right: 0, bottom: 0, left: 0 };
     this.selected = -1;
     this.hovered = -1;
+    this.pairBadges = false; // the path history's entry badges at every other device while one is selected
+    this.badgeHover = -1;
+    this.badgeText = null; // (id) -> tooltip text of the badge of that device
     this.pinned = new Map();
     this.scene = null;
     this.layout = null;
@@ -282,6 +286,21 @@ export class GraphView extends EventTarget {
   /** Select a device by id (null clears). Does not emit "select"; follow with reveal() to bring it into view. */
   select(id) {
     this.selected = this.scene && id != null && this.scene.index.has(id) ? this.scene.index.get(id) : -1;
+    this._setBadgeHover(-1);
+    this._invalidate();
+  }
+
+  /** Where the device sits in the layout (drawn units, any scale): { x, y } or null; the path history's Mesh view fits
+   *  these into its own frame. */
+  positionOf(id) {
+    const i = this.scene && this.scene.index.get(id);
+    return i === undefined || !this.pos ? null : { x: this.pos.x[i], y: this.pos.y[i] };
+  }
+
+  /** Switch the path history's entry badges on or off (they show with a selection); text(id) is a badge's tooltip. */
+  setPairBadges(on, text = null) {
+    this.pairBadges = Boolean(on);
+    this.badgeText = text;
     this._invalidate();
   }
 
@@ -581,6 +600,7 @@ export class GraphView extends EventTarget {
       ...this._engineSettings(),
       cam: this.cam, width: this.width, height: this.height, dpr: this.dpr, labelZoom: this.labelZoom,
       debug: this.debug, selected: this.selected, hovered: this.hovered, fps: this._fps,
+      pairBadges: this.pairBadges, badgeHover: this.badgeHover,
       fill: this.fill, receptionColors: this.receptionColors, labels: this.labels,
       typeZoom: this.workingZoom, texts: this.texts,
     };
@@ -598,11 +618,36 @@ export class GraphView extends EventTarget {
     return hitTest(this.scene, sx, sy, this.cam.k, x, y);
   }
 
+  /** The device whose entry badge is under (x, y), else -1; badges exist only with a selection (renderer.js BADGE). */
+  _badgeAt(x, y) {
+    if (!this.pairBadges || this.selected < 0 || !this.scene) return -1;
+    const size = symbolSize(this.cam.k);
+    let best = -1;
+    let bestD = BADGE.hit;
+    for (let i = 0; i < this.scene.nodes.length; i++) {
+      if (i === this.selected) continue;
+      const [sx, sy] = this._screenOf(i);
+      const [bx, by] = badgeCentre(sx, sy, size);
+      const d = Math.hypot(bx - x, by - y);
+      if (d <= bestD) { best = i; bestD = d; }
+    }
+    return best;
+  }
+
+  _setBadgeHover(index) {
+    if (index === this.badgeHover) return;
+    this.badgeHover = index;
+    this.canvas.title = index >= 0 && this.badgeText ? this.badgeText(this.scene.nodes[index].id) : "";
+    this.canvas.style.cursor = index >= 0 ? "pointer" : "";
+    this._invalidate();
+  }
+
   _emit(type, detail) { this.dispatchEvent(new GraphEvent(type, detail)); }
 
   _userSelect(index) {
     if (index === this.selected) return;
     this.selected = index;
+    this._setBadgeHover(-1);
     this._emit("select", { id: this.selectedId });
     if (index >= 0) {
       const zoom = this._lanesTooShort(index);
@@ -628,10 +673,16 @@ export class GraphView extends EventTarget {
     const isNode = (t) => t && t.kind === "node";
     return {
       hitTest: (x, y) => {
+        const b = this._badgeAt(x, y);
+        if (b >= 0) return { kind: "badge", id: this.scene.nodes[b].id, index: b };
         const i = this._hit(x, y);
         return i >= 0 ? { kind: "node", id: this.scene.nodes[i].id, index: i } : { kind: "background" };
       },
-      tap: (t) => this._userSelect(isNode(t) ? t.index : -1),
+      tap: (t) => {
+        // A badge opens the pair window and leaves the selection as it is.
+        if (t && t.kind === "badge") this._emit("pair-history", { a: this.selectedId, b: t.id });
+        else this._userSelect(isNode(t) ? t.index : -1);
+      },
       // Double click: releases a pinned device (spec 7.1) and goes to the working scale (decision 2026-10-31).
       doubleTap: (t) => {
         if (!isNode(t)) return;
@@ -709,12 +760,14 @@ export class GraphView extends EventTarget {
         this.recognizer.move(this._point(e));
       } else if (e.pointerType === "mouse" && !e.buttons) {
         const p = this._point(e);
-        this._setHover(this._hit(p.x, p.y));
+        const b = this._badgeAt(p.x, p.y);
+        this._setHover(b >= 0 ? -1 : this._hit(p.x, p.y));
+        this._setBadgeHover(b);
       }
     });
     on("pointerup", (e) => this.recognizer.up(this._point(e)));
     on("pointercancel", (e) => this.recognizer.cancel(this._point(e)));
-    on("pointerleave", (e) => { if (e.pointerType === "mouse") this._setHover(-1); });
+    on("pointerleave", (e) => { if (e.pointerType === "mouse") { this._setBadgeHover(-1); this._setHover(-1); } });
     on("wheel", (e) => {
       e.preventDefault();
       const p = this._point(e);

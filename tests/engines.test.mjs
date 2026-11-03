@@ -30,7 +30,7 @@ const TEXTS = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", rx
 /** The interface of every engine. */
 const HOOKS = { key: "string", build: "function", laneValue: "function", unknownGlyph: "function", legend: "function",
   status: "function", findings: "object", connection: "function", details: "function", options: "function",
-  settings: "object", scene: "object", springQuality: "function", addresses: "function", texts: "object" };
+  settings: "object", scene: "object", springQuality: "function", addresses: "function", texts: "object", history: "object" };
 
 test("interface: both engines offer exactly the same hooks, frozen, under their own key", () => {
   assert.deepEqual(Object.keys(ENGINES), ["zigbee", "thread"]);

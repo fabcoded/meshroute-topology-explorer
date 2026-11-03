@@ -11,6 +11,7 @@ import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 import * as threadScene from "./scene.js";
 import { TEXTS } from "./texts.js";
+import { entryText } from "./history.js";
 
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
@@ -63,6 +64,8 @@ export const thread = Object.freeze({
   scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
     overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
     anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
+  /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
+  history: Object.freeze({ walks: false, lqiMax: 3, entryText }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys: none. */
