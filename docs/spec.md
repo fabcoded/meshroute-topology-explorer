@@ -381,8 +381,11 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
 - **Snapshot:** one record; a time-only record repeats the previous one. The network at a snapshot is the live input
   with every device's neighbour and routing tables replaced by the snapshot's (`buildNetwork`). A device only the
   snapshot knows is a placeholder (role unknown, no address); a live device without tables there is "table not read";
-  a device holding tables there counts as available. The record has no neighbour relationship: "Child" listings come
-  from the live input, and an end device whose live parent is not in the snapshot takes the strongest router listing it.
+  a device holding tables there counts as available. End devices' parents come
+  from the record's `p` (10.2), given to the engine as the parent's "Child" listing (an empty listing is added where the
+  parent's table has none); a child with two parents takes the one that lists it with the better reading, then the lower
+  key; only a known end device with a router or coordinator parent counts. A record without `p` (older files) takes the
+  live "Child" listings, and for a child whose live parent is not in the snapshot the strongest router listing it.
 - **Walk:** `tableWalk` there and back (5.1), each hop with RX at its receiver (`pathHops`); the rank is the panel's
   "rank N %" (5.4), computed within that snapshot's readings of the receiver. A walk that stops is incomplete with its
   reason; nothing is guessed.
@@ -394,7 +397,7 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
 - **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
 - **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
-  a direct delivery; an address change since the record is not seen.
+  a direct delivery; an address change since the record is not seen; a record that truly has no parents looks like an older one and falls back to the live parents.
 
 ## 6. Data status and the scan [v1]
 

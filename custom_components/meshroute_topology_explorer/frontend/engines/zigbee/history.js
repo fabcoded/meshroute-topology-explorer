@@ -7,8 +7,7 @@
 // Two paths to the same numbers: rebuildNetwork() is the full engine build (used for the map at one record and as the
 // reference); the timeline uses a light build of the same facts (devices, routes, readings of the snapshot), the same
 // walk, ratings only for the receivers on the walk, and pair evidence only for the hops. A test pins both to each other
-// on every snapshot. The record has no neighbour relationship, so "Child" listings (parents of end devices) come from
-// the live input; an end device whose live parent is not in the snapshot takes the strongest router listing it (5.8).
+// on every snapshot. Parents of end devices come from the record's `p` (prepare()).
 import { buildNetwork } from "./model.js";
 import { tableWalk } from "./paths.js";
 import { pathHops } from "./node-paths.js";
@@ -44,25 +43,43 @@ export function liveContext(live) {
       if (sub && n.relationship === "Child") childLive.add(`${id}|${sub}`);
     }
   }
-  return { network, raw, nwk, ambiguous, childLive, byId: new Map(network.devices.map((d) => [d.id, d])), live };
+  return { network, raw, nwk, ambiguous, childLive, prepared: new WeakMap(), byId: new Map(network.devices.map((d) => [d.id, d])), live };
 }
 
-/** "receiver|sender" pairs of a snapshot that count as the Child listing of an end device. */
-function childPairs(ctx, table) {
-  const out = new Set();
-  const rows = new Map(); // end device -> eligible [receiver, lqi][]
-  for (const [rx, tx, lqi] of table.e) {
-    const sub = ctx.byId.get(tx);
-    const owner = ctx.byId.get(rx);
-    if (!sub || sub.role !== "end device" || !owner || owner.role === "end device" || owner.role === "unknown") continue;
-    if (!rows.has(tx)) rows.set(tx, []);
-    rows.get(tx).push([rx, lqi ?? -1]);
+/** The snapshot with its end devices' parents: { table, parent } where `parent` maps child -> its one parent and `table`
+ *  is the snapshot plus an empty listing [parent, child, null, null] where the parent's table has none (the engine takes
+ *  a parent from the parent's "Child" listing). Parents come from the record's `p` (spec 10.2); a child with two
+ *  (stale tables) takes the one that lists it with the better reading, then the lower key. Only a known end device with
+ *  a router or coordinator parent counts. A record without any `p` (older files) falls back to the live "Child"
+ *  listings, and for a child whose live parent is not in the snapshot to the strongest router listing it. Cached. */
+function prepare(ctx, table) {
+  let out = ctx.prepared.get(table);
+  if (out) return out;
+  const eligible = (child, parent) => {
+    const [c, o] = [ctx.byId.get(child), ctx.byId.get(parent)];
+    return c && c.role === "end device" && o && o.role !== "end device" && o.role !== "unknown";
+  };
+  const cands = new Map(); // child -> [[parent, lqi]]
+  const add = (child, parent, lqi) => { if (!cands.has(child)) cands.set(child, []); cands.get(child).push([parent, lqi]); };
+  const seen = new Map(table.e.map(([rx, tx, lqi]) => [`${rx}|${tx}`, lqi ?? -1]));
+  if (table.p && table.p.length) {
+    for (const [child, parent] of table.p) if (eligible(child, parent)) add(child, parent, seen.get(`${parent}|${child}`) ?? -2);
+  } else {
+    for (const [rx, tx, lqi] of table.e) if (eligible(tx, rx)) add(tx, rx, lqi ?? -1);
+    for (const [child, list] of cands) {
+      const known = list.filter(([parent]) => ctx.childLive.has(`${parent}|${child}`));
+      cands.set(child, known.length ? known : list);
+    }
   }
-  for (const [tx, list] of rows) {
-    const known = list.filter(([rx]) => ctx.childLive.has(`${rx}|${tx}`));
-    if (known.length) for (const [rx] of known) out.add(`${rx}|${tx}`);
-    else out.add(`${[...list].sort((p, q) => (q[1] - p[1]) || (p[0] < q[0] ? -1 : 1))[0][0]}|${tx}`);
+  const parent = new Map();
+  const extra = [];
+  for (const [child, list] of cands) {
+    const best = [...list].sort((x, y) => (y[1] - x[1]) || (x[0] < y[0] ? -1 : 1))[0][0];
+    parent.set(child, best);
+    if (!seen.has(`${best}|${child}`)) extra.push([best, child, null, null]);
   }
+  out = { table: extra.length ? { ...table, e: table.e.concat(extra) } : table, parent };
+  ctx.prepared.set(table, out);
   return out;
 }
 
@@ -79,8 +96,8 @@ function placeholderKeys(ctx, table) {
  *  snapshot's. A device in the snapshot but not live is a placeholder (`placeholder: true`, role unknown, no address);
  *  a live device without tables in the snapshot has none ("table not read"); a device that holds tables in the
  *  snapshot counts as available. */
-export function rebuildNetwork(ctx, table) {
-  const children = childPairs(ctx, table);
+export function rebuildNetwork(ctx, original) {
+  const { table, parent } = prepare(ctx, original);
   const holders = new Set();
   const nbrs = new Map();
   const rts = new Map();
@@ -95,7 +112,7 @@ export function rebuildNetwork(ctx, table) {
     if (!nbrs.has(rx)) nbrs.set(rx, []);
     const sub = ctx.byId.get(tx);
     nbrs.get(rx).push({ ieee: tx, nwk: addr(tx), device_type: sub ? ROLE_TYPE[sub.role] : undefined, lqi,
-      relationship: children.has(`${rx}|${tx}`) ? "Child" : "Sibling" });
+      relationship: parent.get(tx) === rx ? "Child" : "Sibling" });
   }
   for (const [h, d, n, status] of table.r) {
     if (!rts.has(h)) rts.set(h, []);
@@ -113,12 +130,12 @@ export function rebuildNetwork(ctx, table) {
 
 /** The light facts of a snapshot for walks: devices (id, role, vendor, available, hasTable, parent), readings and
  *  usable routes, from the same rules as the engine's normalize (from-zha.js). */
-function lightOf(ctx, table) {
+function lightOf(ctx, original) {
+  const { table, parent } = prepare(ctx, original);
   const holders = new Set();
   const listed = new Set();
   for (const [rx] of table.e) { holders.add(rx); }
   for (const [h] of table.r) listed.add(h);
-  const children = childPairs(ctx, table);
   const devices = new Map();
   const add = (id, d) => devices.set(id, { id, role: d ? d.role : "unknown", vendor: d ? d.vendor : null,
     available: holders.has(id) || listed.has(id) ? true : d ? d.available : true, hasTable: holders.has(id),
@@ -127,19 +144,14 @@ function lightOf(ctx, table) {
   const known = (k) => devices.has(k) || (normalizeIeee(k) && (add(k, null), true));
   const readings = [];
   const byReporter = new Map();
-  const best = new Map();
   for (const [rx, tx, lqi] of table.e) {
     known(rx); known(tx);
     const rd = { reporter: rx, subject: tx, lqi, measured: lqi !== null && lqi > 0, rating: null };
     readings.push(rd);
     if (!byReporter.has(rx)) byReporter.set(rx, []);
     byReporter.get(rx).push(rd);
-    if (children.has(`${rx}|${tx}`)) {
-      const cur = best.get(tx);
-      if (!cur || (lqi ?? -1) > (cur[1] ?? -1) || ((lqi ?? -1) === (cur[1] ?? -1) && rx < cur[0])) best.set(tx, [rx, lqi]);
-    }
   }
-  for (const [tx, [rx]] of best) devices.get(tx).parent = rx;
+  for (const [child, p] of parent) devices.get(child).parent = p;
   const routes = [];
   for (const [h, d, n, status] of table.r) {
     if (!devices.has(h) || ctx.ambiguous.has(d) || ctx.ambiguous.has(n) || !known(d) || !known(n)) continue;

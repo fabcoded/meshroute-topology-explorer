@@ -10,10 +10,10 @@ export const RANGES = Object.freeze({ "48h": 48 * 3600, "7d": 7 * 86400, "30d": 
 /** Half width of a lane window centred on a record ("from a pill click"), and the length of "the last 48 h". */
 export const LANE_HALF_WINDOW = 48 * 3600;
 
-const NO_TABLE = Object.freeze({ e: [], r: [], l: [] });
+const NO_TABLE = Object.freeze({ e: [], r: [], l: [], p: [] });
 
 /** Snapshots in time order from `{ k, records }`: [{ t, table, index, empty }]. `table` = { e: [[receiver, sender,
- *  lqi, rssi|null]], r: [[holder, destination, next hop, status]], l: [[device, [relays]]] } with keys resolved; a
+ *  lqi, rssi|null]], r: [[holder, destination, next hop, status]], l: [[device, [relays]]], p: [[child, parent]] } with keys resolved; a
  *  time-only record shares the previous snapshot's table object (same identity = unchanged, so caches can key on it).
  *  A `{k}` line among the records extends the key table (the file form). A row naming an unknown key is dropped; a
  *  time-only record before any full one has an empty table (`empty: true`). */
@@ -44,7 +44,9 @@ export function decodeRecords(response) {
         const relays = (Array.isArray(x[1]) ? x[1] : []).map(key);
         if (key(x[0]) !== null && !relays.includes(null)) l.push([key(x[0]), relays]);
       }
-      table = { e, r, l };
+      const pr = [];
+      for (const x of Array.isArray(rec.p) ? rec.p : []) if (key(x[0]) !== null && key(x[1]) !== null) pr.push([key(x[0]), key(x[1])]);
+      table = { e, r, l, p: pr };
       empty = false;
     }
     snapshots.push({ t: rec.t, table, index: 0, empty });

@@ -199,3 +199,46 @@ test("performance: 90 days at one record per 4 h (541 changed snapshots) give a 
   assert.ok(ms < 3000, `${ms.toFixed(0)} ms`);
   console.log(`# pair timeline, 541 snapshots: ${ms.toFixed(0)} ms`);
 });
+
+/** A one-record response from the fixture's first record with `p` replaced (or removed with null). */
+function withParents(p) {
+  const k = [...fixture.k];
+  const at = (key) => { if (!k.includes(key)) k.push(key); return k.indexOf(key); };
+  const rec = { ...fixture.records[0] };
+  delete rec.p;
+  if (p) rec.p = p.map(([c, q]) => [at(c), at(q)]);
+  return { k, records: [{ ...rec, t: 1 }, { ...rec, t: 2, p: p ? p.map(([c, q]) => [at(c), at(q)]) : undefined }] };
+}
+const child = ids.find((i) => ctx.byId.get(i).role === "end device" && ctx.byId.get(i).parent
+  && ctx.byId.get(ctx.byId.get(i).parent).available);
+const parentOf = ctx.byId.get(child).parent;
+const others = ids.filter((i) => ctx.byId.get(i).role === "router" && i !== parentOf && ctx.byId.get(i).available);
+
+test("parents from p: a parent move between two records changes the walk", () => {
+  const moved = others[0];
+  const base = withParents([[child, parentOf]]);
+  const second = withParents([[child, moved]]);
+  const resp = { k: second.k, records: [base.records[0], { ...second.records[1] }] };
+  resp.k = [...new Set([...base.k, ...second.k])];
+  const h = createHistory({ response: resp, live });
+  const tl = h.timeline(coordinator, child);
+  assert.equal(tl.points[0].back.ids[1], parentOf);
+  assert.equal(tl.points[1].back.ids[1], moved);
+  assert.equal(tl.points[1].back.hops[0].how, "parent");
+  assert.notEqual(tl.spans.length, 1);
+  // the full engine agrees with the light build
+  assert.deepEqual(ranked(h.walkAt(coordinator, child, 1).back), ranked(tl.points[1].back));
+});
+
+test("parents from p: two parents take the one that lists the child with the better reading; no p falls back to live", () => {
+  const [x, y] = [parentOf, others[0]];
+  const readingOf = (r, c) => (fixture.records[0].e.find((e) => fixture.k[e[0]] === r && fixture.k[e[1]] === c) || [0, 0, -1])[2];
+  const two = withParents([[child, x], [child, y]]);
+  const h = createHistory({ response: two, live });
+  const expected = readingOf(y, child) > readingOf(x, child) ? y : x;
+  assert.equal(h.timeline(coordinator, child).points[0].back.ids[1], expected);
+  const none = createHistory({ response: withParents(null), live });
+  const none0 = { ...none.snapshots[0] };
+  assert.equal(none0.table.p.length, 0);
+  assert.equal(none.timeline(coordinator, child).points[0].back.ids[1], parentOf, "live parent for records without p");
+});

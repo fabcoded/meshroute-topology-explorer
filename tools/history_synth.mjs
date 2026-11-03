@@ -23,6 +23,7 @@ export function snapshotOfRaw(devices) {
   }
   const e = new Map();
   const r = new Set();
+  const p = new Set(); // [child, parent] from the neighbour relationship, as sources.py parse_zha reads it
   for (const d of devices) {
     const holder = normalizeIeee(d.ieee);
     if (!holder || d.available === false) continue;
@@ -32,13 +33,16 @@ export function snapshotOfRaw(devices) {
       if (!tx || tx === holder || !Number.isInteger(lqi) || lqi < 0) continue;
       const k = `${holder}|${tx}`;
       if (!e.has(k) || lqi > e.get(k)) e.set(k, lqi);
+      if (n.relationship === "Child") p.add(JSON.stringify([tx, holder]));
+      else if (n.relationship === "Parent") p.add(JSON.stringify([holder, tx]));
     }
     for (const x of d.routes || []) {
       const [dest, hop] = [nwkText(x.dest_nwk), nwkText(x.next_hop)];
       if (dest && hop && typeof x.route_status === "string") r.add(JSON.stringify([holder, owner.get(dest) || dest, owner.get(hop) || hop, x.route_status]));
     }
   }
-  return { e, r: [...r].map((x) => JSON.parse(x)).sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)) };
+  const sorted = (set) => [...set].map((x) => JSON.parse(x)).sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
+  return { e, r: sorted(r), p: sorted(p) };
 }
 
 /** `{ k, records }` of [{ t, snap }] in time order, with one key table; an unchanged snapshot becomes `{ t }`. */
@@ -49,11 +53,12 @@ export function toResponse(list) {
   const records = [];
   let prev = null;
   for (const { t, snap } of list) {
-    const sig = JSON.stringify([[...snap.e], snap.r]);
+    const sig = JSON.stringify([[...snap.e], snap.r, snap.p]);
     if (sig === prev) { records.push({ t }); continue; }
     prev = sig;
     const rec = { t, e: [...snap.e].sort().map(([p, lqi]) => { const [a, b] = p.split("|"); return [key(a), key(b), lqi]; }) };
     if (snap.r.length) rec.r = snap.r.map(([h, d, n, s]) => [key(h), key(d), key(n), s]);
+    if (snap.p.length) rec.p = snap.p.map(([c, q]) => [key(c), key(q)]);
     records.push(rec);
   }
   return { k, records };
@@ -79,7 +84,13 @@ export function between(a, b, f, i) {
   const [ra, rb] = [byHolder(a), byHolder(b)];
   const r = [];
   for (const h of new Set([...ra.keys(), ...rb.keys()])) r.push(...((f < 0.2 + 0.6 * unit(`rt${h}`) ? ra.get(h) : rb.get(h)) || []));
-  return { e, r };
+  const pa = new Map(a.p), pb = new Map(b.p);
+  const p = [];
+  for (const c of new Set([...pa.keys(), ...pb.keys()])) {
+    const q = f < 0.2 + 0.6 * unit(`pp${c}`) ? pa.get(c) : pb.get(c);
+    if (q) p.push([c, q]);
+  }
+  return { e, r, p };
 }
 
 /** A deterministic variant of a sample capture for the committed fixture: every 7th route dropped, next hops of
