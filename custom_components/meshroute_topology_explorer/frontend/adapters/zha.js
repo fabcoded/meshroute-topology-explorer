@@ -30,7 +30,10 @@ export const zhaDevicePath = (ieee, tab = "signature") => `/config/zha/device/${
 export async function readZha(hass, { configEntries, registries }) {
   const raw = await hass.callWS({ type: "zha/devices" });
   if (!(Array.isArray(raw) && raw.length)) return { raw, network: null };
-  const network = ENGINES.zigbee.build(raw, { ...(await registries()), configEntries });
+  const regs = await registries();
+  const network = ENGINES.zigbee.build(raw, { ...regs, configEntries });
+  // The input the path history rebuilds its snapshots from (engines/zigbee/history.js liveContext).
+  network.live = { rawDevices: raw, ...regs, configEntries };
   // Read only, never fails the load; ZHA only, never for Thread.
   network.zigpy = await readZigpyRoutes(hass);
   return { raw, network };

@@ -375,6 +375,31 @@ show whether two devices really talk. At each holder H of the frame, in this ord
 - The way back D to S is walked separately from D: tables differ per direction.
 - The **backbone** (7.1) is every lane the theoretical paths between available devices use (sample numbers in 12).
 
+### 5.8 Path history of a pair [v1.1]
+
+Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input is the reception history (10.2).
+
+- **Snapshot:** one record; a time-only record repeats the previous one. The network at a snapshot is the live input
+  with every device's neighbour and routing tables replaced by the snapshot's (`buildNetwork`). A device only the
+  snapshot knows is a placeholder (role unknown, no address); a live device without tables there is "table not read";
+  a device holding tables there counts as available. End devices' parents come
+  from the record's `p` (10.2), given to the engine as the parent's "Child" listing (an empty listing is added where the
+  parent's table has none); a child with two parents takes the one that lists it with the better reading, then the lower
+  key; only a known end device with a router or coordinator parent counts. A record without `p` (older files) takes the
+  live "Child" listings, and for a child whose live parent is not in the snapshot the strongest router listing it.
+- **Walk:** `tableWalk` there and back (5.1), each hop with RX at its receiver (`pathHops`); the rank is the panel's
+  "rank N %" (5.4), computed within that snapshot's readings of the receiver. A walk that stops is incomplete with its
+  reason; nothing is guessed.
+- **Weakest hop** per direction: the lowest rank at the receiver, ties to the first hop. A hop without a rank (parent
+  or route link without a reading, LQI 0, too few readings) is never the weakest; never chosen by raw LQI.
+- **Span:** consecutive records with identical there and back hop lists (for a stopped walk, with its reason). A span
+  carries min, mean and max rank per hop; its weakest hop is the one with the lowest mean.
+- **Lane series:** per direction `[t, lqi(, rssi)]`, `[t, null]` where a record lacks the entry; a window centred on a
+  record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
+- **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
+- **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
+  a direct delivery; an address change since the record is not seen; a record that truly has no parents looks like an older one and falls back to the live parents.
+
 ## 6. Data status and the scan [v1]
 
 - **Status pill**, always visible (9.1): the pill's name is the network ("Zigbee (ZHA)"); its second line is the data
@@ -730,7 +755,8 @@ One place per thing; nothing appears twice.
     - In stage 2, **"Paths to other devices (theoretical)"** (5.7), collapsed above 12 rows; its note (computed, not
       observed, and how) at the top. A row per other device: hops there (→) and back (←), shortest first, equal counts
       by name in natural order (Router 2 before Router 10), the whole path's cost at the row's end. No "weakest RX"
-      summary: it would mix a missing value with a low one and compare receivers on different scales. A row opens to
+      summary in this list: it would mix a missing value with a low one and compare receivers on different scales
+      (the path history, 5.8, names a weakest hop by rank, never by raw LQI, and leaves out hops without a reading). A row opens to
       both ways, every hop with its RX and how it is taken ("routing table entry", "direct to a neighbour (no table
       entry needed)", "route discovery (computed)", "parent", "child"; "table not read" or "entry inactive" where
       the holder had none), a discovery with its path cost, a stopped way with its reason. A "–" hop names its basis
@@ -814,6 +840,43 @@ One place per thing; nothing appears twice.
 Clear messages for: ZHA not loaded; user not an administrator; connection lost (retry automatically); Home Assistant
 too old for a source; no devices yet; scan running. A lost connection keeps the last picture under a banner and reads
 again when the connection is back.
+
+### 9.5 Path history window [v1.1]
+
+Code: `frontend/ui/history-*.js` (window, loader, host, route, route-view, timeline, lane, sparkline, chart, texts); data:
+5.8 and 10.2; boards M35, M36. Administrators only (the commands are admin only).
+
+- **Entry:** with a device selected, every other device shows a small grey badge at its top right, a question mark drawn
+  as a route (hops between nodes; the hovered one dark). Hover: "Path history with {selected}" and, for Zigbee, "there 4
+  hops · back 3 hops" (the live network's walks, selected to other and back). A click opens the window for the pair and
+  leaves the selection. Thread: no hop counts.
+- **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Lane (the last one used is remembered), ranges 48 h, 7 d,
+  30 d, 90 d limited to "Keep for" (read from `history/info`: `keep_days`, with `record` and `last_error`); a full-screen
+  sheet on a phone. Records are read per range (`history/records`) and cached per network and range for 5 minutes; the
+  live input is what the panel already holds (`network.live`).
+- **Timeline** (Zigbee): per direction a band of route spans ("via X, Y", "direct"; a walk that stopped is a dashed gap
+  with its reason) and under it the rank of the weakest hop at its receiver over time (0 to 100 %), a point per record, the
+  weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest.
+  Thread: a note, no bands.
+- **Route** with a switch Metro-Map | Mesh, a shared time slider (record ticks, play) and the record kept when switching.
+  Metro-Map: there above, back below; stations are the map's symbols in shared columns with dotted verticals;
+  arrowheads; the RX pill of each hop placed as on the map (a quarter before the arrowhead, at most four symbol
+  diameters; "Parent" where an end device's parent link has no reading); the weakest hop with a red outline and a thicker
+  line; routes before the shown record as faded dashed ghosts with their last value, no date. Mesh: the same hops at the
+  devices' current map positions, each direction offset to the right of its travel, ghosts dashed. Thread: the direct
+  link both ways (Metro-Map) and its neighbours in that record (Mesh), pills stacked ("−75 dBm" over "LQI 3").
+- **Lane:** a click on a pill (ghosts too) opens the Lane tab for that hop, centred on the record shown (±48 h, ±24 h, ±7 d,
+  ±30 d), the pill and its two nodes ringed in Route. Above the chart the strip: the route's nodes, the lane's two ringed
+  with both directions in the chart's colours, and "way back, Nov 2 08:00: hop 2 of 3". One LQI axis (0 to 255; Thread 0
+  to 3) for both directions, blue "Y hears X", orange "X hears Y"; the clicked record dashed; "after now: no records" and
+  "lane not used yet" as areas; hover crosshair with both values; "Show as table". Thread: RSSI in its own chart below,
+  never a second axis. From a Details row: the last 48 h.
+- **Details** (9.2), "Heard by · hears": each row gets a 48 h sparkline (one grey series, the last point a dot) and "48 h
+  min–max"; a click opens the window on the tab Lane. Zigbee only.
+- **States:** not recorded ("Reception history is not recorded. Settings ↗", also instead of the sparklines), no records
+  yet, source not supported (`last_error`), fewer than 3 records (points only), a refused command (message).
+- **Dev page:** `?history=<name>` reads `captures/<name>.json` (git-ignored), `sample` the committed fixture, `none`, `off`,
+  `unsupported`; `keep=<days>`.
 
 ## 10. Integration [v1]
 
@@ -908,7 +971,7 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
   epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table
   value for the sender, and the reverse; a record without the entry gives no point); `history/records` (`network`, `since`,
   optional `until`) returns `{k, records}` in the file format with one key table over the range, the first record full;
-  `history/info` returns `{records, first, last, bytes, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, scan_state, last_forced_scan, forced_scan_note, pending_zha_period, pending_note}`. No UI yet.
+  `history/info` returns `{records, first, last, bytes, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, scan_state, last_forced_scan, forced_scan_note, pending_zha_period, pending_note}`. The UI (9.5) reads `record`, `keep_days` and `last_error`.
 
 ## 11. Settings per network [v1]
 

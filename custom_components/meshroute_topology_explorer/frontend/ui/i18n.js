@@ -5,6 +5,7 @@
 // adapters/<source>-texts.js), merged through the two registries.
 import { ENGINES } from "../engines/index.js";
 import { ADAPTERS } from "../adapters/index.js";
+import { HISTORY_TEXTS } from "./history-texts.js";
 
 /** The shared table. */
 export const SHARED = Object.freeze({
@@ -234,7 +235,7 @@ export function mergeTexts(parts) {
 }
 
 /** Every text of the panel: the shared table, every engine's and every adapter's. */
-export const STRINGS = mergeTexts([SHARED, ...Object.values(ENGINES).map((e) => e.texts),
+export const STRINGS = mergeTexts([SHARED, HISTORY_TEXTS, ...Object.values(ENGINES).map((e) => e.texts),
   ...ADAPTERS.map((a) => a.texts)]);
 
 function primaryTag(hass) {

@@ -176,9 +176,65 @@ function pillPath(ctx, x, y, w, h) {
   ctx.closePath();
 }
 
+/** The entry badge of the path history (board M36 E): a small circle at a device's top right with a question mark drawn
+ *  as a route, hops between nodes, so it still reads as "?" at 14 px. BADGE.r is its radius and BADGE.hit the pointer's
+ *  reach; badgeCentre() places it from a symbol's centre and size. */
+export const BADGE = Object.freeze({ r: 7, hit: 11 });
+export const badgeCentre = (x, y, size) => [x + size / 2 - 1, y - size / 2 + 1];
+const HOOK = [[-2.4, -1.5], [-1.5, -3.3], [1.2, -3.3], [2.3, -1.4], [0, 0.7], [0, 1.7]];
+
+/** Draw one badge at (bx, by) in the current transform; `hot` (the pointer is over it) draws it dark, else grey. */
+export function drawBadge(ctx, bx, by, theme, hot) {
+  const color = hot ? theme.foreground : theme.muted;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(bx, by, BADGE.r, 0, 2 * Math.PI);
+  ctx.fillStyle = theme.background;
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  HOOK.forEach(([px, py], i) => (i ? ctx.lineTo(bx + px, by + py) : ctx.moveTo(bx + px, by + py)));
+  ctx.stroke();
+  ctx.fillStyle = color;
+  for (const [px, py] of [...HOOK.slice(0, 5), [0, 4.1]]) { ctx.beginPath(); ctx.arc(bx + px, by + py, 0.9, 0, 2 * Math.PI); ctx.fill(); }
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+}
+
+/** The value pill (also the path history window's): the lane stops 2 px before it (a background plate, opaque so a
+ *  dimmed lane vanishes behind it too), thin outline in the lane's colour (t.line wide, default 1; t.dash for a ghost),
+ *  the text upright inside (spec 7.1). Text with "\n" is stacked, one line each (Thread: RSSI over LQI, spec 5.8).
+ *  t: { x, y (centre), w, h, text, color, alpha, line, dash }. */
+export function drawPill(ctx, t, theme) {
+  const font = theme.font.replace(/(\d+(?:\.\d+)?)px/, `${VALUE.font}px`);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = theme.background;
+  pillPath(ctx, t.x, t.y, t.w + 4, t.h + 4);
+  ctx.fill();
+  ctx.globalAlpha = t.alpha ?? 1;
+  pillPath(ctx, t.x, t.y, t.w, t.h);
+  ctx.lineWidth = t.line ?? 1;
+  ctx.setLineDash(t.dash || []);
+  ctx.strokeStyle = t.color;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = theme.foreground;
+  ctx.font = font;
+  const lines = String(t.text).split("\n");
+  const step = t.h / lines.length;
+  lines.forEach((line, i) => ctx.fillText(line, t.x, t.y - t.h / 2 + step * (i + 0.5) + 0.5));
+  ctx.font = theme.font;
+  ctx.globalAlpha = 1;
+}
+
 /** One lane (links.js laneGeometry) with the current stroke style; with a head, the stroke stops at the head's base
  *  and a filled triangle points at the hearer. */
-function drawLane(ctx, lane, style) {
+export function drawLane(ctx, lane, style) {
   const headLen = 4 + style.width * 1.5;
   const head = style.head && lane.len > headLen + 2;
   const end = head ? lane.len - headLen : lane.len;
@@ -597,25 +653,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.globalAlpha = 1;
     shown++;
   };
-  const valueFont = theme.font.replace(/(\d+(?:\.\d+)?)px/, `${VALUE.font}px`);
-  // The pill: the lane stops 2 px before it (a background plate, opaque so a dimmed lane vanishes behind it too), thin
-  // outline in the lane's colour, the number upright inside (spec 7.1).
-  const drawValue = (t) => {
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = theme.background;
-    pillPath(ctx, t.x, t.y, t.w + 4, t.h + 4);
-    ctx.fill();
-    ctx.globalAlpha = t.alpha;
-    pillPath(ctx, t.x, t.y, t.w, t.h);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = t.color;
-    ctx.stroke();
-    ctx.fillStyle = theme.foreground;
-    ctx.font = valueFont;
-    ctx.fillText(t.text, t.x, t.y + 0.5);
-    ctx.font = theme.font;
-    ctx.globalAlpha = 1;
-  };
+  const drawValue = (t) => drawPill(ctx, t, theme);
   // Area of a rectangle covered by device symbols (a pill never covers one where a lane has another place).
   const symbolArea = (r) => {
     let sum = 0;
@@ -699,6 +737,16 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     for (const i of rest) label(i, false);
   }
   for (const t of laneTexts) if (!t.path) value(t);
+
+  // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
+  if (view.pairBadges && view.selected >= 0) {
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < n; i++) {
+      if (i === view.selected || !onScreen(i)) continue;
+      const [bx, by] = badgeCentre(sx[i], sy[i], size);
+      drawBadge(ctx, bx, by, theme, i === view.badgeHover);
+    }
+  }
 
   // Bottom left: the top corners carry the panel's buttons.
   if (view.debug && typeof view.fps === "number") {

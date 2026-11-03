@@ -185,6 +185,7 @@ export const TEXTS = Object.freeze({
   "details.tab_communication": "Communication",
   "details.tab_cluster": "Cluster",
   "details.tabs_label": "Details of the device",
+  "history.lane_no_values_end": "no values: {name} is an end device and keeps no neighbour table",
   "details.heard_title": "Heard by {by} · hears {hears}",
   "details.readings_all": "… all {count} with RX and rank relative to the reporter",
   "details.tables_title": "Tables and load",
