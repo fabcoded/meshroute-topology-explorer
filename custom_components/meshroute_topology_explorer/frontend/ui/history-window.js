@@ -70,7 +70,7 @@ export function openHistoryWindow(ctx) {
     tabs.replaceChildren(...TABS.map((tab) => h("button", { type: "button", role: "tab", id: `${id}-tab-${tab}`, class: `htab${state.tab === tab ? " on" : ""}`,
       "aria-selected": String(state.tab === tab), text: t(`history.tab_${tab}`), on: { click: () => switchTab(tab) } })));
     rangeBox.replaceChildren(...(state.tab === "lane" ? [] : state.ranges.map((r) => h("button", { type: "button", class: `seg${state.range === r ? " on" : ""}`,
-      "aria-pressed": String(state.range === r), text: t(`history.range_${r}`), on: { click: () => { state.range = r; show(); } } }))));
+      "aria-pressed": String(state.range === r), text: t(`history.range_${r}`), on: { click: () => { state.range = r; state.route.index = -1; show(); } } }))));
   }
 
   function switchTab(tab) {
@@ -136,7 +136,7 @@ export function openHistoryWindow(ctx) {
       renderTimeline(view, { t, theme, tl, from, to, width, labelOf: labels, walks: caps.walks, a, b });
     } else if (state.tab === "route") {
       if (state.route.index >= tl.points.length || state.route.index < 0) state.route.index = tl.points.length - 1;
-      routeView = createRouteView({ t, theme: ctx.theme, tl, from, to, state: state.route, deviceOf: deviceOf(history),
+      routeView = createRouteView({ t, theme: ctx.theme, walks: caps.walks, tl, from, to, state: state.route, deviceOf: deviceOf(history),
         positionOf: ctx.positionOf, timers: ctx.timers, recordText: (s) => t("history.record_at", { time: timeText(s, t.formatLocale, ctx.zone) }),
         getRoute: (i) => routeAt({ history, caps, tl, index: i, t, table: history.snapshots[tl.points[i] ? tl.points[i].index : 0]?.table }),
         onPill: (item) => openLane(history, caps, tl, item), onChange() {} });

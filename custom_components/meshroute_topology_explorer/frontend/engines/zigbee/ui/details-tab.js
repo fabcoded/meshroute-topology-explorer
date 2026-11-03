@@ -270,8 +270,9 @@ function tableCard(table, ctx, name) {
 
 /** The row's cell for the 48 h sparkline: empty until the history host fills it (ui/history-host.js); `slots` collects it. */
 function sparkCell(r, kind, slots) {
+  if (!slots) return null;
   const cell = h("span", { role: "cell", class: "reading-spark" });
-  if (slots) slots.push({ cell, other: r.device.id, kind });
+  slots.push({ cell, other: r.device.id, kind });
   return cell;
 }
 

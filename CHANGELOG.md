@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Path history (data layer):** routes of a device pair over the recorded history (walks there and back per record, weakest hop by rank, route spans, lane series; Thread lane values only); no window yet.
+- **Path history:** select a device and click the "?" badge at another one to open the pair's window: Timeline (route bands and the weakest hop's rank over time), Route (Metro-Map or Mesh with a time slider, earlier routes as ghosts) and Lane (both directions of one hop as LQI, Thread with RSSI below); Details' "Heard by · hears" rows get a 48 h sparkline. Thread pairs show their direct link and neighbours. Needs the reception history (administrators).
 - **Options:** "Configure" on the integration (administrators) offers: show in the sidebar, allow radio actions (off hides
   the scan control and the attribute read in the panel; a panel switch, not a lock), and a reception history. Saving
   reloads the integration, not Home Assistant.
@@ -11,7 +11,7 @@
   period where that is not possible, and for Thread), from what ZHA and the Matter server already hold, never starting
   a scan, in the integration's own day files (kept 30 days, 1 to 90). The options show ZHA's scan period and offer the
   snippet for configuration.yaml to change it (the integration never writes it). New administrator commands
-  `history/series`, `history/records`, `history/info`; no display yet. English translations only.
+  `history/series`, `history/records`, `history/info`. English translations only.
 - **Status pill:** the status line at the bottom is now a pill floating at the bottom centre of the map: a round arrow
   button, the network's name over its data state ("29/29 router tables · unchanged since 15:50"), and a dot last (green:
   all tables read; amber: something missing or old; red: connection lost). It is the network menu; the menu also holds

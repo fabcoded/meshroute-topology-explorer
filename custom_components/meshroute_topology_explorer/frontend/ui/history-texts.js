@@ -6,7 +6,6 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.badge_hops": "there {there} · back {back}",
   "history.hops_one": "{n} hop",
   "history.hops_many": "{n} hops",
-  "history.window_label": "Path history",
   "history.pair": "{a} ⇄ {b}",
   "history.tab_timeline": "Timeline",
   "history.tab_route": "Route",
@@ -66,10 +65,7 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.lane_hover": "{time}: {y} hears {x} {a}, {x} hears {y} {b}",
   "history.lane_none": "no record",
   "history.lane_col_time": "Time",
-  "history.ghost": "earlier route",
   "history.close": "Close",
   "history.row_range": "48 h {min}–{max}",
   "history.row_open": "Open the lane history of {name}",
-  "history.row_dot": "last value",
-  "history.pair_busy": "Path history: {name}",
 });

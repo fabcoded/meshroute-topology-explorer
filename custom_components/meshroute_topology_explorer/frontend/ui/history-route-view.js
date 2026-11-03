@@ -115,7 +115,7 @@ export function sliderModel({ points, from, to, width, locale }) {
     labels: timeTicks(from, to, Math.max(2, Math.floor(width / 70))).map((k) => ({ x: x(k.t), text: dayText(k.t, locale) })), x };
 }
 
-/** The Route tab. ctx: { t, theme(), tl, from, to, getRoute(index), deviceOf, positionOf, state ({ mode, index, sel,
+/** The Route tab. ctx: { t, theme(), walks (a routing table exists), tl, from, to, getRoute(index), deviceOf, positionOf, state ({ mode, index, sel,
  *  playing }), onPill(item), onChange(), timers }. Returns { el, redraw(), hits(), destroy() }. */
 export function createRouteView(ctx) {
   const { t, state, timers = globalThis } = ctx;
@@ -146,6 +146,14 @@ export function createRouteView(ctx) {
         mode: state.mode, measure });
     } else hitList = [];
     switchBox.replaceChildren(switchButton("metro"), switchButton("mesh"));
+    // Without a routing table the Metro-Map has the direct link only; the neighbours of that record are listed here
+    // and drawn in the Mesh.
+    const near = route && !ctx.walks ? route.items.filter((i) => i.kind === "neighbour") : [];
+    const name = (id) => ctx.deviceOf(id).label || id;
+    neighbourNote.textContent = ctx.walks || !route ? "" : near.length
+      ? t("history.neighbours", { list: near.map((i) => `${name(i.sender === route.ids.there[0] || i.sender === route.ids.there[1] ? i.hearer : i.sender)} (${i.text.replace("\n", ", ")})`).join("; ") })
+      : t("history.no_neighbours");
+    neighbourNote.hidden = state.mode !== "metro" || !neighbourNote.textContent;
     drawSlider(width);
   }
 
@@ -204,6 +212,7 @@ export function createRouteView(ctx) {
     canvas.style.cursor = pillAt(hitList, e.clientX - r.left, e.clientY - r.top) ? "pointer" : "";
   });
   const switchBox = h("div", { class: "hist-switch", role: "group", "aria-label": t("history.view") });
-  const el = h("div", { class: "hist-route" }, switchBox, frame, sliderBox, h("p", { class: "small muted", text: t("history.pill_hint") }));
+  const neighbourNote = h("p", { class: "small muted" });
+  const el = h("div", { class: "hist-route" }, switchBox, frame, neighbourNote, sliderBox, h("p", { class: "small muted", text: t("history.pill_hint") }));
   return { el, redraw, hits: () => hitList, destroy: stop };
 }
