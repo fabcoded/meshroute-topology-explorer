@@ -63,7 +63,6 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.lane_table": "Show as table",
   "history.lane_chart": "Show as chart",
   "history.lane_hover": "{time}: {y} hears {x} {a}, {x} hears {y} {b}",
-  "history.lane_no_values_end": "no values: {name} is an end device and keeps no neighbour table",
   "history.lane_no_values": "no values: no record of {name} hearing {other} in this window",
   "history.lane_none": "no record",
   "history.lane_col_time": "Time",
