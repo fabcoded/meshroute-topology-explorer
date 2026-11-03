@@ -123,17 +123,34 @@ class FlowTest(Base):
         self.assertEqual(result["description_placeholders"]["zha_scan"], "ZHA scans every 240 min")
         self.assertNotIn("confirm_short", result["data_schema"]["zha"][1][1])
 
-    def test_zha_line_for_off_and_unreadable(self):
+    def test_zha_line_and_no_field_for_off_unknown_and_unreadable(self):
         self.zha_patch.stop()
         self.set_zha(enabled=False)
-        self.assertEqual(ha_stubs.run(self.flow().async_step_init())["description_placeholders"]["zha_scan"],
-                         "ZHA's topology scan is off")
+        result = ha_stubs.run(self.flow().async_step_init())
+        self.assertIn("scan is off", result["description_placeholders"]["zha_scan"])
+        self.assertIn("topology_scan_enabled: true", result["description_placeholders"]["zha_scan"])
+        self.assertNotIn("zha", result["data_schema"])  # no period field while ZHA scans nothing
         self.zha_patch.stop()
+        app = types.SimpleNamespace(config={})  # no period in the config: unknown, never a made-up default
+        with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", return_value=app):
+            result = ha_stubs.run(self.flow().async_step_init())
+        self.assertEqual(result["description_placeholders"]["zha_scan"], "ZHA's scan period is unknown")
+        self.assertNotIn("zha", result["data_schema"])
         reason = ha_stubs.load(".zigpy_routes").NotSupported("zha_not_loaded", "x")
         with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=reason):
             result = ha_stubs.run(self.flow().async_step_init())
-        self.assertIn("cannot be read", result["description_placeholders"]["zha_scan"])
-        self.assertNotIn("zha", result["data_schema"])  # no field to change what cannot be read
+        self.assertEqual(result["description_placeholders"]["zha_scan"], "ZHA's scan period is unknown")
+        self.assertNotIn("zha", result["data_schema"])
+
+    def test_the_field_defaults_to_the_pending_period_unless_zha_reports_it(self):
+        field = lambda r: r["data_schema"]["zha"][1][1]["zha_period"][0].default  # noqa: E731
+        self.assertEqual(field(ha_stubs.run(self.flow({"pending_zha_period": 360}).async_step_init())), 360)
+        self.assertEqual(field(ha_stubs.run(self.flow({"pending_zha_period": 240}).async_step_init())), 240)  # applied
+
+    def test_entering_the_current_value_clears_a_pending_period(self):
+        result = self.submit(self.flow({"pending_zha_period": 360}), period=240)
+        self.assertEqual(result["type"], "create_entry")
+        self.assertNotIn("pending_zha_period", result["data"])
 
     def test_saving_other_options_does_not_touch_zha(self):
         result = self.submit(self.flow(), keep_days=10, sidebar=False, radio=False)

@@ -123,7 +123,7 @@ class FakeHass:
 def install():
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
-    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[])
+    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[])
 
     def mod(name, **attrs):
         m = types.ModuleType(name)
@@ -180,10 +180,18 @@ def install():
             self.schema, self.default = schema, default
 
     mod("voluptuous", Schema=Schema, Required=Required)
-    mod("homeassistant.config_entries", ConfigEntry=object, ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
+    mod("homeassistant.config_entries", ConfigEntry=object, SIGNAL_CONFIG_ENTRY_CHANGED="config_entry_changed", ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
         OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))
-    mod("homeassistant.core", HomeAssistant=object, callback=lambda func: func)
+    def callback(func):
+        func._is_callback = True  # like core's is_callback: a plain def given to a helper would run in an executor
+        return func
+
+    def checked(func):
+        assert getattr(func, "_is_callback", False) or asyncio.iscoroutinefunction(func), f"{func} is not a callback"
+        return func
+
+    mod("homeassistant.core", HomeAssistant=object, callback=callback)
     def later(delay, action):
         """Record a one-shot timer; the returned cancel marks it, the test runs `action` itself."""
         timer = types.SimpleNamespace(delay=delay, action=action, cancelled=False)
@@ -198,9 +206,12 @@ def install():
     st = mod("homeassistant.helpers.storage", Store=FakeStore)
     hjson = mod("homeassistant.helpers.json", json_bytes=fake_json_bytes)
     start = mod("homeassistant.helpers.start",
-                async_at_started=lambda hass, cb: rec.started.append(cb) or (lambda: None))
+                async_at_started=lambda hass, cb: rec.started.append(checked(cb)) or (lambda: None))
+    dispatcher = mod("homeassistant.helpers.dispatcher", async_dispatcher_connect=lambda hass, signal, target:
+                     rec.signals.append(checked(target)) or (lambda: rec.signals.remove(target)))
     comps.__dict__.update(websocket_api=ws, frontend=fe, panel_custom=pc, http=http)
     helpers.storage, helpers.json, helpers.event, helpers.start = st, hjson, event, start
+    helpers.dispatcher = dispatcher
     ha.components, ha.helpers = comps, helpers
     # config_flow.py imports more of Home Assistant; the tests never load it.
     for name in list(sys.modules):

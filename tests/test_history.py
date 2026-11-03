@@ -264,15 +264,18 @@ class SourcesTest(unittest.TestCase):
         devices[2]["nwk"] = 0x1111  # two devices with one address: neither can be named
         self.assertEqual(self.src.parse_zha(devices).routes[0], (a, "0x2222", "0x1111", "Active"))
 
-    def test_zha_parent_links_from_the_relationship(self):
-        r, c, other = "aa:bb:cc:dd:00:00:00:01", "aa:bb:cc:dd:00:00:00:02", "aa:bb:cc:dd:00:00:00:03"
+    def test_zha_parent_links_are_those_of_end_devices(self):
+        r, c, other, router = (f"aa:bb:cc:dd:00:00:00:0{i}" for i in (1, 2, 3, 4))
         devices = [
             {"ieee": r, "available": True, "neighbors": [
-                {"ieee": c, "lqi": "9", "relationship": "Child"}, {"ieee": other, "lqi": "9", "relationship": "Sibling"}]},
-            {"ieee": c, "available": True, "neighbors": [{"ieee": other, "lqi": "9", "relationship": "Parent"}]},
-            {"ieee": other, "available": False, "neighbors": [{"ieee": c, "lqi": "9", "relationship": "Child"}]}]
-        # r is c's parent (r lists c as Child); other is c's parent too (c lists other as Parent); stale table skipped
-        self.assertEqual(self.src.parse_zha(devices).parents, ((c, r), (c, other)))
+                {"ieee": c, "lqi": "9", "relationship": "Child", "device_type": "EndDevice"},
+                {"ieee": router, "lqi": "9", "relationship": "Child", "device_type": "Router"},  # a router's join parent
+                {"ieee": other, "lqi": "9", "relationship": "Sibling", "device_type": "Router"}]},
+            {"ieee": c, "available": True, "neighbors": [
+                {"ieee": other, "lqi": "9", "relationship": "Parent", "device_type": "Router"}]},  # not used
+            {"ieee": other, "available": False, "neighbors": [
+                {"ieee": c, "lqi": "9", "relationship": "Child", "device_type": "EndDevice"}]}]  # stale table
+        self.assertEqual(self.src.parse_zha(devices).parents, ((c, r),))
         fixture = self.src.parse_zha(self.zha).parents
         self.assertTrue(fixture)
         self.assertTrue(all(len(p) == 2 and p[0] != p[1] for p in fixture))
@@ -289,11 +292,13 @@ class SourcesTest(unittest.TestCase):
             {"ieee": b, "nwk": 2, "relays": []}, {"ieee": "bad", "nwk": 3, "relays": []}]}
         hass = self.hass({"zha/devices": (self.handler(self.zha), None)})
         hass.config.components = {"zha"}
-        networks, problems = asyncio.run(self.src.collect(hass))
+        got = asyncio.run(self.src.collect(hass))
+        networks, problems = got.networks, got.problems
         self.assertEqual(networks["zha-entry"].relays, ((a, (b, "0x0077")), (b, ())))
         self.assertEqual(problems, [])
         self.relays.side_effect = self.src.NotSupported("internals_changed", "gone")
-        networks, problems = asyncio.run(self.src.collect(hass))
+        got = asyncio.run(self.src.collect(hass))
+        networks, problems = got.networks, got.problems
         self.assertEqual(networks["zha-entry"].relays, ())  # the rest of the record is still taken
         self.assertIn("route records", problems[0])
         self.relays.side_effect = RuntimeError
@@ -312,7 +317,8 @@ class SourcesTest(unittest.TestCase):
             self.src.parse_zha({"not": "a list"})
 
     def test_parse_thread_follows_the_panels_keys_and_directions(self):
-        network, snapshot = self.src.parse_thread(self.matter)
+        network, snapshot, collected = self.src.parse_thread(self.matter)
+        self.assertEqual(collected, 1767268800.0)  # the snapshot's own time, milliseconds in the answer
         entries = snapshot.neighbours
         self.assertEqual(network, "thread-aabbccddeeff0001")
         # connection 14 -> 16: source_to_target {lqi 2, rssi -85} is "14 hears 16"
@@ -324,7 +330,8 @@ class SourcesTest(unittest.TestCase):
                           {"id": "2", "network_type": "thread", "ext_pan_id": "aa", "available": False}],
                 "connections": [{"network": "thread", "source": "1", "target": "2",
                                  "source_to_target": {"lqi": 9, "rssi": 127}, "target_to_source": {"lqi": 1}}]}
-        network, snapshot = self.src.parse_thread(topo)
+        network, snapshot, collected = self.src.parse_thread(topo)
+        self.assertIsNone(collected)
         entries = snapshot.neighbours
         # source_to_target has nothing valid; the unavailable node's table is stale -> no entry at all
         self.assertEqual(entries, {})
@@ -341,7 +348,8 @@ class SourcesTest(unittest.TestCase):
                                 conn("2", "1", {"lqi": 2}, {"lqi": 2}),  # duplicate pair: first wins
                                 conn("1", "3", {"lqi": 0}, {"lqi": 0, "rssi": -90}),
                                 conn("1", "4", {"lqi": 3}, {"lqi": 3})]}  # other PAN: ignored
-        network, snapshot = self.src.parse_thread(topo)
+        network, snapshot, collected = self.src.parse_thread(topo)
+        self.assertIsNone(collected)
         self.assertEqual(network, "thread-aa")
         k1 = "00:11:22:33:44:55:66:77"
         self.assertEqual(snapshot.neighbours, {
@@ -367,7 +375,8 @@ class SourcesTest(unittest.TestCase):
         hass = self.hass({"zha/devices": (self.handler(self.zha, calls=calls), None),
                           "matter/network_topology": (self.handler(self.matter, calls=calls), None),
                           "zha/topology/update": (self.handler({}, calls=calls), None)})
-        networks, problems = asyncio.run(self.src.collect(hass))
+        got = asyncio.run(self.src.collect(hass))
+        networks, problems = got.networks, got.problems
         self.assertEqual(sorted(networks), ["thread-aabbccddeeff0001", "zha-entry"])
         self.assertEqual(problems, [])
         self.assertEqual([(c["type"], c.get("refresh")) for c in calls],
@@ -388,9 +397,9 @@ class SourcesTest(unittest.TestCase):
             "raises": {"zha/devices": (mock.Mock(side_effect=RuntimeError), None),
                        "matter/network_topology": (mock.Mock(side_effect=KeyError), None)}}
         for name, registry in cases.items():
-            networks, problems = asyncio.run(self.src.collect(self.hass(registry)))
-            self.assertEqual(networks, {}, name)
-            self.assertEqual(len(problems), 2, name)
+            got = asyncio.run(self.src.collect(self.hass(registry)))
+            self.assertEqual(got.networks, {}, name)
+            self.assertEqual(len(got.problems), 2, name)
         hass = self.hass(None)  # no registry at all
         self.assertEqual(asyncio.run(self.src.collect(hass))[0], {})
 
@@ -398,14 +407,16 @@ class SourcesTest(unittest.TestCase):
         hass = self.hass({"zha/devices": (lambda *a: None, None)})  # never answers
         hass.config.components = {"zha"}
         with mock.patch.object(self.src, "CALL_TIMEOUT", 0.05):
-            networks, problems = asyncio.run(self.src.collect(hass))
+            got = asyncio.run(self.src.collect(hass))
+        networks, problems = got.networks, got.problems
         self.assertEqual(networks, {})
         self.assertIn("did not answer", problems[0])
 
     def test_sources_that_are_not_loaded_are_skipped_silently(self):
         hass = self.hass({})
         hass.config.components = set()
-        self.assertEqual(asyncio.run(self.src.collect(hass)), ({}, []))
+        got = asyncio.run(self.src.collect(hass))
+        self.assertEqual((got.networks, got.problems), ({}, []))
 
 
 class RecorderTest(unittest.TestCase):
@@ -437,7 +448,9 @@ class RecorderTest(unittest.TestCase):
         self.hass.data["websocket_api"] = {"zha/devices": (handle, None)}
 
     def record(self, now, keep=30):
-        ha_stubs.run(self.recorder.get_history(self.hass).record(keep, now))
+        history = self.recorder.get_history(self.hass)
+        history.clock = lambda: now  # the gap between records counts on this clock
+        ha_stubs.run(history.record(keep, now))
 
     def command(self, name, admin=True, **fields):
         self.n += 1

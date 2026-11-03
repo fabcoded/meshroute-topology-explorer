@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 from homeassistant.core import HomeAssistant
 
@@ -134,13 +134,10 @@ def parse_zha(devices: Any) -> Snapshot:
                 lqi = int(lqi)
             if sender is None or sender == holder or isinstance(lqi, bool) or not isinstance(lqi, int) or lqi < 0:
                 continue
-            # ZHA's relationship names the neighbour from the holder's side: "Child" = the neighbour is the holder's
-            # child (the holder is its parent), "Parent" = the neighbour is the holder's parent.
-            relationship = n.get("relationship")
-            if relationship == "Child":
+            # Parent links are those of end devices (spec 4.5): the holder lists an end device as its "Child", seen
+            # from the holder's side. A router's own join parent ("Parent") is not one.
+            if n.get("relationship") == "Child" and n.get("device_type") == "EndDevice":
                 parents.add((sender, holder))
-            elif relationship == "Parent":
-                parents.add((holder, sender))
             old = entries.get((holder, sender))
             if old is None or lqi > old[0]:
                 entries[(holder, sender)] = (lqi, None)
@@ -177,8 +174,15 @@ def _thread_value(direction: Any) -> tuple[int | None, int | None] | None:
     return (lqi, rssi) if (lqi is not None and lqi > 0) or rssi is not None else None
 
 
-def parse_thread(topology: Any) -> tuple[str, Snapshot] | None:
-    """(network id, snapshot) of the largest Thread network in matter/network_topology, or None without a Thread node.
+def _seconds(value: Any) -> float | None:
+    """A snapshot time as epoch seconds (milliseconds or seconds, like the panel's isoTime), or None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
+        return None
+    return value / 1000 if value >= 1e12 else float(value)
+
+
+def parse_thread(topology: Any) -> tuple[str, Snapshot, float | None] | None:
+    """(network id, snapshot, time the Matter server collected it) of the largest Thread network in matter/network_topology, or None without a Thread node.
 
     Mirrors the panel (from-matter.js): Thread nodes that are no Wi-Fi access point; the largest extended PAN id wins
     and nodes without one stay; a duplicate node or connection is ignored (first wins). Network id and device keys as
@@ -221,16 +225,24 @@ def parse_thread(topology: Any) -> tuple[str, Snapshot] | None:
             value = _thread_value(c.get(direction)) if ok else None  # an unavailable node's table is stale
             if value is not None:
                 entries[(receiver, sender)] = value
-    return "thread-" + (re.sub(r"[^A-Za-z0-9]", "", pan)[:32] or "unknown"), Snapshot(entries)
+    return ("thread-" + (re.sub(r"[^A-Za-z0-9]", "", pan)[:32] or "unknown"), Snapshot(entries),
+            _seconds(topology.get("collected_at")))
 
 
-async def collect(hass: HomeAssistant) -> tuple[dict[str, Snapshot], list[str]]:
-    """({network id: snapshot}, problems) for every loaded source. A source that is not loaded is skipped silently; one
-    that fails adds a problem text and does not stop the other."""
-    networks: dict[str, Snapshot] = {}
-    problems: list[str] = []
+class Collected(NamedTuple):
+    """networks by id, problems as text, and the time of each snapshot the source dates itself (Thread)."""
+
+    networks: dict[str, Snapshot]
+    problems: list[str]
+    times: dict[str, float | None]
+
+
+async def collect(hass: HomeAssistant, zigbee: bool = True, thread: bool = True) -> Collected:
+    """Snapshots of the loaded sources asked for. A source that is not loaded is skipped silently; one that fails adds
+    a problem text and does not stop the other."""
+    out = Collected({}, [], {})
     components = getattr(getattr(hass, "config", None), "components", None) or ()
-    if "zha" in components:
+    if zigbee and "zha" in components:
         try:
             zha = hass.config_entries.async_entries("zha")
             if zha:
@@ -238,17 +250,18 @@ async def collect(hass: HomeAssistant) -> tuple[dict[str, Snapshot], list[str]]:
                 try:
                     snapshot = snapshot._replace(relays=parse_relays(read_routes(hass)))
                 except NotSupported as err:  # no route records: the rest of the record stays valid
-                    problems.append(f"zigpy route records: {err}")
+                    out.problems.append(f"zigpy route records: {err}")
                 except Exception as err:  # noqa: BLE001 - zigpy internals: never raise into Home Assistant
-                    problems.append(f"zigpy route records: {type(err).__name__}")
-                networks[zha[0].entry_id] = snapshot
+                    out.problems.append(f"zigpy route records: {type(err).__name__}")
+                out.networks[zha[0].entry_id] = snapshot
         except SourceError as err:
-            problems.append(f"zha: {err}")
-    if "matter" in components:
+            out.problems.append(f"zha: {err}")
+    if thread and "matter" in components:
         try:
-            thread = parse_thread(await call_command(hass, "matter/network_topology"))
-            if thread:
-                networks[thread[0]] = thread[1]
+            found = parse_thread(await call_command(hass, "matter/network_topology"))
+            if found:
+                out.networks[found[0]] = found[1]
+                out.times[found[0]] = found[2]
         except SourceError as err:
-            problems.append(f"matter: {err}")
-    return networks, problems
+            out.problems.append(f"matter: {err}")
+    return out

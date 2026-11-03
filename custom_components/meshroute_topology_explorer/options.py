@@ -55,9 +55,9 @@ def validate_options(user_input: Mapping[str, Any], previous: Mapping[str, Any] 
     """Check a submitted form: (options to store, delete the history, errors by field).
 
     Out of range: error (the form's description placeholders carry the range). A ZHA period different from the
-    current one (`zha_current`, None when ZHA cannot be read: the field is ignored) is stored as the pending period;
-    under ZHA_RECOMMENDED_PERIOD it is an error until the confirmation is ticked. A pending period that ZHA reports
-    now is dropped. The delete switch, the new period field and the confirmation are not stored as such.
+    current one (`zha_current`, None when ZHA cannot be read or its scan is off: the field is ignored) is stored as the pending period;
+    under ZHA_RECOMMENDED_PERIOD it is an error until the confirmation is ticked. The current value entered again, or
+    a pending period that ZHA reports now, clears the pending period. The delete switch, the new period field and the confirmation are not stored as such.
     """
     merged = {**DEFAULT_OPTIONS, **{k: v for k, v in user_input.items() if k in DEFAULT_OPTIONS}}
     errors: dict[str, str] = {}
@@ -67,7 +67,9 @@ def validate_options(user_input: Mapping[str, Any], previous: Mapping[str, Any] 
         merged[key] = bool(merged[key])
     pending = get_options(previous)[CONF_PENDING_ZHA_PERIOD]
     period = user_input.get(CONF_ZHA_PERIOD)
-    if zha_current is not None and period is not None and period != zha_current:
+    if zha_current is not None and period == zha_current:
+        pending = None  # the current value entered again: the user dropped the change
+    elif zha_current is not None and period is not None:
         if not _in_range(period, ZHA_PERIOD_RANGE):
             errors[CONF_ZHA_PERIOD] = ERR_ZHA_RANGE
         elif period < ZHA_RECOMMENDED_PERIOD and not user_input.get(CONF_CONFIRM_SHORT):

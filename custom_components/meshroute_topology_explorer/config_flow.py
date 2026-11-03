@@ -64,7 +64,8 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
             zha: ScanSettings | None = read_settings(self.hass)
         except NotSupported:
             zha = None
-        current_period = zha.period if zha else None
+        # No period field where ZHA cannot be read or scans nothing (a snippet would also need the switch on).
+        current_period = zha.period if zha and zha.enabled is not False else None
         errors: dict[str, str] = {}
         flat: dict[str, Any] = {}
         if user_input is not None:
@@ -91,7 +92,9 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
         })
         zha_fields: dict[Any, Any] = {}
         if current_period is not None:
-            zha_fields[vol.Required(CONF_ZHA_PERIOD, default=flat.get(CONF_ZHA_PERIOD, current_period))] = int
+            pending = get_options(self.config_entry.options)[CONF_PENDING_ZHA_PERIOD]
+            default = flat.get(CONF_ZHA_PERIOD, pending if pending not in (None, current_period) else current_period)
+            zha_fields[vol.Required(CONF_ZHA_PERIOD, default=default)] = int
             # The confirmation box exists only after the warning: the form comes back with it, unticked.
             if ERR_ZHA_SHORT in errors.values() or CONF_CONFIRM_SHORT in flat:
                 zha_fields[vol.Required(CONF_CONFIRM_SHORT, default=False)] = bool
