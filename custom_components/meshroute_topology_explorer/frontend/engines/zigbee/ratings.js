@@ -38,6 +38,7 @@ export function applyRatings(devices, readings) {
   }
   for (const list of [...perReporter.values(), ...perVendor.values()]) list.sort((a, b) => a - b);
 
+  const medians = new Map(); // pool -> its median, sorted once per pool, not once per reading
   for (const r of readings) {
     r.rating = null; r.pool = null; r.poolMedian = null;
     if (!(r.lqi > 0)) continue; // 0 is ambiguous (unmeasured or very weak): never rated
@@ -50,7 +51,8 @@ export function applyRatings(devices, readings) {
     if (pool.length < MIN_POOL) continue;
     r.rating = midRank(pool, r.lqi);
     r.pool = source;
-    r.poolMedian = median(pool);
+    if (!medians.has(pool)) medians.set(pool, median(pool));
+    r.poolMedian = medians.get(pool);
   }
 
   for (const d of devices) d.rating = null;

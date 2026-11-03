@@ -14,7 +14,8 @@ that reports late, a garden corner that hangs on one weak link.
   reporters, tables and the scan are one click away (9.1).
 - **Read only.** The explorer never changes a network or device. Radio traffic only on user request: a confirmed
   topology request (ZHA scan, Thread refresh, Zigbee2MQTT map request) and one read of a cluster's attribute values
-  (9.2). Never automatic, never a write, no reporting, no binding.
+  (9.2), and the optional one-time scan after a start (owner 2026-11-03, off by default, 10.1). Otherwise never
+  automatic, never a write, no reporting, no binding.
 - **Unknown beats wrong.** The explorer judges only through **findings** (5.6), each naming its evidence; missing
   data is never a verdict. (A first attempt called garden lamps "weak" and five sensors "without parent" on
   incomplete tables.)
@@ -153,7 +154,7 @@ The panel and the integration call only these commands; `tools/guard.py` enforce
 | `zha/devices` | devices and tables | v1 |
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
-| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only) | v1 |
+| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), reception history (10.2, read only) | v1 |
 | `matter/network_topology` with `refresh: false` | Thread topology, cached snapshot (3.2) | v1.1 preview |
 | `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
@@ -164,7 +165,9 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 `thread/get_dataset*`, `thread/set_*`, `matter/set_*`, `matter/commission*`, `matter/open_commissioning_window`,
 `zha/devices/permit`, other `zha/devices/clusters/*` commands, `zha/devices/bind`, `zha/devices/unbind`,
 `zha/groups/*`, `zha/configuration/*`, and ZHA services that write attributes, issue cluster commands or bind. The
-integration's Python reads from zigpy only IEEE address, network address and relays per device; network settings,
+integration's Python reads from zigpy only IEEE address, network address and relays per device, and, for the reception
+history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config, reads the topology's scan task state and attaches a
+listener to its events (never a scan of its own: the one-time scan of 10.1 goes through ZHA's command handler); network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
 
 ## 4. Data model [v1]
@@ -371,6 +374,31 @@ show whether two devices really talk. At each holder H of the frame, in this ord
   why.
 - The way back D to S is walked separately from D: tables differ per direction.
 - The **backbone** (7.1) is every lane the theoretical paths between available devices use (sample numbers in 12).
+
+### 5.8 Path history of a pair [v1.1]
+
+Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input is the reception history (10.2).
+
+- **Snapshot:** one record; a time-only record repeats the previous one. The network at a snapshot is the live input
+  with every device's neighbour and routing tables replaced by the snapshot's (`buildNetwork`). A device only the
+  snapshot knows is a placeholder (role unknown, no address); a live device without tables there is "table not read";
+  a device holding tables there counts as available. End devices' parents come
+  from the record's `p` (10.2), given to the engine as the parent's "Child" listing (an empty listing is added where the
+  parent's table has none); a child with two parents takes the one that lists it with the better reading, then the lower
+  key; only a known end device with a router or coordinator parent counts. A record without `p` (older files) takes the
+  live "Child" listings, and for a child whose live parent is not in the snapshot the strongest router listing it.
+- **Walk:** `tableWalk` there and back (5.1), each hop with RX at its receiver (`pathHops`); the rank is the panel's
+  "rank N %" (5.4), computed within that snapshot's readings of the receiver. A walk that stops is incomplete with its
+  reason; nothing is guessed.
+- **Weakest hop** per direction: the lowest rank at the receiver, ties to the first hop. A hop without a rank (parent
+  or route link without a reading, LQI 0, too few readings) is never the weakest; never chosen by raw LQI.
+- **Span:** consecutive records with identical there and back hop lists (for a stopped walk, with its reason). A span
+  carries min, mean and max rank per hop; its weakest hop is the one with the lowest mean.
+- **Lane series:** per direction `[t, lqi(, rssi)]`, `[t, null]` where a record lacks the entry; a window centred on a
+  record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
+- **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
+- **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
+  a direct delivery; an address change since the record is not seen; a record that truly has no parents looks like an older one and falls back to the live parents.
 
 ## 6. Data status and the scan [v1]
 
@@ -727,7 +755,8 @@ One place per thing; nothing appears twice.
     - In stage 2, **"Paths to other devices (theoretical)"** (5.7), collapsed above 12 rows; its note (computed, not
       observed, and how) at the top. A row per other device: hops there (→) and back (←), shortest first, equal counts
       by name in natural order (Router 2 before Router 10), the whole path's cost at the row's end. No "weakest RX"
-      summary: it would mix a missing value with a low one and compare receivers on different scales. A row opens to
+      summary in this list: it would mix a missing value with a low one and compare receivers on different scales
+      (the path history, 5.8, names a weakest hop by rank, never by raw LQI, and leaves out hops without a reading). A row opens to
       both ways, every hop with its RX and how it is taken ("routing table entry", "direct to a neighbour (no table
       entry needed)", "route discovery (computed)", "parent", "child"; "table not read" or "entry inactive" where
       the holder had none), a discovery with its path cost, a stopped way with its reason. A "–" hop names its basis
@@ -812,6 +841,43 @@ Clear messages for: ZHA not loaded; user not an administrator; connection lost (
 too old for a source; no devices yet; scan running. A lost connection keeps the last picture under a banner and reads
 again when the connection is back.
 
+### 9.5 Path history window [v1.1]
+
+Code: `frontend/ui/history-*.js` (window, loader, host, route, route-view, timeline, lane, sparkline, chart, texts); data:
+5.8 and 10.2; boards M35, M36. Administrators only (the commands are admin only).
+
+- **Entry:** with a device selected, every other device shows a small grey badge at its top right, a question mark drawn
+  as a route (hops between nodes; the hovered one dark). Hover: "Path history with {selected}" and, for Zigbee, "there 4
+  hops · back 3 hops" (the live network's walks, selected to other and back). A click opens the window for the pair and
+  leaves the selection. Thread: no hop counts.
+- **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Lane (the last one used is remembered), ranges 48 h, 7 d,
+  30 d, 90 d limited to "Keep for" (read from `history/info`: `keep_days`, with `record` and `last_error`); a full-screen
+  sheet on a phone. Records are read per range (`history/records`) and cached per network and range for 5 minutes; the
+  live input is what the panel already holds (`network.live`).
+- **Timeline** (Zigbee): per direction a band of route spans ("via X, Y", "direct"; a walk that stopped is a dashed gap
+  with its reason) and under it the rank of the weakest hop at its receiver over time (0 to 100 %), a point per record, the
+  weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest.
+  Thread: a note, no bands.
+- **Route** with a switch Metro-Map | Mesh, a shared time slider (record ticks, play) and the record kept when switching.
+  Metro-Map: there above, back below; stations are the map's symbols in shared columns with dotted verticals;
+  arrowheads; the RX pill of each hop placed as on the map (a quarter before the arrowhead, at most four symbol
+  diameters; "Parent" where an end device's parent link has no reading); the weakest hop with a red outline and a thicker
+  line; routes before the shown record as faded dashed ghosts with their last value, no date. Mesh: the same hops at the
+  devices' current map positions, each direction offset to the right of its travel, ghosts dashed. Thread: the direct
+  link both ways (Metro-Map) and its neighbours in that record (Mesh), pills stacked ("−75 dBm" over "LQI 3").
+- **Lane:** a click on a pill (ghosts too) opens the Lane tab for that hop, centred on the record shown (±48 h, ±24 h, ±7 d,
+  ±30 d), the pill and its two nodes ringed in Route. Above the chart the strip: the route's nodes, the lane's two ringed
+  with both directions in the chart's colours, and "way back, Nov 2 08:00: hop 2 of 3". One LQI axis (0 to 255; Thread 0
+  to 3) for both directions, blue "Y hears X", orange "X hears Y"; the clicked record dashed; "after now: no records" and
+  "lane not used yet" as areas; hover crosshair with both values; "Show as table". Thread: RSSI in its own chart below,
+  never a second axis. From a Details row: the last 48 h.
+- **Details** (9.2), "Heard by · hears": each row gets a 48 h sparkline (one grey series, the last point a dot) and "48 h
+  min–max"; a click opens the window on the tab Lane. Zigbee only.
+- **States:** not recorded ("Reception history is not recorded. Settings ↗", also instead of the sparklines), no records
+  yet, source not supported (`last_error`), fewer than 3 records (points only), a refused command (message).
+- **Dev page:** `?history=<name>` reads `captures/<name>.json` (git-ignored), `sample` the committed fixture, `none`, `off`,
+  `unsupported`; `keep=<days>`.
+
 ## 10. Integration [v1]
 
 - Custom integration with a config flow; manifest `name` "Meshroute Topology Explorer", domain
@@ -840,6 +906,72 @@ again when the connection is back.
   and stops drawing when hidden.
 - Texts in English only: one flat table per part, merged in `ui/i18n.js`. Dates and numbers follow the user's Home
   Assistant locale.
+
+### 10.1 Options [v1]
+
+"Configure" on the integration (Settings > Devices & services; administrators only) opens one form; saving reloads the
+config entry, never Home Assistant. Stored in the entry's options (defaults apply to missing keys).
+
+| Option | Default | Effect |
+|---|---|---|
+| Show in the sidebar (administrators) | on | Off: the panel is not registered (removed on reload); the websocket commands stay. |
+| Allow radio actions (scan, attribute reads) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
+| Record reception values | on | Off stops recording; records stay until they expire. When they are taken: 10.2. |
+| ZHA scan period (minutes) | the pending period if one is stored and ZHA does not report it yet, else ZHA's current value | Helper only; the form also shows "ZHA scans every N min" ("ZHA's topology scan is off", with the note that a changed period would also need `topology_scan_enabled: true`; "unknown" where the period cannot be read; no field in those cases). The current value entered again clears a pending period. A different value: refused below 20 or above 10080 with the range; under 180 the form comes back with an error about radio traffic (every scan asks each router for its tables) and a box "Scan more often than every 180 minutes anyway", only a ticked resubmit goes on. Then a second step shows the snippet `zha:` / `zigpy_config:` / `topology_scan_period: N` for configuration.yaml and the note that Home Assistant Core must restart. The integration never writes configuration.yaml or changes ZHA at runtime; it stores only "pending ZHA period N", which `history/info` drops once ZHA reports N and otherwise reports as "ZHA still reports X min; the snippet is not applied yet". |
+| Keep for (days) | 30 | 1 to 90, else refused with the range. |
+| Scan once 30 minutes after Home Assistant starts | off | Once per Home Assistant run (a reload of the entry does not repeat it, an unload before the time cancels it), only if recording is on, "Allow radio actions" is on, ZHA is running, its scan task is seen and not running, and the newest Zigbee record is older than ZHA's period (or none). It asks ZHA through its registered `zha/topology/update` handler (in-process, no parameters; never the topology's own scan method); the scan's events are recorded by the normal path (10.2, guarded, floor). `history/info` gives `last_forced_scan` or `forced_scan_note` (why it was skipped). |
+| Delete the recorded history | off | Acts on Submit (when the form is valid), not stored. |
+
+### 10.2 Reception history [v1]
+
+Records the reception values over time (board M33/M34 option A), in the integration's own files, never in the recorder
+or statistics. It takes what ZHA and the Matter server already hold and never
+starts a scan or writes to a network. When (owner decision 2026-11-03): ZHA's topology fires `neighbors_updated` and
+`routes_updated` per device while it scans; a listener on `app.topology` (zigpy `add_listener`, cheap: it only resets a
+timer) records once no event has come for 60 s and the scan task is done (follow mode `events`). The record is dated
+with the end of the scan, not with the read. Never mid-scan: zigpy replaces the stored tables router by router while
+it scans, so the integration reads the topology's scan task state (`_scan_task`, internal; 300 s of quiet instead and
+`scan_state: unknown` in the info if the attribute is missing), waits for the task to end, drops a Zigbee read during
+which a scan began, and postpones a record due within 10 minutes of the last one to last + 10 minutes instead of
+dropping it; a scan that is still not over after twice ZHA's period writes nothing for it (`last_error`). Every ZHA
+(re)load builds a new topology: the listener moves to it when ZHA's config entry changes and on each timer tick. If no
+listener can be attached (internals changed, said in `last_error`), ZHA's scan is off or ZHA is not running, a timer at
+ZHA's period (240 min without ZHA) records instead (`timer`), dated with the read and guarded the same way. Thread has
+no events: a timer at ZHA's period reads only Thread, and a snapshot is dated with the Matter server's collection time
+and skipped when it is not newer than the last one. One Thread read follows 30 s after Home Assistant has started or
+the entry was reloaded (in timer mode also Zigbee; in events mode Zigbee is not read then, since zigpy restores its last
+scan from its database and it would be dated as new). Recording off keeps only a 6-hour expiry timer. The values come from the
+registered handlers of `zha/devices` and `matter/network_topology`
+(`refresh: false`) are called in-process (`hass.data["websocket_api"][command]`, exactly these two). Zigbee adds zigpy's
+route records (`zigpy_routes.read_routes`, in memory). Fragile parts: that registry layout and handler calling convention
+(core-internal) and the zigpy reader; any mismatch is logged once per change, shown as `last_error` by `history/info`, and
+writes nothing for that source (a failed route-record read still writes the rest). A read that has not answered blocks
+the next one of that command (no piling up). The Thread side mirrors the panel's node, duplicate and "measured" rules
+(`from-matter.js`): unknown strength and link quality 0 without RSSI are no values. Expiry runs even when a source fails,
+and a delete wins over a read still under way. Unavailable devices' tables are skipped
+(stale). A network without table entries and routes is not recorded.
+
+- **Files:** `/config/.storage/meshroute_topology_explorer_history/<network id, URL-quoted>.<UTC day>.jsonl`, append only,
+  one file per network and day; writing and reading run in the executor. Lines: `{"k":[keys]}` extends the file's key
+  table; `{"t":epoch,"e":[[receiver,sender,lqi(,rssi)]],"r":[[holder,destination,next hop,status]],"l":[[device,[relays]]],"p":[[child,parent]]}`
+  is a record (`r`, `l`, `p` left out when empty); `{"t":epoch}` alone repeats the previous record. The first record of a file is
+  full. Keys: IEEE (Zigbee), the Thread adapter's key (extended address, else `thread:<node id>`); a network address no
+  device holds stays text (`0x2B82`). Receiver = the device whose table reports the value (it hears the sender). Status =
+  ZHA's route status text. `p` holds the parents of end devices (4.5): a holder's neighbour entry with relationship "Child" and device type
+  EndDevice gives [that device, the holder]; a router's own join parent is not one. Available devices only, duplicates
+  merged; a child with stale entries can show two parents.
+- **Dedupe:** the whole record (neighbours, routes, relays, parents) is compared with the previous one, kept in memory per network
+  (restored from today's file after a restart).
+- **Retention:** day files that ended more than "Keep for" days ago are deleted (also while recording is off). Removing the
+  integration deletes the folder; turning recording off does not.
+- **Size:** the owner's Zigbee network (47 devices, 649 neighbour entries, 153 routing entries) is about 10 KB per full
+  record (about 7 KB for the neighbour entries, parent links add about 0.3 KB), so at most about 2.4 MB for 30 days at ZHA's default of 240 min with every record changed;
+  unchanged records cost a line.
+- **Commands (administrators):** `meshroute_topology_explorer/history/series` (`network`, `sender`, `receiver`, `since`
+  epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table
+  value for the sender, and the reverse; a record without the entry gives no point); `history/records` (`network`, `since`,
+  optional `until`) returns `{k, records}` in the file format with one key table over the range, the first record full;
+  `history/info` returns `{records, first, last, bytes, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, scan_state, last_forced_scan, forced_scan_note, pending_zha_period, pending_note}`. The UI (9.5) reads `record`, `keep_days` and `last_error`.
 
 ## 11. Settings per network [v1]
 

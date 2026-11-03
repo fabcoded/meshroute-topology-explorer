@@ -186,7 +186,8 @@ class GuardTest(unittest.TestCase):
                 root = self.tree({f"custom_components/x/{name}.py": py + code + "\n"})
                 self.assertTrue(guard.check(root), code)
         # The route records themselves pass, and the rule is for shipped Python only (tests and tools may name them).
-        allowed = "app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
+        allowed = ("app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
+                   "app.topology.add_listener(listener)\nperiod = app.config.get('topology_scan_period')\n")
         root = self.tree({"custom_components/x/routes.py": py + allowed, "tests/fake.py": py + "app.state.network_info\n",
                           "custom_components/x/panel.js": SPDX + "// permit joining is a raw value name\n"})
         self.assertEqual(guard.check(root), [])

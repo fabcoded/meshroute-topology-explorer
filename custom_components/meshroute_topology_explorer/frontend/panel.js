@@ -27,6 +27,7 @@ import { afterSelect, detailsRequest, tabRequest, openOnSelect } from "./ui/draw
 import { formatLocaleOf, translator, localize } from "./ui/i18n.js";
 import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geometry.js";
 import { MapButtons } from "./ui/map-buttons.js";
+import { HistoryHost } from "./ui/history-host.js";
 import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
 import { DevicesTab } from "./ui/devices-tab.js";
 import { renderFindings, markFindings } from "./ui/findings-tab.js";
@@ -72,6 +73,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     this._leftAuto = false; // the left panel was opened by "Details on click", not by the user
     this._info = { density: false, reload: false, colors: false, assumed: false }; // which info notes the View tab shows
     this._detailsSub = "communication"; // the Details tab's sub-tab (spec 9.2), kept while the selection changes
+    this._history = null; // the path history: loader, window, badge tooltips (ui/history-host.js)
     this._dialog = null; // the dialog an engine's Details opened (Zigbee: a cluster's details), if any
     this._dirty = new Set();
     this._connection = "ok";
@@ -235,6 +237,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   // ---- state ---------------------------------------------------------------------------------------------------
 
+  /** The integration's option "Allow radio actions" (panel config, spec 10.1): off hides the scan control and the
+   *  attribute read. A switch of this panel, not a lock: ZHA's own pages offer both. Absent (dev page) means allowed. */
+  _radioActions() {
+    return !(this._panel && this._panel.config && this._panel.config.radio_actions === false);
+  }
+
   _versionMismatch() {
     return versionMismatch(this._panel, VERSION);
   }
@@ -310,6 +318,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (network.capabilities.observations) await this._observe(network);
     if (token !== this._token) return;
     this._network = localize(network, this._t, this._areas());
+    if (this._history) { this._history.clear(); if (this._history.window) this._history.window.close(); }
     if (this._selected && !this._network.devices.some((d) => d.id === this._selected)) this._selected = null;
     this._ensureView();
     // The new network's engine reads its own keys of the new settings (another engine's stay unread).
@@ -346,6 +355,22 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       debug: this._debug, engineView: this._engineView(), receptionColors: s.pathColors.mode === "coloured",
       receptionStops: stopsOf(s.pathColors), labels: s.labels, texts: this._graphTexts() });
     view.addEventListener("select", (e) => this._select(e.detail.id, "map"));
+    // The path history (spec 9.5): administrators only, like the commands it reads; a badge at every other device
+    // while one is selected opens the pair's window.
+    this._history = new HistoryHost({ root: () => this._ui.app, callWS: (msg) => this._hass.callWS(msg), network: () => this._network,
+      theme: () => this._mapTheme(), t: () => this._t, view: () => this._view });
+    view.setPairBadges(this._isAdmin());
+    const tip = h("div", { class: "badge-tip", role: "tooltip", hidden: true });
+    this._ui.map.append(tip);
+    view.addEventListener("badge-hover", (e) => {
+      const { id, x, y } = e.detail;
+      tip.hidden = id === null;
+      if (id === null) return;
+      const [title, ...rest] = this._history.badgeText(this._selected, id).split("\n");
+      tip.replaceChildren(h("b", { text: title }), ...rest.map((line) => h("small", { text: line })));
+      Object.assign(tip.style, { left: `${x}px`, top: `${y + 12}px` });
+    });
+    view.addEventListener("pair-history", (e) => this._history.open(e.detail.a, e.detail.b));
     view.addEventListener("spread-step", (e) => this._stepSpread(e.detail.dir));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
@@ -527,7 +552,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           observedSince: seen ? t.when(seen) : null,
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
-          devicePage: adapterFor(this._network).devicePage,
+          devicePage: adapterFor(this._network).devicePage, radioActions: this._radioActions(),
+          history: this._history && this._isAdmin() ? { fill: (slots, note) => this._history.fillRows(this._selected, slots, note) } : null,
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
@@ -541,7 +567,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         // source has one.
         keepFocus(this._root, panel, () => renderView(panel, { t, canSettings: this._isAdmin(), settings: this._settings.settings,
           groups: engineFor(this._network).options(this._network, this._settings.settings),
-          canScan: Boolean(this._network.capabilities.scan),
+          canScan: Boolean(this._network.capabilities.scan) && this._radioActions(),
           openOnSelect: this._openOnSelect(), dark: this._mapTheme().dark, debug: this._debug,
           pinCount: presentPins(this._settings.settings.pins, this._network).length, client: this._settings,
           scan: this._scan ? { running: this._scan.running } : null, idPrefix: "mte-view",

@@ -49,7 +49,7 @@ export const zigbee = Object.freeze({
       const device = ctx.network.devices.find((d) => d.id === ctx.id);
       if (device) {
         ctx.openDialog((host) => openClusterDialog({ ...host, t: ctx.t, device, ...spec, opener,
-          devicePage: ctx.devicePage }));
+          devicePage: ctx.devicePage, radioActions: ctx.radioActions }));
       }
     } }),
   /** The View tab's Zigbee groups as data (OptionGroup[], ui/view-tab.js): communication paths, path display, return
@@ -62,6 +62,10 @@ export const zigbee = Object.freeze({
   scene: Object.freeze({ lanes: zigbeeScene.lanes, classify: zigbeeScene.classify, viewKey: zigbeeScene.viewKey,
     overview: zigbeeScene.overview, focus: zigbeeScene.focus, classes: zigbeeScene.CLASSES,
     anchors: zigbeeScene.anchors, labelRank: zigbeeScene.labelRank, fit: zigbeeScene.FIT }),
+  /** The path history window (ui/history-window.js): routes are walked from the routing tables; LQI 0 to 255. */
+  history: Object.freeze({ walks: true, lqiMax: 255, entryText: null,
+    /** End devices keep no neighbour table: what they hear is in no record. */
+    keepsNoTable: (device) => device.role === "end device" }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell

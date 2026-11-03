@@ -24,6 +24,7 @@ export const TEXTS = Object.freeze({
   "details.thread_title": "Neighbours (Thread)",
   "details.thread_note": "From the neighbour tables in the Matter server's snapshot. Thread data has no routes, so no paths are shown.",
   "details.thread_hears": "hears {name}: {value}",
+  "history.no_route": "Thread has no routing table in the Matter topology: no walked route, so no route bands. The Route tab shows the direct link and its neighbours.",
   "details.thread_heard_by": "heard by {name}: {value}",
   "details.thread_none": "No neighbour listed.",
   "details.thread_parent": "Parent: {name}",

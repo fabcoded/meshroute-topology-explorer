@@ -11,6 +11,7 @@ frontend.async_remove_panel; hass.http.async_register_static_paths; hass.async_a
 import asyncio
 import importlib
 import json
+import os
 import sys
 import types
 from unittest import mock
@@ -82,11 +83,36 @@ class FakeConnection:
         self.errors.append((msg_id, code, message))
 
 
+class FakeEntry:
+    """ConfigEntry with the members the integration uses: options, entry_id, update listener and unload callbacks."""
+
+    def __init__(self, options=None, entry_id="entry1"):
+        self.options, self.entry_id = dict(options or {}), entry_id
+        self.listeners, self.unloads = [], []
+
+    def add_update_listener(self, listener):
+        self.listeners.append(listener)
+        return lambda: self.listeners.remove(listener)
+
+    def async_on_unload(self, func):
+        self.unloads.append(func)
+
+    def unload(self):
+        """What Home Assistant does on unload: call the registered callbacks."""
+        for func in self.unloads:
+            func()
+        self.unloads.clear()
+
+
 class FakeHass:
-    def __init__(self, components=()):
+    def __init__(self, components=(), config_dir="/nonexistent"):
         self.data = {}
         # hass.config.components: the loaded integrations (zigpy_routes.py asks whether "zha" is among them).
-        self.config = types.SimpleNamespace(components=set(components))
+        self.config = types.SimpleNamespace(components=set(components),
+                                            path=lambda *parts: os.path.join(config_dir, *parts))
+        self.zha_entries = []
+        self.config_entries = types.SimpleNamespace(
+            async_entries=lambda domain: list(self.zha_entries) if domain == "zha" else [], async_reload=mock.AsyncMock())
         self.http = types.SimpleNamespace(async_register_static_paths=mock.AsyncMock())
 
     async def async_add_executor_job(self, func, *args):
@@ -97,7 +123,7 @@ class FakeHass:
 def install():
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
-    rec = types.SimpleNamespace(commands={}, panels=[], removed=[])
+    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[])
 
     def mod(name, **attrs):
         m = types.ModuleType(name)
@@ -126,13 +152,66 @@ def install():
     fe = mod("homeassistant.components.frontend", async_remove_panel=async_remove_panel)
     pc = mod("homeassistant.components.panel_custom", async_register_panel=async_register_panel)
     http = mod("homeassistant.components.http", StaticPathConfig=lambda url, path, cache: (url, path, cache))
-    mod("homeassistant.config_entries", ConfigEntry=object)
-    mod("homeassistant.core", HomeAssistant=object)
+    class ConfigFlow:
+        def __init_subclass__(cls, domain=None, **kwargs):
+            super().__init_subclass__(**kwargs)
+
+    class OptionsFlow:
+        """Just enough of the real one: forms and entries are returned as dicts for the tests to inspect."""
+
+        config_entry = None
+        hass = None
+
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
+
+        def async_create_entry(self, **kwargs):
+            return {"type": "create_entry", **kwargs}
+
+    class OptionsFlowWithReload(OptionsFlow):
+        """Home Assistant reloads the entry after a create_entry of this flow."""
+
+    class Schema(dict):
+        def __init__(self, schema):
+            super().__init__({getattr(k, "schema", k): (k, v) for k, v in schema.items()})
+
+    class Required:
+        def __init__(self, schema, default=None):
+            self.schema, self.default = schema, default
+
+    mod("voluptuous", Schema=Schema, Required=Required)
+    mod("homeassistant.config_entries", ConfigEntry=object, SIGNAL_CONFIG_ENTRY_CHANGED="config_entry_changed", ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
+        OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
+    mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))
+    def callback(func):
+        func._is_callback = True  # like core's is_callback: a plain def given to a helper would run in an executor
+        return func
+
+    def checked(func):
+        assert getattr(func, "_is_callback", False) or asyncio.iscoroutinefunction(func), f"{func} is not a callback"
+        return func
+
+    mod("homeassistant.core", HomeAssistant=object, callback=callback)
+    def later(delay, action):
+        """Record a one-shot timer; the returned cancel marks it, the test runs `action` itself."""
+        timer = types.SimpleNamespace(delay=delay, action=action, cancelled=False)
+        rec.later.append(timer)
+        return lambda: setattr(timer, "cancelled", True)
+
+    event = mod("homeassistant.helpers.event",
+                async_call_later=lambda hass, delay, action: later(delay, action),
+                async_track_time_interval=lambda hass, action, interval: rec.intervals.append((interval, action))
+                or (lambda: None))
     helpers = mod("homeassistant.helpers")
     st = mod("homeassistant.helpers.storage", Store=FakeStore)
     hjson = mod("homeassistant.helpers.json", json_bytes=fake_json_bytes)
+    start = mod("homeassistant.helpers.start",
+                async_at_started=lambda hass, cb: rec.started.append(checked(cb)) or (lambda: None))
+    dispatcher = mod("homeassistant.helpers.dispatcher", async_dispatcher_connect=lambda hass, signal, target:
+                     rec.signals.append(checked(target)) or (lambda: rec.signals.remove(target)))
     comps.__dict__.update(websocket_api=ws, frontend=fe, panel_custom=pc, http=http)
-    helpers.storage, helpers.json = st, hjson
+    helpers.storage, helpers.json, helpers.event, helpers.start = st, hjson, event, start
+    helpers.dispatcher = dispatcher
     ha.components, ha.helpers = comps, helpers
     # config_flow.py imports more of Home Assistant; the tests never load it.
     for name in list(sys.modules):

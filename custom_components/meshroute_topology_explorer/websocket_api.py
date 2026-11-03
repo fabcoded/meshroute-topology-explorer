@@ -2,7 +2,7 @@
 """Websocket commands of the panel: settings and observations per network (docs/spec.md section 10).
 
 Commands: meshroute_topology_explorer/{settings,observations}/{get,set}, and zigpy_routes (zigpy_routes.py: zigpy's
-route records, read only). Registered once per Home Assistant run
+route records, read only), history/series, history/records and history/info (recorder.py, reception history, read only). Registered once per Home Assistant run
 (commands cannot be unregistered). They stay answerable after the config entry is unloaded: the store lives in
 hass.data and the panel is simply gone, so nobody calls them.
 """
@@ -10,13 +10,16 @@ hass.data and the panel is simply gone, so nobody calls them.
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.json import json_bytes
 
+from .admin import check_admin
 from .const import DOMAIN, MAX_PAYLOAD_BYTES, NETWORK_ID_PATTERN
+from .recorder import async_info, get_history
 from .store import KINDS, PanelStore, StoreUnavailable
 from .zigpy_routes import COMMAND as ZIGPY_ROUTES_COMMAND
 from .zigpy_routes import ws_zigpy_routes
@@ -27,6 +30,9 @@ ERR_STORAGE_UNAVAILABLE = "storage_unavailable"
 _REGISTERED_KEY = f"{DOMAIN}_ws_registered"
 _STORE_KEY = f"{DOMAIN}_store"
 _NETWORK_RE = re.compile(NETWORK_ID_PATTERN)
+SERIES_COMMAND = f"{DOMAIN}/history/series"
+INFO_COMMAND = f"{DOMAIN}/history/info"
+RECORDS_COMMAND = f"{DOMAIN}/history/records"
 
 
 def _passthrough(msg: dict[str, Any]) -> dict[str, Any]:
@@ -56,9 +62,7 @@ def _make_handler(kind: str, writing: bool):
     async def handler(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
         msg_id = msg["id"]
         # Own admin check on top of the panel's require_admin: the commands carry data of the whole house.
-        user = connection.user
-        if user is None or not user.is_admin:
-            connection.send_error(msg_id, websocket_api.ERR_UNAUTHORIZED, "Unauthorized")
+        if not check_admin(connection, msg_id):
             return
         network = msg.get("network")
         if not isinstance(network, str) or not _NETWORK_RE.fullmatch(network):
@@ -90,6 +94,55 @@ def _make_handler(kind: str, writing: bool):
     return websocket_api.async_response(handler)
 
 
+@websocket_api.async_response
+async def ws_history_series(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    """Reception values of one lane since a time: {sender_to_receiver, receiver_to_sender}, each a list of
+    [time, lqi(, rssi)]. sender_to_receiver is what the receiver's table reported for the sender (it hears it)."""
+    msg_id = msg["id"]
+    if not check_admin(connection, msg_id):
+        return
+    network, sender, receiver, since = (msg.get(k) for k in ("network", "sender", "receiver", "since"))
+    fields_ok = all(isinstance(v, str) and _NETWORK_RE.fullmatch(v) for v in (network, sender, receiver))
+    if not fields_ok or isinstance(since, bool) or not isinstance(since, (int, float)) or since < 0:
+        connection.send_error(msg_id, websocket_api.ERR_INVALID_FORMAT,
+                              "network, sender and receiver: 1-64 characters of A-Za-z0-9_.:-; since: epoch seconds")
+        return
+    history = get_history(hass)
+    # Device keys are stored in lower case (IEEE, Thread extended address); ask the same way.
+    sender, receiver = sender.lower(), receiver.lower()
+    connection.send_result(msg_id, {
+        "sender_to_receiver": await history.run(history.files.series, network, receiver, sender, since),
+        "receiver_to_sender": await history.run(history.files.series, network, sender, receiver, since)})
+
+
+def _is_time(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value >= 0
+
+
+@websocket_api.async_response
+async def ws_history_records(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    """All tables of a network for a time range, in the file format with one key table: {k, records} (spec 10.2).
+    `until` is optional (default: now). A record `{t}` alone repeats the previous one; the first is full."""
+    msg_id = msg["id"]
+    if not check_admin(connection, msg_id):
+        return
+    network, since = msg.get("network"), msg.get("since")
+    until = msg.get("until", time.time())
+    if not (isinstance(network, str) and _NETWORK_RE.fullmatch(network) and _is_time(since) and _is_time(until)):
+        connection.send_error(msg_id, websocket_api.ERR_INVALID_FORMAT,
+                              "network: 1-64 characters of A-Za-z0-9_.:-; since and until: epoch seconds")
+        return
+    history = get_history(hass)
+    connection.send_result(msg_id, await history.run(history.files.records, network, since, until))
+
+
+@websocket_api.async_response
+async def ws_history_info(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    """Size of the history: records, first and last time (epoch seconds), bytes on disk, the last problem."""
+    if check_admin(connection, msg["id"]):
+        connection.send_result(msg["id"], await async_info(hass))
+
+
 def _get_store(hass: HomeAssistant) -> PanelStore:
     """The one store object per Home Assistant run; kept across unload and reload of the entry."""
     if _STORE_KEY not in hass.data:
@@ -103,7 +156,7 @@ async def async_remove_data(hass: HomeAssistant) -> None:
 
 
 def async_register_commands(hass: HomeAssistant) -> None:
-    """Register the five commands, once per run."""
+    """Register the eight commands, once per run."""
     if hass.data.get(_REGISTERED_KEY):
         return
     for kind in KINDS:
@@ -111,4 +164,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
             command = f"{DOMAIN}/{kind}/{'set' if writing else 'get'}"
             websocket_api.async_register_command(hass, command, _make_handler(kind, writing), _passthrough)
     websocket_api.async_register_command(hass, ZIGPY_ROUTES_COMMAND, ws_zigpy_routes, _passthrough)
+    websocket_api.async_register_command(hass, SERIES_COMMAND, ws_history_series, _passthrough)
+    websocket_api.async_register_command(hass, RECORDS_COMMAND, ws_history_records, _passthrough)
+    websocket_api.async_register_command(hass, INFO_COMMAND, ws_history_info, _passthrough)
     hass.data[_REGISTERED_KEY] = True

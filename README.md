@@ -83,6 +83,12 @@ Known limits:
 - Zigbee2MQTT is not supported yet.
 
 Update: download the new version in HACS, restart Home Assistant and reload the browser page.
+Settings: Settings > Devices & services > Meshroute > Configure (administrators). Show in the sidebar; allow radio actions
+(off hides the scan control and the attribute read in the panel; ZHA's own pages still offer them); record reception values
+after each of ZHA's own topology scans (keep 1 to 90 days, default 30), from what ZHA and the Matter server already hold,
+never starting a scan; delete the recorded history; optionally one ZHA scan 30 minutes after each start (off by default); see ZHA's scan period and get the snippet to change it (the
+integration never edits configuration.yaml). Details: [spec](docs/spec.md#101-options-v1).
+
 Removal: delete the integration under Settings > Devices & services, then remove it in HACS and restart.
 
 ## Contributing

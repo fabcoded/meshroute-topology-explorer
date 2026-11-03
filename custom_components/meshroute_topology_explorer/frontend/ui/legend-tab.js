@@ -40,7 +40,7 @@ function chip({ fill, outline, slash = false, size = 24 }) {
 
 /** A symbol as the map draws it, on its own canvas. device: what symbolParts reads, or parts directly (with
  *  `picture`); state: { selected, pinned, offline }. */
-function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
+export function symbolSwatch(device, theme, fill, state = {}, px = SWATCH) {
   const dpr = globalThis.devicePixelRatio || 1;
   const el = h("canvas", { width: Math.round(px * dpr), height: Math.round(px * dpr), "aria-hidden": "true",
     style: { width: `${px}px`, height: `${px}px`, flex: "none" } });

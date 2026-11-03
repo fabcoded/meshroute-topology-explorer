@@ -17,3 +17,25 @@ STORE_SAVE_DELAY = 10  # seconds
 MAX_PAYLOAD_BYTES = 256 * 1024
 # Network id as used by the panel (today the ZHA config entry id); spec section 10.
 NETWORK_ID_PATTERN = r"[A-Za-z0-9_.:-]{1,64}"
+
+# Options (entry.options; docs/spec.md section 10.1). Defaults apply to keys an entry does not hold yet.
+CONF_SIDEBAR = "sidebar"
+CONF_RADIO_ACTIONS = "radio_actions"
+CONF_RECORD = "record"
+CONF_KEEP_DAYS = "keep_days"
+CONF_SCAN_AFTER_START = "scan_after_start"  # ask ZHA for one scan 30 min after Home Assistant has started
+# Stored only after the ZHA period helper: the period the user was told to put into configuration.yaml.
+CONF_PENDING_ZHA_PERIOD = "pending_zha_period"
+# Form-only fields, never stored: the new ZHA period, the confirmation of a short one and the delete-on-submit switch.
+CONF_ZHA_PERIOD = "zha_period"
+CONF_CONFIRM_SHORT = "confirm_short"
+CONF_DELETE_HISTORY = "delete_history"
+DEFAULT_OPTIONS = {CONF_SIDEBAR: True, CONF_RADIO_ACTIONS: True, CONF_RECORD: True, CONF_KEEP_DAYS: 30,
+                   CONF_SCAN_AFTER_START: False}
+KEEP_DAYS_RANGE = (1, 90)
+# ZHA's topology scan period in minutes: zigpy's schema minimum is 20, its default 240. Under 180 mostly adds radio
+# traffic (every scan asks each router for its tables), so the helper asks for a confirmation.
+ZHA_PERIOD_RANGE = (20, 10080)
+ZHA_DEFAULT_PERIOD = 240
+ZHA_RECOMMENDED_PERIOD = 180
+HISTORY_DIR = f"{DOMAIN}_history"  # below /config/.storage

@@ -19,3 +19,10 @@ test("panel.js defines its element only if free and does not touch data in the h
   const setter = src.slice(src.indexOf("set hass(value)"), src.indexOf("get hass()"));
   assert.doesNotMatch(setter, /reload\(|callWS|_useNetwork/, "a new hass object must not reload data (spec 10)");
 });
+
+test("panel.js hides the scan control when the integration's radio_actions option is off (spec 10.1)", () => {
+  const src = readFileSync(new URL("../custom_components/meshroute_topology_explorer/frontend/panel.js", import.meta.url), "utf8");
+  assert.match(src, /config\.radio_actions === false/);
+  assert.match(src, /canScan: Boolean\(this\._network\.capabilities\.scan\) && this\._radioActions\(\)/);
+  assert.match(src, /radioActions: this\._radioActions\(\)/);
+});

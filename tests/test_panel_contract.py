@@ -36,7 +36,7 @@ class PanelContractTest(unittest.TestCase):
         sys.path.insert(0, str(ROOT))
         self.addCleanup(sys.path.remove, str(ROOT))
         comp = ha_stubs.load()
-        ha_stubs.run(comp.async_setup_entry(ha_stubs.FakeHass(), None))
+        ha_stubs.run(comp.async_setup_entry(ha_stubs.FakeHass(), ha_stubs.FakeEntry()))
         self.registered = set(self.rec.commands)
 
     def test_panel_names_only_registered_commands(self):

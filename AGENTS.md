@@ -13,7 +13,8 @@ stays calm, and raw values, tables and scans are one click away.
 
 - **Read only.** Radio traffic only on a button the user presses: the topology scan, and one read of a cluster's
   attribute values (`zha/devices/clusters/attributes/value`). Never automatic, never a write, no reporting, no
-  binding; ZHA's device page does those.
+  binding; ZHA's device page does those. One exception, owner 2026-11-03: the optional one-time
+  scan 30 minutes after a start (`zha/topology/update` through ZHA's handler, off by default, spec 10.1).
 - **No secrets.** Never call commands that return network keys (`zha/network/*`, `otbr/*`, `thread/get_dataset*`)
   or change the network. `tools/guard.py` enforces this and allows exactly the one attribute read.
 - **Nothing leaves the house.** No telemetry, no CDNs. Map tiles only from an address the user configured; no outside

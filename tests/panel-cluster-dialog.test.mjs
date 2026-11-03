@@ -25,13 +25,13 @@ globalThis.document = { createElement: (tag) => new FakeNode(tag), createElement
 const { openClusterDialog } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js");
 const { translator } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js");
 
-function open(callWS) {
+function open(callWS, extra = {}) {
   const root = new FakeNode("div");
   const t = translator("en");
   const dlg = openClusterDialog({ root, t, device: { id: "aa:bb:cc:dd:00:00:00:08", label: "Router 03", entities: [] },
     endpoint: 1, profile: 0x0104, cluster: 0x0006, direction: "in", states: () => ({}), callWS, opener: null,
-    devicePage: (d, tab) => ({ key: "zha", path: `/config/zha/device/${d.id}/${tab}` }) });
-  return { all: dlg.el.walk(), t };
+    devicePage: (d, tab) => ({ key: "zha", path: `/config/zha/device/${d.id}/${tab}` }), ...extra });
+  return { all: dlg.el.walk(), t, dlg };
 }
 
 test("cluster dialog: the read row precedes the attribute table; the guarded footer stays below", () => {
@@ -57,4 +57,13 @@ test("cluster dialog: nothing is sent on open; exactly one request per attribute
   button.listeners.click[0]({});
   await new Promise((r) => setTimeout(r, 20));
   assert.ok(sent.length >= 1 && new Set(sent).size === sent.length, `one read per attribute: ${sent}`);
+});
+
+test("cluster dialog: with radio actions off (integration option) there is no read row and read() sends nothing", async () => {
+  const sent = [];
+  const { all, dlg } = open(async (m) => { sent.push(m); return "1"; }, { radioActions: false });
+  assert.ok(!all.some((n) => /\bread-row\b/.test(n.className)), "no read row");
+  assert.ok(!all.some((n) => n.tag === "button" && /\bread-button\b/.test(n.className)), "no read button");
+  await dlg.read();
+  assert.deepEqual(sent, []);
 });

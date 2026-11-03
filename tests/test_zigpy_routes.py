@@ -91,7 +91,7 @@ class ZigpyRoutesTest(unittest.TestCase):
         self.addCleanup(sys.path.remove, root)
         self.comp = ha_stubs.load()
         self.hass = ha_stubs.FakeHass(components={"zha"})
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, None))
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, ha_stubs.FakeEntry()))
         self.gateway = None
         self.gateway_error = ValueError("No gateway object exists")
         self.install_zha()
