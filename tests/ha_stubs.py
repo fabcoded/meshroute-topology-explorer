@@ -184,8 +184,14 @@ def install():
         OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))
     mod("homeassistant.core", HomeAssistant=object, callback=lambda func: func)
+    def later(delay, action):
+        """Record a one-shot timer; the returned cancel marks it, the test runs `action` itself."""
+        timer = types.SimpleNamespace(delay=delay, action=action, cancelled=False)
+        rec.later.append(timer)
+        return lambda: setattr(timer, "cancelled", True)
+
     event = mod("homeassistant.helpers.event",
-                async_call_later=lambda hass, delay, action: rec.later.append((delay, action)) or (lambda: None),
+                async_call_later=lambda hass, delay, action: later(delay, action),
                 async_track_time_interval=lambda hass, action, interval: rec.intervals.append((interval, action))
                 or (lambda: None))
     helpers = mod("homeassistant.helpers")

@@ -15,20 +15,23 @@ from .const import (
     CONF_CONFIRM_SHORT,
     CONF_DELETE_HISTORY,
     CONF_KEEP_DAYS,
+    CONF_PENDING_ZHA_PERIOD,
     CONF_RADIO_ACTIONS,
     CONF_RECORD,
-    CONF_RECORD_HOURS,
     CONF_SIDEBAR,
+    CONF_ZHA_PERIOD,
     DOMAIN,
     KEEP_DAYS_RANGE,
-    RECORD_HOURS_RANGE,
-    RECOMMENDED_RECORD_HOURS,
     TITLE,
+    ZHA_PERIOD_RANGE,
+    ZHA_RECOMMENDED_PERIOD,
 )
-from .options import ERR_HOURS_SHORT, get_options, validate_options
+from .options import ERR_ZHA_SHORT, get_options, validate_options
 from .recorder import async_delete_history
+from .zha_scan import ScanSettings, describe, read_settings
+from .zigpy_routes import NotSupported
 
-SECTION = "history"  # the form's "Reception history" section; its fields are stored flat in the options
+SECTIONS = ("history", "zha")  # the form's sections; their fields are stored flat in the options
 
 
 class MeshrouteConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -51,41 +54,66 @@ class MeshrouteConfigFlow(ConfigFlow, domain=DOMAIN):
 class MeshrouteOptionsFlow(OptionsFlowWithReload):
     """One form; saving reloads the entry (never Home Assistant). Home Assistant checks values only on Submit, so
     problems come back as errors. Those of the section's fields are returned as `base` errors, which always show at the
-    top of the form (the frontend's mapping of section field errors is not guaranteed)."""
+    top of the form (the frontend's mapping of section field errors is not guaranteed). A changed ZHA scan period
+    is not applied: a second step shows the YAML snippet for configuration.yaml, which this integration never writes."""
+
+    _options: dict[str, Any]
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        try:
+            zha: ScanSettings | None = read_settings(self.hass)
+        except NotSupported:
+            zha = None
+        current_period = zha.period if zha else None
         errors: dict[str, str] = {}
         flat: dict[str, Any] = {}
         if user_input is not None:
-            # The history fields arrive nested in their section; flatten before validating.
-            flat = {**{k: v for k, v in user_input.items() if k != SECTION}, **user_input.get(SECTION, {})}
-            options, delete, errors = validate_options(flat, self.config_entry.options)
+            # The sections' fields arrive nested; flatten before validating.
+            flat = {**{k: v for k, v in user_input.items() if k not in SECTIONS},
+                    **{k: v for name in SECTIONS for k, v in user_input.get(name, {}).items()}}
+            options, delete, errors = validate_options(flat, self.config_entry.options, current_period)
             if not errors:
                 if delete:
                     await async_delete_history(self.hass)
+                self._options = options
+                if current_period is not None and flat.get(CONF_ZHA_PERIOD) not in (None, current_period):
+                    return await self.async_step_snippet()
                 return self.async_create_entry(data=options)
             # One base error (the first); the texts carry the numbers. Keep what the user typed.
             errors = {"base": next(iter(errors.values()))}
             current = {**get_options(None), **flat}
         else:
             current = get_options(self.config_entry.options)
-        fields = {
+        history = vol.Schema({
             vol.Required(CONF_RECORD, default=current[CONF_RECORD]): bool,
-            vol.Required(CONF_RECORD_HOURS, default=current[CONF_RECORD_HOURS]): int,
             vol.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
-        }
-        # The confirmation box exists only after the warning (board M33): the form comes back with it, unticked.
-        if ERR_HOURS_SHORT in errors.values() or (user_input is not None and CONF_CONFIRM_SHORT in flat):
-            fields[vol.Required(CONF_CONFIRM_SHORT, default=False)] = bool
-        fields[vol.Required(CONF_DELETE_HISTORY, default=False)] = bool
-        history = vol.Schema(fields)
-        schema = vol.Schema({
+            vol.Required(CONF_DELETE_HISTORY, default=False): bool,
+        })
+        zha_fields: dict[Any, Any] = {}
+        if current_period is not None:
+            zha_fields[vol.Required(CONF_ZHA_PERIOD, default=flat.get(CONF_ZHA_PERIOD, current_period))] = int
+            # The confirmation box exists only after the warning: the form comes back with it, unticked.
+            if ERR_ZHA_SHORT in errors.values() or CONF_CONFIRM_SHORT in flat:
+                zha_fields[vol.Required(CONF_CONFIRM_SHORT, default=False)] = bool
+        schema = {
             vol.Required(CONF_SIDEBAR, default=current[CONF_SIDEBAR]): bool,
             vol.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
-            vol.Required(SECTION): section(history, {"collapsed": False}),
-        })
-        hours = int(current[CONF_RECORD_HOURS]) if isinstance(current[CONF_RECORD_HOURS], int) else 0
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors, description_placeholders={
-            "hours_range": f"{RECORD_HOURS_RANGE[0]} to {RECORD_HOURS_RANGE[1]}",
+            vol.Required(SECTIONS[0]): section(history, {"collapsed": False}),
+        }
+        if zha_fields:
+            schema[vol.Required(SECTIONS[1])] = section(vol.Schema(zha_fields), {"collapsed": False})
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema), errors=errors,
+                                    description_placeholders={
+            "zha_scan": describe(zha),
             "days_range": f"{KEEP_DAYS_RANGE[0]} to {KEEP_DAYS_RANGE[1]}",
-            "recommended": str(RECOMMENDED_RECORD_HOURS), "hours": str(hours)})
+            "zha_range": f"{ZHA_PERIOD_RANGE[0]} to {ZHA_PERIOD_RANGE[1]}",
+            "recommended": str(ZHA_RECOMMENDED_PERIOD), "minutes": str(flat.get(CONF_ZHA_PERIOD, ""))})
+
+    async def async_step_snippet(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Show the configuration.yaml snippet for the new ZHA period; Submit saves the options (with the pending
+        period, which the info command compares with what ZHA reports after the restart)."""
+        if user_input is not None:
+            return self.async_create_entry(data=self._options)
+        period = self._options[CONF_PENDING_ZHA_PERIOD]
+        return self.async_show_form(step_id="snippet", data_schema=vol.Schema({}), description_placeholders={
+            "snippet": f"zha:\n  zigpy_config:\n    topology_scan_period: {period}", "minutes": str(period)})

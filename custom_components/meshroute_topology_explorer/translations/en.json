@@ -23,28 +23,40 @@
         "sections": {
           "history": {
             "name": "Reception history",
-            "description": "Records the reception values of the neighbour tables that ZHA and the Matter server already hold. It never starts a scan. ZHA reads its tables only every 4 hours by default.",
+            "description": "Records the reception values of the neighbour tables that ZHA and the Matter server already hold, after each of ZHA's own topology scans. It never starts a scan.",
             "data": {
               "record": "Record reception values",
-              "record_hours": "Record every (hours)",
               "keep_days": "Keep for (days)",
-              "confirm_short": "Record more often than every {recommended} hours anyway",
               "delete_history": "Delete the recorded history"
             },
             "data_description": {
-              "record_hours": "{hours_range} hours.",
               "keep_days": "{days_range} days; older records are deleted.",
-              "confirm_short": "Only needed for an interval under {recommended} hours.",
               "delete_history": "Deletes all records when you save. Not kept as a setting."
+            }
+          },
+          "zha": {
+            "name": "ZHA topology scan",
+            "description": "{zha_scan}. The period is set in ZHA's configuration.yaml, which this integration never changes: a new value shows a snippet to paste, and needs a restart of Home Assistant Core.",
+            "data": {
+              "zha_period": "ZHA scan period (minutes)",
+              "confirm_short": "Scan more often than every {recommended} minutes anyway"
+            },
+            "data_description": {
+              "zha_period": "{zha_range} minutes.",
+              "confirm_short": "Only needed for a period under {recommended} minutes."
             }
           }
         }
+      },
+      "snippet": {
+        "title": "Set ZHA's scan period",
+        "description": "Paste this into configuration.yaml (merge it with an existing `zha:` block), then restart Home Assistant Core. Nothing has been changed in ZHA yet; after the restart the integration compares what ZHA reports.\n\n```yaml\n{snippet}\n```"
       }
     },
     "error": {
-      "hours_range": "The interval must be {hours_range} hours.",
       "days_range": "The retention must be {days_range} days.",
-      "hours_short": "More often than every {recommended} hours: ZHA reads its tables only every 4 hours by default, so most records repeat the last values. A finer history needs a shorter scan period in ZHA, and every scan asks each router for its tables: more radio traffic in the whole network. Tick the box to record every {hours} hours anyway."
+      "zha_range": "The scan period must be {zha_range} minutes.",
+      "zha_short": "A scan every {minutes} minutes: every scan asks each router for its tables, so a short period means more radio traffic in the whole network, and the history gets more records only if their values change. Tick the box to use {minutes} minutes anyway."
     }
   }
 }

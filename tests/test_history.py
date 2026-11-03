@@ -530,17 +530,6 @@ class RecorderTest(unittest.TestCase):
             self.record(DAY + 40 * 24 * H, keep=30)
         self.assertEqual(history.files.info()["records"], 0)  # the old file expired anyway
 
-    def test_timer_logs_an_exception_once_per_change(self):
-        opts = ha_stubs.load(".options").get_options({})
-        self.recorder.start_recording(self.hass, opts)
-        tick = self.rec.intervals[-1][1]
-        with mock.patch.object(self.recorder, "collect", side_effect=RuntimeError("boom")), \
-                self.assertLogs(self.recorder._LOGGER, "ERROR") as logs:
-            ha_stubs.run(tick())
-            ha_stubs.run(tick())
-        self.assertEqual(len(logs.records), 1)
-        self.assertIn("RuntimeError: boom", self.recorder.get_history(self.hass).last_error)
-
     def test_read_commands_are_admin_only(self):
         self.assertEqual(self.command("info", admin=False)[1][0][1], "unauthorized")
         self.assertEqual(self.command("series", admin=False, network="n", sender="a", receiver="b", since=0)[1][0][1],

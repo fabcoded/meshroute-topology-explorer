@@ -58,7 +58,7 @@ PY_DENY = (
     "network_info", "node_info", "backups", ".state", "CONF_NWK", "get_zha_data", "yaml_config",
     # send to the radio or change the network or its devices
     "permit", "form_network", "reset_network", "write_network", "load_network", "send_packet", "request(", "broadcast(",
-    "energy_scan", ".topology", "scan(", "zdo", "bind(", "write_attributes", "read_attributes", ".remove(", "leave(",
+    "energy_scan", "scan(", "zdo", "bind(", "write_attributes", "read_attributes", ".remove(", "leave(",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

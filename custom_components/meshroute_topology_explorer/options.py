@@ -2,7 +2,7 @@
 """Options of the integration: defaults, validation of the options form, and the reading of an entry's options.
 
 Pure functions, no Home Assistant import, so the tests run them directly. The form is in config_flow.py; the
-rules are docs/spec.md section 10.1 (board M33 of the design).
+rules are docs/spec.md section 10.1.
 """
 
 from __future__ import annotations
@@ -14,19 +14,20 @@ from .const import (
     CONF_CONFIRM_SHORT,
     CONF_DELETE_HISTORY,
     CONF_KEEP_DAYS,
+    CONF_PENDING_ZHA_PERIOD,
     CONF_RADIO_ACTIONS,
     CONF_RECORD,
-    CONF_RECORD_HOURS,
     CONF_SIDEBAR,
+    CONF_ZHA_PERIOD,
     DEFAULT_OPTIONS,
     KEEP_DAYS_RANGE,
-    RECOMMENDED_RECORD_HOURS,
-    RECORD_HOURS_RANGE,
+    ZHA_PERIOD_RANGE,
+    ZHA_RECOMMENDED_PERIOD,
 )
 
-ERR_HOURS_RANGE = "hours_range"
 ERR_DAYS_RANGE = "days_range"
-ERR_HOURS_SHORT = "hours_short"
+ERR_ZHA_RANGE = "zha_range"
+ERR_ZHA_SHORT = "zha_short"
 
 
 def _in_range(value: Any, bounds: tuple[int, int]) -> bool:
@@ -35,37 +36,44 @@ def _in_range(value: Any, bounds: tuple[int, int]) -> bool:
 
 def get_options(options: Mapping[str, Any] | None) -> dict[str, Any]:
     """The stored options with the defaults filled in; a value of the wrong type or out of range (a hand-edited
-    entry: 0 hours would be a timer loop) falls back to its default."""
+    entry) falls back to its default. CONF_PENDING_ZHA_PERIOD is None unless a valid period is stored."""
     stored = options or {}
-    out = dict(DEFAULT_OPTIONS)
-    bounds = {CONF_RECORD_HOURS: RECORD_HOURS_RANGE, CONF_KEEP_DAYS: KEEP_DAYS_RANGE}
+    out: dict[str, Any] = dict(DEFAULT_OPTIONS)
     for key, default in DEFAULT_OPTIONS.items():
         value = stored.get(key, default)
-        # bool is an int subclass: a stored True must not pass for a number of hours.
+        # bool is an int subclass: a stored True must not pass for a number of days.
         if isinstance(value, bool) == isinstance(default, bool) and isinstance(value, type(default)) \
-                and (key not in bounds or _in_range(value, bounds[key])):
+                and (key != CONF_KEEP_DAYS or _in_range(value, KEEP_DAYS_RANGE)):
             out[key] = value
+    pending = stored.get(CONF_PENDING_ZHA_PERIOD)
+    out[CONF_PENDING_ZHA_PERIOD] = pending if _in_range(pending, ZHA_PERIOD_RANGE) else None
     return out
 
 
 def validate_options(user_input: Mapping[str, Any], previous: Mapping[str, Any] | None = None,
-                     ) -> tuple[dict[str, Any], bool, dict[str, str]]:
+                     zha_current: int | None = None) -> tuple[dict[str, Any], bool, dict[str, str]]:
     """Check a submitted form: (options to store, delete the history, errors by field).
 
-    Out of range: error with the allowed range (the form's description placeholders carry it). An interval under
-    RECOMMENDED_RECORD_HOURS is an error until the confirmation is ticked, unless it is the interval already stored
-    (a later save of other options does not ask again). The delete switch and the confirmation are not stored.
+    Out of range: error (the form's description placeholders carry the range). A ZHA period different from the
+    current one (`zha_current`, None when ZHA cannot be read: the field is ignored) is stored as the pending period;
+    under ZHA_RECOMMENDED_PERIOD it is an error until the confirmation is ticked. A pending period that ZHA reports
+    now is dropped. The delete switch, the new period field and the confirmation are not stored as such.
     """
     merged = {**DEFAULT_OPTIONS, **{k: v for k, v in user_input.items() if k in DEFAULT_OPTIONS}}
     errors: dict[str, str] = {}
-    hours, days = merged[CONF_RECORD_HOURS], merged[CONF_KEEP_DAYS]
-    if not _in_range(hours, RECORD_HOURS_RANGE):
-        errors[CONF_RECORD_HOURS] = ERR_HOURS_RANGE
-    elif (hours < RECOMMENDED_RECORD_HOURS and hours != get_options(previous)[CONF_RECORD_HOURS]
-          and not user_input.get(CONF_CONFIRM_SHORT)):
-        errors[CONF_CONFIRM_SHORT] = ERR_HOURS_SHORT
-    if not _in_range(days, KEEP_DAYS_RANGE):
+    if not _in_range(merged[CONF_KEEP_DAYS], KEEP_DAYS_RANGE):
         errors[CONF_KEEP_DAYS] = ERR_DAYS_RANGE
     for key in (CONF_SIDEBAR, CONF_RADIO_ACTIONS, CONF_RECORD):
         merged[key] = bool(merged[key])
+    pending = get_options(previous)[CONF_PENDING_ZHA_PERIOD]
+    period = user_input.get(CONF_ZHA_PERIOD)
+    if zha_current is not None and period is not None and period != zha_current:
+        if not _in_range(period, ZHA_PERIOD_RANGE):
+            errors[CONF_ZHA_PERIOD] = ERR_ZHA_RANGE
+        elif period < ZHA_RECOMMENDED_PERIOD and not user_input.get(CONF_CONFIRM_SHORT):
+            errors[CONF_CONFIRM_SHORT] = ERR_ZHA_SHORT
+        else:
+            pending = period
+    if pending is not None and pending != zha_current:
+        merged[CONF_PENDING_ZHA_PERIOD] = pending
     return merged, bool(user_input.get(CONF_DELETE_HISTORY)), errors

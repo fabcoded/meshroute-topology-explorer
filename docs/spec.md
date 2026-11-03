@@ -165,7 +165,8 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 `zha/devices/permit`, other `zha/devices/clusters/*` commands, `zha/devices/bind`, `zha/devices/unbind`,
 `zha/groups/*`, `zha/configuration/*`, and ZHA services that write attributes, issue cluster commands or bind. The
 integration's Python reads from zigpy only IEEE address, network address and relays per device, and, for the reception
-history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other; network settings,
+history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config and attaches a listener to the
+topology's events (never a scan); network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
 
 ## 4. Data model [v1]
@@ -851,16 +852,23 @@ config entry, never Home Assistant. Stored in the entry's options (defaults appl
 |---|---|---|
 | Show in the sidebar (administrators) | on | Off: the panel is not registered (removed on reload); the websocket commands stay. |
 | Allow radio actions (scan, attribute reads) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
-| Record reception values | on | Off stops recording; records stay until they expire. |
-| Record every (hours) | 3 | 1 to 24, else refused with the range. Under 3, when the value is changed to it: the form comes back with an error at the top (ZHA reads its tables only every 4 h by default, so most records repeat the last values; finer needs a shorter ZHA scan period = more radio traffic) and a box "Record more often than every 3 hours anyway"; only a ticked resubmit saves; later saves of other options do not ask again while that interval is stored. |
+| Record reception values | on | Off stops recording; records stay until they expire. When they are taken: 10.2. |
+| ZHA scan period (minutes) | ZHA's current value | Helper only; the form also shows "ZHA scans every N min" (or "ZHA's topology scan is off"; no field when ZHA is not running). A different value: refused below 20 or above 10080 with the range; under 180 the form comes back with an error about radio traffic (every scan asks each router for its tables) and a box "Scan more often than every 180 minutes anyway", only a ticked resubmit goes on. Then a second step shows the snippet `zha:` / `zigpy_config:` / `topology_scan_period: N` for configuration.yaml and the note that Home Assistant Core must restart. The integration never writes configuration.yaml or changes ZHA at runtime; it stores only "pending ZHA period N", which `history/info` drops once ZHA reports N and otherwise reports as "ZHA still reports X min; the snippet is not applied yet". |
 | Keep for (days) | 30 | 1 to 90, else refused with the range. |
 | Delete the recorded history | off | Acts on Submit (when the form is valid), not stored. |
 
 ### 10.2 Reception history [v1]
 
 Records the reception values over time (board M33/M34 option A), in the integration's own files, never in the recorder
-or statistics. Every interval (the first 30 s after Home Assistant has started, or after a reload) it takes what ZHA and the Matter server already hold and never
-starts a scan or writes to a network: the registered handlers of `zha/devices` and `matter/network_topology`
+or statistics. It takes what ZHA and the Matter server already hold and never
+starts a scan or writes to a network. When (owner decision 2026-11-03): ZHA's topology fires `neighbors_updated` and
+`routes_updated` per device while it scans; a listener on `app.topology` (zigpy `add_listener`, cheap: it only resets a
+timer) records once no event has come for 60 s (follow mode `events`), and a network is never recorded twice within
+10 minutes, so manual scans in between add nothing. If no listener can be attached (internals changed, said in
+`last_error`), ZHA's scan is off or ZHA is not running, a timer at ZHA's period (240 min without ZHA) records instead
+(`timer`). Thread has no events: beside the listener a timer at ZHA's period records it. One record also follows 30 s
+after Home Assistant has started or the entry was reloaded. Recording off keeps only a 6-hour expiry timer. The values come from the
+registered handlers of `zha/devices` and `matter/network_topology`
 (`refresh: false`) are called in-process (`hass.data["websocket_api"][command]`, exactly these two). Zigbee adds zigpy's
 route records (`zigpy_routes.read_routes`, in memory). Fragile parts: that registry layout and handler calling convention
 (core-internal) and the zigpy reader; any mismatch is logged once per change, shown as `last_error` by `history/info`, and
@@ -884,13 +892,13 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
 - **Retention:** day files that ended more than "Keep for" days ago are deleted (also while recording is off). Removing the
   integration deletes the folder; turning recording off does not.
 - **Size:** the owner's Zigbee network (47 devices, 649 neighbour entries, 153 routing entries) is about 10 KB per full
-  record (about 7 KB for the neighbour entries, parent links add about 0.3 KB), so at most about 2.4 MB for 30 days at 3 h with every record changed;
+  record (about 7 KB for the neighbour entries, parent links add about 0.3 KB), so at most about 2.4 MB for 30 days at ZHA's default of 240 min with every record changed;
   unchanged records cost a line.
 - **Commands (administrators):** `meshroute_topology_explorer/history/series` (`network`, `sender`, `receiver`, `since`
   epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table
   value for the sender, and the reverse; a record without the entry gives no point); `history/records` (`network`, `since`,
   optional `until`) returns `{k, records}` in the file format with one key table over the range, the first record full;
-  `history/info` returns `{records, first, last, bytes, last_error}`. No UI yet.
+  `history/info` returns `{records, first, last, bytes, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, pending_zha_period, pending_note}`. No UI yet.
 
 ## 11. Settings per network [v1]
 

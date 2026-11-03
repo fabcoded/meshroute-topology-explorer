@@ -56,8 +56,10 @@ class IntegrationFilesTest(unittest.TestCase):
         init = en["options"]["step"]["init"]
         self.assertEqual(set(init["data"]), {"sidebar", "radio_actions"})
         self.assertEqual(set(init["sections"]["history"]["data"]),
-                         {"record", "record_hours", "keep_days", "confirm_short", "delete_history"})
-        self.assertEqual(set(en["options"]["error"]), {"hours_range", "days_range", "hours_short"})
+                         {"record", "keep_days", "delete_history"})
+        self.assertEqual(set(init["sections"]["zha"]["data"]), {"zha_period", "confirm_short"})
+        self.assertIn("snippet", en["options"]["step"]["snippet"]["description"])
+        self.assertEqual(set(en["options"]["error"]), {"days_range", "zha_range", "zha_short"})
 
     def test_hacs_json(self):
         h = load(ROOT / "hacs.json")
