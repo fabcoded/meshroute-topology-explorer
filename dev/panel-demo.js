@@ -256,13 +256,15 @@ if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"
 // history=<name>: the reception history the window reads, from captures/<name>.json (git-ignored, real) or `sample` (the
 // committed tests/fixtures/zha-history-sample.json, the default); history=none: nothing recorded yet; history=off:
 // recording is off; history=unsupported: the source reported a problem; keep=<days>: the "Keep for" option (default 90).
-// The records' times are shifted so the newest lies 6 h back (a capture's dates are not "now"); ranges then work as live.
+// Records older than a week are shifted so the newest lies 6 h back (ranges then work as live); newer ones keep their times.
 const historyName = q.get("history") || "sample";
 const historyUrl = historyName === "sample" ? "../tests/fixtures/zha-history-sample.json"
   : /^[A-Za-z0-9._-]+$/.test(historyName) && !["none", "off", "unsupported"].includes(historyName) ? `../captures/${historyName}.json` : null;
 const historyFile = historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
 const historyTimes = historyFile.records.filter((r) => Number.isFinite(r.t)).map((r) => r.t);
-const historyShift = historyTimes.length ? Math.round(Date.now() / 1000) - 6 * 3600 - Math.max(...historyTimes) : 0;
+// Only records older than a week are moved (the committed sample's dates are fixed); recent captures keep their times.
+const historyNewest = historyTimes.length ? Math.max(...historyTimes) : 0;
+const historyShift = historyTimes.length && Date.now() / 1000 - historyNewest > 7 * 86400 ? Math.round(Date.now() / 1000) - 6 * 3600 - historyNewest : 0;
 function historyRecords(msg) {
   let full = null;
   const out = [];

@@ -10,7 +10,7 @@ import { directionModel } from "../custom_components/meshroute_topology_explorer
 import { laneModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-lane.js";
 import { sparkModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-sparkline.js";
 import { sliderModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-route-view.js";
-import { dayText, linePath, scale, timeText } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-chart.js";
+import { dayText, linePath, scale, tickText, timeText } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-chart.js";
 import { ENGINES, historyCaps, historyFor, pairHops } from "../custom_components/meshroute_topology_explorer/frontend/engines/index.js";
 import { entryText } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/history.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
@@ -133,26 +133,68 @@ test("Mesh: each direction is offset to its own right side, so the two direction
   assert.equal(lost.stations.length, 2, "a device without a position is still drawn");
 });
 
-test("timeline bands: spans become 'via X, Y'; a stopped walk is a gap with its reason; the weakest hop is named where it changes", () => {
-  const tl = changing();
+test("timeline bands: per direction, one band per run of the same hop list of THAT direction, always labelled; the weakest hop named at each band's start", () => {
   const labelOf = (id) => (network.devices.find((d) => d.id === id) || { label: id }).label;
-  const m = directionModel({ tl, dir: "there", labelOf, t, locale: "en" });
-  assert.equal(m.bands.length, tl.spans.length);
-  tl.spans.forEach((s, i) => {
-    const w = s.there;
-    assert.equal(m.bands[i].gap, !w.complete);
-    if (w.complete && w.ids.length > 2) assert.equal(m.bands[i].full, `via ${w.ids.slice(1, -1).map(labelOf).join(", ")}`);
-    if (w.complete && w.ids.length === 2) assert.equal(m.bands[i].full, "direct");
-  });
-  assert.equal(m.series.length, tl.points.length);
-  for (const [i, p] of tl.points.entries()) {
-    const w = p.there;
-    assert.equal(m.series[i][1], w.weakest === null ? null : w.hops[w.weakest].rankPct, "the series is the weakest hop's rank, never raw LQI");
+  const tl = changing();
+  for (const dir of ["there", "back"]) {
+    const m = directionModel({ tl, dir, labelOf, t, locale: "en", zone: "UTC" });
+    const sig = (p) => p[dir].ids.join(">") + (p[dir].complete ? "" : `!${p[dir].reason}`);
+    const runs = tl.points.filter((p, i) => i === 0 || sig(p) !== sig(tl.points[i - 1]));
+    assert.equal(m.bands.length, runs.length, `${dir}: bands follow this direction's own changes`);
+    m.bands.forEach((b, i) => {
+      const w = runs[i][dir];
+      assert.ok(b.full.length > 0, "every band has a label");
+      assert.equal(b.gap, !w.complete);
+      if (w.complete && w.ids.length > 2) assert.equal(b.full, `via ${w.ids.slice(1, -1).map(labelOf).join(", ")}`);
+      if (w.complete && w.ids.length === 2) assert.equal(b.full, "direct");
+      assert.equal(b.from, runs[i].t);
+      const start = tl.points.findIndex((p) => p.t === runs[i].t);
+      if (w.weakest !== null && w.weakest !== undefined) assert.ok(m.notes.some((n) => n.t === tl.points[start].t), "the weakest hop is named at the band's first record");
+    });
+    assert.equal(m.series.length, tl.points.length);
+    tl.points.forEach((p, i) => assert.equal(m.series[i][1], p[dir].weakest === null ? null : p[dir].hops[p[dir].weakest].rankPct, "rank of the weakest hop, never raw LQI"));
   }
-  assert.ok(m.notes.length >= 1);
-  const stopped = directionModel({ tl: { spans: [{ from: 1, to: 2, there: { complete: false, reason: "table not read", ids: ["a"], hops: [] }, back: {} }], points: [] },
+  // A change of the way back must not split the way there.
+  const there = { complete: true, ids: ["a", "x", "b"], hops: [], weakest: null };
+  const fake = { points: [{ t: 10, there, back: { complete: true, ids: ["b", "a"], hops: [], weakest: null } },
+    { t: 20, there, back: { complete: true, ids: ["b", "y", "a"], hops: [], weakest: null } }] };
+  assert.equal(directionModel({ tl: fake, dir: "there", labelOf: (i) => i, t, locale: "en" }).bands.length, 1);
+  assert.equal(directionModel({ tl: fake, dir: "back", labelOf: (i) => i, t, locale: "en" }).bands.length, 2);
+  const stopped = directionModel({ tl: { points: [{ t: 1, there: { complete: false, reason: "table not read", ids: ["a"], hops: [], weakest: null } }] },
     dir: "there", labelOf, t, locale: "en" });
   assert.deepEqual([stopped.bands[0].gap, stopped.bands[0].full], [true, "no route: table not read"]);
+});
+
+test("one time format: the annotation of a point and the axis use the same local time text", () => {
+  const labelOf = (id) => id;
+  const hop = { sender: "s", hearer: "h", lqi: 99, rankPct: 40 };
+  const tl = { points: [{ t: 1762041600 + 3600, there: { complete: true, ids: ["s", "h"], hops: [hop], weakest: 0 }, back: {} }] };
+  const m = directionModel({ tl, dir: "there", labelOf, t, locale: "en", zone: "UTC" });
+  assert.equal(m.notes[0].text, `${timeText(1762041600 + 3600, "en", "UTC")}: s → h, 99, rank 40 %`);
+  assert.equal(tickText({ t: 1762041600, day: true }, "en", "UTC"), "Nov 2");
+  assert.equal(tickText({ t: 1762041600 + 12 * 3600, day: false }, "en", "UTC"), "12:00", "a 12 h tick is a time, never the date");
+});
+
+test("Mesh: pills and labels do not cover each other or a symbol where a place is free", () => {
+  const items = [["c", "s"], ["s", "g"], ["g", "f"], ["f", "h"]].map(([s, h], i) => ({ kind: "route", dir: "there", hopIndex: i, sender: s, hearer: h, text: i === 3 ? "Parent" : "1" + i + "0", weakest: false, ghost: false, pointIndex: 0 }))
+    .concat([["h", "f"], ["f", "a"], ["a", "c"]].map(([s, h], i) => ({ kind: "route", dir: "back", hopIndex: i, sender: s, hearer: h, text: "10" + i, weakest: false, ghost: false, pointIndex: 0 })));
+  const route = { ids: { there: ["c", "s", "g", "f", "h"], back: ["h", "f", "a", "c"] }, items };
+  const pos = { c: [0, 0], s: [3, -4], g: [6, -9], f: [9, -5], h: [14, -2], a: [4, 3] };
+  const m = meshLayout({ route, positionOf: (id) => ({ x: pos[id][0], y: pos[id][1] }), width: 840, height: 480, measure, labelOf: (id) => `Device ${id}` });
+  const rect = (x, y, w, h) => ({ x: x - w / 2, y: y - h / 2, w, h });
+  const hit = (p, q) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+  const pills = m.links.map((l) => rect(l.pill.x, l.pill.y, l.pill.w, l.pill.h));
+  const symbols = m.stations.map((s) => rect(s.x, s.y, m.size, m.size));
+  const labels = m.stations.map((s) => rect(s.label.x, s.label.y, s.label.w, s.label.h));
+  for (let i = 0; i < pills.length; i++) {
+    for (let j = i + 1; j < pills.length; j++) assert.ok(!hit(pills[i], pills[j]), `pills ${i} and ${j}`);
+    symbols.forEach((s, j) => assert.ok(!hit(pills[i], s), `pill ${i} over symbol ${j}`));
+  }
+  labels.forEach((l, i) => { symbols.forEach((s, j) => assert.ok(!hit(l, s), `label ${i} over symbol ${j}`)); pills.forEach((p, j) => assert.ok(!hit(l, p), `label ${i} over pill ${j}`)); });
+  const xs = m.stations.map((s) => s.x);
+  const ys = m.stations.map((s) => s.y);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 500 || Math.max(...ys) - Math.min(...ys) > 250, "the route fills the free area");
+  assert.ok(Math.min(...xs) > 0 && Math.max(...xs) < 840 && Math.min(...ys) > 0 && Math.max(...ys) < 480, "padding all round");
 });
 
 test("lane chart regions: after now, before the first record, before the lane existed", () => {

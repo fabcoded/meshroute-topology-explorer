@@ -3,7 +3,7 @@
 // a record shows (the walked route there and back, hops of the range's other routes as ghosts; Thread: the pair's
 // direct link and its neighbours), the pill text of each, and where stations, lanes and pills go for the two
 // drawings. Reuses the map's lane geometry and pill placement (graph/links.js). Pure functions. npm test
-import { LANE_OFFSET, laneGeometry, pillCentre, pillDistances, pillSize } from "../graph/links.js";
+import { LANE_OFFSET, VALUE, laneGeometry, pillCentre, pillDistances, pillSize } from "../graph/links.js";
 import { SYMBOL_SIZE } from "../graph/symbols.js";
 
 
@@ -93,15 +93,69 @@ export function columnOrder(sequences) {
   return [...pos.entries()].sort((p, q) => p[1] - q[1]).map(([id]) => id);
 }
 
-/** Pill rectangle of a hop on its lane geometry: the map's first choice (a quarter before the arrowhead, at most four
- *  symbol diameters), else the middle; never dropped (the lane is short, the pill is accepted over it). */
-function pillOn(lane, text, size, measure) {
+/** Size and candidate places of a hop's pill on its lane, best first: the map's first choice (a quarter before the
+ *  arrowhead, at most four symbol diameters), the middle, then every place along the lane nearest to the first first (a
+ *  pill that collides slides along its own lane, board M30). A lane with no room still gets its middle. */
+function pillSpots(lane, text, size, measure) {
   const lines = text.split("\n");
   const { w, h } = pillSize(Math.max(...lines.map((l) => measure(l))));
   const height = lines.length > 1 ? h * 1.7 : h;
-  const d = pillDistances(lane, size, w, height)[0] ?? lane.len / 2;
-  const [x, y] = pillCentre(lane, d);
-  return { x, y, w, h: height, text };
+  const dists = pillDistances(lane, size, w, height);
+  const first = dists.length ? dists[0] : lane.len / 2;
+  const along = w * Math.abs(lane.ux) + height * Math.abs(lane.uy);
+  const run = (from, to) => { const out = []; for (let d = from; d <= to; d += 4) out.push(d); return out.sort((p, q) => Math.abs(p - first) - Math.abs(q - first)); };
+  // Clear of the arrowhead first; on a short lane crowded by the other direction's pill, anywhere along the lane.
+  const strict = run(VALUE.tip + along / 2, lane.len - VALUE.end - along / 2);
+  const relaxed = run(along / 2 + 2, lane.len - along / 2 - 2);
+  const all = [...(dists.length ? dists : [lane.len / 2]), ...strict, ...relaxed];
+  return { w, h: height, spots: all.map((d) => pillCentre(lane, d)) };
+}
+
+const box = (x, y, w, h, pad = 2) => ({ x: x - w / 2 - pad, y: y - h / 2 - pad, w: w + 2 * pad, h: h + 2 * pad });
+const area = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+const clash = (r, others) => others.reduce((sum, o) => sum + area(r, o), 0);
+
+/** Give every lane link its pill: the links in order claim their first free place (current route before ghosts); a
+ *  pill that would cover a symbol or an earlier pill slides along its own lane, and where nothing is free the place with
+ *  the least overlap is taken, never dropped. Returns the placed pill boxes (for the labels to avoid). */
+function placePills(links, size, measure, symbols) {
+  const placed = [];
+  for (const link of links) {
+    if (!link.lane) { link.pill = null; continue; }
+    const { w, h, spots } = pillSpots(link.lane, link.text, size, measure);
+    let best = null;
+    for (const [x, y] of spots) {
+      const c = clash(box(x, y, w, h), [...placed, ...symbols]);
+      if (!best || c < best.c) best = { x, y, c };
+      if (c === 0) break;
+    }
+    link.pill = { x: best.x, y: best.y, w, h, text: link.text };
+    placed.push(box(best.x, best.y, w, h));
+  }
+  return placed;
+}
+
+/** Labels of the Mesh stations: each tries below, above, right, left of its symbol and takes the first place that
+ *  covers no symbol, pill or earlier label, else the place covering least (the map's rule, graph/renderer.js). */
+function placeLabels(stations, size, measure, obstacles, textOf) {
+  const placed = [...obstacles];
+  const out = new Map();
+  for (const s of stations) {
+    const text = textOf(s);
+    const w = measure(text) + 4;
+    const h = 14;
+    const r = size / 2 + 3;
+    const options = [[s.x, s.y + r + h / 2], [s.x, s.y - r - h / 2], [s.x + r + w / 2, s.y], [s.x - r - w / 2, s.y]];
+    let best = null;
+    for (const [x, y] of options) {
+      const c = clash(box(x, y, w, h, 0), placed);
+      if (!best || c < best.c) best = { x, y, c };
+      if (c === 0) break;
+    }
+    out.set(s.id, { x: best.x, y: best.y, w, h, text });
+    placed.push(box(best.x, best.y, w, h, 0));
+  }
+  return out;
 }
 
 const quad = (p0, c, p1, s) => (1 - s) * (1 - s) * p0 + 2 * (1 - s) * s * c + s * s * p1;
@@ -134,8 +188,7 @@ export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE 
     const y = rowY[it.dir];
     const [x0, x1] = [x(it.sender), x(it.hearer)];
     if (!it.ghost) {
-      const lane = laneGeometry(x0, y, x1, y, size, size, 0);
-      links.push({ ...it, lane, pill: lane ? pillOn(lane, it.text, size, measure) : null });
+      links.push({ ...it, lane: laneGeometry(x0, y, x1, y, size, size, 0), pill: null });
       continue;
     }
     const sign = it.dir === "there" ? -1 : 1;
@@ -144,6 +197,8 @@ export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE 
     const { w, h } = pillSize(measure(it.text));
     links.push({ ...it, curve, pill: { x: quad(x0, curve.cx, x1, 0.5), y: quad(y0, cy, y0, 0.5), w, h, text: it.text } });
   }
+  const symbols = stations.map((s) => box(s.x, s.y, size, size, 0));
+  placePills(links.filter((l) => !l.ghost), size, measure, symbols);
   const gap = order.length < 2 ? width : (width - 2 * margin) / (order.length - 1);
   return { stations, links, verticals, size, rows: rowY, gap };
 }
@@ -152,34 +207,38 @@ export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE 
  *  fitted into width x height; one without a position goes on a ring around the middle. Each direction is a lane
  *  offset to the right of its travel, as on the main map, so the two directions of a pair never overlap; ghosts are the
  *  same lanes dashed. Returns { stations: [{ id, x, y, ghost }], links, size }. */
-export function meshLayout({ route, positionOf, width, height, measure, size = SYMBOL_SIZE }) {
+export function meshLayout({ route, positionOf, width, height, measure, size = SYMBOL_SIZE, labelOf = (id) => id }) {
   const ids = [];
   const addId = (id) => { if (!ids.includes(id)) ids.push(id); };
   for (const dir of ["there", "back"]) route.ids[dir].forEach(addId);
   for (const it of route.items) { addId(it.sender); addId(it.hearer); }
   const known = ids.map((id) => [id, positionOf(id)]).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
-  const margin = size + 20;
+  // Room for the labels beside the outermost symbols; the route's bounding box fills the rest, one scale for both axes.
+  const [mx, my] = [size + 70, size + 36];
   const xs = known.map(([, p]) => p.x);
   const ys = known.map(([, p]) => p.y);
   const spanX = Math.max(...xs) - Math.min(...xs) || 1;
   const spanY = Math.max(...ys) - Math.min(...ys) || 1;
-  const k = known.length > 1 ? Math.min((width - 2 * margin) / spanX, (height - 2 * margin) / spanY) : 1;
+  const k = known.length > 1 ? Math.min((width - 2 * mx) / spanX, (height - 2 * my) / spanY) : 1;
   const [cx, cy] = [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2];
   const at = new Map(known.map(([id, p]) => [id, { x: width / 2 + (p.x - cx) * k, y: height / 2 + (p.y - cy) * k }]));
   const lost = ids.filter((id) => !at.has(id));
   lost.forEach((id, i) => {
     const angle = (2 * Math.PI * i) / lost.length;
-    at.set(id, { x: width / 2 + Math.cos(angle) * (width / 2 - margin), y: height / 2 + Math.sin(angle) * (height / 2 - margin) });
+    at.set(id, { x: width / 2 + Math.cos(angle) * (width / 2 - mx), y: height / 2 + Math.sin(angle) * (height / 2 - my) });
   });
-  const onRoute = new Set(route.items.filter((i) => !i.ghost && i.kind === "route").flatMap((i) => [i.sender, i.hearer]));
-  const stations = ids.map((id) => ({ id, ...at.get(id), ghost: !onRoute.has(id) && !route.ids.there.includes(id) && !route.ids.back.includes(id) }));
+  const onRoute = new Set([...route.ids.there, ...route.ids.back]);
+  const stations = ids.map((id) => ({ id, ...at.get(id), ghost: !onRoute.has(id) }));
   const offset = Math.max(LANE_OFFSET + 1, (size / SYMBOL_SIZE) * (LANE_OFFSET + 1));
+  // The current route's pills claim their places first, then neighbours, then ghosts.
+  const rank = (l) => (l.ghost ? 2 : l.kind === "neighbour" ? 1 : 0);
   const links = route.items.map((it) => {
     const [s, h] = [at.get(it.sender), at.get(it.hearer)];
-    const lane = laneGeometry(s.x, s.y, h.x, h.y, size, size, offset);
-    return { ...it, lane, pill: lane ? pillOn(lane, it.text, size, measure) : null };
+    return { ...it, lane: laneGeometry(s.x, s.y, h.x, h.y, size, size, offset), pill: null };
   });
-  return { stations, links, size };
+  const placed = placePills([...links].sort((p, q) => rank(p) - rank(q)), size, measure, stations.map((s) => box(s.x, s.y, size, size, 0)));
+  const labels = placeLabels(stations, size, measure, [...placed, ...stations.map((s) => box(s.x, s.y, size, size, 0))], (s) => String(labelOf(s.id)).slice(0, 28));
+  return { stations: stations.map((s) => ({ ...s, label: labels.get(s.id) })), links, size };
 }
 
 /** Index of the record nearest to time t (seconds) among points [{ t }], or -1 without any. */

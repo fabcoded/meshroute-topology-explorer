@@ -58,3 +58,8 @@ export function nearestPoint(points, t) {
   for (const p of points) if (!best || Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p;
   return best;
 }
+
+/** An axis tick's label: the date at a day boundary, else the time of day, so a 12 h tick is never read as the date. */
+export function tickText(tick, locale = "en", zone = undefined) {
+  return tick.day ? dayText(tick.t, locale, zone) : timeText(tick.t, locale, zone).split(" ").pop();
+}

@@ -5,7 +5,7 @@
 import { h, svg } from "./dom.js";
 import { drawLane, drawPill } from "../graph/renderer.js";
 import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
-import { directionColors, dayText, timeTicks, scale } from "./history-chart.js";
+import { directionColors, tickText, timeTicks, scale } from "./history-chart.js";
 import { metroLayout, meshLayout, nearestIndex } from "./history-route.js";
 
 const GHOST_ALPHA = 0.45;
@@ -87,6 +87,11 @@ export function drawRoute(ctx, layout, { theme, dpr, width, height, deviceOf, se
     ctx.fillStyle = theme.foreground;
     ctx.textAlign = "center";
     const above = mode === "metro" && s.dir === "there";
+    if (s.label) { // the Mesh placed its labels clear of symbols and pills
+      ctx.fillText(s.label.text, s.label.x, s.label.y);
+      ctx.globalAlpha = 1;
+      continue;
+    }
     const name = String(device.label || s.id);
     const room = mode === "metro" ? Math.max(5, Math.floor(layout.gap / 6.4)) : 22; // neighbours' labels never run into each other
     ctx.fillText(name.length > room ? `${name.slice(0, room - 1)}…` : name, s.x, s.y + (above ? -size / 2 - 9 : size / 2 + 10));
@@ -112,10 +117,10 @@ export function pillAt(hits, x, y) {
 export function sliderModel({ points, from, to, width, locale }) {
   const x = scale([from, to], [10, width - 10]);
   return { ticks: points.map((p, i) => ({ x: x(p.t), index: i })),
-    labels: timeTicks(from, to, Math.max(2, Math.floor(width / 70))).map((k) => ({ x: x(k.t), text: dayText(k.t, locale) })), x };
+    labels: timeTicks(from, to, Math.max(2, Math.floor(width / 70))).map((k) => ({ x: x(k.t), text: tickText(k, locale) })), x };
 }
 
-/** The Route tab. ctx: { t, theme(), walks (a routing table exists), tl, from, to, getRoute(index), deviceOf, positionOf, state ({ mode, index, sel,
+/** The Route tab. ctx: { t, theme(), walks (a routing table exists), meshHeight() (px the Mesh may use), tl, from, to, getRoute(index), deviceOf, positionOf, state ({ mode, index, sel,
  *  playing }), onPill(item), onChange(), timers }. Returns { el, redraw(), hits(), destroy() }. */
 export function createRouteView(ctx) {
   const { t, state, timers = globalThis } = ctx;
@@ -132,7 +137,7 @@ export function createRouteView(ctx) {
   function redraw() {
     const route = ctx.getRoute(state.index);
     const width = Math.max(280, frame.clientWidth || 600);
-    const height = state.mode === "metro" ? HEIGHT : 360;
+    const height = state.mode === "metro" ? HEIGHT : ctx.meshHeight();
     const dpr = globalThis.devicePixelRatio || 1;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -141,7 +146,7 @@ export function createRouteView(ctx) {
     const theme = ctx.theme();
     if (route) {
       const layout = state.mode === "metro" ? metroLayout({ route, width, height, measure })
-        : meshLayout({ route, positionOf: ctx.positionOf, width, height, measure });
+        : meshLayout({ route, positionOf: ctx.positionOf, width, height, measure, labelOf: (id) => ctx.deviceOf(id).label || id });
       hitList = drawRoute(canvas.getContext("2d"), layout, { theme, dpr, width, height, deviceOf: ctx.deviceOf, sel: state.sel,
         mode: state.mode, measure });
     } else hitList = [];

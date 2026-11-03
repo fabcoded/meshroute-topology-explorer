@@ -5,7 +5,7 @@
 // second axis. Above the chart the lane strip: the route the pill belonged to with the lane's two nodes ringed.
 // Model pure, drawing as SVG and the legend's symbol swatches. npm test
 import { h, svg } from "./dom.js";
-import { directionColors, linePath, nearestPoint, scale, timeText, timeTicks, dayText } from "./history-chart.js";
+import { directionColors, linePath, nearestPoint, scale, tickText, timeText, timeTicks } from "./history-chart.js";
 import { symbolSwatch } from "./legend-tab.js";
 
 /** The lane window choices around a clicked record, as [key, half width in seconds]. */
@@ -62,7 +62,7 @@ function chart(model, { t, theme, width, kind, max, now, clickedText, onHover })
   }
   for (const k of timeTicks(model.from, model.to, Math.max(2, Math.floor(width / 80)))) {
     const lb = svg("text", { x: x(k.t), y: height - 6, "text-anchor": "middle", class: "lbl" });
-    lb.textContent = k.day ? dayText(k.t, t.formatLocale) : timeText(k.t, t.formatLocale).split(" ").pop();
+    lb.textContent = tickText(k, t.formatLocale);
     g.append(lb);
   }
   const sparse = model.records < 3;
@@ -117,7 +117,7 @@ export function laneStrip({ ids, pair, deviceOf, theme, t }) {
   return h("div", { class: "hist-strip", role: "group" }, items);
 }
 
-/** The tab. ctx: { t, theme, lane (history.lane), lqiMax, deviceOf, labelOf, now, firstRecord, ids (route nodes), context,
+/** The tab. ctx: { t, theme, lane (history.lane), lqiMax, keepsNoTable(device), deviceOf, labelOf, now, firstRecord, ids (route nodes), context,
  *  fromRow, clickedText, windowKey, onWindow(key), state ({ table }), zone }. */
 export function renderLane(container, ctx) {
   const { t, lane, context } = ctx;
@@ -142,9 +142,14 @@ export function renderLane(container, ctx) {
     readout.textContent = tt === null ? "" : t("history.lane_hover", { time: timeText(tt, t.formatLocale, ctx.zone), x: ctx.labelOf(x), y: ctx.labelOf(y),
       a: find(model.orange, tt), b: find(model.blue, tt) });
   };
-  const legend = h("div", { class: "hist-legend small" },
-    h("span", {}, h("i", { class: "key", style: { background: colors.there } }), t("history.lane_hears", { x: ctx.labelOf(x), y: ctx.labelOf(y) })),
-    h("span", {}, h("i", { class: "key", style: { background: colors.back } }), t("history.lane_hears", { x: ctx.labelOf(y), y: ctx.labelOf(x) })));
+  // A direction without a single value in the window says why, never a silent empty series: an end device keeps no
+  // neighbour table, so what it hears is not in any record.
+  const note = (receiver, sender, pts) => (pts.some((p) => p[1] !== null) ? null
+    : h("span", { class: "muted" }, ctx.keepsNoTable(ctx.deviceOf(receiver))
+      ? t("history.lane_no_values_end", { name: ctx.labelOf(receiver) }) : t("history.lane_no_values", { name: ctx.labelOf(receiver), other: ctx.labelOf(sender) })));
+  const entry = (color, receiver, sender, pts) => h("span", { class: "hist-key" }, h("i", { class: "key", style: { background: color } }),
+    t("history.lane_hears", { x: ctx.labelOf(sender), y: ctx.labelOf(receiver) }), note(receiver, sender, pts) ? [": ", note(receiver, sender, pts)] : null);
+  const legend = h("div", { class: "hist-legend small" }, entry(colors.there, y, x, model.blue), entry(colors.back, x, y, model.orange));
   const opts = { t, theme: ctx.theme, width, max, now: ctx.now, clickedText: ctx.clickedText, onHover: hover };
   const charts = h("div", { class: "hist-charts" }, chart(model, { ...opts, kind: "lqi" }), model.hasRssi ? chart(model, { ...opts, kind: "rssi" }) : null);
   const table = h("table", { class: "hist-table" }, h("thead", {}, h("tr", {}, h("th", { text: t("history.lane_col_time") }),

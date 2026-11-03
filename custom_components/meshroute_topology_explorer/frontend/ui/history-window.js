@@ -136,7 +136,7 @@ export function openHistoryWindow(ctx) {
       renderTimeline(view, { t, theme, tl, from, to, width, labelOf: labels, walks: caps.walks, a, b });
     } else if (state.tab === "route") {
       if (state.route.index >= tl.points.length || state.route.index < 0) state.route.index = tl.points.length - 1;
-      routeView = createRouteView({ t, theme: ctx.theme, walks: caps.walks, tl, from, to, state: state.route, deviceOf: deviceOf(history),
+      routeView = createRouteView({ t, theme: ctx.theme, walks: caps.walks, meshHeight: () => Math.max(320, (body.clientHeight || 640) - 200), tl, from, to, state: state.route, deviceOf: deviceOf(history),
         positionOf: ctx.positionOf, timers: ctx.timers, recordText: (s) => t("history.record_at", { time: timeText(s, t.formatLocale, ctx.zone) }),
         getRoute: (i) => routeAt({ history, caps, tl, index: i, t, table: history.snapshots[tl.points[i] ? tl.points[i].index : 0]?.table }),
         onPill: (item) => openLane(history, caps, tl, item), onChange() {} });
@@ -150,7 +150,7 @@ export function openHistoryWindow(ctx) {
       const h0 = hop && hop.hops ? hop.hops[lane.context.hopIndex] : null;
       const clickedText = h0 && typeof h0.lqi === "number" ? (typeof h0.rankPct === "number" ? t("history.lane_clicked", { lqi: h0.lqi, pct: h0.rankPct })
         : t("history.lane_clicked_plain", { lqi: h0.lqi })) : null;
-      renderLane(view, { t, theme, lane: data, lqiMax: caps.lqiMax, deviceOf: deviceOf(history), labelOf: labels, now: now(),
+      renderLane(view, { t, theme, lane: data, lqiMax: caps.lqiMax, keepsNoTable: caps.keepsNoTable, deviceOf: deviceOf(history), labelOf: labels, now: now(),
         firstRecord: history.snapshots[0].t, ids: lane.context ? lane.context.ids : [], context: lane.context, fromRow: lane.fromRow,
         clickedText, windowKey: lane.key, zone: ctx.zone, width, state, onWindow: (key) => { lane.key = key; show(); } });
     }

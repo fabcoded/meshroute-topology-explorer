@@ -288,3 +288,15 @@ test("badge tooltip: 'Path history with {selected}' and the hop counts of the li
   const [x, y] = threadNet.devices.map((d) => d.id);
   assert.equal(threadHost.badgeText(x, y).split("\n").length, 1, "no routing table: no hop counts");
 });
+
+test("Lane: a direction without any value says why, an end device keeps no neighbour table", async () => {
+  const [a, b] = changingPair();
+  const end = network.devices.find((d) => d.role === "end device" && network.devices.some((p) => p.id === d.parent));
+  const parent = end.parent;
+  const o = await open({ lane: { x: parent, y: end.id }, pair: [parent, end.id] });
+  const label = (id) => network.devices.find((d) => d.id === id).label;
+  const legend = text(find(o.w.el, (e) => cls(e) === "hist-legend small")[0]);
+  assert.match(legend, new RegExp(`no values: ${label(end.id)} is an end device and keeps no neighbour table`));
+  assert.ok(!legend.includes(`no values: ${label(parent)}`), "the direction that has values says nothing");
+  void a; void b;
+});
