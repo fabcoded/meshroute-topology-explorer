@@ -27,38 +27,28 @@
             "data": {
               "record": "Record reception values",
               "keep_days": "Keep for (days)",
-              "delete_history": "Delete the recorded history",
-              "scan_after_start": "Scan once 30 minutes after Home Assistant starts"
+              "delete_history": "Delete the recorded history"
             },
             "data_description": {
               "keep_days": "{days_range} days; older records are deleted.",
-              "delete_history": "Deletes all records when you save. Not kept as a setting.",
-              "scan_after_start": "Asks ZHA for one topology scan, once per start, if radio actions are allowed, no scan is running and the last Zigbee record is older than ZHA's period. It is ZHA's own scan (radio traffic); the result is recorded like any other."
+              "delete_history": "Deletes all records when you save. Not kept as a setting."
             }
           },
           "zha": {
             "name": "ZHA topology scan",
-            "description": "{zha_scan}. The period is set in ZHA's configuration.yaml, which this integration never changes: a new value shows a snippet to paste, and needs a restart of Home Assistant Core.",
+            "description": "{zha_scan}. To change it, add this to configuration.yaml (merge it with an existing `zha:` block) and restart Home Assistant Core:\n\n```yaml\nzha:\n  zigpy_config:\n    topology_scan_period: 240\n```\n\nMinutes, at least 20. Scans more often than every 3 hours mean more radio traffic in the whole network.",
             "data": {
-              "zha_period": "ZHA scan period (minutes)",
-              "confirm_short": "Scan more often than every {recommended} minutes anyway"
+              "scan_after_start": "Scan once 30 minutes after Home Assistant starts"
             },
             "data_description": {
-              "zha_period": "{zha_range} minutes.",
-              "confirm_short": "Only needed for a period under {recommended} minutes."
+              "scan_after_start": "Asks ZHA for one topology scan, once per start, if radio actions are allowed, no scan is running and the last Zigbee record is older than ZHA's period. It is ZHA's own scan (radio traffic); the result is recorded like any other."
             }
           }
         }
-      },
-      "snippet": {
-        "title": "Set ZHA's scan period",
-        "description": "Paste this into configuration.yaml (merge it with an existing `zha:` block), then restart Home Assistant Core. Nothing has been changed in ZHA yet; after the restart the integration compares what ZHA reports.\n\n```yaml\n{snippet}\n```"
       }
     },
     "error": {
-      "days_range": "The retention must be {days_range} days.",
-      "zha_range": "The scan period must be {zha_range} minutes.",
-      "zha_short": "A scan every {minutes} minutes: every scan asks each router for its tables, so a short period means more radio traffic in the whole network, and the history gets more records only if their values change. Tick the box to use {minutes} minutes anyway."
+      "days_range": "The retention must be {days_range} days."
     }
   }
 }

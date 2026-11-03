@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Recording follows ZHA's topology scans: listener attach/remove, debounce, the 10-minute floor, the fallback timer,
-the Thread timer, the info fields and the pending ZHA period read-back (stubbed Home Assistant and zigpy).
+the Thread timer, the info fields (stubbed Home Assistant and zigpy).
 python3 -m unittest discover -s tests"""
 
 import asyncio
@@ -389,27 +389,18 @@ class FollowTest(unittest.TestCase):
         self.run_forced()
         self.assertIn("failed", ha_stubs.run(self.recorder.async_info(self.hass))["forced_scan_note"])
 
-    def test_info_reports_zha_state_and_the_pending_period(self):
+    def test_info_reports_zha_state(self):
         self.start(record=True, keep_days=14)
         info = ha_stubs.run(self.recorder.async_info(self.hass))
         self.assertEqual((info["zha_scan_period"], info["zha_scan_enabled"], info["follow_mode"], info["scan_state"]),
                          (360, True, "events", "idle"))
-        self.assertEqual((info["record"], info["keep_days"], info["pending_zha_period"]), (True, 14, None))
-        # a snippet was handed out for 240 min: ZHA still reports 360
-        self.start(pending_zha_period=240)
-        info = ha_stubs.run(self.recorder.async_info(self.hass))
-        self.assertEqual(info["pending_zha_period"], 240)
-        self.assertEqual(info["pending_note"], "ZHA still reports 360 min; the snippet for 240 min is not applied yet")
-        # after the restart ZHA reports it: no longer pending
-        self.app.config["topology_scan_period"] = 240
-        info = ha_stubs.run(self.recorder.async_info(self.hass))
-        self.assertEqual((info["pending_zha_period"], info["pending_note"]), (None, None))
+        self.assertEqual((info["record"], info["keep_days"]), (True, 14))
         # ZHA gone
         gone = ha_stubs.load(".zigpy_routes").NotSupported("no_gateway", "x")
         with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone):
             info = ha_stubs.run(self.recorder.async_info(self.hass))
-        self.assertEqual((info["zha_scan_period"], info["pending_zha_period"]), (None, 240))
-        self.assertIsNone(info["pending_note"])
+        self.assertIsNone(info["zha_scan_period"])
+        self.assertNotIn("pending_zha_period", info)
 
     def test_timer_logs_an_exception_once_per_change(self):
         self.start()

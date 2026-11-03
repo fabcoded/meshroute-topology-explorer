@@ -31,7 +31,6 @@ from homeassistant.helpers.start import async_at_started
 
 from .const import (
     CONF_KEEP_DAYS,
-    CONF_PENDING_ZHA_PERIOD,
     CONF_RADIO_ACTIONS,
     CONF_RECORD,
     CONF_SCAN_AFTER_START,
@@ -343,16 +342,11 @@ async def async_info(hass: HomeAssistant) -> dict[str, Any]:
     except NotSupported:
         pass  # ZHA is not running: no period, no scan state
     options = get_options(history.options)
-    pending, reported = options[CONF_PENDING_ZHA_PERIOD], zha.period if zha else None
-    if pending is not None and pending == reported:
-        pending = None  # applied: ZHA reports it
-    note = f"ZHA still reports {reported} min; the snippet for {pending} min is not applied yet" \
-        if pending is not None and reported else None
     return {**await history.run(history.files.info),
             "last_error": "; ".join(filter(None, [history.follow_note, history.last_error])) or None,
-            "zha_scan_period": reported, "zha_scan_enabled": zha.enabled if zha else None,
-            "follow_mode": history.follow_mode, "scan_state": state, "pending_zha_period": pending,
-            "pending_note": note, "last_forced_scan": history.forced_scan_time,
+            "zha_scan_period": zha.period if zha else None, "zha_scan_enabled": zha.enabled if zha else None,
+            "follow_mode": history.follow_mode, "scan_state": state,
+            "last_forced_scan": history.forced_scan_time,
             "forced_scan_note": history.forced_scan_note, "record": options[CONF_RECORD], "keep_days": options[CONF_KEEP_DAYS]}
 
 
