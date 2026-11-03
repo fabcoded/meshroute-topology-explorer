@@ -441,12 +441,17 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
 .view-settings a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; color: inherit; }
 /* Path history (spec 9.5): the entry badges are drawn on the map canvas; the window is a modal dialog, full screen on a
    phone; its charts are SVG and take the panel's colours. */
-.reading-spark { flex: none; min-width: 0; }
+.badge-tip { position: absolute; z-index: 7; transform: translateX(-50%); display: flex; flex-direction: column; padding: 4px 8px;
+  border-radius: 8px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px;
+  pointer-events: none; white-space: nowrap; }
+.badge-tip small { color: var(--mte-muted); }
+.reading-row { flex-wrap: wrap; }
+.reading-spark { flex: 1 0 100%; min-width: 0; margin-top: -2px; }
+.reading-spark:empty { display: none; }
 .spark-button { display: inline-flex; align-items: center; gap: 6px; padding: 0 2px; border: none; background: none; cursor: pointer;
   color: var(--mte-muted); font: inherit; min-height: 22px; border-radius: 6px; }
 .spark-button:hover { background: color-mix(in srgb, var(--mte-fg) 8%, transparent); }
 .spark-button small { font-size: 11px; white-space: nowrap; }
-@media (max-width: 560px) { .reading-spark small { display: none; } }
 dialog.history-dialog { width: min(880px, calc(100vw - 24px)); max-width: none; height: min(720px, calc(100vh - 24px)); max-height: none; padding: 0;
   border: none; border-radius: 16px; background: var(--mte-card); color: var(--mte-fg); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   font-size: 14px; overflow: hidden; }
@@ -459,6 +464,7 @@ dialog.history-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .htab, .seg { min-height: 32px; padding: 0 14px; border: none; background: none; color: var(--mte-fg); font: inherit; font-size: 13px; cursor: pointer; }
 .htab.on, .seg.on { background: var(--mte-fg); color: var(--mte-card); }
 .seg.static { cursor: default; }
+.hist-ranges:empty { display: none; }
 .hist-body { flex: 1; min-height: 0; overflow: auto; padding: 0 20px 18px; }
 .hist-dir h4 { margin: 12px 0 2px; display: flex; align-items: baseline; gap: 6px; }
 .hist-dir .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #2a78d6; }

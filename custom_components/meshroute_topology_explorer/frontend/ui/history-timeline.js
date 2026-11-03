@@ -74,17 +74,22 @@ export function renderTimeline(container, ctx) {
     }
     chart.append(svg("path", { d: linePath(m.series, x, y), fill: "none", stroke: color, "stroke-width": 1.4 }));
     for (const [tt, v] of m.series) if (v !== null) chart.append(svg("circle", { cx: x(tt), cy: y(v), r: 2.2, fill: color, class: "pt" }));
-    let lastX = -1e9;
-    m.notes.forEach((n, i) => {
+    // Every change of the weakest hop gets a dot; its name is written where there is room (greedy, left to right).
+    let free = left;
+    let drawn = 0;
+    for (const n of m.notes) {
       const nx = x(n.t);
       chart.append(svg("circle", { cx: nx, cy: y(n.pct), r: 4, fill: color, class: "note-dot" }));
-      if (nx - lastX < n.text.length * CHAR * 0.6 && i) return;
-      lastX = nx;
-      const anchor = nx > width * 0.6 ? "end" : "start";
-      const tx = svg("text", { x: nx + (anchor === "end" ? -4 : 4), y: y(n.pct) + (i % 2 ? 18 : -8), "text-anchor": anchor, class: "lbl note" });
+      const w = n.text.length * CHAR;
+      const end = nx + w > width - 8;
+      const [x0, x1] = end ? [nx - w - 4, nx] : [nx + 4, nx + w + 4];
+      if (x0 < free) continue;
+      free = x1 + 8;
+      const tx = svg("text", { x: end ? nx - 4 : nx + 4, y: y(n.pct) + (drawn % 2 ? 18 : -8), "text-anchor": end ? "end" : "start", class: "lbl note" });
       tx.textContent = n.text;
       chart.append(tx);
-    });
+      drawn += 1;
+    }
     g.append(chart);
     const axis = svg("g", { transform: "translate(0 128)" });
     for (const k of timeTicks(from, to, Math.max(2, Math.floor(width / 70)))) {

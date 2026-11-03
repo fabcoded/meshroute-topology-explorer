@@ -36,7 +36,7 @@ export function openHistoryWindow(ctx) {
   const now = ctx.now || (() => Date.now() / 1000);
   const id = `mte-history-${++uid}`;
   const state = { tab: ctx.tab || (ctx.lane ? "lane" : lastTab), range: "48h", ranges: rangesFor(null),
-    route: { mode: "metro", index: 0, sel: null, playing: false },
+    route: { mode: "metro", index: -1, sel: null, playing: false },
     lane: ctx.lane ? { x: ctx.lane.x, y: ctx.lane.y, context: null, key: "48h", fromRow: true } : { x: a, y: b, context: null, key: "48h", fromRow: true },
     table: false };
   lastTab = state.tab;
@@ -182,5 +182,5 @@ export function openHistoryWindow(ctx) {
   if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
   closeButton.focus();
   show();
-  return { el: dialog, close: finish, state, ready: () => token };
+  return { el: dialog, close: finish, state, routeView: () => routeView };
 }

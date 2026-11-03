@@ -7,10 +7,10 @@
 // Pure, no DOM. npm test
 import { zigbee } from "./zigbee/index.js";
 import { thread } from "./thread/index.js";
-import { createHistory, hopContext, weakestHop } from "./zigbee/history.js";
+import { createHistory, createHistoryCache, hopContext, weakestHop } from "./zigbee/history.js";
 import { tableWalk } from "./zigbee/paths.js";
 
-export { hopContext, weakestHop };
+export { createHistoryCache, hopContext, weakestHop };
 export { RANGES, LANE_HALF_WINDOW } from "./history-records.js";
 
 /** What the path history window needs to know of a network type: { walks (a routing table, so routes are walked),

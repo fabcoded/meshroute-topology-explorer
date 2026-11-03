@@ -359,7 +359,17 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     // while one is selected opens the pair's window.
     this._history = new HistoryHost({ root: () => this._ui.app, callWS: (msg) => this._hass.callWS(msg), network: () => this._network,
       theme: () => this._mapTheme(), t: () => this._t, view: () => this._view });
-    view.setPairBadges(this._isAdmin(), (id) => this._history.badgeText(this._selected, id));
+    view.setPairBadges(this._isAdmin());
+    const tip = h("div", { class: "badge-tip", role: "tooltip", hidden: true });
+    this._ui.map.append(tip);
+    view.addEventListener("badge-hover", (e) => {
+      const { id, x, y } = e.detail;
+      tip.hidden = id === null;
+      if (id === null) return;
+      const [title, ...rest] = this._history.badgeText(this._selected, id).split("\n");
+      tip.replaceChildren(h("b", { text: title }), ...rest.map((line) => h("small", { text: line })));
+      Object.assign(tip.style, { left: `${x}px`, top: `${y + 12}px` });
+    });
     view.addEventListener("pair-history", (e) => this._history.open(e.detail.a, e.detail.b));
     view.addEventListener("spread-step", (e) => this._stepSpread(e.detail.dir));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));

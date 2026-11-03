@@ -253,6 +253,29 @@ if (q.has("labels")) { // labels=type,name,ha: the lines that are on
 }
 if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | assume | zigpy
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
+// history=<name>: the reception history the window reads, from captures/<name>.json (git-ignored, real) or `sample` (the
+// committed tests/fixtures/zha-history-sample.json, the default); history=none: nothing recorded yet; history=off:
+// recording is off; history=unsupported: the source reported a problem; keep=<days>: the "Keep for" option (default 90).
+// The records' times are shifted so the newest lies 6 h back (a capture's dates are not "now"); ranges then work as live.
+const historyName = q.get("history") || "sample";
+const historyUrl = historyName === "sample" ? "../tests/fixtures/zha-history-sample.json"
+  : /^[A-Za-z0-9._-]+$/.test(historyName) && !["none", "off", "unsupported"].includes(historyName) ? `../captures/${historyName}.json` : null;
+const historyFile = historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
+const historyTimes = historyFile.records.filter((r) => Number.isFinite(r.t)).map((r) => r.t);
+const historyShift = historyTimes.length ? Math.round(Date.now() / 1000) - 6 * 3600 - Math.max(...historyTimes) : 0;
+function historyRecords(msg) {
+  let full = null;
+  const out = [];
+  for (const r of historyFile.records) {
+    if (!Number.isFinite(r.t)) continue;
+    if (r.e) full = r;
+    const t = r.t + historyShift;
+    if (t < msg.since || t > msg.until) continue;
+    // The first record of an answer is always a full one (spec 10.2).
+    out.push(!out.length && !r.e && full ? { ...full, t } : { ...r, t });
+  }
+  return { k: historyFile.k, records: out };
+}
 const store = { settings: new Map(), observations: new Map() };
 if (q.get("network") === "thread" || captureTopology) store.settings.set("panel", { network: "thread" });
 
@@ -292,6 +315,13 @@ async function callWS(msg) {
       // Synthetic route records (tests/zigpy-fake.mjs): every complete way up, two of them broken on purpose.
       if (q.get("zigpy") === "unsupported") throw { code: "not_supported", message: "zha_not_loaded: ZHA is not loaded" };
       return fakeZigpyRoutes(currentDevices());
+    case "meshroute_topology_explorer/history/records":
+      return historyRecords(msg);
+    case "meshroute_topology_explorer/history/info":
+      return { records: historyFile.records.length, first: historyTimes.length ? Math.min(...historyTimes) + historyShift : null,
+        last: historyTimes.length ? Math.max(...historyTimes) + historyShift : null, bytes: 0,
+        last_error: historyName === "unsupported" ? "zha/devices: handler not found" : null, record: historyName !== "off",
+        keep_days: Number(q.get("keep")) || 90 };
     case "meshroute_topology_explorer/observations/set":
       store.observations.set(msg.network, msg.observations);
       return {};

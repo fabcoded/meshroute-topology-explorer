@@ -126,7 +126,6 @@ export class GraphView extends EventTarget {
     this.hovered = -1;
     this.pairBadges = false; // the path history's entry badges at every other device while one is selected
     this.badgeHover = -1;
-    this.badgeText = null; // (id) -> tooltip text of the badge of that device
     this.pinned = new Map();
     this.scene = null;
     this.layout = null;
@@ -297,10 +296,10 @@ export class GraphView extends EventTarget {
     return i === undefined || !this.pos ? null : { x: this.pos.x[i], y: this.pos.y[i] };
   }
 
-  /** Switch the path history's entry badges on or off (they show with a selection); text(id) is a badge's tooltip. */
-  setPairBadges(on, text = null) {
+  /** Switch the path history's entry badges on or off (they show with a selection). Events: "badge-hover" { id|null, x, y }
+   *  and "pair-history" { a, b }. */
+  setPairBadges(on) {
     this.pairBadges = Boolean(on);
-    this.badgeText = text;
     this._invalidate();
   }
 
@@ -637,8 +636,10 @@ export class GraphView extends EventTarget {
   _setBadgeHover(index) {
     if (index === this.badgeHover) return;
     this.badgeHover = index;
-    this.canvas.title = index >= 0 && this.badgeText ? this.badgeText(this.scene.nodes[index].id) : "";
     this.canvas.style.cursor = index >= 0 ? "pointer" : "";
+    // The panel shows the tooltip (a native title does not follow the badge); x, y: the badge's place on the canvas.
+    const [bx, by] = index >= 0 ? badgeCentre(...this._screenOf(index), symbolSize(this.cam.k)) : [0, 0];
+    this._emit("badge-hover", { id: index >= 0 ? this.scene.nodes[index].id : null, x: bx, y: by });
     this._invalidate();
   }
 

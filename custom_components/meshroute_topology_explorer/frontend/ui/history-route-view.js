@@ -87,7 +87,9 @@ export function drawRoute(ctx, layout, { theme, dpr, width, height, deviceOf, se
     ctx.fillStyle = theme.foreground;
     ctx.textAlign = "center";
     const above = mode === "metro" && s.dir === "there";
-    ctx.fillText(String(device.label || s.id).slice(0, 22), s.x, s.y + (above ? -size / 2 - 9 : size / 2 + 10));
+    const name = String(device.label || s.id);
+    const room = mode === "metro" ? Math.max(5, Math.floor(layout.gap / 6.4)) : 22; // neighbours' labels never run into each other
+    ctx.fillText(name.length > room ? `${name.slice(0, room - 1)}…` : name, s.x, s.y + (above ? -size / 2 - 9 : size / 2 + 10));
     ctx.globalAlpha = 1;
   }
   const hits = [];
@@ -130,7 +132,7 @@ export function createRouteView(ctx) {
   function redraw() {
     const route = ctx.getRoute(state.index);
     const width = Math.max(280, frame.clientWidth || 600);
-    const height = state.mode === "metro" ? HEIGHT : 300;
+    const height = state.mode === "metro" ? HEIGHT : 360;
     const dpr = globalThis.devicePixelRatio || 1;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);

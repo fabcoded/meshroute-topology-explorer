@@ -110,7 +110,7 @@ const quad = (p0, c, p1, s) => (1 - s) * (1 - s) * p0 + 2 * (1 - s) * s * c + s 
  *  dashed arcs (there above its row, back below). Returns { stations: [{ id, dir, x, y, ghost }], links: items with
  *  `lane` or `curve` and `pill`, verticals: [{ id, x, y0, y1 }] (the dotted lines of stations both rows share), size }. */
 export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE }) {
-  const margin = size / 2 + 36;
+  const margin = size / 2 + 52;
   const rowY = { there: Math.round(height * 0.33), back: Math.round(height * 0.72) };
   const by = (dir, ghost) => route.items.filter((it) => it.dir === dir && it.ghost === ghost);
   const chain = (dir) => route.ids[dir];
@@ -144,7 +144,8 @@ export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE 
     const { w, h } = pillSize(measure(it.text));
     links.push({ ...it, curve, pill: { x: quad(x0, curve.cx, x1, 0.5), y: quad(y0, cy, y0, 0.5), w, h, text: it.text } });
   }
-  return { stations, links, verticals, size, rows: rowY };
+  const gap = order.length < 2 ? width : (width - 2 * margin) / (order.length - 1);
+  return { stations, links, verticals, size, rows: rowY, gap };
 }
 
 /** The Mesh drawing: the devices of the items at the map's positions (positionOf(id) -> { x, y } or null, any scale)

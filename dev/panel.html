@@ -39,6 +39,9 @@
        readfail=error|timeout              the synthetic attribute read fails (sleepy end devices always fail)
        sourceroute=off|assume|zigpy        return paths without a table entry (stored setting); zigpy answers with
                                            synthetic route records (tests/zigpy-fake.mjs)
+       history=<name>  the reception history the path history window reads: captures/<name>.json (git-ignored, real), sample
+                       (default, tests/fixtures/zha-history-sample.json), none, off (recording off), unsupported; keep=<days>
+                       the option "Keep for" (default 90). Times are shifted so the newest record lies 6 h back.
        zigpy=unsupported                   the route records cannot be read (ZHA not loaded) -->
 <html lang="en">
 <head>
