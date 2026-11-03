@@ -6,7 +6,7 @@
 // something to show. Real captures go in, the output goes to captures/ (git-ignored): never commit it.
 // Usage:
 //   node tools/history_synth.mjs --from captures/zha-A.json --to captures/zha-B.json --out captures/history-zha.json
-//        [--start 1761868800] [--days 3] [--step-hours 4]
+//        [--start 1793404800] [--days 3] [--step-hours 4]
 //   node tools/history_synth.mjs --sample --out tests/fixtures/zha-history-sample.json   (the committed fixture)
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -124,7 +124,7 @@ function main(argv) {
   const stepHours = Number(arg("step-hours", sample ? 24 : 4));
   const days = Number(arg("days", sample ? 5 : 3));
   const count = Math.round((days * 24) / stepHours) + 1;
-  const start = Number(arg("start", 1761868800)); // 2025-10-31 00:00 UTC
+  const start = Number(arg("start", 1793404800)); // 2026-10-31 00:00 UTC, the day of the first real capture
   const res = toResponse(series(snapshotOfRaw(a), snapshotOfRaw(b), { start, step: stepHours * 3600, count }));
   writeFileSync(out, JSON.stringify(res) + "\n");
   process.stdout.write(`${out}: ${res.records.length} records, ${res.k.length} keys` + "\n");

@@ -192,12 +192,16 @@ test("performance: 90 days at one record per 4 h (541 changed snapshots) give a 
   const h = createHistory({ response: toResponse(list), live });
   assert.equal(h.snapshots.length, 541);
   const [x, y] = [coordinator, ids[ids.length - 1]];
-  const t0 = performance.now();
+  // CPU time of this process, not wall time: the full suite runs files in parallel, and wall time then
+  // measured the machine's load (failed once at a 3 s bound while running alone took 1.75 s). CPU time
+  // includes GC threads (about 2.3–2.7 s here), so the bound is 6 s: a guard against regressions, not a target.
+  const c0 = process.cpuUsage();
   const tl = h.timeline(x, y);
-  const ms = performance.now() - t0;
+  const cpu = process.cpuUsage(c0);
+  const ms = (cpu.user + cpu.system) / 1000;
   assert.equal(tl.points.length, 541);
-  assert.ok(ms < 3000, `${ms.toFixed(0)} ms`);
-  console.log(`# pair timeline, 541 snapshots: ${ms.toFixed(0)} ms`);
+  assert.ok(ms < 6000, `${ms.toFixed(0)} ms CPU`);
+  console.log(`# pair timeline, 541 snapshots: ${ms.toFixed(0)} ms CPU`);
 });
 
 /** A one-record response from the fixture's first record with `p` replaced (or removed with null). */
