@@ -13,7 +13,7 @@
 // npm test
 
 import { Layout, baseLength, DENSITY } from "./layout.js";
-import { relabelScene, buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane, BADGE, badgeCentre } from "./renderer.js";
+import { relabelScene, buildScene, drawScene, hitTest, NODE_DIAMETER, shortestFocusLane, BADGE, badgeCentre, pillAt } from "./renderer.js";
 import { GestureRecognizer } from "./gestures.js";
 import { symbolSize } from "./symbols.js";
 import { DEFAULT_LABELS, LABEL_SCALE, MAX_LABEL_CHARS } from "./labels.js";
@@ -126,6 +126,7 @@ export class GraphView extends EventTarget {
     this.hovered = -1;
     this.pairBadges = false; // the path history's entry badges at every other device while one is selected
     this.badgeHover = -1;
+    this.pillHover = null; // the pill under the pointer ({ a, b } device ids) while the pair window is offered
     this.pinned = new Map();
     this.scene = null;
     this.layout = null;
@@ -633,6 +634,28 @@ export class GraphView extends EventTarget {
     return best;
   }
 
+  /** The drawn value pill the pointer is on, else null (administrators only, like the badges). A node under the pointer
+   *  wins unless the pointer is inside the pill itself; the pill's reach otherwise is 24 px around it (renderer.js pillAt). */
+  _pillAt(x, y, nodeIndex) {
+    if (!this.pairBadges || !this.lastDraw) return null;
+    const p = pillAt(this.lastDraw.pills, x, y);
+    if (!p) return null;
+    const inside = Math.abs(x - p.x) <= p.w / 2 && Math.abs(y - p.y) <= p.h / 2;
+    if (nodeIndex >= 0 && !inside) return null;
+    const ids = p.pair.map((i) => this.scene.nodes[i].id);
+    // The selected device first, else the sender: the window's first name is the one the click belongs to.
+    if (ids[1] === this.selectedId) ids.reverse();
+    return { a: ids[0], b: ids[1] };
+  }
+
+  _setPillHover(pill) {
+    const same = pill ? this.pillHover && this.pillHover.a === pill.a && this.pillHover.b === pill.b : !this.pillHover;
+    if (same) return;
+    this.pillHover = pill;
+    this.canvas.style.cursor = pill ? "pointer" : "";
+    this._emit("pill-hover", { a: pill ? pill.a : null, b: pill ? pill.b : null });
+  }
+
   _setBadgeHover(index) {
     if (index === this.badgeHover) return;
     this.badgeHover = index;
@@ -677,11 +700,14 @@ export class GraphView extends EventTarget {
         const b = this._badgeAt(x, y);
         if (b >= 0) return { kind: "badge", id: this.scene.nodes[b].id, index: b };
         const i = this._hit(x, y);
+        const pill = this._pillAt(x, y, i);
+        if (pill) return { kind: "pill", ...pill };
         return i >= 0 ? { kind: "node", id: this.scene.nodes[i].id, index: i } : { kind: "background" };
       },
       tap: (t) => {
         // A badge opens the pair window and leaves the selection as it is.
         if (t && t.kind === "badge") this._emit("pair-history", { a: this.selectedId, b: t.id });
+        else if (t && t.kind === "pill") this._emit("pair-history", { a: t.a, b: t.b }); // the same: the selection stays
         else this._userSelect(isNode(t) ? t.index : -1);
       },
       // Double click: releases a pinned device (spec 7.1) and goes to the working scale (decision 2026-10-31).
@@ -762,13 +788,17 @@ export class GraphView extends EventTarget {
       } else if (e.pointerType === "mouse" && !e.buttons) {
         const p = this._point(e);
         const b = this._badgeAt(p.x, p.y);
-        this._setHover(b >= 0 ? -1 : this._hit(p.x, p.y));
+        const i = b >= 0 ? -1 : this._hit(p.x, p.y);
+        const pill = b >= 0 ? null : this._pillAt(p.x, p.y, i);
+        this._setHover(b >= 0 || pill ? -1 : i);
         this._setBadgeHover(b);
+        this._setPillHover(pill);
+        this.canvas.style.cursor = this.hovered >= 0 || this.badgeHover >= 0 || this.pillHover ? "pointer" : "";
       }
     });
     on("pointerup", (e) => this.recognizer.up(this._point(e)));
     on("pointercancel", (e) => this.recognizer.cancel(this._point(e)));
-    on("pointerleave", (e) => { if (e.pointerType === "mouse") { this._setBadgeHover(-1); this._setHover(-1); } });
+    on("pointerleave", (e) => { if (e.pointerType === "mouse") { this._setBadgeHover(-1); this._setPillHover(null); this._setHover(-1); } });
     on("wheel", (e) => {
       e.preventDefault();
       const p = this._point(e);

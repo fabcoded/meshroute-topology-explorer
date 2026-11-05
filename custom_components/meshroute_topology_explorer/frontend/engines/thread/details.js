@@ -7,6 +7,7 @@
 import { h } from "../../ui/dom.js";
 import { findingText } from "./findings.js";
 import { roleText } from "../../ui/format.js";
+import { historyButton } from "../../ui/history-links.js";
 import { unknownGlyph } from "../unknown-reason.js";
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
@@ -50,8 +51,8 @@ export function renderThreadDetails(container, ctx) {
   const product = [d.vendor, d.model].filter(Boolean).join(" ");
   const role = d.leader ? `${roleText(d.role, t)} (${t("details.thread_leader")})` : roleText(d.role, t);
   const line = [role, product].filter(Boolean).join(" · ");
-  const head = h("div", { class: "details-head" }, h("h2", { class: "device-name", text: d.label }),
-    h("p", { class: "muted", text: line }));
+  const head = h("div", { class: "details-head" }, h("div", { class: "details-title" }, h("h2", { class: "device-name", text: d.label }),
+    historyButton(ctx, d.id)), h("p", { class: "muted", text: line }));
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.thread_stale") }));
   if (!d.availabilityKnown) head.append(h("p", { class: "muted small", text: t("details.thread_availability_unknown") }));
   container.append(head);

@@ -445,6 +445,20 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
   border-radius: 8px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px;
   pointer-events: none; white-space: nowrap; }
 .badge-tip small { color: var(--mte-muted); }
+.details-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.history-button { min-height: 28px; padding: 0 10px; font-size: 13px; }
+.history-link { font-size: 12px; white-space: nowrap; }
+.hist-partner { max-width: 100%; border: none; background: none; padding: 0 4px; margin: 0 -4px; font: inherit; color: inherit; cursor: pointer;
+  border-radius: 6px; text-decoration: underline dotted; text-underline-offset: 4px; }
+.hist-partner:hover { background: color-mix(in srgb, var(--mte-fg) 8%, transparent); }
+.hist-partners { margin: 6px 20px 0; padding: 8px; border: 1px solid var(--mte-outline); border-radius: 12px; background: var(--mte-card);
+  display: flex; flex-direction: column; gap: 6px; }
+.hist-partners[hidden] { display: none; }
+.hist-search { min-height: 32px; padding: 0 10px; border: 1px solid var(--mte-outline); border-radius: 8px; background: transparent; color: inherit; font: inherit; }
+.hist-choices { display: flex; flex-direction: column; max-height: 220px; overflow: auto; }
+.hist-choice { display: flex; justify-content: space-between; gap: 12px; min-height: 32px; align-items: center; padding: 0 8px; border: none; border-radius: 6px;
+  background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.hist-choice:hover, .hist-choice.on { background: color-mix(in srgb, var(--mte-fg) 8%, transparent); }
 .reading-row { flex-wrap: wrap; }
 .reading-spark { flex: 1 0 100%; min-width: 0; margin-top: -2px; }
 .reading-spark:empty { display: none; }

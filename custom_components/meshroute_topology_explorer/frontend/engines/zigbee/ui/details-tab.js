@@ -13,6 +13,7 @@
 // Every value on the canvas also exists here as text (9.3). Names are text, never HTML. Runs in the browser; the data
 // comes from details.js, model/signature.js and model/zcl.js.
 import { h } from "../../../ui/dom.js";
+import { historyButton, historyLink, partnerOf } from "../../../ui/history-links.js";
 import { detailsOf, howText, pathParts, stopText } from "./details.js";
 import { unknownEnd } from "../node-paths.js";
 import { findingText } from "./finding-text.js";
@@ -55,8 +56,8 @@ export function renderDetails(container, ctx) {
   const kind = d.kind && d.kind !== "unknown" ? t(`kind_short.${d.kind}`) : null;
   const product = [d.vendor, d.model].filter(Boolean).join(" ");
   const line = [kind, roleText(d.role, t), product].filter(Boolean).join(" · ");
-  const head = h("div", { class: "details-head" }, h("h2", { class: "device-name", text: d.label }),
-    h("p", { class: "muted", text: line }));
+  const head = h("div", { class: "details-head" }, h("div", { class: "details-title" }, h("h2", { class: "device-name", text: d.label }),
+    historyButton(ctx, d.id)), h("p", { class: "muted", text: line }));
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.unavailable_since", { time: t.time(d.lastSeen) }) }));
   if (ctx.pinned) {
     head.append(h("div", { class: "actions" }, h("span", { class: "muted", text: t("details.pinned") }),
@@ -175,6 +176,10 @@ function pathsCard(all_, ctx, name, record = null) {
       if (s.basis) nodes.push(h("span", { class: "how", text: ` (${s.basis})` }));
     });
     if (tail) nodes.push(steps.length ? " → " : "", h("span", { class: "unknown", text: tail }));
+    // "history ↗": the window of this device and the path's other end (the coordinator for its own up and down paths).
+    const other = p.kind === "out" ? p.to : p.kind === "in" ? p.from : partnerOf(ctx, ctx.id);
+    const link = historyLink(ctx, ctx.id, other);
+    if (link) nodes.push(" ", link);
     return h("div", { class: `path-line${p.assumed ? " assumed" : ""}` }, nodes);
   });
   const body = lines.length ? lines : [h("div", { class: "muted", text: t("details.paths_none") })];

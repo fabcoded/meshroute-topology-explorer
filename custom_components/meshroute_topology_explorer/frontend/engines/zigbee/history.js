@@ -175,9 +175,11 @@ function describeWalk(walk, evidence, table) {
   return { ids: walk.ids, complete: walk.complete, reason: walk.complete ? null : walk.reason, hops, weakest: weakestHop(hops) };
 }
 
-/** Index of the weakest hop by rank at its receiver, or null: hops without a rank (parent or route links without a
+/** Index of the weakest hop by rank at its receiver, or null: a route of one hop has none (owner 2026-11-05: nothing to
+ *  compare it with), hops without a rank (parent or route links without a
  *  reading, LQI 0, too few readings) are never the weakest; ties go to the first hop. Never by raw LQI (spec 5.8). */
 export function weakestHop(hops) {
+  if (hops.length < 2) return null;
   let at = null;
   hops.forEach((h, i) => { if (typeof h.rankPct === "number" && (at === null || h.rankPct < hops[at].rankPct)) at = i; });
   return at;
@@ -236,7 +238,7 @@ export function routeSpans(points) {
         return v.length ? { min: Math.min(...v), mean: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) } : null;
       });
       let at = null;
-      ranks.forEach((r, i) => { if (r && (at === null || r.mean < ranks[at].mean)) at = i; });
+      if (w.hops.length >= 2) ranks.forEach((r, i) => { if (r && (at === null || r.mean < ranks[at].mean)) at = i; });
       return { ids: w.ids, complete: w.complete, reason: w.reason, hops: w.hops, ranks,
         weakest: at === null ? null : { sender: w.hops[at].sender, hearer: w.hops[at].hearer, ...ranks[at] } };
     };

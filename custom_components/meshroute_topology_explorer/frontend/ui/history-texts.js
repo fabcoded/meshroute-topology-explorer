@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Words of the path history window (spec 9.5): the entry badge, the window, its three tabs and the Details sparklines.
+// Words of the path history window (spec 9.5): the entry badge, the window, its three tabs, the partner menu and the Details sparklines.
 // Merged into the panel's table by ui/i18n.js. No DOM. npm test
 export const HISTORY_TEXTS = Object.freeze({
   "history.badge_title": "Path history with {name}",
@@ -9,7 +9,7 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.pair": "{a} ⇄ {b}",
   "history.tab_timeline": "Timeline",
   "history.tab_route": "Route",
-  "history.tab_lane": "Lane",
+  "history.tab_lane": "Direct link",
   "history.range_48h": "48 h",
   "history.range_7d": "7 d",
   "history.range_30d": "30 d",
@@ -49,15 +49,15 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.unknown_value": "?",
   "history.neighbours": "Neighbours in this record: {list}",
   "history.no_neighbours": "No neighbours listed in this record.",
-  "history.pill_hint": "Click a value for the lane of that hop.",
-  "history.lane_title": "Lane: {x} ⇄ {y}",
+  "history.pill_hint": "Click a value for the direct link of that hop.",
+  "history.lane_title": "Direct link: {x} ⇄ {y}",
   "history.lane_from": "{way}, {time}: hop {n} of {count}",
   "history.lane_from_row": "last 48 h",
   "history.lane_hears": "{y} hears {x}",
   "history.lane_clicked": "clicked: {lqi}, rank {pct} %",
   "history.lane_clicked_plain": "clicked: {lqi}",
   "history.lane_after_now": "after now: no records",
-  "history.lane_not_used": "lane not used yet",
+  "history.lane_not_used": "direct link not used yet",
   "history.lane_axis_lqi": "LQI",
   "history.lane_axis_rssi": "RSSI (dBm)",
   "history.lane_table": "Show as table",
@@ -67,6 +67,14 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.lane_none": "no record",
   "history.lane_col_time": "Time",
   "history.close": "Close",
+  "history.pill_title": "History: {a} ⇄ {b}",
+  "history.button": "History",
+  "history.path_link": "history ↗",
+  "history.partner": "Change the partner",
+  "history.partner_search": "Search a device …",
+  "history.partner_neighbour": "neighbour",
+  "history.partner_device": "device",
+  "history.partner_none": "No device found.",
   "history.row_range": "48 h {min}–{max}",
-  "history.row_open": "Open the lane history of {name}",
+  "history.row_open": "Open the direct link history of {name}",
 });

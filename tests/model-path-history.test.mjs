@@ -74,6 +74,21 @@ test("weakest hop: by rank, never by LQI; hops without a rank never; ties go to 
   assert.equal(weakestHop([hop(null, 5), hop(null, null)]), null);
   assert.equal(weakestHop([hop(40, 1), hop(40, 2)]), 0);
   assert.equal(weakestHop([]), null);
+  assert.equal(weakestHop([hop(20, 250)]), null, "a route of one hop has no weakest hop (owner 2026-11-05)");
+});
+
+test("weakest hop only on routes of at least 2 hops, in walks and in spans", () => {
+  let one = 0;
+  let many = 0;
+  for (const a of ids.slice(0, 12)) for (const b of ids) {
+    if (a === b) continue;
+    const tl = history.timeline(a, b);
+    for (const p of tl.points) for (const w of [p.there, p.back]) {
+      if (w.hops.length === 1) { one++; assert.equal(w.weakest, null); } else if (w.hops.length >= 2 && w.weakest !== null) many++;
+    }
+    for (const span of tl.spans) for (const side of [span.there, span.back]) if (side.hops.length < 2) assert.equal(side.weakest, null);
+  }
+  assert.ok(one > 0 && many > 0, "the sample has one-hop routes and routes with a weakest hop");
 });
 
 const history = createHistory({ response: fixture, live });
