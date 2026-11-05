@@ -5,14 +5,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GraphView } from "../custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js";
-import { BADGE, badgeCentre } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
+import { BADGE, badgeCentre, pillAt, PILL_HIT } from "../custom_components/meshroute_topology_explorer/frontend/graph/renderer.js";
 import { symbolSize } from "../custom_components/meshroute_topology_explorer/frontend/graph/symbols.js";
 import { FakeCanvas, asZigbee, fakeEnv, domEvent } from "./graph-fakes.mjs";
 
 const NETWORK = asZigbee({ source: "zha", id: "t", devices: [
   { id: "c", role: "coordinator", label: "Coordinator", available: true, rating: null },
   { id: "r1", role: "router", label: "Hall lamp", available: true, rating: 0.8 },
-  { id: "e1", role: "end device", label: "Door sensor", available: true, rating: 0.1 }],
+  { id: "e1", role: "end device", label: "Door sensor", available: true, rating: 0.1, parent: "r1", parentLqi: 90 }],
 readings: [{ reporter: "c", subject: "r1", lqi: 200 }, { reporter: "r1", subject: "c", lqi: 180 }, { reporter: "r1", subject: "e1", lqi: 90 }] });
 
 function setup() {
@@ -79,4 +79,39 @@ test("the frame draws one badge per other device with a selection, none without"
   const visible = ["r1", "e1"].filter((id) => { const [x, y] = at(id); return x > -40 && x < 840 && y > -40 && y < 640; }).length;
   assert.ok(visible >= 1);
   assert.equal(arcsAtBadge(), visible, "one per other device on screen");
+});
+
+// ---- value pills (owner 2026-11-05): a click on any drawn pill opens the pair window ----------------------------------
+
+test("the frame reports every drawn pill; the hit area is at least 24 px around it", () => {
+  const { view, tap, at, env } = setup();
+  view.setPairBadges(true);
+  tap(...at("e1")); env.flush(); view.draw();
+  const pills = view.lastDraw.pills;
+  assert.ok(pills.length >= 1, "the selection's lanes carry pills");
+  const p = pills[0];
+  assert.equal(pillAt(pills, p.x + Math.max(p.w / 2, 12) - 0.5, p.y), p, "inside the 24 px reach");
+  assert.equal(pillAt(pills, p.x + Math.max(p.w / 2, 12) + 20, p.y + 40), null, "beyond it");
+  assert.equal(pillAt(pills, p.x, p.y + 11.5), p, "even above a 16 px tall pill the reach is 12 px each way");
+  assert.ok(PILL_HIT >= 24);
+});
+
+test("a tap on a pill asks for its two devices and leaves the selection; hover shows a pointer and reports the pair", () => {
+  const { view, tap, at, env, fire, events, canvas } = setup();
+  view.setPairBadges(true);
+  const hovers = [];
+  view.addEventListener("pill-hover", (e) => hovers.push(e.detail));
+  tap(...at("e1")); env.flush(); view.draw();
+  const p = view.lastDraw.pills.find((q) => q.pair.map((i) => view.scene.nodes[i].id).includes("e1"));
+  fire("pointermove", p.x, p.y, { buttons: 0 });
+  assert.equal(canvas.style.cursor, "pointer");
+  assert.deepEqual(hovers.at(-1), { a: "e1", b: "r1" }, "the selected device first");
+  tap(p.x, p.y);
+  assert.deepEqual(events.filter(([type]) => type === "pair-history").map(([, d]) => d), [{ a: "e1", b: "r1" }]);
+  assert.equal(view.selectedId, "e1", "the selection stays");
+  fire("pointermove", 3, 3, { buttons: 0 });
+  assert.deepEqual(hovers.at(-1), { a: null, b: null });
+  view.setPairBadges(false);
+  fire("pointermove", p.x, p.y, { buttons: 0 });
+  assert.equal(view._pillAt(p.x, p.y, -1), null, "non-administrators: no pill target");
 });

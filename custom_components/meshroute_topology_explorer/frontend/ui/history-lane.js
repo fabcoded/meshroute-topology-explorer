@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Lane tab (spec 9.5, boards M36 and M35): both directions of one lane over a window, as LQI against time on one
+// The Direct link tab (spec 9.5, boards M36 and M35): both directions of one lane over a window, as LQI against time on one
 // axis (blue "Y hears X", orange "X hears Y"), the dashed line at the clicked record, the areas "after now" and "lane
 // not used yet", a hover crosshair with both values, a table alternative; Thread adds an RSSI chart below, never a
 // second axis. Above the chart the lane strip: the route the pill belonged to with the lane's two nodes ringed.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The path history window and its entry points (spec 9.5, boards M36, M35) in the fake DOM: tabs and the remembered
-// tab, the ranges "Keep for" allows, the states without data, a click on a pill opening the Lane tab for that hop
+// tab, the ranges "Keep for" allows, the states without data, a click on a pill opening the Direct link tab for that hop
 // (also a ghost's) with the two nodes ringed, the lane strip's text, Thread pills stacked, the sparkline rows of
 // Details. Real loader over the committed samples; times injected. npm test
 import test from "node:test";
@@ -82,9 +82,9 @@ test("the window: header 'A ⇄ B', the tabs, ranges limited to Keep for, close 
   forgetTab();
   const { w, root, a, b } = await open({ info: { record: true, keep_days: 7, last_error: null } });
   const label = (id) => network.devices.find((d) => d.id === id).label;
-  assert.equal(text(find(w.el, (e) => cls(e) === "hist-title")[0]), `${label(a)} ⇄ ${label(b)}`);
+  assert.equal(text(find(w.el, (e) => cls(e) === "hist-title")[0]), `${label(a)} ⇄ ${label(b)} \u25BE`);
   const tabs = find(w.el, (e) => cls(e).startsWith("htab")).map(text);
-  assert.deepEqual(tabs, ["Timeline", "Route", "Lane"]);
+  assert.deepEqual(tabs, ["Timeline", "Route", "Direct link"]);
   assert.equal(w.state.tab, "timeline");
   const ranges = find(w.el, (e) => cls(e).startsWith("seg") && e.tag === "button").map(text);
   assert.deepEqual(ranges, ["48 h", "7 d"], "keep 7 days: no 30 d or 90 d");
@@ -141,7 +141,7 @@ async function routeTab() {
 const canvasOf = (o) => find(o.w.el, (e) => e.tag === "canvas")[0];
 const clickPill = (o, hit) => canvasOf(o).listeners.click[0]({ clientX: hit.x, clientY: hit.y });
 
-test("a click on a pill opens the Lane tab for that hop, centred on the record shown, its two nodes ringed", async () => {
+test("a click on a pill opens the Direct link tab for that hop, centred on the record shown, its two nodes ringed", async () => {
   const o = await routeTab();
   const hits = o.view().hits();
   assert.ok(hits.length >= 2);
@@ -157,7 +157,7 @@ test("a click on a pill opens the Lane tab for that hop, centred on the record s
   assert.equal(c.index, o.w.state.route.index, "the record the slider showed");
   assert.deepEqual(o.w.state.route.sel, { dir: item.dir, sender: item.sender, hearer: item.hearer });
   const label = (id) => network.devices.find((d) => d.id === id).label;
-  assert.match(text(find(o.w.el, (e) => cls(e) === "hist-lane-title")[0]), new RegExp(`^Lane: ${label(item.sender)} ⇄ ${label(item.hearer)}$`));
+  assert.match(text(find(o.w.el, (e) => cls(e) === "hist-lane-title")[0]), new RegExp(`^Direct link: ${label(item.sender)} ⇄ ${label(item.hearer)}$`));
   const from = text(find(o.w.el, (e) => cls(e).includes("hist-lane-from"))[0]);
   assert.equal(from, `${item.dir === "back" ? "way back" : "way there"}, ${timeText(c.t, "en", "UTC")}: hop ${c.hopIndex + 1} of ${c.hopCount}`);
   const ringed = find(o.w.el, (e) => cls(e).includes("strip-node") && cls(e).includes("ringed")).map((e) => e.getAttribute("data-id"));

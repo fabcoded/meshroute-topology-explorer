@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // The path history window of a device pair (spec 9.5, boards M36, M35): a modal dialog "A ⇄ B" with the tabs Timeline,
-// Route (Metro-Map | Mesh) and Lane, the ranges 48 h · 7 d · 30 d · 90 d (at most what "Keep for" holds), the history
+// Route (Metro-Map | Mesh) and Direct link, the ranges 48 h · 7 d · 30 d · 90 d (at most what "Keep for" holds), the history
 // read through the loader, and the states "not recorded", "no records yet", "source not supported" and "failed". A
-// click on a pill in the Route tab opens the Lane tab for that hop. The tab last used is remembered. Runs in the browser.
+// click on a pill in the Route tab opens the Direct link tab for that hop. The second name of the title is a menu to change
+// the partner, keeping tab and range. The tab last used is remembered. Runs in the browser.
 import { h, iconButton } from "./dom.js";
 import { hopContext, historyCaps, RANGES, LANE_HALF_WINDOW } from "../engines/index.js";
 import { rangesFor } from "./history-loader.js";
@@ -13,6 +14,8 @@ import { renderLane, LANE_WINDOWS } from "./history-lane.js";
 import { timeText } from "./history-chart.js";
 import { settingsLink } from "./status-pill.js";
 import { INTEGRATION_PATH } from "./ha-links.js";
+import { roleText } from "./format.js";
+import { partnerChoices } from "./history-partners.js";
 
 export const TABS = Object.freeze(["timeline", "route", "lane"]);
 /** The tab the window was last used on (kept while the panel lives; the badge opens on it). */
@@ -20,7 +23,7 @@ let lastTab = "timeline";
 export const rememberedTab = () => lastTab;
 export const forgetTab = () => { lastTab = "timeline"; };
 
-const FOCUSABLE = "button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])";
+const FOCUSABLE = "button:not([disabled]), a[href], input, [tabindex]:not([tabindex='-1'])";
 let uid = 0;
 
 /** The smallest range in `keys` that reaches `seconds` back, else the largest. */
@@ -29,10 +32,11 @@ export function rangeReaching(keys, seconds) {
 }
 
 /** Open the window. ctx: { root, t, theme(), loader, network() (localized, with `live`), a, b, tab (else the last one),
- *  lane ({ x, y } to open the Lane tab on a lane's last 48 h), positionOf(id), opener, onClose(), now(), zone, timers }.
+ *  lane ({ x, y } to open the Direct link tab on a lane's last 48 h), positionOf(id), opener, onClose(), now(), zone, timers }.
  *  Returns { el, close(), state }. */
 export function openHistoryWindow(ctx) {
-  const { t, loader, a, b } = ctx;
+  const { t, loader, a } = ctx;
+  let b = ctx.b; // the partner: changed by the title's menu
   const now = ctx.now || (() => Date.now() / 1000);
   const id = `mte-history-${++uid}`;
   const state = { tab: ctx.tab || (ctx.lane ? "lane" : lastTab), range: "48h", ranges: rangesFor(null),
@@ -47,12 +51,14 @@ export function openHistoryWindow(ctx) {
   const labelOf = (history) => (key) => deviceOf(history)(key).label || key;
 
   const title = h("h2", { id: `${id}-title`, class: "hist-title" });
+  const menu = h("div", { class: "hist-partners", hidden: true });
+  const choicesBox = h("div", { class: "hist-choices" });
   const closeButton = iconButton("close", t("history.close"), () => finish(), "icon-button dialog-close");
   const tabs = h("div", { class: "hist-tabs", role: "tablist" });
   const rangeBox = h("div", { class: "hist-ranges", role: "group", "aria-label": t("history.ranges") });
   const body = h("div", { class: "hist-body" });
   const dialog = h("dialog", { class: "history-dialog", "aria-labelledby": `${id}-title` },
-    h("div", { class: "hist-head" }, title, closeButton), h("div", { class: "hist-bar" }, tabs, rangeBox), body);
+    h("div", { class: "hist-head" }, title, closeButton), menu, h("div", { class: "hist-bar" }, tabs, rangeBox), body);
 
   function stopRoute() { if (routeView) { routeView.destroy(); routeView = null; } }
   function finish() {
@@ -66,11 +72,42 @@ export function openHistoryWindow(ctx) {
   }
 
   function renderBar(names) {
-    title.textContent = t("history.pair", { a: names(a), b: names(b) });
+    const partner = h("button", { type: "button", class: "hist-partner", "aria-haspopup": "true", "aria-expanded": String(!menu.hidden),
+      title: t("history.partner"), on: { click: toggleMenu } }, names(b), " \u25BE");
+    title.replaceChildren(`${names(a)} \u21C4 `, partner);
+    title.setAttribute("aria-label", t("history.pair", { a: names(a), b: names(b) }));
     tabs.replaceChildren(...TABS.map((tab) => h("button", { type: "button", role: "tab", id: `${id}-tab-${tab}`, class: `htab${state.tab === tab ? " on" : ""}`,
       "aria-selected": String(state.tab === tab), text: t(`history.tab_${tab}`), on: { click: () => switchTab(tab) } })));
     rangeBox.replaceChildren(...(state.tab === "lane" ? [] : state.ranges.map((r) => h("button", { type: "button", class: `seg${state.range === r ? " on" : ""}`,
       "aria-pressed": String(state.range === r), text: t(`history.range_${r}`), on: { click: () => { state.range = r; state.route.index = -1; show(); } } }))));
+  }
+
+  /** The partner menu (owner 2026-11-05): the coordinator / border routers, then a's neighbours by reception, and a search
+   *  over all devices. A choice keeps the tab and the range. */
+  function fillMenu(query) {
+    const net = ctx.network();
+    const name = (k) => (net.devices.find((d) => d.id === k) || {}).label || k;
+    const rows = partnerChoices(net, a, historyCaps(net).anchorRole, query).map((c) => h("button", { type: "button", class: `hist-choice${c.id === b ? " on" : ""}`, "aria-current": String(c.id === b),
+      on: { click: () => setPartner(c.id) } }, h("span", { text: name(c.id) }), h("small", { class: "muted", text: c.group === "anchor" ? roleText(net.devices.find((d) => d.id === c.id).role, t) : t(`history.partner_${c.group}`) })));
+    choicesBox.replaceChildren(...(rows.length ? rows : [h("p", { class: "muted small", text: t("history.partner_none") })]));
+  }
+  function toggleMenu() {
+    menu.hidden = !menu.hidden;
+    if (menu.hidden) { renderBar((k) => labelFor(k)); return; }
+    const search = h("input", { type: "search", class: "hist-search", placeholder: t("history.partner_search"), "aria-label": t("history.partner_search") });
+    search.addEventListener("input", () => fillMenu(search.value));
+    menu.replaceChildren(search, choicesBox);
+    fillMenu("");
+    renderBar((k) => labelFor(k));
+    search.focus();
+  }
+  const labelFor = (k) => ctx.network().devices.find((d) => d.id === k)?.label || k;
+  function setPartner(key) {
+    b = key;
+    menu.hidden = true;
+    state.lane = { x: a, y: b, context: null, key: "48h", fromRow: true };
+    state.route = { ...state.route, index: -1, sel: null };
+    show();
   }
 
   function switchTab(tab) {
@@ -79,7 +116,7 @@ export function openHistoryWindow(ctx) {
     show();
   }
 
-  /** The range a tab needs: Lane reaches back to its window's start. */
+  /** The range a tab needs: Direct link reaches back to its window's start. */
   function neededRange() {
     if (state.tab !== "lane") return state.range;
     const lane = state.lane;
@@ -156,7 +193,7 @@ export function openHistoryWindow(ctx) {
     }
   }
 
-  /** A pill was clicked: the Lane tab for that hop, centred on the record the pill belongs to, its nodes stay ringed. */
+  /** A pill was clicked: the Direct link tab for that hop, centred on the record the pill belongs to, its nodes stay ringed. */
   function openLane(history, caps, tl, item) {
     const point = tl.points[item.pointIndex];
     const context = caps.walks ? hopContext(tl, item.dir, point, item.hopIndex, item.ghost)

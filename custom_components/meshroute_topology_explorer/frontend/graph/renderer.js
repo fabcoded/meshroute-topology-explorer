@@ -155,6 +155,22 @@ export function hitTest(scene, sx, sy, k, px, py) {
   return best;
 }
 
+/** The pill under (px, py), else null: a hit anywhere inside the pill counts, and within at least PILL_HIT (24 px) around
+ *  its centre, so a small pill is easy to hit. The nearest centre wins where areas overlap. */
+export const PILL_HIT = 24;
+export function pillAt(pills, px, py) {
+  let best = null;
+  let bestD = Infinity;
+  for (const p of pills || []) {
+    const dx = Math.abs(px - p.x);
+    const dy = Math.abs(py - p.y);
+    if (dx > Math.max(p.w / 2, PILL_HIT / 2) || dy > Math.max(p.h / 2, PILL_HIT / 2)) continue;
+    const d = Math.hypot(dx, dy);
+    if (d < bestD) { best = p; bestD = d; }
+  }
+  return best;
+}
+
 /** Text with a halo in the background colour, readable over lines. */
 function haloText(ctx, text, x, y, theme, color = theme.foreground) {
   ctx.lineWidth = 3;
@@ -339,7 +355,8 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  classes (lanes drawn per class of the engine, assumed and computed ("predicted") lanes also apart, lanes without
  *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
  *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
- *  predicted, places (spots the lane offered: 1 = only its middle) }] }) }. */
+ *  predicted, places (spots the lane offered: 1 = only its middle) }] }), pills (every value pill drawn: { x, y, w, h
+ *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5). */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -457,7 +474,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!debug) continue; // values beside every lane in debug mode; otherwise only on the focus's lanes
       let text = engine.laneValue(dir, texts);
       if (state === "measured") text += ` \u2190 ${scene.nodes[lane.h].label}`;
-      addValue(geo, text, { path: false, alpha, color: style.color });
+      addValue(geo, text, { path: false, alpha, color: style.color, pair: [lane.s, lane.h] });
     }
     ctx.globalAlpha = alpha;
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
@@ -528,7 +545,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       count(hop);
       let text = engine.laneValue(dir, texts);
       if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color });
+      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color, pair: [s, h] });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
@@ -653,6 +670,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.globalAlpha = 1;
     shown++;
   };
+  const pills = new Map(); // every pill drawn this frame, once (a pill covered by a label is drawn again, same place)
   const drawValue = (t) => drawPill(ctx, t, theme);
   // Area of a rectangle covered by device symbols (a pill never covers one where a lane has another place).
   const symbolArea = (r) => {
@@ -691,6 +709,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     if (t.path) valueRects.push({ rect, t });
     drawValue(t);
     values++;
+    pills.set(t, { x: t.x, y: t.y, w: t.w, h: t.h, pair: t.pair }); // where it ended up: the click target (spec 9.5)
     return true;
   };
   // An unknown end: "?" at the stem's tip, always, and the words beside it where they fit.
@@ -758,6 +777,6 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
       drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;
-  return { sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+  return { pills: [...pills.values()], sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }

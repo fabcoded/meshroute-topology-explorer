@@ -370,6 +370,11 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       tip.replaceChildren(h("b", { text: title }), ...rest.map((line) => h("small", { text: line })));
       Object.assign(tip.style, { left: `${x}px`, top: `${y + 12}px` });
     });
+    view.addEventListener("pill-hover", (e) => { // the title of the pill under the pointer (spec 9.5)
+      const { a, b } = e.detail;
+      const name = (id) => (this._network.devices.find((d) => d.id === id) || {}).label || id;
+      if (a === null) view.canvas.removeAttribute("title"); else view.canvas.title = this._t("history.pill_title", { a: name(a), b: name(b) });
+    });
     view.addEventListener("pair-history", (e) => this._history.open(e.detail.a, e.detail.b));
     view.addEventListener("spread-step", (e) => this._stepSpread(e.detail.dir));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
@@ -553,7 +558,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           pinned: Boolean(this._selected && this._settings.settings.pins[this._selected]),
           onSub: (sub, { focus = false } = {}) => this._setDetailsSub(sub, focus),
           devicePage: adapterFor(this._network).devicePage, radioActions: this._radioActions(),
-          history: this._history && this._isAdmin() ? { fill: (slots, note) => this._history.fillRows(this._selected, slots, note) } : null,
+          history: this._history && this._isAdmin() ? { fill: (slots, note) => this._history.fillRows(this._selected, slots, note),
+            open: (a, b, opener) => this._history.open(a, b, { opener }) } : null,
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));

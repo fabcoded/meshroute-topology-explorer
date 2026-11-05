@@ -65,7 +65,9 @@ export const zigbee = Object.freeze({
   /** The path history window (ui/history-window.js): routes are walked from the routing tables; LQI 0 to 255. */
   history: Object.freeze({ walks: true, lqiMax: 255, entryText: null,
     /** End devices keep no neighbour table: what they hear is in no record. */
-    keepsNoTable: (device) => device.role === "end device" }),
+    keepsNoTable: (device) => device.role === "end device",
+    /** The role of the devices the History button pairs a device with. */
+    anchorRole: "coordinator" }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell

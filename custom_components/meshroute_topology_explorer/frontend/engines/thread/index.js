@@ -65,7 +65,9 @@ export const thread = Object.freeze({
     overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
     anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
   /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
-  history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false }),
+  history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false,
+    /** The role of the devices the History button pairs a device with (a border router joins the mesh to the home network). */
+    anchorRole: "border router" }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys: none. */
