@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createLoader, rangesFor } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-loader.js";
 import { columnOrder, metroLayout, meshLayout, nearestIndex, routeAt } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-route.js";
-import { directionModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-timeline.js";
+import { directionModel, placeNotes } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-timeline.js";
 import { laneModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-lane.js";
 import { sparkModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-sparkline.js";
 import { sliderModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-route-view.js";
@@ -248,4 +248,18 @@ test("slider and sparkline models, time helpers", () => {
   assert.equal(linePath([[0, 1], [1, null], [2, 3]], scale([0, 2], [0, 100]), scale([0, 4], [40, 0])), "M0 30M100 10", "a gap breaks the line");
   assert.match(timeText(1762041600, "en", "UTC"), /Nov 2,? 00:00/);
   assert.equal(dayText(1762041600, "en", "UTC"), "Nov 2");
+});
+
+test("timeline: weakest-hop labels never overlap each other or leave the plot, however dense the series", () => {
+  const x = scale([0, 1000], [34, 592]);
+  const y = scale([0, 100], [92, 6]);
+  // 40 changes of the weakest hop on a 600 px chart: far more text than room.
+  const notes = Array.from({ length: 40 }, (_, i) => ({ t: i * 25, pct: (i * 37) % 101, text: `Nov ${i}, 01:00: Router ${i} \u2192 Router ${i + 1}, ${100 + i}, rank ${i} %` }));
+  const placed = placeNotes(notes, { x, y, left: 34, right: 592 });
+  assert.ok(placed.length > 0 && placed.length < notes.length, "some placed, the rest left to the hover title");
+  for (const [i, a] of placed.entries()) {
+    assert.ok(a.x0 >= 34 && a.x1 <= 592 && a.y0 >= 1 && a.y1 <= 99, `inside the plot: ${a.text}`);
+    for (const b of placed.slice(i + 1)) assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `${a.text} / ${b.text}`);
+  }
+  assert.equal(placeNotes([notes[0]], { x, y, left: 34, right: 592 }).length, 1, "a lone label is placed");
 });

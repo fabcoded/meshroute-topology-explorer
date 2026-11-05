@@ -42,6 +42,37 @@ export function directionModel({ tl, dir, labelOf, t, locale, zone }) {
   return { bands, series, notes };
 }
 
+/** Where the weakest-hop names go, in the chart's coordinates (plot from y 0 to 100, bands above, axis labels below):
+ *  greedy left to right, per note the right of its dot above, below, then the left of it above, below; a label that
+ *  would touch an already placed one, the data line or leave the plot (left edge, right edge, top, bottom) is skipped, its text stays
+ *  in the dot's hover title. Returns [{ text, anchor, x0, x1, y, y0, y1 }] (y = baseline; y0..y1 the text box). Pure. */
+export function placeNotes(notes, { x, y, left, right, top = 1, bottom = 99, series = [] }) {
+  const placed = [];
+  // The data line sampled every 2 px: a label over it would be crossed by it.
+  const line = [];
+  const pts = series.filter(([, v]) => v !== null).map(([t, v]) => [x(t), y(v)]);
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [[ax, ay], [bx, by]] = [pts[i], pts[i + 1]];
+    for (let k = 0, n = Math.max(1, Math.ceil(Math.abs(bx - ax) / 2)); k <= n; k++) line.push([ax + ((bx - ax) * k) / n, ay + ((by - ay) * k) / n]);
+  }
+  if (pts.length === 1) line.push(pts[0]);
+  const onLine = (b) => line.some(([px, py]) => px >= b.x0 - 3 && px <= b.x1 + 3 && py >= b.y0 - 3 && py <= b.y1 + 3);
+  const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  for (const n of notes) {
+    const [nx, ny] = [x(n.t), y(n.pct)];
+    const w = n.text.length * CHAR;
+    const spots = [["start", nx + 4, -8], ["start", nx + 4, 16], ["end", nx - 4, -8], ["end", nx - 4, 16]];
+    for (const [anchor, ax, dy] of spots) {
+      const [x0, x1] = anchor === "start" ? [ax, ax + w] : [ax - w, ax];
+      const box = { text: n.text, anchor, x0, x1, y: ny + dy, y0: ny + dy - 10, y1: ny + dy + 3 };
+      if (x0 < left || x1 > right || box.y0 < top || box.y1 > bottom || placed.some((o) => hit(o, box)) || onLine(box)) continue;
+      placed.push(box);
+      break;
+    }
+  }
+  return placed;
+}
+
 /** The tab's content. ctx: { t, theme, tl (history.timeline(a, b)), from, to, width, labelOf, walks (a routing table exists), a, b }. */
 export function renderTimeline(container, ctx) {
   const { t, tl, from, to, labelOf } = ctx;
@@ -85,26 +116,17 @@ export function renderTimeline(container, ctx) {
     }
     chart.append(svg("path", { d: linePath(m.series, x, y), fill: "none", stroke: color, "stroke-width": 1.4 }));
     for (const [tt, v] of m.series) if (v !== null) chart.append(svg("circle", { cx: x(tt), cy: y(v), r: 2.2, fill: color, class: "pt" }));
-    // Every change of the weakest hop gets a dot; its name is written where there is room (greedy, left to right).
-    let free = left;
-    let drawn = 0;
+    // Every change of the weakest hop gets a dot; its name is written where it fits (placeNotes), else in the dot's hover.
+    const placed = placeNotes(m.notes, { x, y, left, right: width - 8, series: m.series });
     for (const n of m.notes) {
-      const nx = x(n.t);
-      const dot = svg("circle", { cx: nx, cy: y(n.pct), r: 4, fill: color, class: "note-dot" });
+      const dot = svg("circle", { cx: x(n.t), cy: y(n.pct), r: 4, fill: color, class: "note-dot" });
       const tip = svg("title", {}); tip.textContent = n.text; dot.append(tip);
       chart.append(dot);
-      // The name goes on the side with more room, cut with an ellipsis where it does not fit; too little room: the dot's hover.
-      const [right, left] = [width - 8 - nx - 4, nx - 4 - free];
-      const need = n.text.length * CHAR;
-      const toRight = right >= need || (left < need && right >= left);
-      const chars = Math.floor((toRight ? right : left) / CHAR);
-      if (chars < 12) continue;
-      const shown = n.text.length <= chars ? n.text : `${n.text.slice(0, chars - 1)}…`;
-      free = toRight ? nx + 4 + shown.length * CHAR + 8 : nx + 8;
-      const tx = svg("text", { x: toRight ? nx + 4 : nx - 4, y: y(n.pct) + (drawn % 2 ? 18 : -8), "text-anchor": toRight ? "start" : "end", class: "lbl note" });
-      tx.textContent = shown;
+    }
+    for (const p of placed) {
+      const tx = svg("text", { x: p.anchor === "start" ? p.x0 : p.x1, y: p.y, "text-anchor": p.anchor, class: "lbl note" });
+      tx.textContent = p.text;
       chart.append(tx);
-      drawn += 1;
     }
     g.append(chart);
     const axis = svg("g", { transform: "translate(0 128)" });
