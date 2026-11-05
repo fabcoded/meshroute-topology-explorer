@@ -6,7 +6,7 @@ import { h, svg } from "./dom.js";
 import { drawLane, drawPill } from "../graph/renderer.js";
 import { drawSymbol, symbolLayers, symbolParts } from "../graph/symbols.js";
 import { directionColors, tickText, timeTicks, scale } from "./history-chart.js";
-import { metroLayout, meshLayout, nearestIndex } from "./history-route.js";
+import { metroLayout, meshLayout, nearestIndex, rangeStructure } from "./history-route.js";
 
 const GHOST_ALPHA = 0.45;
 const HEIGHT = 250;
@@ -128,6 +128,8 @@ export function createRouteView(ctx) {
   const frame = h("div", { class: "hist-canvas-frame" }, canvas);
   const sliderBox = h("div", { class: "hist-slider" });
   let hitList = [];
+  // One structure per view (= per pair and range, the window builds a new view for either); Thread keeps its per-record layout.
+  const structure = ctx.walks ? rangeStructure(ctx.tl) : undefined;
   let timer = null;
   const measure = (s) => { const g = canvas.getContext("2d"); g.font = ctx.theme().font.replace(/(\d+(?:\.\d+)?)px/, "11.5px"); return g.measureText(s).width; };
   const stop = () => { if (timer !== null) { timers.clearInterval(timer); timer = null; } state.playing = false; };
@@ -145,8 +147,8 @@ export function createRouteView(ctx) {
     canvas.style.height = `${height}px`;
     const theme = ctx.theme();
     if (route) {
-      const layout = state.mode === "metro" ? metroLayout({ route, width, height, measure })
-        : meshLayout({ route, positionOf: ctx.positionOf, width, height, measure, labelOf: (id) => ctx.deviceOf(id).label || id });
+      const layout = state.mode === "metro" ? metroLayout({ route, structure, width, height, measure })
+        : meshLayout({ route, structure, positionOf: ctx.positionOf, width, height, measure, labelOf: (id) => ctx.deviceOf(id).label || id });
       hitList = drawRoute(canvas.getContext("2d"), layout, { theme, dpr, width, height, deviceOf: ctx.deviceOf, sel: state.sel,
         mode: state.mode, measure });
     } else hitList = [];
