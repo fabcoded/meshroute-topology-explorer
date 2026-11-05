@@ -51,7 +51,7 @@ On a phone the panels open from the bottom: the overview, the findings, the deta
 
 ## History: what changed, and when
 
-A lamp that dropped out last night is usually gone from the tables by morning. After each of ZHA's own topology scans
+The tables only show the moment of the last scan: a link that was weak at night can look fine in the morning. After each of ZHA's own topology scans
 the integration therefore keeps a record of every link's reception, the routing tables and the end devices' parents:
 
 - **Own small files, nothing else.** Kept for 1 to 90 days (default 30; about 2.4 MB for 30 days on a network of 47
@@ -68,17 +68,17 @@ the integration therefore keeps a record of every link's reception, the routing 
 - **Thread has no walked routes:** the Matter topology holds no routing table, so Thread shows the direct link and its
   neighbours per record, not a route.
 
-![Timeline of Router 28 and Router 29 over 7 days: the route there changes from direct to four hops, the weakest hop drops from 88 % to about 35 %; the route back stays direct.](docs/images/history-timeline.png)
+![Timeline of Router 23 and the coordinator over 7 days: the route there changes twice (via Router 32, then over four hops, then three), the route back once, with the rank of the weakest hop below each route.](docs/images/history-timeline.png)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/history-route-dark.png">
-  <img src="docs/images/history-route.png" alt="Route view of Router 28 and Router 29 as a Metro-Map: the current four-hop route there with reception at each hop, the weakest one in red, the earlier direct route as a faded ghost, the direct route back below.">
+  <img src="docs/images/history-route.png" alt="Route view of Router 23 and the coordinator as a Metro-Map: the current three-hop route there and the three-hop route back, each with the reception at every hop and the weakest hop in red; earlier routes as faded dashed ghosts.">
 </picture>
 
-<sub>The same pair in the Route view: the current route there, the earlier direct one as a ghost. The history is a
+<sub>The same pair in the Route view: the current routes there and back, earlier ones as ghosts. The history is a
 synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
 
-![Lane of Router 28 and Router 29: the reception of both directions over the last 48 hours.](docs/images/history-lane.png)
+![Lane of Router 32 and Router 19, a hop of that route: the reception of both directions over the last 48 hours.](docs/images/history-lane.png)
 
 ## What it does not do
 

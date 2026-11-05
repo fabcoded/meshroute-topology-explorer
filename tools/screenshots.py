@@ -41,11 +41,11 @@ SHOTS = [
     ("map-light", (1280, 760), 1.5, "density=dense&colors=1"),
     ("map-dark", (1280, 760), 1.5, "density=dense&colors=1&dark=1"),
     ("path-router16", (1440, 810), 1.5, "density=dense&colors=1&select=Router%2016&left=details"),
-    # Path history window of the pair Router 28 / Router 29 on the long synthetic sample history (7 days, 6 h steps).
-    ("history-timeline", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=timeline&hrange=7d"),
-    ("history-route", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=route&hrange=7d"),
-    ("history-lane", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=lane&hrange=7d"),
-    ("history-route-dark", HIST, 1.5, "density=dense&colors=1&dark=1&history=long&select=Router%2028&pair=Router%2029&htab=route&hrange=7d"),
+    # Path history window of the pair Router 23 / Coordinator (the lane: its hop Router 32 / Router 19) on the long synthetic sample history (7 days, 6 h steps).
+    ("history-timeline", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2023&pair=Coordinator&htab=timeline&hrange=7d"),
+    ("history-route", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2023&pair=Coordinator&htab=route&hrange=7d"),
+    ("history-lane", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2032&pair=Router%2019&htab=lane&hrange=7d"),
+    ("history-route-dark", HIST, 1.5, "density=dense&colors=1&dark=1&history=long&select=Router%2023&pair=Coordinator&htab=route&hrange=7d"),
     ("phone-map", (390, 844), 2, "phone=1&dark=1&density=dense&colors=1"),
     ("phone-findings", (390, 844), 2, "phone=1&dark=1&colors=1&left=findings"),
     ("phone-details", (390, 844), 2, "phone=1&dark=1&density=dense&colors=1&select=Router%2016&left=details"),
