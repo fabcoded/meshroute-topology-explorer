@@ -160,23 +160,39 @@ function placeLabels(stations, size, measure, obstacles, textOf) {
 
 const quad = (p0, c, p1, s) => (1 - s) * (1 - s) * p0 + 2 * (1 - s) * s * c + s * s * p1;
 
+/** The fixed structure of a range (spec 9.5): the devices of every walk there and back in any record, so the drawings keep
+ *  one layout while the slider moves. { ids: { there, back }, all, sequences } (sequences: the chains in station order input). */
+export function rangeStructure(tl) {
+  const ids = { there: [], back: [] };
+  const sequences = [];
+  for (const p of tl.points) {
+    for (const dir of ["there", "back"]) for (const id of p[dir].ids) if (!ids[dir].includes(id)) ids[dir].push(id);
+    sequences.push(p.there.ids, [...p.back.ids].reverse());
+  }
+  return { ids, all: [...new Set([...ids.there, ...ids.back])], sequences };
+}
+
+/** The structure of a single route (no range given): its chains and the devices of its items. */
+function routeStructure(route) {
+  const ids = { there: [...route.ids.there], back: [...route.ids.back] };
+  for (const it of route.items.filter((i) => i.ghost)) for (const id of [it.sender, it.hearer]) if (!ids[it.dir].includes(id)) ids[it.dir].push(id);
+  const sequences = [route.ids.there, [...route.ids.back].reverse(), ...route.items.filter((i) => i.ghost)
+    .map((i) => (i.dir === "there" ? [i.sender, i.hearer] : [i.hearer, i.sender]))];
+  return { ids, all: [...new Set([...ids.there, ...ids.back])], sequences };
+}
+
 /** The Metro-Map: two rows (there above, back below), stations in shared columns, hops as horizontal lanes, ghosts as
  *  dashed arcs (there above its row, back below). Returns { stations: [{ id, dir, x, y, ghost }], links: items with
  *  `lane` or `curve` and `pill`, verticals: [{ id, x, y0, y1 }] (the dotted lines of stations both rows share), size }. */
-export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE }) {
+export function metroLayout({ route, structure = routeStructure(route), width, height, measure, size = SYMBOL_SIZE }) {
   const margin = size / 2 + 52;
   const rowY = { there: Math.round(height * 0.33), back: Math.round(height * 0.72) };
-  const by = (dir, ghost) => route.items.filter((it) => it.dir === dir && it.ghost === ghost);
   const chain = (dir) => route.ids[dir];
-  const sequences = [chain("there"), [...chain("back")].reverse(), ...route.items.filter((i) => i.ghost)
-    .map((i) => (i.dir === "there" ? [i.sender, i.hearer] : [i.hearer, i.sender]))];
-  const order = columnOrder(sequences);
+  const order = columnOrder(structure.sequences);
   const x = (id) => (order.length < 2 ? width / 2 : margin + (order.indexOf(id) * (width - 2 * margin)) / (order.length - 1));
   const stations = [];
   for (const dir of ["there", "back"]) {
-    const ids = new Set(chain(dir));
-    for (const it of by(dir, true)) { ids.add(it.sender); ids.add(it.hearer); }
-    for (const id of ids) stations.push({ id, dir, x: x(id), y: rowY[dir], ghost: !chain(dir).includes(id) });
+    for (const id of structure.ids[dir]) stations.push({ id, dir, x: x(id), y: rowY[dir], ghost: !chain(dir).includes(id) });
   }
   const verticals = [];
   for (const s of stations) {
@@ -207,10 +223,9 @@ export function metroLayout({ route, width, height, measure, size = SYMBOL_SIZE 
  *  fitted into width x height; one without a position goes on a ring around the middle. Each direction is a lane
  *  offset to the right of its travel, as on the main map, so the two directions of a pair never overlap; ghosts are the
  *  same lanes dashed. Returns { stations: [{ id, x, y, ghost }], links, size }. */
-export function meshLayout({ route, positionOf, width, height, measure, size = SYMBOL_SIZE, labelOf = (id) => id }) {
-  const ids = [];
-  const addId = (id) => { if (!ids.includes(id)) ids.push(id); };
-  for (const dir of ["there", "back"]) route.ids[dir].forEach(addId);
+export function meshLayout({ route, structure = routeStructure(route), positionOf, width, height, measure, size = SYMBOL_SIZE, labelOf = (id) => id }) {
+  const ids = [...structure.all];
+  const addId = (id) => { if (!ids.includes(id)) ids.push(id); }; // Thread: the record's neighbours join the pair
   for (const it of route.items) { addId(it.sender); addId(it.hearer); }
   const known = ids.map((id) => [id, positionOf(id)]).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
   // Room for the labels beside the outermost symbols; the route's bounding box fills the rest, the thinner axis stretched by at most 2.2.

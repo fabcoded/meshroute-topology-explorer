@@ -876,7 +876,10 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   Metro-Map: there above, back below; stations are the map's symbols in shared columns with dotted verticals;
   arrowheads; the RX pill of each hop placed as on the map (a quarter before the arrowhead, at most four symbol
   diameters; "Parent" where an end device's parent link has no reading); the weakest hop with a red outline and a thicker
-  line; routes before the shown record as faded dashed ghosts with their last value, no date. Mesh: the same hops at the
+  line; routes before the shown record as faded dashed ghosts with their last value, no date. **One structure per pair and range
+  (owner 2026-11-05):** stations (Metro-Map columns, Mesh fit) are the union of every device on the way there or back in any record
+  of the range, laid out once; the slider only changes highlighting: the shown record's route solid, other devices of the
+  union faded, later routes not drawn as lanes. Changing pair or range recomputes; slider and play never do. Thread keeps its per-record view. Mesh: the same hops at the
   devices' current map positions, each direction offset to the right of its travel, ghosts dashed. Thread: the direct
   link both ways (Metro-Map) and its neighbours in that record (Mesh), pills stacked ("−75 dBm" over "LQI 3").
 - **Direct link:** a click on a pill (ghosts too) opens the Direct link tab for that hop, centred on the record shown (±48 h, ±24 h, ±7 d,

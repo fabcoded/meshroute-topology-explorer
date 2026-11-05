@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createLoader, rangesFor } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-loader.js";
-import { columnOrder, metroLayout, meshLayout, nearestIndex, routeAt } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-route.js";
+import { columnOrder, metroLayout, meshLayout, nearestIndex, rangeStructure, routeAt } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-route.js";
 import { directionModel, placeNotes } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-timeline.js";
 import { laneModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-lane.js";
 import { sparkModel } from "../custom_components/meshroute_topology_explorer/frontend/ui/history-sparkline.js";
@@ -262,4 +262,24 @@ test("timeline: weakest-hop labels never overlap each other or leave the plot, h
     for (const b of placed.slice(i + 1)) assert.ok(a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0, `${a.text} / ${b.text}`);
   }
   assert.equal(placeNotes([notes[0]], { x, y, left: 34, right: 592 }).length, 1, "a lone label is placed");
+});
+
+test("Route structure is fixed over the range: same stations and Mesh fit for every record, ghosts only earlier routes", () => {
+  const tl = changing();
+  const structure = rangeStructure(tl);
+  const every = tl.points.map((_, i) => routeAt({ history, caps, tl, index: i, t }));
+  every.forEach((r, i) => {
+    for (const dir of ["there", "back"]) for (const id of r.ids[dir]) assert.ok(structure.ids[dir].includes(id), `record ${i}: ${id} is in the union`);
+  });
+  const pos = (id) => ({ x: (ids.indexOf(id) * 37) % 11, y: (ids.indexOf(id) * 53) % 7 });
+  const metro = every.map((route) => metroLayout({ route, structure, width: 900, height: 250, measure }));
+  const mesh = every.map((route) => meshLayout({ route, structure, positionOf: pos, width: 900, height: 480, measure }));
+  const where = (m) => JSON.stringify(m.stations.map((s) => [s.id, s.dir, Math.round(s.x), Math.round(s.y)]));
+  metro.forEach((m) => assert.equal(where(m), where(metro[0]), "Metro-Map stations never move"));
+  mesh.forEach((m) => assert.equal(where(m), where(mesh[0]), "Mesh fit never changes"));
+  metro.forEach((m, i) => {
+    const onRoute = new Set(every[i].ids.there);
+    for (const s of m.stations.filter((x) => x.dir === "there")) assert.equal(s.ghost, !onRoute.has(s.id), "faded = not on the current route");
+    for (const l of m.links.filter((x) => x.ghost)) assert.ok(l.pointIndex < i, "ghosts are earlier routes only");
+  });
 });
