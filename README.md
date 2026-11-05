@@ -57,7 +57,7 @@ the integration therefore keeps a record of every link's reception, the routing 
 - **Own small files, nothing else.** Kept for 1 to 90 days (default 30; about 2.4 MB for 30 days on a network of 47
   devices), never in Home Assistant's recorder. Recording never starts a scan; the optional single scan 30 minutes after
   a start is off by default.
-- **One pair at a time, one click away.** Click a reception value on the map, press **History** in a device's Details,
+- **One pair at a time, one click away.** Click a reception value on the map (a small card shows both directions of that direct link and leads on to the window), press **History** in a device's Details,
   or select a device and click the small "?" badge at another one. The window opens for the two devices (its second
   name is a menu to change the partner), with three views:
   - **Timeline:** the route in each direction as spans over time, and below it the rank of the weakest hop at its

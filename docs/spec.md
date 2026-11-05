@@ -850,10 +850,14 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   as a route (hops between nodes; the hovered one dark). Hover: "Path history with {selected}" and, for Zigbee, "there 4
   hops · back 3 hops" (the live network's walks, selected to other and back). A click opens the window for the pair and
   leaves the selection. Thread: no hop counts.
-- **One-click entries** (owner 2026-11-05), all to this same window on the tab used last (the first time Timeline), none
+- **One-click entries** (owner 2026-11-05), (2) and (3) open this window on the tab used last (the first time Timeline); none
   changes the map selection, administrators only: (1) a click on any value pill drawn on the map (the selection's lanes
-  and the overview's): the window for the lane's two devices; hit area at least 24 px around the pill, pointer cursor,
-  title "History: A ⇄ B"; (2) the **History** button next to the name in Details (9.2); (3) "history ↗" on the lines of
+  and the overview's) opens a small **Direct link card** at the pill (not the window; correction 2026-11-05, board M37b B): title
+  "Direct link: A ⇄ B" (the selected device first), both directions one line each ("B hears A · 64 · rank 45 %", Thread "−75 dBm · LQI 3")
+  with a 48 h sparkline (Thread: RSSI) from the loader's cache (values alone while loading; the loader's state text without a
+  recording), and the buttons "Direct link history ⇄" (window on the Direct link tab, last 48 h) and "Route history" (window on
+  Timeline, same pair); × and Esc, a tap on the empty map or another pill closes or replaces it, one card at a time, a phone gets a
+  bottom sheet; hit area at least 24 px around the pill, pointer cursor, title "Direct link: A ⇄ B"; (2) the **History** button next to the name in Details (9.2); (3) "history ↗" on the lines of
   "Communication path with the coordinator". Terms: a **direct link** is two neighbours that hear each other (history in
   both directions), a **route** is the way between two devices.
 - **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Direct link (the last one used is remembered), ranges 48 h, 7 d,

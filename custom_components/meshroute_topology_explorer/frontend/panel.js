@@ -373,9 +373,15 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     view.addEventListener("pill-hover", (e) => { // the title of the pill under the pointer (spec 9.5)
       const { a, b } = e.detail;
       const name = (id) => (this._network.devices.find((d) => d.id === id) || {}).label || id;
-      if (a === null) view.canvas.removeAttribute("title"); else view.canvas.title = this._t("history.pill_title", { a: name(a), b: name(b) });
+      if (a === null) view.canvas.removeAttribute("title"); else view.canvas.title = this._t("history.link_title", { a: name(a), b: name(b) });
     });
     view.addEventListener("pair-history", (e) => this._history.open(e.detail.a, e.detail.b));
+    // A pill opens the small card at it (the selection stays); any other tap on the map closes it.
+    view.addEventListener("pill-click", (e) => {
+      const { a, b, x, y } = e.detail;
+      this._history.showCard(this._ui.map, { x, y }, a, b, view.pairLinks(a, b));
+    });
+    view.addEventListener("map-tap", () => this._history.closeCard());
     view.addEventListener("spread-step", (e) => this._stepSpread(e.detail.dir));
     view.addEventListener("details-request", (e) => this._openDetails(e.detail.id, e.detail.via));
     view.addEventListener("pin-change", (e) => {
@@ -613,6 +619,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   _select(id, source) {
     const t = this._t;
     this._selected = id;
+    if (this._history) this._history.closeCard();
     if (source !== "map" && this._view) {
       this._view.select(id);
       if (id) this._view.reveal(id, this._view.insets, { zoom: true });

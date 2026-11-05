@@ -445,6 +445,15 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
   border-radius: 8px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px;
   pointer-events: none; white-space: nowrap; }
 .badge-tip small { color: var(--mte-muted); }
+.pair-card { position: absolute; z-index: 8; box-sizing: border-box; width: 260px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 10px; border-radius: 10px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px; outline: none; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-close { border: none; background: none; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.card-row { display: flex; flex-direction: column; gap: 2px; }
+.card-spark { color: var(--mte-muted); min-height: 18px; }
+.card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.card-actions .button { min-height: 28px; padding: 0 10px; font-size: 12px; }
+@media (max-width: 600px) { .pair-card { left: 8px !important; right: 8px; top: auto !important; bottom: 72px; width: auto; max-width: none; } }
 .details-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .history-button { min-height: 28px; padding: 0 10px; font-size: 13px; }
 .history-link { font-size: 12px; white-space: nowrap; }
