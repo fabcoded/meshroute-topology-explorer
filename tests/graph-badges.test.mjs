@@ -22,7 +22,7 @@ function setup() {
   view.setNetwork(NETWORK);
   env.flush();
   const events = [];
-  for (const type of ["select", "pair-history", "badge-hover"]) view.addEventListener(type, (e) => events.push([type, e.detail]));
+  for (const type of ["select", "pair-history", "badge-hover", "pill-click", "map-tap"]) view.addEventListener(type, (e) => events.push([type, e.detail]));
   let time = 1000;
   const fire = (type, x, y, extra = {}) => canvas.dispatchEvent(domEvent(type, { pointerId: 1, clientX: x, clientY: y, timeStamp: (time += 10),
     button: 0, buttons: extra.buttons ?? 1, pointerType: "mouse", ...extra }));
@@ -96,7 +96,7 @@ test("the frame reports every drawn pill; the hit area is at least 24 px around 
   assert.ok(PILL_HIT >= 24);
 });
 
-test("a tap on a pill asks for its two devices and leaves the selection; hover shows a pointer and reports the pair", () => {
+test("a tap on a pill asks for its card (both devices, the pill's place) and leaves the selection; hover shows a pointer and reports the pair", () => {
   const { view, tap, at, env, fire, events, canvas } = setup();
   view.setPairBadges(true);
   const hovers = [];
@@ -106,12 +106,23 @@ test("a tap on a pill asks for its two devices and leaves the selection; hover s
   fire("pointermove", p.x, p.y, { buttons: 0 });
   assert.equal(canvas.style.cursor, "pointer");
   assert.deepEqual(hovers.at(-1), { a: "e1", b: "r1" }, "the selected device first");
+  events.length = 0;
   tap(p.x, p.y);
-  assert.deepEqual(events.filter(([type]) => type === "pair-history").map(([, d]) => d), [{ a: "e1", b: "r1" }]);
+  assert.deepEqual(events.filter(([type]) => type === "pill-click").map(([, d]) => d), [{ a: "e1", b: "r1", x: p.x, y: p.y }]);
+  assert.equal(events.filter(([type]) => type === "pair-history" || type === "select" || type === "map-tap").length, 0, "no window, no selection change");
   assert.equal(view.selectedId, "e1", "the selection stays");
+  tap(5, 5);
+  assert.equal(events.filter(([type]) => type === "map-tap").length, 1, "a tap on the empty map is reported (closes the card)");
   fire("pointermove", 3, 3, { buttons: 0 });
   assert.deepEqual(hovers.at(-1), { a: null, b: null });
   view.setPairBadges(false);
   fire("pointermove", p.x, p.y, { buttons: 0 });
   assert.equal(view._pillAt(p.x, p.y, -1), null, "non-administrators: no pill target");
+});
+
+test("pairLinks gives both directions of a pair as the pills show them, the hearer's value and rank", () => {
+  const { view } = setup();
+  const [aHearsB, bHearsA] = view.pairLinks("c", "r1");
+  assert.deepEqual([aHearsB.sender, aHearsB.hearer, aHearsB.lqi, bHearsA.sender, bHearsA.hearer, bHearsA.lqi], ["r1", "c", 200, "c", "r1", 180]);
+  assert.equal(aHearsB.text, "200");
 });

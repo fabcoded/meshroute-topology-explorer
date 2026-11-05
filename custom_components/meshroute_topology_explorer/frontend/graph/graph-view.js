@@ -297,8 +297,8 @@ export class GraphView extends EventTarget {
     return i === undefined || !this.pos ? null : { x: this.pos.x[i], y: this.pos.y[i] };
   }
 
-  /** Switch the path history's entry badges on or off (they show with a selection). Events: "badge-hover" { id|null, x, y }
-   *  and "pair-history" { a, b }. */
+  /** Switch the path history's entry badges on or off (they show with a selection). Events: "badge-hover" { id|null, x, y },
+   *  "pair-history" { a, b }, "pill-click" { a, b, x, y } (the pill's centre) and "map-tap" (any other tap). */
   setPairBadges(on) {
     this.pairBadges = Boolean(on);
     this._invalidate();
@@ -645,7 +645,22 @@ export class GraphView extends EventTarget {
     const ids = p.pair.map((i) => this.scene.nodes[i].id);
     // The selected device first, else the sender: the window's first name is the one the click belongs to.
     if (ids[1] === this.selectedId) ids.reverse();
-    return { a: ids[0], b: ids[1] };
+    return { a: ids[0], b: ids[1], x: p.x, y: p.y };
+  }
+
+  /** What the two directions between devices a and b say now, for the pair card: [{ sender, hearer, text (the pill's
+   *  text), lqi, rssi, rankPct }], a hears b first; a direction the scene lacks is left out. */
+  pairLinks(a, b) {
+    const ia = this.scene.index.get(a);
+    const ib = this.scene.index.get(b);
+    const texts = { uncertain: "0 (uncertain)", parent: "Parent", route: "Route", ...(this.texts || {}) };
+    return [[b, a, ib, ia], [a, b, ia, ib]].map(([sender, hearer, s, h]) => {
+      const lane = this.scene.laneByKey.get(`${s}>${h}`);
+      const d = lane && lane.dir;
+      return lane ? { sender, hearer, text: this.scene.engine.laneValue(d, texts), lqi: d && typeof d.lqi === "number" ? d.lqi : null,
+        rssi: d && typeof d.rssi === "number" ? d.rssi : null,
+        rankPct: d && d.state === "measured" && typeof d.rating === "number" ? Math.round(Math.max(0, Math.min(1, d.rating)) * 100) : null } : null;
+    }).filter(Boolean);
   }
 
   _setPillHover(pill) {
@@ -707,8 +722,11 @@ export class GraphView extends EventTarget {
       tap: (t) => {
         // A badge opens the pair window and leaves the selection as it is.
         if (t && t.kind === "badge") this._emit("pair-history", { a: this.selectedId, b: t.id });
-        else if (t && t.kind === "pill") this._emit("pair-history", { a: t.a, b: t.b }); // the same: the selection stays
-        else this._userSelect(isNode(t) ? t.index : -1);
+        else if (t && t.kind === "pill") this._emit("pill-click", { a: t.a, b: t.b, x: t.x, y: t.y }); // a small card; the selection stays
+        else {
+          this._emit("map-tap", {}); // closes the pill card
+          this._userSelect(isNode(t) ? t.index : -1);
+        }
       },
       // Double click: releases a pinned device (spec 7.1) and goes to the working scale (decision 2026-10-31).
       doubleTap: (t) => {

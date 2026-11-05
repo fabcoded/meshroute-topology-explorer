@@ -20,6 +20,7 @@ const flush = async () => { for (let i = 0; i < 12; i++) await new Promise((r) =
 
 const F = "../custom_components/meshroute_topology_explorer/frontend/";
 const { createLoader } = await import(`${F}ui/history-loader.js`);
+const { HistoryHost } = await import(`${F}ui/history-host.js`);
 const { openHistoryWindow, forgetTab } = await import(`${F}ui/history-window.js`);
 const { renderDetails } = await import(`${F}engines/zigbee/ui/details-tab.js`);
 const { renderThreadDetails } = await import(`${F}engines/thread/details.js`);
@@ -172,4 +173,80 @@ test("terms: the window tab is 'Direct link'; no user-visible 'Lane' in the text
     assert.ok(buttons(w.el).some((b) => text(b) === "Direct link"));
     w.close();
   }
+});
+
+// ---- the pill's small Direct link card (owner 2026-11-05, spec 9.5, board M37b B) -----------------------------------
+
+function cardHost(info = { record: true, keep_days: 90, last_error: null }, answer = response) {
+  const { callWS } = callWsFor(answer, info);
+  const root = new FakeEl("div");
+  const host = new HistoryHost({ root: () => root, callWS, network: () => network, theme: () => theme, t: () => t, view: () => null,
+    now: () => now, zone: "UTC", timers: globalThis });
+  const map = new FakeEl("div");
+  const links = [{ sender: router, hearer: coordinator, text: "64", lqi: 64, rssi: null, rankPct: 45 },
+    { sender: coordinator, hearer: router, text: "120", lqi: 120, rssi: null, rankPct: null }];
+  return { host, map, links, show: (at = { x: 100, y: 80 }) => host.showCard(map, at, router, coordinator, links) };
+}
+const keydown = (el, key) => el.listeners.keydown[0]({ key, preventDefault() {}, stopPropagation() {} });
+
+test("the pill card: title, both directions in one line each with a 48 h line, no window yet", async () => {
+  const { host, show } = cardHost();
+  show();
+  await flush();
+  const card = host.card.el;
+  assert.equal(host.window, null, "a card first, not the window");
+  assert.ok(text(card).includes(`Direct link: ${label(router)} ⇄ ${label(coordinator)}`));
+  assert.ok(text(card).includes(`${label(coordinator)} hears ${label(router)} · 64 · rank 45 %`));
+  assert.ok(text(card).includes(`${label(router)} hears ${label(coordinator)} · 120`) && !text(card).includes("120 · rank"));
+  assert.ok(find(card, (e) => cls(e) === "spark").length >= 1, "a sparkline once the history is loaded");
+});
+
+test("the card's buttons open the window on Direct link (last 48 h) or on Timeline, for the same pair, and close the card", async () => {
+  const { host, show } = cardHost();
+  show();
+  await flush();
+  const [direct, route] = find(host.card.el, (e) => cls(e).includes("button") && e.tag === "button");
+  assert.equal(text(direct), "Direct link history ⇄");
+  assert.equal(text(route), "Route history");
+  direct.click();
+  await flush();
+  assert.equal(host.card, null);
+  assert.equal(host.window.state.tab, "lane");
+  assert.equal(host.window.state.range, "48h");
+  assert.deepEqual([host.window.state.lane.x, host.window.state.lane.y], [router, coordinator]);
+  show();
+  find(host.card.el, (e) => cls(e).includes("button") && e.tag === "button")[1].click();
+  await flush();
+  assert.equal(host.window.state.tab, "timeline");
+  assert.equal(host.card, null);
+});
+
+test("the card closes with the x button, Escape and closeCard (a tap on the map); a second pill replaces it", async () => {
+  const { host, map, show } = cardHost();
+  show();
+  const first = host.card;
+  find(first.el, (e) => cls(e).includes("card-close"))[0].click();
+  assert.equal(host.card, null);
+  assert.ok(first.el.removed);
+  show();
+  keydown(host.card.el, "Escape");
+  assert.equal(host.card, null);
+  show();
+  host.closeCard();
+  assert.equal(host.card, null);
+  show();
+  const older = host.card;
+  show({ x: 300, y: 200 });
+  assert.ok(older.el.removed, "one card at a time");
+  assert.notEqual(host.card, older);
+  assert.equal(map.children.filter((c) => !c.removed).length, 1, "only the new card is left");
+});
+
+test("the card without a recording shows the values and says why there is no line", async () => {
+  const { host, show } = cardHost({ record: false, keep_days: null, last_error: null }, { k: response.k, records: [] });
+  show();
+  await flush();
+  assert.ok(text(host.card.el).includes("64"));
+  assert.ok(text(host.card.el).includes("Reception history is not recorded."));
+  assert.equal(find(host.card.el, (e) => cls(e) === "spark").length, 0);
 });

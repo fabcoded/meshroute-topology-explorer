@@ -4,6 +4,7 @@
 // one host and hands it getters, so a new network or a new translation needs no re-wiring. Runs in the browser.
 import { createLoader } from "./history-loader.js";
 import { openHistoryWindow } from "./history-window.js";
+import { openPairCard } from "./history-card.js";
 import { pairHops } from "../engines/index.js";
 import { h } from "./dom.js";
 import { settingsLink } from "./status-pill.js";
@@ -16,10 +17,24 @@ export class HistoryHost {
     this.deps = deps;
     this.loader = createLoader({ callWS: (m) => deps.callWS(m), network: () => deps.network(), now: deps.now });
     this.window = null;
+    this.card = null;
   }
 
+  /** The small Direct link card at a pill (spec 9.5); replaces the one open. at: { x, y } in `host`, links: GraphView.pairLinks. The
+   *  buttons close it and open the window on the Direct link tab (the last 48 h) or on Timeline. */
+  showCard(host, at, a, b, links) {
+    this.closeCard();
+    const d = this.deps;
+    const names = (id) => (d.network().devices.find((x) => x.id === id) || {}).label || id;
+    this.card = openPairCard({ host, t: d.t(), x: at.x, y: at.y, a, b, links, names, engine: d.network().engine, loader: this.loader,
+      onOpen: (tab) => { this.closeCard(); this.open(a, b, tab === "lane" ? { lane: { x: a, y: b } } : { tab }); },
+      onClose: () => { this.card = null; } });
+  }
+
+  closeCard() { if (this.card) this.card.close(); }
+
   /** The network or the recording changed: read again. */
-  clear() { this.loader.clear(); }
+  clear() { this.loader.clear(); this.closeCard(); }
 
   /** Tooltip of the badge at `other` while `selected` is selected: the title and, for Zigbee, the hop counts now. */
   badgeText(selected, other) {
@@ -37,6 +52,7 @@ export class HistoryHost {
 
   /** Open the window for a pair, on `tab` (default: the last used) or on the lane x-y's last 48 h. One window at a time. */
   open(a, b, { tab, lane, opener } = {}) {
+    this.closeCard();
     if (this.window) this.window.close();
     const d = this.deps;
     const view = d.view();
