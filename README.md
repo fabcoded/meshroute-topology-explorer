@@ -57,13 +57,15 @@ the integration therefore keeps a record of every link's reception, the routing 
 - **Own small files, nothing else.** Kept for 1 to 90 days (default 30; about 2.4 MB for 30 days on a network of 47
   devices), never in Home Assistant's recorder. Recording never starts a scan; the optional single scan 30 minutes after
   a start is off by default.
-- **One pair at a time.** Select a device; every other device then shows a small "?" badge. A click opens the window
-  for the two devices, with three views:
+- **One pair at a time, one click away.** Click a reception value on the map, press **History** in a device's Details,
+  or select a device and click the small "?" badge at another one. The window opens for the two devices (its second
+  name is a menu to change the partner), with three views:
   - **Timeline:** the route in each direction as spans over time, and below it the rank of the weakest hop at its
     receiver.
   - **Route:** the hops as a Metro-Map or in place on the map (Mesh), with a time slider. Earlier routes stay as faded
     ghosts.
-  - **Lane:** both directions of one link over time. A click on any reception pill opens it.
+  - **Direct link:** both directions of one link between two neighbours over time. A click on a reception pill in
+    the Route view opens it.
 - **48 h sparklines** in Details show how each neighbour's reception moved.
 - **Thread has no walked routes:** the Matter topology holds no routing table, so Thread shows the direct link and its
   neighbours per record, not a route.
@@ -78,7 +80,7 @@ the integration therefore keeps a record of every link's reception, the routing 
 <sub>The same pair in the Route view: the current routes there and back, earlier ones as ghosts. The history is a
 synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
 
-![Lane of Router 32 and Router 19, a hop of that route: the reception of both directions over the last 48 hours.](docs/images/history-lane.png)
+![Direct link of Router 32 and Router 19, a hop of that route: the reception of both directions over the last 48 hours.](docs/images/history-lane.png)
 
 ## What it does not do
 

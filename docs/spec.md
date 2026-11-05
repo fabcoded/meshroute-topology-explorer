@@ -742,12 +742,12 @@ One place per thing; nothing appears twice.
 - Click or tap selects a device in every view; the selection shows its paths in the node view (7.1) or plays its path
   (route view). Clicking the background or Esc clears it.
 - **Details** (left-panel tab): the name in bold, one line "type · role · vendor model" ("unavailable since …" below
-  when down), then a segmented control (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a
+  when down; administrators: a **History** button beside the name, 9.5), then a segmented control (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a
   small bold heading. At the narrowest side panel it takes less padding and type, never an ellipsis. The sub-tab stays
   when the selection changes.
   - **Communication**:
     - "Communication path with the coordinator": one line per path, every hop with the reception at its hearer, the
-      value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …"); an assumed return path
+      value in bold ("there: Sensor → Router 17 · RX 103 → Coordinator · RX 51", "back: …"), each line ending in a small "history ↗" (9.5); an assumed return path
       "back, assumed (source route): …" with a note; a recorded one "back, measured (route record, age unknown): …"
       with a note naming the radio library and that zigpy keeps no time for it; "Route record differs: via …" under a
       complete measured one the record contradicts (5.1); "path unknown" where a walk stops; an unavailable goal named
@@ -843,20 +843,30 @@ again when the connection is back.
 
 ### 9.5 Path history window [v1.1]
 
-Code: `frontend/ui/history-*.js` (window, loader, host, route, route-view, timeline, lane, sparkline, chart, texts); data:
+Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, route-view, timeline, lane, sparkline, chart, texts); data:
 5.8 and 10.2; boards M35, M36. Administrators only (the commands are admin only).
 
 - **Entry:** with a device selected, every other device shows a small grey badge at its top right, a question mark drawn
   as a route (hops between nodes; the hovered one dark). Hover: "Path history with {selected}" and, for Zigbee, "there 4
   hops · back 3 hops" (the live network's walks, selected to other and back). A click opens the window for the pair and
   leaves the selection. Thread: no hop counts.
-- **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Lane (the last one used is remembered), ranges 48 h, 7 d,
+- **One-click entries** (owner 2026-11-05), all to this same window on the tab used last (the first time Timeline), none
+  changes the map selection, administrators only: (1) a click on any value pill drawn on the map (the selection's lanes
+  and the overview's): the window for the lane's two devices; hit area at least 24 px around the pill, pointer cursor,
+  title "History: A ⇄ B"; (2) the **History** button next to the name in Details (9.2); (3) "history ↗" on the lines of
+  "Communication path with the coordinator". Terms: a **direct link** is two neighbours that hear each other (history in
+  both directions), a **route** is the way between two devices.
+- **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Direct link (the last one used is remembered), ranges 48 h, 7 d,
   30 d, 90 d limited to "Keep for" (read from `history/info`: `keep_days`, with `record` and `last_error`); a full-screen
   sheet on a phone. Records are read per range (`history/records`) and cached per network and range for 5 minutes; the
   live input is what the panel already holds (`network.live`).
+- **Partner menu:** the second name in the header is a menu: the coordinator (Thread: the border routers) first, then
+  the first device's neighbours by reception (strongest first), and a search over all devices. A change keeps tab and
+  range. The History button's partner: the coordinator, Thread the border router with the strongest link; for the
+  coordinator or a border router itself its strongest neighbour by reception.
 - **Timeline** (Zigbee): per direction a band of route spans ("via X, Y", "direct"; a walk that stopped is a dashed gap
   with its reason) and under it the rank of the weakest hop at its receiver over time (0 to 100 %), a point per record, the
-  weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest.
+  weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest; a route of one hop has none.
   Thread: a note, no bands.
 - **Route** with a switch Metro-Map | Mesh, a shared time slider (record ticks, play) and the record kept when switching.
   Metro-Map: there above, back below; stations are the map's symbols in shared columns with dotted verticals;
@@ -865,14 +875,14 @@ Code: `frontend/ui/history-*.js` (window, loader, host, route, route-view, timel
   line; routes before the shown record as faded dashed ghosts with their last value, no date. Mesh: the same hops at the
   devices' current map positions, each direction offset to the right of its travel, ghosts dashed. Thread: the direct
   link both ways (Metro-Map) and its neighbours in that record (Mesh), pills stacked ("−75 dBm" over "LQI 3").
-- **Lane:** a click on a pill (ghosts too) opens the Lane tab for that hop, centred on the record shown (±48 h, ±24 h, ±7 d,
+- **Direct link:** a click on a pill (ghosts too) opens the Direct link tab for that hop, centred on the record shown (±48 h, ±24 h, ±7 d,
   ±30 d), the pill and its two nodes ringed in Route. Above the chart the strip: the route's nodes, the lane's two ringed
   with both directions in the chart's colours, and "way back, Nov 2 08:00: hop 2 of 3". One LQI axis (0 to 255; Thread 0
   to 3) for both directions, blue "Y hears X", orange "X hears Y"; the clicked record dashed; "after now: no records" and
   "lane not used yet" as areas; hover crosshair with both values; "Show as table". Thread: RSSI in its own chart below,
   never a second axis. From a Details row: the last 48 h.
 - **Details** (9.2), "Heard by · hears": each row gets a 48 h sparkline (one grey series, the last point a dot) and "48 h
-  min–max"; a click opens the window on the tab Lane. Zigbee only.
+  min–max"; a click opens the window on the tab Direct link. Zigbee only.
 - **States:** not recorded ("Reception history is not recorded. Settings ↗", also instead of the sparklines), no records
   yet, source not supported (`last_error`), fewer than 3 records (points only), a refused command (message).
 - **Dev page:** `?history=<name>` reads `captures/<name>.json` (git-ignored), `sample` the committed fixture, `none`, `off`,
