@@ -255,10 +255,12 @@ if (q.get("sourceroute")) initial.sourceRoute = q.get("sourceroute"); // off | a
 if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"))]: [2.2, -1.6] };
 // history=<name>: the reception history the window reads, from captures/<name>.json (git-ignored, real) or `sample` (the
 // committed tests/fixtures/zha-history-sample.json, the default); history=none: nothing recorded yet; history=off:
-// recording is off; history=unsupported: the source reported a problem; keep=<days>: the "Keep for" option (default 90).
+// recording is off; history=long: tests/fixtures/zha-history-sample-long.json (7 days, 6 h steps, made with
+// `node tools/history_synth.mjs --sample --days 7 --step-hours 6`); history=unsupported: the source reported a problem; keep=<days>: the "Keep for" option (default 90).
 // Records older than a week are shifted so the newest lies 6 h back (ranges then work as live); newer ones keep their times.
 const historyName = q.get("history") || "sample";
 const historyUrl = historyName === "sample" ? "../tests/fixtures/zha-history-sample.json"
+  : historyName === "long" ? "../tests/fixtures/zha-history-sample-long.json"
   : /^[A-Za-z0-9._-]+$/.test(historyName) && !["none", "off", "unsupported"].includes(historyName) ? `../captures/${historyName}.json` : null;
 const historyFile = historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
 const historyTimes = historyFile.records.filter((r) => Number.isFinite(r.t)).map((r) => r.t);
@@ -460,6 +462,17 @@ async function drive() {
       profile: 0x0104, cluster: parseInt(q.get("cluster"), 16), direction: q.get("dir") === "out" ? "out" : "in",
       opener: null, devicePage: adapterFor(el._network).devicePage }));
     if (flag("readvalues") && el._dialog) el._dialog.read();
+  }
+  // pair=<label>&htab=timeline|route|lane&hrange=48h|7d|30d|90d: the path history window of the selected device and
+  // that device, as the "?" badge opens it (the README's history images).
+  if (q.get("pair") && id && el._history) {
+    const other = byLabel(q.get("pair")) || (el._network.devices.find((d) => d.label === q.get("pair")) || {}).id;
+    const win = other && el._history.open(id, other, { tab: q.get("htab") || "timeline" });
+    if (win && q.get("hrange")) {
+      await sleep(300);
+      const range = [...win.el.querySelectorAll(".hist-ranges .seg")].find((b) => b.textContent.replace(" ", "") === q.get("hrange"));
+      if (range) range.click();
+    }
   }
   const panel = q.get("right") ? el._right : el._left;
   // expand=theory[:n]: the Details card "Paths to other devices" opened, and its first n rows (default 2).

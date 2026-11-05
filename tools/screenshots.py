@@ -2,15 +2,17 @@
 # SPDX-License-Identifier: MIT
 """Render the README screenshots (docs/images/*.png) from the dev page and its anonymized sample.
 
-  python3 tools/screenshots.py [--chrome PATH] [--out DIR]
+  python3 tools/screenshots.py [--chrome PATH] [--out DIR] [--only NAME ...]
       --chrome  headless Chromium or chrome-headless-shell binary (default: newest under ~/.cache/ms-playwright,
                 installed by `npx playwright install chromium`)
       --out     where the PNGs go (default docs/images of this checkout)
+      --only    render just these shots (names as in SHOTS)
 
 Serves this checkout on 127.0.0.1:8793 with one extra page, /dev/shot.html: dev/panel.html with the dev menu
 hidden. Every shot is a query of that page (see dev/panel-demo.js), rendered by the Chromium binary directly (no
 npm package needed), then reduced to a 256-colour palette (Pillow, requirements-dev.txt). The sample network ships
-with the repository and holds no real names or addresses, so the images can be published.
+with the repository and holds no real names or addresses, so the images can be published. The history shots read
+the long synthetic sample history (tests/fixtures/zha-history-sample-long.json), never a capture.
 Why dense: at the default density the base fit lets a spread map reach past a 1280 px window (graph-view.js
 _fitCamera), and the README's first picture should show the whole network.
 """
@@ -21,6 +23,7 @@ import argparse
 import functools
 import glob
 import http.server
+import os
 import subprocess
 import sys
 import threading
@@ -28,14 +31,21 @@ from pathlib import Path
 
 from PIL import Image
 
-PORT = 8793
+PORT = int(os.environ.get("SHOT_PORT", 8793))  # SHOT_PORT: another port when 8793 is taken
 ROOT = Path(__file__).resolve().parent.parent
+
+HIST = (1100, 640)
 
 # name, window (CSS px), device scale, query of dev/shot.html
 SHOTS = [
     ("map-light", (1280, 760), 1.5, "density=dense&colors=1"),
     ("map-dark", (1280, 760), 1.5, "density=dense&colors=1&dark=1"),
     ("path-router16", (1440, 810), 1.5, "density=dense&colors=1&select=Router%2016&left=details"),
+    # Path history window of the pair Router 28 / Router 29 on the long synthetic sample history (7 days, 6 h steps).
+    ("history-timeline", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=timeline&hrange=7d"),
+    ("history-route", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=route&hrange=7d"),
+    ("history-lane", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2028&pair=Router%2029&htab=lane&hrange=7d"),
+    ("history-route-dark", HIST, 1.5, "density=dense&colors=1&dark=1&history=long&select=Router%2028&pair=Router%2029&htab=route&hrange=7d"),
     ("phone-map", (390, 844), 2, "phone=1&dark=1&density=dense&colors=1"),
     ("phone-findings", (390, 844), 2, "phone=1&dark=1&colors=1&left=findings"),
     ("phone-details", (390, 844), 2, "phone=1&dark=1&density=dense&colors=1&select=Router%2016&left=details"),
@@ -88,6 +98,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Render the README screenshots.")
     parser.add_argument("--chrome", help="Chromium or chrome-headless-shell binary")
     parser.add_argument("--out", type=Path, default=ROOT / "docs/images", help="output directory")
+    parser.add_argument("--only", nargs="+", metavar="NAME", help="render only these shots")
     args = parser.parse_args()
     out = args.out.resolve()
     browser = find_chrome(args.chrome)
@@ -96,6 +107,8 @@ def main() -> None:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         for name, (w, h), scale, query in SHOTS:
+            if args.only and name not in args.only:
+                continue
             png = out / f"{name}.png"
             # The virtual time budget lets the layout settle and the camera fit before the capture.
             subprocess.run([browser, "--no-sandbox", "--hide-scrollbars", f"--force-device-scale-factor={scale}",

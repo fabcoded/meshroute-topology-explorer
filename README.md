@@ -24,6 +24,8 @@ some of them never. Meshroute is built so that missing data stays visible as mis
   tables support them, with the reception at each hop.
 - **Reception relative to the receiver.** Radios report LQI on different scales. Each reading is ranked among
   everything the receiving device reports, so a low rank means low for that device.
+- **History, not only now.** After each of ZHA's own topology scans the integration keeps a record of every link's
+  reception, so you can see what changed and when ([History](#history-what-changed-and-when)).
 - **Findings with evidence.** Offline devices, routes into an offline device, end devices without a known parent:
   each finding names the table entries it rests on and the tables that are missing.
 - **Mouse, touch and keyboard**, a phone layout, light and dark theme.
@@ -47,6 +49,37 @@ other lamps. Selecting a device fades the rest of the network. The Details panel
 
 On a phone the panels open from the bottom: the overview, the findings, the details of one device.
 
+## History: what changed, and when
+
+A lamp that dropped out last night is usually gone from the tables by morning. After each of ZHA's own topology scans
+the integration therefore keeps a record of every link's reception, the routing tables and the end devices' parents:
+
+- **Own small files, nothing else.** Kept for 1 to 90 days (default 30; about 2.4 MB for 30 days on a network of 47
+  devices), never in Home Assistant's recorder. Recording never starts a scan; the optional single scan 30 minutes after
+  a start is off by default.
+- **One pair at a time.** Select a device; every other device then shows a small "?" badge. A click opens the window
+  for the two devices, with three views:
+  - **Timeline:** the route in each direction as spans over time, and below it the rank of the weakest hop at its
+    receiver.
+  - **Route:** the hops as a Metro-Map or in place on the map (Mesh), with a time slider. Earlier routes stay as faded
+    ghosts.
+  - **Lane:** both directions of one link over time. A click on any reception pill opens it.
+- **48 h sparklines** in Details show how each neighbour's reception moved.
+- **Thread has no walked routes:** the Matter topology holds no routing table, so Thread shows the direct link and its
+  neighbours per record, not a route.
+
+![Timeline of Router 28 and Router 29 over 7 days: the route there changes from direct to four hops, the weakest hop drops from 88 % to about 35 %; the route back stays direct.](docs/images/history-timeline.png)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/history-route-dark.png">
+  <img src="docs/images/history-route.png" alt="Route view of Router 28 and Router 29 as a Metro-Map: the current four-hop route there with reception at each hop, the weakest one in red, the earlier direct route as a faded ghost, the direct route back below.">
+</picture>
+
+<sub>The same pair in the Route view: the current route there, the earlier direct one as a ghost. The history is a
+synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
+
+![Lane of Router 28 and Router 29: the reception of both directions over the last 48 hours.](docs/images/history-lane.png)
+
 ## What it does not do
 
 - **It changes nothing.** No device control, no writes to the network. The only radio traffic it causes is a
@@ -59,7 +92,7 @@ On a phone the panels open from the bottom: the overview, the findings, the deta
 
 | Source | State |
 |---|---|
-| Zigbee through ZHA | 0.1.1 |
+| Zigbee through ZHA | 0.1.1; the reception history and the settings dialog are in the main branch, not yet released |
 | Thread through the Matter integration | preview |
 | Zigbee through Zigbee2MQTT | later |
 
