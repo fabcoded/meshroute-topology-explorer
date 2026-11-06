@@ -22,6 +22,34 @@ jobs:
       - run: python3 -m pip install -r requirements-dev.txt
       - run: npm ci --ignore-scripts
       - run: python3 tools/check.py
+  smoke:
+    # Browser smoke test on the dev page with the runner's Chrome; not a required check yet (quality plan S3).
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python3 -m pip install -r requirements-dev.txt
+      - run: python3 tools/smoke.py --chrome "$(command -v google-chrome)"
+      - name: Screenshots when the frontend changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --depth=1 origin "$BASE"
+          git diff --quiet "$BASE" HEAD -- 'custom_components/*/frontend' && exit 0
+          python3 tools/screenshots.py --chrome "$(command -v google-chrome)" --out "$RUNNER_TEMP/shots"
+      - if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
   hassfest:
     runs-on: ubuntu-latest
     timeout-minutes: 10

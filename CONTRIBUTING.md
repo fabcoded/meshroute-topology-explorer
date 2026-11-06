@@ -24,7 +24,8 @@ Home Assistant instance or real credentials.
 ## Checks
 
 `python3 tools/check.py` runs the hooks, the Python tests and the JavaScript tests and stops at the first failure.
-CI runs the same script. Single steps:
+CI runs the same script. `python3 tools/check.py --full` adds the browser smoke test (`tools/smoke.py`, needs a
+Chrome; skipped with one line if none is found; CI runs it in a separate job). Single steps:
 
 | Command | Checks |
 |---|---|

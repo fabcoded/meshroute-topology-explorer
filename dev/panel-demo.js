@@ -18,6 +18,10 @@ const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
 const el = document.querySelector("meshroute-topology-explorer");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Uncaught errors and rejected promises go to body[data-errors] for tools/smoke.py (a failed import leaves data-log unset).
+const noteError = (what) => { document.body.dataset.errors = `${document.body.dataset.errors || ""}${what} | `; };
+addEventListener("error", (e) => noteError(e.message));
+addEventListener("unhandledrejection", (e) => noteError(String(e.reason)));
 
 // ---- variant menu -------------------------------------------------------------------------------------------------
 
@@ -516,7 +520,10 @@ async function replay() {
     const arg = step.slice(at + 1);
     if (op === "click") root.querySelector(arg).click();
     else if (op === "focus") root.querySelector(arg).focus();
-    else if (op === "key") {
+    else if (op === "pill") { // pill:<hearer label>><sender label>: the card a click on that pair's pill opens (the canvas hit test is unit-tested)
+      const [a, b] = arg.split(">").map((label) => el._network.devices.find((d) => d.label === label).id);
+      el._view._emit("pill-click", { a, b, x: 300, y: 300 });
+    } else if (op === "key") {
       const target = root.activeElement || el;
       const handled = !target.dispatchEvent(new KeyboardEvent("keydown", { key: arg, bubbles: true, composed: true, cancelable: true }));
       if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
@@ -527,6 +534,8 @@ async function replay() {
       + `path ${location.pathname}; density ${el._settings && el._settings.settings.density}; `
       + `openDetailsOnSelect ${el._settings && el._settings.settings.openDetailsOnSelect}; `
       + `paths ${el._settings && el._settings.settings.paths}; view ${el._view && el._view.paths}; `
+      + `history ${(root.querySelector(".htab.on") || {}).textContent || "closed"}; `
+      + `card ${root.querySelector(".pair-card") ? "open" : "closed"}; menu ${root.querySelector("#mte-pill-menu") ? "open" : "closed"}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");
