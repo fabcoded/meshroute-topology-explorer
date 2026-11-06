@@ -47,7 +47,10 @@ JOURNEYS = [
 def run_journey(chrome: str, query: str) -> tuple[str, str]:
     """Load one dev-page URL and return (last state line, errors)."""
     url = f"http://127.0.0.1:{PORT}/dev/panel.html?{query}"
-    dom = subprocess.run([chrome, "--headless", "--no-sandbox", "--virtual-time-budget=10000", "--dump-dom", url],  # noqa: S603 - fixed arguments
+    # A fixed window: the overview skips lanes outside the view, and full Chrome's default window is smaller than
+    # the headless shell's, so the lane count would depend on the browser (CI drew 91 of 95).
+    dom = subprocess.run([chrome, "--headless", "--no-sandbox", "--window-size=1280,800", "--virtual-time-budget=10000",  # noqa: S603 - fixed arguments
+                          "--dump-dom", url],
                          check=True, capture_output=True, text=True, timeout=90).stdout
     grab = lambda name: html.unescape((re.search(rf'data-{name}="([^"]*)"', dom) or [None, ""])[1])  # noqa: E731
     return grab("log").split(" | ")[-1], grab("errors")
