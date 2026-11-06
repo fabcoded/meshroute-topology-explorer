@@ -30,6 +30,7 @@ CI runs the same script. Single steps:
 |---|---|
 | `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, JSON/YAML/TOML, merge markers, keys, large files |
 | `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
+| `MESHROUTE_UPDATE_GOLDENS=1 python3 -m unittest discover -s tests` | Rewrites the golden files in `tests/fixtures/golden/` (Python output that the JavaScript tests read too); review the diff |
 | `npm test` | JavaScript: the regular suite (`tests/**/*.test.mjs`, concurrent), then the CPU budgets alone (`tests/**/*.budget.mjs`, concurrency 1) |
 | `node --test tests/<name>.test.mjs` | One JavaScript test file |
 
