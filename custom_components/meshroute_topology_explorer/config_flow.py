@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
+import probatio  # replaced voluptuous in Home Assistant 2026.10; the minimum version follows
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow, OptionsFlowWithReload
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
@@ -74,18 +74,18 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
             current = {**get_options(None), **flat}
         else:
             current = get_options(self.config_entry.options)
-        history = vol.Schema({
-            vol.Required(CONF_RECORD, default=current[CONF_RECORD]): bool,
-            vol.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
-            vol.Required(CONF_DELETE_HISTORY, default=False): bool,
+        history = probatio.Schema({
+            probatio.Required(CONF_RECORD, default=current[CONF_RECORD]): bool,
+            probatio.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
+            probatio.Required(CONF_DELETE_HISTORY, default=False): bool,
         })
-        zha_section = vol.Schema({vol.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool})
+        zha_section = probatio.Schema({probatio.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool})
         schema = {
-            vol.Required(CONF_SIDEBAR, default=current[CONF_SIDEBAR]): bool,
-            vol.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
-            vol.Required(SECTIONS[0]): section(history, {"collapsed": False}),
-            vol.Required(SECTIONS[1]): section(zha_section, {"collapsed": False}),
+            probatio.Required(CONF_SIDEBAR, default=current[CONF_SIDEBAR]): bool,
+            probatio.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
+            probatio.Required(SECTIONS[0]): section(history, {"collapsed": False}),
+            probatio.Required(SECTIONS[1]): section(zha_section, {"collapsed": False}),
         }
-        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema), errors=errors,
+        return self.async_show_form(step_id="init", data_schema=probatio.Schema(schema), errors=errors,
                                     description_placeholders={
             "zha_scan": describe(zha), "days_range": f"{KEEP_DAYS_RANGE[0]} to {KEEP_DAYS_RANGE[1]}"})

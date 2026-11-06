@@ -90,10 +90,19 @@ class FlowTest(Base):
         result = ha_stubs.run(self.flow({"keep_days": 7}).async_step_init())
         self.assertEqual((result["type"], result["errors"]), ("form", {}))
         history = result["data_schema"]["history"][1][1]
-        self.assertEqual(history["keep_days"][0].default, 7)
+        self.assertEqual(history["keep_days"][0].default(), 7)
         self.assertNotIn("record_hours", history)
         self.assertEqual(set(result["data_schema"]["zha"][1][1]), {"scan_after_start"})  # no period field
         self.assertEqual(result["description_placeholders"]["zha_scan"], "ZHA scans every 240 min")
+
+    def test_form_schema_is_probatio_with_defaults(self):
+        result = ha_stubs.run(self.flow({}).async_step_init())
+        self.assertIn("probatio", sys.modules)
+        self.assertNotIn("voluptuous", sys.modules)
+        schema = result["data_schema"]
+        self.assertEqual({k: schema[k][0].default() for k in ("sidebar", "radio_actions")}, {"sidebar": True, "radio_actions": True})
+        history = schema["history"][1][1]
+        self.assertFalse(history["delete_history"][0].default())  # deleting is never preselected
 
     def test_zha_line_for_off_unknown_and_unreadable(self):
         self.zha_patch.stop()

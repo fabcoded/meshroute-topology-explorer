@@ -176,10 +176,13 @@ def install():
             super().__init__({getattr(k, "schema", k): (k, v) for k, v in schema.items()})
 
     class Required:
-        def __init__(self, schema, default=None):
-            self.schema, self.default = schema, default
+        """Like probatio's marker: the default is stored as a zero-argument factory."""
 
-    mod("voluptuous", Schema=Schema, Required=Required)
+        def __init__(self, schema, default=None):
+            self.schema = schema
+            self.default = lambda: default
+
+    mod("probatio", Schema=Schema, Required=Required)
     mod("homeassistant.config_entries", ConfigEntry=object, SIGNAL_CONFIG_ENTRY_CHANGED="config_entry_changed", ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
         OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))

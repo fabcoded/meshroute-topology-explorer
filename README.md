@@ -100,7 +100,7 @@ synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
 
 ## Install
 
-Requirements: Home Assistant 2026.9 or newer with ZHA set up. The panel is for administrators.
+Requirements: Home Assistant 2026.10 or newer with ZHA set up. The panel is for administrators.
 
 1. In HACS open the three-dot menu, then Custom repositories.
 2. Add `https://github.com/fabcoded/meshroute-topology-explorer` with type Integration.

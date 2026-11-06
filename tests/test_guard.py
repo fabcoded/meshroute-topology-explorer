@@ -26,6 +26,15 @@ class GuardTest(unittest.TestCase):
         root = self.tree({"custom_components/x/panel.js": SPDX + "hass.callWS({ type: 'zha/devices' })\n"})
         self.assertEqual(guard.check(root), [])
 
+    def test_voluptuous_import_is_flagged_in_shipped_python(self):
+        src = "# SPDX-License-Identifier: MIT\nimport voluptuous as vol\n"
+        root = self.tree({"custom_components/x/config_flow.py": src, "tools/t.py": src})
+        findings = guard.check(root)
+        self.assertEqual(len(findings), 1)
+        self.assertIn("config_flow.py:2", findings[0])
+        ok = self.tree({"custom_components/x/config_flow.py": "# SPDX-License-Identifier: MIT\nimport probatio\n"})
+        self.assertEqual(guard.check(ok), [])
+
     def test_secret_command_is_flagged(self):
         root = self.tree({"custom_components/x/panel.js": SPDX + "hass.callWS({ type: 'otbr/info' })\n"})
         self.assertIn("otbr/", guard.check(root)[0])  # the whole otbr/ namespace is out: otbr/info returns the key

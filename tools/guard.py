@@ -16,6 +16,7 @@
   list) and, for the reception history (sources.py), call the registered handlers of `zha/devices` and
   `matter/network_topology` (refresh false) in-process, and nothing else of zigpy or ZHA: PY_DENY names the internals that
   hold network settings, keys or their saved copies, and the calls that send to the radio or change the network.
+- Shipped Python must not import voluptuous (Home Assistant 2026.10 replaced it by probatio, the minimum version).
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
 - Shipped files (everything under custom_components/ except vendor/) may only have the extensions in SHIPPED_EXT.
@@ -92,6 +93,7 @@ URL = re.compile(r"""(?:(?:https?|wss?):|(?<=['"`(=\s]))//[a-z0-9-]+(?:\.[a-z0-9
 URL_ALLOW = ("https://github.com/fabcoded/meshroute-topology-explorer",)
 NAMESPACES = ("http://www.w3.org/2000/svg",)
 SELF = {"tools/guard.py", "tests/test_guard.py"}  # they have to spell out the deny-list
+VOLUPTUOUS = re.compile(r"\s*(import|from)\s+voluptuous\b")  # like Home Assistant's own ban
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv"}
 
 
@@ -155,6 +157,9 @@ def check(root: Path) -> list[str]:
                     if term in line:
                         denied = True
                         findings.append(f"{rel}:{n}: names {term}: zigpy or ZHA internals beyond the route records (spec 3.4)")
+            if shipped and path.suffix == ".py" and VOLUPTUOUS.match(line):
+                denied = True
+                findings.append(f"{rel}:{n}: voluptuous is gone from Home Assistant 2026.10; use probatio")
             if shipped and not denied:  # one finding per line is enough
                 findings.extend(f"{rel}:{n}: {msg}" for msg in content_findings(line))
             if shipped:
