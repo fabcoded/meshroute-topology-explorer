@@ -44,7 +44,7 @@ class WebSocket:
         self.closed = False
 
     @classmethod
-    def connect(cls, url: str, timeout: float = 10.0, cafile: str | None = None) -> "WebSocket":
+    def connect(cls, url: str, timeout: float = 10.0, cafile: str | None = None) -> WebSocket:
         """Open the connection and do the upgrade handshake; raises WebSocketError on any deviation."""
         parts = urlsplit(url)
         if parts.scheme not in ("ws", "wss") or not parts.hostname:

@@ -1,0 +1,7 @@
+# L2 tests (tests_ha/) against the latest Home Assistant release. Python 3.14.2 or newer. Dependabot proposes bumps
+# monthly; a bump is a pull request whose CI runs the tests against the new release. Never install together with
+# requirements-ha-min.txt. Pin sources: the frontend and zigpy versions are those the pinned release requires
+# (homeassistant/components/frontend/manifest.json, zha/manifest.json -> zha 2.4.2 -> zigpy).
+pytest-homeassistant==2026.11.0
+home-assistant-frontend==20261028.4
+zigpy==2.4.1

@@ -1,7 +1,7 @@
 # Development lint only; the integration is not installed as a Python package.
 # Usage: pre-commit run ruff --all-files. The Ruff version is pinned once, in .pre-commit-config.yaml.
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 # Correctness first; avoid a repository-wide formatting rewrite.
@@ -13,3 +13,10 @@ max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"tests_ha/**" = ["S101"]
+
+# L2 tests against a real Home Assistant (tests_ha/, quality plan S4); the only place pytest is used.
+[tool.pytest.ini_options]
+testpaths = ["tests_ha"]
+pythonpath = ["."]
+asyncio_mode = "auto"

@@ -7,6 +7,7 @@ It stops on an unsupported toolchain first, so a run on other versions is not mi
 without node_modules fails in the ESLint hook with "run npm ci" (package.json lint script).
 """
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -16,9 +17,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
-    full = "--full" in sys.argv[1:]  # --full adds the browser smoke test (tools/smoke.py) when a Chrome is found
-    if sys.version_info[:2] != (3, 13):
-        print("Use Python 3.13, matching CI.", file=sys.stderr)
+    full = "--full" in sys.argv[1:]  # --full adds tests_ha (when its package imports) and the browser smoke test (tools/smoke.py, when a Chrome is found)
+    if sys.version_info[:2] != (3, 14):
+        print("Use Python 3.14, matching CI.", file=sys.stderr)
         return 1
     for command in ("pre-commit", "node", "npm"):
         if shutil.which(command) is None:
@@ -39,6 +40,15 @@ def main() -> int:
         if result.returncode:
             return result.returncode
     if full:
+        # L2 (tests_ha/) needs the Home Assistant test package, which is not in requirements-dev.txt (it pins
+        # Home Assistant); install requirements-ha-latest.txt into a separate environment to run it.
+        if importlib.util.find_spec("pytest_homeassistant") or importlib.util.find_spec("pytest_homeassistant_custom_component"):
+            print("Running: pytest tests_ha", flush=True)
+            result = subprocess.run([sys.executable, "-m", "pytest", "tests_ha", "-q"], cwd=ROOT, check=False)
+            if result.returncode:
+                return result.returncode
+        else:
+            print("Skipping tests_ha: Home Assistant test package not installed (requirements-ha-latest.txt).")
         if not (shutil.which("google-chrome") or shutil.which("chromium") or list(Path.home().glob(".cache/ms-playwright/chromium*"))):
             print("Skipping smoke test: no Chrome found.")
             return 0

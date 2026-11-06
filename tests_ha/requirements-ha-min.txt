@@ -1,0 +1,7 @@
+# L2 tests (tests_ha/) against the minimum supported Home Assistant, 2026.10.4. Python 3.14.2 or newer. The release
+# 2026.10.x has no pytest-homeassistant (that package starts with 2026.11.0); its predecessor still tracks it and
+# says it is superseded. Frontend and zigpy are those this release's frontend and zha manifests require (zha 2.3.1).
+# Never install together with ../requirements-ha-latest.txt.
+pytest-homeassistant-custom-component==0.13.375
+home-assistant-frontend==20260930.5
+zigpy==2.3.0
