@@ -50,7 +50,8 @@ stays calm, and raw values, tables and scans are one click away.
 ## Code
 
 - English in code, comments and docs. Plain ES modules (no TypeScript, no decorators). The integration uses only what
-  Home Assistant ships; Python tools and unit tests use the standard library only. Development linters and hooks are
+  Home Assistant ships; Python tools and unit tests (`tests/`) use the standard library only; the one exception is `tests_ha/`, which
+  runs pytest against a real Home Assistant (owner decision 2026-11-06, quality plan L2) and is never part of `tests/`. Development linters and hooks are
   pinned in `package-lock.json` and `.pre-commit-config.yaml` and never shipped.
 - Each file opens with what it does, how to run it, and `SPDX-License-Identifier: MIT`. Comments explain why.
 - Run `python3 tools/check.py` before handing over a change. Unit tests run without devices in under a minute.

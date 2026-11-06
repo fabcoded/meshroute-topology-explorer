@@ -7,7 +7,7 @@ under the MIT License.
 
 ## Development setup
 
-Python 3.13 and Node.js 22 (22.13 or newer), as in CI; `tools/check.py` refuses other versions. These packages are
+Python 3.14 and Node.js 22 (22.13 or newer), as in CI; `tools/check.py` refuses other versions. These packages are
 for development only. From the repository root:
 
 ```sh
@@ -32,6 +32,7 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 | `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, JSON/YAML/TOML, merge markers, keys, large files |
 | `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
 | `MESHROUTE_UPDATE_GOLDENS=1 python3 -m unittest discover -s tests` | Rewrites the golden files in `tests/fixtures/golden/` (Python output that the JavaScript tests read too); review the diff |
+| `python3 -m pytest tests_ha` | L2, in its own environment: the integration inside a real Home Assistant test instance, plus a zigpy contract test. Setup below |
 | `npm test` | JavaScript: the regular suite (`tests/**/*.test.mjs`, concurrent), then the CPU budgets alone (`tests/**/*.budget.mjs`, concurrency 1) |
 | `node --test tests/<name>.test.mjs` | One JavaScript test file |
 
@@ -42,6 +43,14 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.
 - Versions are locked in `package-lock.json` and `.pre-commit-config.yaml`; Dependabot proposes updates monthly.
 - Hassfest and, once the repository is public, HACS validation run only in CI.
+
+## Tests against a real Home Assistant (tests_ha)
+
+Needs Python 3.14.2 or newer and its own environment, because the Home Assistant test package pins Home Assistant:
+`python3 -m venv .venv-ha && .venv-ha/bin/pip install -r requirements-ha-latest.txt && .venv-ha/bin/python -m pytest tests_ha`.
+`tests_ha/requirements-ha-min.txt` does the same for the minimum release (never install both). `check.py --full` runs the
+folder when the package imports in the active environment. CI runs both pins; a new Home Assistant release arrives as
+a Dependabot pull request for `requirements-ha-latest.txt`.
 
 ## Bug reports
 
