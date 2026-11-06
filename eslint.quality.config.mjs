@@ -4,7 +4,7 @@
 import sonarjs from "eslint-plugin-sonarjs";
 
 export default [
-  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv/**"] },
+  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv*/**"] },
   {
     files: ["**/*.{js,mjs,cjs}"],
     languageOptions: { ecmaVersion: 2022, sourceType: "module" },

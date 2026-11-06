@@ -4,7 +4,7 @@ import js from "@eslint/js";
 import globals from "globals";
 
 export default [
-  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv/**"] },
+  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv*/**"] },
   js.configs.recommended,
   {
     files: ["**/*.{js,mjs,cjs}"],

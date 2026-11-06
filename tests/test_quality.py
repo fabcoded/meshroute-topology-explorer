@@ -29,5 +29,14 @@ class QualityTest(unittest.TestCase):
         self.assertIn("| Duplication (%) | 0.2 | 0.2 | 0.2 | <= 3 | ok |", text)
 
 
+class ToolFailureTest(unittest.TestCase):
+    def test_crashed_tool_stops_the_report(self):
+        # A crash must not read as 0 findings (seen 2026-11-06: missing ESLint plugin gave complexity 0).
+        with self.assertRaises(SystemExit):
+            quality.tool_json([sys.executable, "-c", "import sys; sys.exit(2)"])
+        with self.assertRaises(SystemExit):
+            quality.tool_json([sys.executable, "-c", "print('not json')"])
+        self.assertEqual(quality.tool_json([sys.executable, "-c", "print('[]'); raise SystemExit(1)"]), [])
+
 if __name__ == "__main__":
     unittest.main()

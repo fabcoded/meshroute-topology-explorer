@@ -40,6 +40,17 @@ def run(cmd, **kw):
     return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False, **kw)  # noqa: S603 - fixed lists
 
 
+def tool_json(cmd, ok=(0, 1)):
+    """Run a linter with JSON output. A crash or a missing tool stops the report: it must never read as 0 findings."""
+    r = run(cmd)
+    try:
+        if r.returncode in ok:
+            return json.loads(r.stdout)
+    except json.JSONDecodeError:
+        pass
+    sys.exit(f"{' '.join(cmd[:2])} failed (exit {r.returncode}): {r.stderr.strip()[-300:]}")
+
+
 def changed_lines(base):
     """Map file -> set of added or changed line numbers versus the merge base (working tree included)."""
     mb = run(["git", "merge-base", base, "HEAD"]).stdout.strip() or base
@@ -73,8 +84,10 @@ def js_coverage(tmp):
     run(["node", "--test", "--experimental-test-coverage", f"--test-coverage-include={FRONT}**/*.js",
              "--test-reporter=lcov", f"--test-reporter-destination={lcov}",
              "--test-reporter=spec", f"--test-reporter-destination={spec}", "tests/**/*.test.mjs"])
+    if not lcov.exists():
+        sys.exit("node --test wrote no coverage")
     files, cur = {}, None
-    for line in lcov.read_text().splitlines() if lcov.exists() else []:
+    for line in lcov.read_text().splitlines():
         if line.startswith("SF:"):
             cur = files.setdefault(str(Path(line[3:]).resolve().relative_to(ROOT)), {})
         elif line.startswith("DA:"):
@@ -92,8 +105,10 @@ def py_coverage(tmp):
     r = run([sys.executable, "-m", "coverage", "run", "--source=custom_components", "-m", "unittest", "discover", "-s", "tests"], env=env)
     secs = round(time.time() - t0, 1)
     run([sys.executable, "-m", "coverage", "json", "-o", str(out)], env=env)
+    if not out.exists():
+        sys.exit(f"coverage.py wrote no report: {r.stderr.strip()[-300:]}")
     files = {}
-    for name, d in (json.loads(out.read_text())["files"] if out.exists() else {}).items():
+    for name, d in json.loads(out.read_text())["files"].items():
         files[name] = {**{n: 0 for n in d["missing_lines"]}, **{n: 1 for n in d["executed_lines"]}}
     count = re.search(r"^Ran (\d+) tests?", r.stderr, re.M)
     return files, int(count[1]) if count else None, secs
@@ -105,8 +120,7 @@ def duplication(tmp, changed):
              "--ignore", "**/fixtures/**,**/vendor/**", "--reporters", "json", "--output", tmp, "--silent"])
     rep = Path(tmp) / "jscpd-report.json"
     if not rep.exists():
-        print(r.stderr[-300:], file=sys.stderr)
-        return None, None
+        sys.exit(f"jscpd wrote no report: {r.stderr.strip()[-300:]}")
     data = json.loads(rep.read_text())
     dup = set()
     for d in data.get("duplicates", []):
@@ -119,15 +133,15 @@ def duplication(tmp, changed):
 
 def eslint_complexity():
     """Return (cognitive-complexity findings above 15, [(file, line)]) from the measurement-only ESLint config."""
-    r = run(["node", "node_modules/eslint/bin/eslint.js", "-c", "eslint.quality.config.mjs", ".", "-f", "json"])
-    hits = [(str(Path(f["filePath"]).relative_to(ROOT)), m["line"]) for f in json.loads(r.stdout or "[]") for m in f["messages"]]
+    out = tool_json(["node", "node_modules/eslint/bin/eslint.js", "-c", "eslint.quality.config.mjs", ".", "-f", "json"])
+    hits = [(str(Path(f["filePath"]).relative_to(ROOT)), m["line"]) for f in out for m in f["messages"]]
     return len(hits), hits
 
 
 def ruff(args):
     """Run ruff check with JSON output; return [(file, line)] of findings."""
-    r = run(["ruff", "check", "--output-format", "json", "--no-cache", *args])
-    return [(str(Path(m["filename"]).relative_to(ROOT)), m["location"]["row"]) for m in json.loads(r.stdout or "[]")]
+    out = tool_json(["ruff", "check", "--output-format", "json", "--no-cache", *args])
+    return [(str(Path(m["filename"]).relative_to(ROOT)), m["location"]["row"]) for m in out]
 
 
 def smoke_journeys():
@@ -171,7 +185,7 @@ def measure(base, check_seconds):
     m["cov_js_testable"] = pct(sum(a for a, _ in jt), sum(b for _, b in jt))
     cc_js, js_hits = eslint_complexity()
     py_cc = ruff(["--select", "C901", "--ignore-noqa", "--config", "lint.mccabe.max-complexity = 15", "."])
-    es = json.loads(run(["node", "node_modules/eslint/bin/eslint.js", ".", "-f", "json"]).stdout or "[]")
+    es = tool_json(["node", "node_modules/eslint/bin/eslint.js", ".", "-f", "json"])
     findings = len(ruff(["."])) + sum(f["errorCount"] + f["warningCount"] for f in es)
     m.update(cc_js=cc_js, cc_py=len(py_cc), dup_pct=dup_pct, lint_findings=findings,
              tests_python=n_py, tests_node=n_node, tests_smoke_journeys=smoke_journeys(),
