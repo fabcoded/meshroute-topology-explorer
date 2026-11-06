@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Run development checks without devices. Usage: python3 tools/check.py; see CONTRIBUTING.md.
+"""Run development checks without devices. Usage: python3 tools/check.py [--full]; see CONTRIBUTING.md.
 
 CI runs this script, so a local pass means the same checks as CI; hassfest and HACS validation run only in CI.
 It stops on an unsupported toolchain first, so a run on other versions is not mistaken for CI parity. A checkout
@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
+    full = "--full" in sys.argv[1:]  # --full adds the browser smoke test (tools/smoke.py) when a Chrome is found
     if sys.version_info[:2] != (3, 13):
         print("Use Python 3.13, matching CI.", file=sys.stderr)
         return 1
@@ -37,6 +38,12 @@ def main() -> int:
         result = subprocess.run(command, cwd=ROOT, check=False)  # noqa: S603 - fixed argument lists above
         if result.returncode:
             return result.returncode
+    if full:
+        if not (shutil.which("google-chrome") or shutil.which("chromium") or list(Path.home().glob(".cache/ms-playwright/chromium*"))):
+            print("Skipping smoke test: no Chrome found.")
+            return 0
+        print("Running: tools/smoke.py", flush=True)
+        return subprocess.run([sys.executable, "tools/smoke.py"], cwd=ROOT, check=False).returncode
     return 0
 
 
