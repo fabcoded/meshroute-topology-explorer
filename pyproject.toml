@@ -20,3 +20,6 @@ max-complexity = 15
 testpaths = ["tests_ha"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+# HA 2026.11 aliases httpx to httpx2 on import and fails if httpx came first; respx's plugin imports httpx and
+# entry-point order varies by machine (CI failed, local passed). The tests do not use respx.
+addopts = "-p no:respx"
