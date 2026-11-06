@@ -47,7 +47,7 @@ JOURNEYS = [
 def run_journey(chrome: str, query: str) -> tuple[str, str]:
     """Load one dev-page URL and return (last state line, errors)."""
     url = f"http://127.0.0.1:{PORT}/dev/panel.html?{query}"
-    dom = subprocess.run([chrome, "--no-sandbox", "--virtual-time-budget=10000", "--dump-dom", url],  # noqa: S603 - fixed arguments
+    dom = subprocess.run([chrome, "--headless", "--no-sandbox", "--virtual-time-budget=10000", "--dump-dom", url],  # noqa: S603 - fixed arguments
                          check=True, capture_output=True, text=True, timeout=90).stdout
     grab = lambda name: html.unescape((re.search(rf'data-{name}="([^"]*)"', dom) or [None, ""])[1])  # noqa: E731
     return grab("log").split(" | ")[-1], grab("errors")

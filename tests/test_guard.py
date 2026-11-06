@@ -211,7 +211,7 @@ class GuardTest(unittest.TestCase):
                 self.assertNotIn(term, text, f"{f.name} names {term}")
 
     def test_virtualenv_is_skipped(self):
-        root = self.tree({".venv/lib/x.py": "print(1)\n"})
+        root = self.tree({".venv/lib/x.py": "print(1)\n", ".venv314/lib/y.py": "print(2)\n"})
         self.assertEqual(guard.check(root), [])
 
     def test_repository_itself_is_clean(self):

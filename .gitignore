@@ -3,7 +3,7 @@
 captures/
 __pycache__/
 node_modules/
-.venv/
+.venv*/
 .ruff_cache/
 # Raw or unanonymized captures written to the root by tools/capture.py --out
 /capture*.json

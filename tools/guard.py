@@ -124,9 +124,14 @@ def content_findings(line: str) -> list[str]:
     return out
 
 
+def skipped(part: str) -> bool:
+    """Tool folders, including extra virtual environments such as .venv314 for another Python."""
+    return part in SKIP_DIRS or part.startswith(".venv")
+
+
 def files(root: Path):
     for path in sorted(root.rglob("*")):
-        if path.is_file() and not SKIP_DIRS & set(path.relative_to(root).parts):
+        if path.is_file() and not any(skipped(p) for p in path.relative_to(root).parts):
             yield path
 
 
