@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT
+# Quality report (plan S6/S6b, report only): per pull request a summary and a JSON artifact; weekly a trend line in the
+# branch `quality` (quality.jsonl plus quality/index.md, never in main). Locally: python3 tools/quality.py.
+# Actions are pinned to commit SHAs like ci.yml; the measuring tools are pinned in requirements-dev.txt, package-lock.json
+# and tools/quality.py (jscpd). Ruff is pinned here to the version of .pre-commit-config.yaml.
+name: quality
+on:
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"  # Mondays
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "22"
+      - run: python3 -m pip install -r requirements-dev.txt ruff==0.17.0
+      - run: npm ci --ignore-scripts
+      - name: Measure against the PR base
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/quality.py --base "$BASE" --json "$RUNNER_TEMP/quality.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: quality
+          path: ${{ runner.temp }}/quality.json
+  weekly:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write  # only this job pushes, only to the branch `quality`
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "22"
+      - run: python3 -m pip install -r requirements-dev.txt ruff==0.17.0
+      - run: npm ci --ignore-scripts
+      - name: Measure main (timing check.py)
+        run: |
+          start=$(date +%s)
+          python3 tools/check.py
+          python3 tools/quality.py --check-seconds "$(( $(date +%s) - start ))" --json "$RUNNER_TEMP/quality.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Append to the branch quality
+        run: |
+          if git ls-remote --exit-code --heads origin quality >/dev/null; then
+            git fetch origin quality && git worktree add "$RUNNER_TEMP/q" -B quality origin/quality
+          else
+            git worktree add --orphan -b quality "$RUNNER_TEMP/q"
+          fi
+          python3 - "$RUNNER_TEMP" <<'PY'
+          import json, subprocess, sys, datetime
+          tmp = sys.argv[1]
+          m = json.load(open(f"{tmp}/quality.json"))["metrics"]
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          line = {"date": datetime.date.today().isoformat(), "sha": sha, **m}
+          open(f"{tmp}/q/quality.jsonl", "a").write(json.dumps(line) + "\n")
+          PY
+          mkdir -p "$RUNNER_TEMP/q/quality"
+          python3 tools/quality.py --index "$RUNNER_TEMP/q/quality.jsonl" > "$RUNNER_TEMP/q/quality/index.md"
+          cd "$RUNNER_TEMP/q"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add quality.jsonl quality/index.md
+          git commit -m "Weekly quality run $(date -u +%F)" -m "Provenance: automated, github-actions"
+          git push origin quality
