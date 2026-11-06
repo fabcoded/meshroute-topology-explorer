@@ -10,9 +10,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import ws_client  # noqa: E402
-from ws_client import WebSocket, WebSocketError, WebSocketTimeout  # noqa: E402
-from ws_fake import FakeServer  # noqa: E402
+import ws_client
+from ws_client import WebSocket, WebSocketError, WebSocketTimeout
+from ws_fake import FakeServer
 
 
 class WebSocketTest(unittest.TestCase):
@@ -28,14 +28,12 @@ class WebSocketTest(unittest.TestCase):
             ws.close()
 
     def test_wrong_accept_key_is_refused(self):
-        with FakeServer(behavior=["bad_accept"]) as server:
-            with self.assertRaisesRegex(WebSocketError, "Accept"):
-                self.connect(server)
+        with FakeServer(behavior=["bad_accept"]) as server, self.assertRaisesRegex(WebSocketError, "Accept"):
+            self.connect(server)
 
     def test_no_upgrade_is_refused(self):
-        with FakeServer(behavior=["no_upgrade"]) as server:
-            with self.assertRaisesRegex(WebSocketError, "upgrade"):
-                self.connect(server)
+        with FakeServer(behavior=["no_upgrade"]) as server, self.assertRaisesRegex(WebSocketError, "upgrade"):
+            self.connect(server)
 
     def test_scheme_and_connection_errors(self):
         with self.assertRaises(WebSocketError):

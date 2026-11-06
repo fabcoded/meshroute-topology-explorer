@@ -59,7 +59,7 @@ def _application(hass: HomeAssistant) -> Any:
     try:
         # Imported here, not at module level: the integration must load without ZHA, and once ZHA is loaded the module
         # is already imported, so this does not touch the disk inside the event loop.
-        from homeassistant.components.zha.helpers import get_zha_gateway  # noqa: PLC0415
+        from homeassistant.components.zha.helpers import get_zha_gateway
     except ImportError as err:
         raise NotSupported(REASON_INTERNALS_CHANGED, f"ZHA's helper is not where it was ({err})") from None
     try:
@@ -129,7 +129,7 @@ async def ws_zigpy_routes(hass: HomeAssistant, connection: Any, msg: dict[str, A
     except NotSupported as err:
         connection.send_error(msg_id, websocket_api.ERR_NOT_SUPPORTED, str(err))
         return
-    except Exception as err:  # noqa: BLE001 - internals of another integration: never raise into Home Assistant
+    except Exception as err:
         _LOGGER.debug("Reading zigpy's route records failed", exc_info=True)
         connection.send_error(msg_id, websocket_api.ERR_NOT_SUPPORTED, f"{REASON_ERROR}: {type(err).__name__}")
         return

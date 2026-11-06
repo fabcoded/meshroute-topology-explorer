@@ -8,6 +8,7 @@ need (bad accept key, rejected token, silence, fragmentation, ping, unknown comm
 """
 
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -18,7 +19,7 @@ from pathlib import Path
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "zha-sample.json"
-TOKEN = "test-token-DO-NOT-LEAK-0123456789"
+TOKEN = "test-token-DO-NOT-LEAK-0123456789"  # noqa: S105 - fake token the tests must never see leaked
 
 
 def make_responses() -> dict:
@@ -76,10 +77,8 @@ class FakeServer:
         return f"http://127.0.0.1:{self.port}"
 
     def close(self) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self.sock.shutdown(socket.SHUT_RDWR)  # wakes the blocked accept()
-        except OSError:
-            pass
         self.sock.close()
 
     def __enter__(self):
@@ -136,8 +135,8 @@ class FakeServer:
         request = b""
         while b"\r\n\r\n" not in request:
             request += conn.recv(4096)
-        key = [ln.split(":", 1)[1].strip() for ln in request.decode().split("\r\n") if ln.lower().startswith("sec-websocket-key")][0]
-        accept = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+        key = next(ln.split(":", 1)[1].strip() for ln in request.decode().split("\r\n") if ln.lower().startswith("sec-websocket-key"))
+        accept = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()  # noqa: S324 - fixed by RFC 6455, not a security use
         if "bad_accept" in self.behavior:
             accept = base64.b64encode(os.urandom(20)).decode()
         if "no_upgrade" in self.behavior:

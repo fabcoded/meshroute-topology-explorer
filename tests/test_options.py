@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
-import ha_stubs  # noqa: E402
+import ha_stubs
 
 
 class Base(unittest.TestCase):

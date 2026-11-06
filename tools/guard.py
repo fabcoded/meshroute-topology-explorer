@@ -88,7 +88,7 @@ HTML_SINK = re.compile(
 NOT_COMMANDS = ("text/", "application/", "image/", "font/", "audio/", "video/")
 SOURCE = (".py", ".js", ".mjs", ".cjs")
 SHIPPED_EXT = {".png", ".json", ".js", ".mjs", ".py", ".css", ".svg", ".html", ".md"}
-TEXT = SOURCE + (".html", ".css", ".json", ".svg", ".yaml", ".yml", ".md", ".txt")
+TEXT = (*SOURCE, ".html", ".css", ".json", ".svg", ".yaml", ".yml", ".md", ".txt")
 URL = re.compile(r"""(?:(?:https?|wss?):|(?<=['"`(=\s]))//[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?[^\s'"`)<>]*""", re.IGNORECASE)
 URL_ALLOW = ("https://github.com/fabcoded/meshroute-topology-explorer",)
 NAMESPACES = ("http://www.w3.org/2000/svg",)
@@ -130,7 +130,7 @@ def files(root: Path):
             yield path
 
 
-def check(root: Path) -> list[str]:
+def check(root: Path) -> list[str]:  # noqa: C901, PLR0912 - existing; see plan-qualitaet S6
     """All findings as 'path:line: message', sorted by path."""
     findings = []
     for path in files(root):

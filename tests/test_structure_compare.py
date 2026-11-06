@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-import structure_compare as sc  # noqa: E402
+import structure_compare as sc
 
 MARKER = "ZXQ_UNIQUE_MARKER_7731"
 

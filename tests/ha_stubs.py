@@ -22,7 +22,7 @@ COMPONENT = "custom_components.meshroute_topology_explorer"
 class FakeStore:
     """Records what the integration does; `stored` is the pretend file content (None = no file)."""
 
-    instances = []
+    instances = []  # noqa: RUF012 - shared on purpose: tests inspect what every instance recorded
     stored = None
     load_error = None
 
@@ -60,7 +60,7 @@ def fake_json_bytes(obj):
             return {str(k): walk(v, depth + 1) for k, v in o.items()}
         if isinstance(o, list):
             return [walk(v, depth + 1) for v in o]
-        if isinstance(o, float) and o != o or o in (float("inf"), float("-inf")):
+        if (isinstance(o, float) and o != o) or o in (float("inf"), float("-inf")):
             return None
         if not isinstance(o, (str, int, float, bool, type(None))):
             raise TypeError("Type is not JSON serializable")
@@ -120,7 +120,7 @@ class FakeHass:
         return func(*args)
 
 
-def install():
+def install():  # noqa: C901 - existing; see plan-qualitaet S6
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
     rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[])

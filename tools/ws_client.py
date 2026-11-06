@@ -12,6 +12,7 @@ Tests: tests/test_ws_client.py.
 """
 
 import base64
+import contextlib
 import hashlib
 import os
 import socket
@@ -54,7 +55,7 @@ class WebSocket:
             if parts.scheme == "wss":
                 context = ssl.create_default_context(cafile=cafile)  # verifies chain and host name
                 sock = context.wrap_socket(sock, server_hostname=parts.hostname)
-        except socket.timeout as exc:
+        except TimeoutError as exc:
             raise WebSocketTimeout("connection timed out") from exc
         except ssl.SSLError as exc:
             raise WebSocketError(f"TLS failed: {exc.reason or 'handshake error'}") from exc
@@ -90,7 +91,7 @@ class WebSocket:
         for line in lines[1:]:
             name, _, value = line.partition(":")
             headers[name.strip().lower()] = value.strip()
-        expected = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+        expected = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()  # noqa: S324 - fixed by RFC 6455, not a security use
         if headers.get("sec-websocket-accept") != expected:
             raise WebSocketError("Sec-WebSocket-Accept does not match: not a websocket server")
 
@@ -99,7 +100,7 @@ class WebSocket:
         try:
             self.sock.settimeout(self._remaining())
             self.sock.sendall(data)
-        except socket.timeout as exc:
+        except TimeoutError as exc:
             raise WebSocketTimeout("send timed out") from exc
         except OSError as exc:
             raise WebSocketError("connection lost while sending") from exc
@@ -117,7 +118,7 @@ class WebSocket:
         try:
             self.sock.settimeout(self._remaining())
             chunk = self.sock.recv(65536)
-        except socket.timeout as exc:
+        except TimeoutError as exc:
             raise WebSocketTimeout("timed out") from exc
         except OSError as exc:
             raise WebSocketError("connection lost") from exc
@@ -201,10 +202,8 @@ class WebSocket:
     def _answer_close(self, payload: bytes) -> None:
         if not self.closed:
             self.closed = True
-            try:
+            with contextlib.suppress(WebSocketError):
                 self._send_frame(CLOSE, payload[:2])
-            except WebSocketError:
-                pass
 
     def close(self) -> None:
         """Close handshake: send close, wait briefly for the echo, then drop the socket."""

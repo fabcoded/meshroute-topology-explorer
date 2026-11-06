@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-import guard  # noqa: E402
+import guard
 
 SPDX = "// SPDX-License-Identifier: MIT\n"
 
