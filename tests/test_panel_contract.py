@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-import ha_stubs  # noqa: E402
+import ha_stubs
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "custom_components" / "meshroute_topology_explorer" / "frontend"

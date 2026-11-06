@@ -124,7 +124,7 @@ class CaptureTest(unittest.TestCase):
                 self.assertFalse([t for t in guard.DENY if t in line], f"{name}:{n}")
 
     def test_token_never_in_messages_or_file(self):
-        secret = "wrong-token-XYZ-987"
+        secret = "wrong-token-XYZ-987"  # noqa: S105 - dummy token the tool must not print
         with FakeServer() as server:
             code, out, err = self.run_tool(server, token=secret)
         self.assertEqual(code, 3)
@@ -184,7 +184,7 @@ class CaptureTest(unittest.TestCase):
 
     def test_anonymizer_refusal_writes_nothing(self):
         with FakeServer() as server, mock.patch.object(capture.anonymize_capture, "anonymize", side_effect=ValueError("x")):
-            code, _, err = self.run_tool(server)
+            code, _, _err = self.run_tool(server)
         self.assertEqual(code, 6)
         self.assertFalse(self.out.exists())
 

@@ -22,7 +22,7 @@ COMPONENT = "custom_components.meshroute_topology_explorer"
 class FakeStore:
     """Records what the integration does; `stored` is the pretend file content (None = no file)."""
 
-    instances = []
+    instances = []  # noqa: RUF012 - shared on purpose: tests inspect what every instance recorded
     stored = None
     load_error = None
 
@@ -60,7 +60,7 @@ def fake_json_bytes(obj):
             return {str(k): walk(v, depth + 1) for k, v in o.items()}
         if isinstance(o, list):
             return [walk(v, depth + 1) for v in o]
-        if isinstance(o, float) and o != o or o in (float("inf"), float("-inf")):
+        if (isinstance(o, float) and o != o) or o in (float("inf"), float("-inf")):
             return None
         if not isinstance(o, (str, int, float, bool, type(None))):
             raise TypeError("Type is not JSON serializable")
@@ -120,7 +120,7 @@ class FakeHass:
         return func(*args)
 
 
-def install():
+def install():  # noqa: C901 - existing; see plan-qualitaet S6
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
     rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[])
@@ -176,10 +176,13 @@ def install():
             super().__init__({getattr(k, "schema", k): (k, v) for k, v in schema.items()})
 
     class Required:
-        def __init__(self, schema, default=None):
-            self.schema, self.default = schema, default
+        """Like probatio's marker: the default is stored as a zero-argument factory."""
 
-    mod("voluptuous", Schema=Schema, Required=Required)
+        def __init__(self, schema, default=None):
+            self.schema = schema
+            self.default = lambda: default
+
+    mod("probatio", Schema=Schema, Required=Required)
     mod("homeassistant.config_entries", ConfigEntry=object, SIGNAL_CONFIG_ENTRY_CHANGED="config_entry_changed", ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
         OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))

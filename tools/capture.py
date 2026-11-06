@@ -25,8 +25,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import anonymize_capture  # noqa: E402
-from ws_client import WebSocket, WebSocketError, WebSocketTimeout  # noqa: E402
+import anonymize_capture
+from ws_client import WebSocket, WebSocketError, WebSocketTimeout
 
 VERSION = "1"
 # Spec 3.4. Only the read commands; zha/topology/update would cause radio traffic and is not needed here.
@@ -126,7 +126,7 @@ def _converse(ws: WebSocket, token: str, timeout: float, matter: bool = False) -
 
 def build_capture(ha_version: str, answers: dict) -> dict:
     """Capture in the format of anonymize_capture.py, plus a meta block."""
-    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
     return {"meta": {"tool": "meshroute-topology-explorer capture.py", "version": VERSION,
                      "ha_version": ha_version, "captured_at": now},
             "hass_version": ha_version, "language": None, "responses": answers}

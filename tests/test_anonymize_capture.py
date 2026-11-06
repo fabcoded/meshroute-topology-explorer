@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-import anonymize_capture as anon  # noqa: E402
+import anonymize_capture as anon
 
 # Invented values only: locally administered EUI-64s (02:…), no real device, network or entry
 IEEE_C, IEEE_R, IEEE_E = "02:00:00:00:00:00:00:01", "02:00:00:00:00:00:00:02", "02:00:00:00:00:00:00:03"
@@ -90,7 +90,7 @@ class AllowListTest(unittest.TestCase):
         capture = json.loads(json.dumps(CAPTURE))
         r = capture["responses"]
         r["zha/devices"][1]["owner_note"] = "Anna's flat"
-        r["zha/devices"][1]["neighbors"][0]["vendor_secret"] = "x"
+        r["zha/devices"][1]["neighbors"][0]["vendor_secret"] = "x"  # noqa: S105 - dummy value; the anonymizer must drop the key
         r["zha/devices"][1]["entities"][0]["original_name"] = "Anna's lamp"
         r["zha/devices"][0]["routes"][0]["comment"] = "x"
         r["zha/devices"][0]["signature"] = {"endpoints": {"1": {"profile_id": "0x0104", "label": "Anna"}}, "note": "Anna"}

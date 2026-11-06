@@ -23,7 +23,7 @@ def main() -> int:
         if shutil.which(command) is None:
             print(f"Missing {command}; follow CONTRIBUTING.md setup.", file=sys.stderr)
             return 1
-    node = subprocess.run(["node", "--version"], check=True, capture_output=True, text=True).stdout.strip()
+    node = subprocess.run(["node", "--version"], check=True, capture_output=True, text=True).stdout.strip()  # noqa: S607 - node/npm/pre-commit come from the activated toolchain
     version = tuple(int(part) for part in node.removeprefix("v").split(".")[:2])
     if version[0] != 22 or version[1] < 13:
         print(f"Use Node.js 22.13 or newer in the 22.x series; found {node}.", file=sys.stderr)
@@ -34,7 +34,7 @@ def main() -> int:
         ["npm", "test"],
     ):
         print(f"Running: {' '.join(command)}", flush=True)
-        result = subprocess.run(command, cwd=ROOT, check=False)
+        result = subprocess.run(command, cwd=ROOT, check=False)  # noqa: S603 - fixed argument lists above
         if result.returncode:
             return result.returncode
     return 0

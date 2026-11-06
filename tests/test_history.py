@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
-import ha_stubs  # noqa: E402
+import ha_stubs
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DAY = datetime(2026, 11, 1, 12, 0, tzinfo=UTC).timestamp()
@@ -245,7 +245,7 @@ class SourcesTest(unittest.TestCase):
         listed = sum(len(d["neighbors"]) for d in self.zha if d.get("available") is not False and d.get("neighbors"))
         self.assertGreater(len(entries), 100)
         self.assertLessEqual(len(entries), listed)
-        (receiver, sender), (lqi, rssi) = next(iter(entries.items()))
+        (receiver, _sender), (lqi, rssi) = next(iter(entries.items()))
         self.assertRegex(receiver, r"^([0-9a-f]{2}:){7}[0-9a-f]{2}$")
         self.assertIsInstance(lqi, int)
         self.assertIsNone(rssi)
@@ -330,7 +330,7 @@ class SourcesTest(unittest.TestCase):
                           {"id": "2", "network_type": "thread", "ext_pan_id": "aa", "available": False}],
                 "connections": [{"network": "thread", "source": "1", "target": "2",
                                  "source_to_target": {"lqi": 9, "rssi": 127}, "target_to_source": {"lqi": 1}}]}
-        network, snapshot, collected = self.src.parse_thread(topo)
+        _network, snapshot, collected = self.src.parse_thread(topo)
         self.assertIsNone(collected)
         entries = snapshot.neighbours
         # source_to_target has nothing valid; the unavailable node's table is stale -> no entry at all

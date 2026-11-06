@@ -21,6 +21,7 @@ Deleting a day file is the whole retention; the previous record per network is t
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from collections.abc import Iterator
@@ -202,10 +203,8 @@ class HistoryFiles:
         for _n, _d, path in self._files():
             path.unlink(missing_ok=True)
         self._state.clear()
-        try:
+        with contextlib.suppress(OSError):  # absent or holding files that are not ours: leave it
             self.folder.rmdir()
-        except OSError:
-            pass  # absent or holding files that are not ours: leave it
 
     def series(self, network: str, receiver: str, sender: str, since: float) -> list[list[Any]]:
         """Points [time, lqi(, rssi)] of what `receiver`'s table reported for `sender`, records since `since`."""

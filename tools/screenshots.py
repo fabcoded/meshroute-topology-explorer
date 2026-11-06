@@ -56,7 +56,7 @@ def handler_for(root: Path):
     """Static files of the checkout; /dev/shot.html is dev/panel.html with the dev menu hidden."""
 
     class Handler(http.server.SimpleHTTPRequestHandler):
-        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
+        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,  # noqa: RUF012 - read-only table, as in the base class
                           ".js": "text/javascript", ".mjs": "text/javascript"}
 
         def do_GET(self):
@@ -111,7 +111,7 @@ def main() -> None:
                 continue
             png = out / f"{name}.png"
             # The virtual time budget lets the layout settle and the camera fit before the capture.
-            subprocess.run([browser, "--no-sandbox", "--hide-scrollbars", f"--force-device-scale-factor={scale}",
+            subprocess.run([browser, "--no-sandbox", "--hide-scrollbars", f"--force-device-scale-factor={scale}",  # noqa: S603 - argument list built from fixed values
                             f"--window-size={w},{h}", "--virtual-time-budget=8000", f"--screenshot={png}",
                             f"http://127.0.0.1:{PORT}/dev/shot.html?{query}"],
                            check=True, capture_output=True, timeout=90)

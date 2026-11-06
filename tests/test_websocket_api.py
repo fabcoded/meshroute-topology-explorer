@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-import ha_stubs  # noqa: E402
+import ha_stubs
 
 PREFIX = "meshroute_topology_explorer"
 

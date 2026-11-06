@@ -36,21 +36,16 @@ from pathlib import Path
 DEFAULT_OURS = "custom_components/meshroute_topology_explorer/frontend"
 EXTENSIONS = {".js", ".mjs", ".cjs"}
 KEYWORDS = frozenset(
-    "async await break case catch class const continue debugger default delete do else export extends finally for "
-    "from function if import in instanceof let new null of return static super switch this throw true false try "
-    "typeof undefined var void while with yield get set".split()
+    ["async", "await", "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do", "else", "export", "extends", "finally", "for", "from", "function", "if", "import", "in", "instanceof", "let", "new", "null", "of", "return", "static", "super", "switch", "this", "throw", "true", "false", "try", "typeof", "undefined", "var", "void", "while", "with", "yield", "get", "set"]
 )
 # Keywords after which a `/` starts a regex rather than a division.
-REGEX_AFTER_KEYWORD = frozenset("return typeof case delete void throw in of instanceof new do else yield await".split())
+REGEX_AFTER_KEYWORD = frozenset(["return", "typeof", "case", "delete", "void", "throw", "in", "of", "instanceof", "new", "do", "else", "yield", "await"])
 # Names too common to say anything; the overlap list is a weak signal and should not be dominated by them.
 TRIVIAL_IDS = frozenset(
-    "length push forEach filter reduce value values keys entries console document window Object Array String Number "
-    "Boolean Math Map Set Promise JSON Error prototype constructor toString addEventListener removeEventListener "
-    "querySelector getAttribute setAttribute appendChild createElement classList style textContent event target "
-    "type name data node nodes index result error options config callback resolve reject".split()
+    ["length", "push", "forEach", "filter", "reduce", "value", "values", "keys", "entries", "console", "document", "window", "Object", "Array", "String", "Number", "Boolean", "Math", "Map", "Set", "Promise", "JSON", "Error", "prototype", "constructor", "toString", "addEventListener", "removeEventListener", "querySelector", "getAttribute", "setAttribute", "appendChild", "createElement", "classList", "style", "textContent", "event", "target", "type", "name", "data", "node", "nodes", "index", "result", "error", "options", "config", "callback", "resolve", "reject"]
 )
 OPERATORS = sorted(
-    ">>>= ... === !== **= <<= >>= >>> &&= ||= ??= => == != <= >= && || ?? ?. ++ -- += -= *= /= %= &= |= ^= << >> **".split(),
+    [">>>=", "...", "===", "!==", "**=", "<<=", ">>=", ">>>", "&&=", "||=", "??=", "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<", ">>", "**"],
     key=len, reverse=True,
 )
 IDENT_START = re.compile(r"[A-Za-z_$\u0080-￿]")
@@ -59,7 +54,7 @@ NUMBER = re.compile(r"(?:0[xXbBoO][0-9a-fA-F_]+|(?:\d[\d_]*\.?[\d_]*|\.\d[\d_]*)
 MAX_ANCHORS = 40  # occurrences of one fingerprint per file used as run anchors (boilerplate guard)
 
 
-def tokenize(src: str) -> tuple[list[str], list[int], list[str]]:
+def tokenize(src: str) -> tuple[list[str], list[int], list[str]]:  # noqa: C901, PLR0912, PLR0915 - existing; see plan-qualitaet S6
     """Return (normalized tokens, line of each token, raw identifiers in order); heuristics in the module doc."""
     tokens: list[str] = []
     lines: list[int] = []

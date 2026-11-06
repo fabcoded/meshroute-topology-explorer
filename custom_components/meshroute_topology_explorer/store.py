@@ -41,7 +41,7 @@ class PanelStore:
             if self._networks is None:
                 try:
                     data = await self._store.async_load()
-                except Exception as err:  # noqa: BLE001
+                except Exception as err:
                     # E.g. a file written by a newer version. Never replace it with an empty one.
                     _LOGGER.error("Cannot read the stored panel data: %s", err)
                     raise StoreUnavailable from err

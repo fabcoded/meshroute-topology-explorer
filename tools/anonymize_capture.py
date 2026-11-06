@@ -167,7 +167,7 @@ def _topology(responses: dict) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _thread_mapping(responses: dict, mapping: dict) -> None:
+def _thread_mapping(responses: dict, mapping: dict) -> None:  # noqa: PLR0912 - existing; see plan-qualitaet S6
     """Replacements for the Thread topology: extended addresses (bare hex, any case, also inside "br_<address>"
     ids), extended PAN ids, network names, border-router host names and Home Assistant device ids."""
     topo = _topology(responses)
@@ -222,7 +222,7 @@ def _shift_topology(responses: dict) -> None:
     topo = responses.get(TOPOLOGY)
     if not isinstance(topo, dict) or not isinstance(topo.get("collected_at"), (int, float)):
         return
-    anchor = int(ANCHOR.replace(tzinfo=dt.timezone.utc).timestamp() * 1000)
+    anchor = int(ANCHOR.replace(tzinfo=dt.UTC).timestamp() * 1000)
     delta = anchor - int(topo["collected_at"])
     topo["collected_at"] = anchor
     for node in topo.get("nodes", []):
@@ -233,7 +233,7 @@ def _shift_topology(responses: dict) -> None:
 def naive_utc(stamp: str) -> dt.datetime:
     """Parse an ISO time; times with a zone are converted to UTC and the zone dropped, so all compare alike."""
     when = dt.datetime.fromisoformat(stamp)
-    return when.astimezone(dt.timezone.utc).replace(tzinfo=None) if when.tzinfo else when
+    return when.astimezone(dt.UTC).replace(tzinfo=None) if when.tzinfo else when
 
 
 def shift_times(responses: dict) -> dict:

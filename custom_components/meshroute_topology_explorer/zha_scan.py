@@ -14,6 +14,7 @@ The period lives in ZHA's configuration.yaml (`zha: zigpy_config: topology_scan_
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable, Mapping
 from typing import Any, NamedTuple
 
@@ -103,10 +104,8 @@ def attach(found: Any, callback: Callable[[], None]) -> Callable[[], None]:
 
     def detach() -> None:
         nonlocal found
-        try:
+        with contextlib.suppress(Exception):  # zigpy internals; a failed removal must not break the unload
             found.remove_listener(listener)
-        except Exception:  # noqa: BLE001 - zigpy internals; a failed removal must not break the unload
-            pass
         found = None  # the old application must not be kept alive by us
 
     return detach
