@@ -59,6 +59,13 @@ Search existing issues first. Give the revision, Home Assistant version, network
 and actual result, and attach an anonymized capture you have looked through (see [README.md](README.md)).
 Security issues: [SECURITY.md](SECURITY.md).
 
+## Issues and fixes
+
+- Bugs and user-visible wishes live in GitHub issues; wishes carry a user story and acceptance criteria.
+- A fix closes its issue from the commit (`Fixes #12`) and brings a test that fails without it and names the issue.
+- When a bug can recur elsewhere in the same form, a guard or lint rule covers the whole class, not only the one place.
+- What stays true after the fix goes into the spec; the issue keeps the history.
+
 ## Release checklist
 
 1. Set the version in three places, which `tests/test_integration_files.py` requires to be equal: `"version"` in
