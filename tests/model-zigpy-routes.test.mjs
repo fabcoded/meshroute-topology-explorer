@@ -5,6 +5,7 @@
 // data load. npm test
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { responses, sampleNetwork } from "./panel-fixture.mjs";
 import { fakeZigpyRoutes } from "./zigpy-fake.mjs";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
@@ -256,4 +257,14 @@ test("zigpy stage: the overview draws the recorded and the zigpy-assumed return 
     const sc = sceneClasses(scene, stage);
     for (const l of lanes) assert.equal(sc.cls[scene.laneByKey.get(key(l)).index], laneClass(l, stage), `${stage} ${key(l)}`);
   }
+});
+
+test("golden: the answer as Python's read_routes writes it parses to records; unnamed relay and empty relay list kept", () => {
+  const z = parseZigpyRoutes(JSON.parse(readFileSync(new URL("./fixtures/golden/zigpy-routes.json", import.meta.url), "utf8")));
+  assert.equal(z.radio, "zigpy_znp");
+  assert.deepEqual([...z.records.keys()], ["00:00:00:00:00:00:00:04", "00:00:00:00:00:00:00:05", "00:00:00:00:00:00:00:06"]);
+  assert.deepEqual(z.records.get("00:00:00:00:00:00:00:04"), { nwk: 0x3333, relays: [
+    { nwk: 0x2222, ieee: "00:00:00:00:00:00:00:03" }, { nwk: 0x1111, ieee: "00:00:00:00:00:00:00:02" }] });
+  assert.deepEqual(z.records.get("00:00:00:00:00:00:00:05").relays, []);
+  assert.deepEqual(z.records.get("00:00:00:00:00:00:00:06").relays, [{ nwk: 0x9999, ieee: null }]);
 });

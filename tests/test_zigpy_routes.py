@@ -14,6 +14,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import ha_stubs
+import golden
 
 COMMAND = "meshroute_topology_explorer/zigpy_routes"
 
@@ -154,6 +155,13 @@ class ZigpyRoutesTest(unittest.TestCase):
         for d in answer["devices"]:  # plain ints, not zigpy types: the answer is JSON
             self.assertIs(type(d["nwk"]), int)
             self.assertTrue(all(type(r["nwk"]) is int for r in d["relays"]))
+
+    def test_answer_matches_golden(self):
+        """The answer's JSON shape, committed for the panel's parser (tests/model-zigpy-routes.test.mjs)."""
+        self.with_app([ZigbeeDevice(1, 0), ZigbeeDevice(2, 0x1111), ZigbeeDevice(3, 0x2222),
+                       ZigbeeDevice(4, 0x3333, relays(0x2222, 0x1111)), ZigbeeDevice(5, 0x4444, relays()),
+                       ZigbeeDevice(6, 0x5555, relays(0x9999)), GreenPowerDevice(7)])
+        golden.check(self, "zigpy-routes.json", golden.dumps(self.call()[0][0][1]))
 
     def test_shared_address_is_not_named(self):
         self.with_app([ZigbeeDevice(1, 0), ZigbeeDevice(2, 0x1111), ZigbeeDevice(3, 0x1111),

@@ -1,0 +1,26 @@
+{
+ "data": {
+  "networks": {
+   "zha": {
+    "observations": {
+     "fingerprints": {
+      "00:11": {
+       "h": "abc",
+       "t": 1
+      }
+     }
+    },
+    "settings": {
+     "pins": {
+      "00:11": [
+       0.5,
+       0.25
+      ]
+     },
+     "spread": 1.44
+    }
+   }
+  }
+ },
+ "version": 1
+}

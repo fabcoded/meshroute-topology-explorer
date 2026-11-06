@@ -261,3 +261,39 @@ test("parents from p: two parents take the one that lists the child with the bet
   assert.equal(none0.table.p.length, 0);
   assert.equal(none.timeline(coordinator, child).points[0].back.ids[1], parentOf, "live parent for records without p");
 });
+
+const golden = (n) => JSON.parse(readFileSync(new URL(`./fixtures/golden/${n}`, import.meta.url), "utf8"));
+
+test("golden: history/records as Python writes it decodes to the known day; the raw day file decodes the same", () => {
+  const s = decodeRecords(golden("history-records.json"));
+  assert.deepEqual(s.map((x) => x.t), [1793534400, 1793538000, 1793541600]);
+  assert.deepEqual(s[0].table, { e: [["c", "r1", 200, -50], ["r1", "c", 180, null], ["r1", "e1", 90, -70]],
+    r: [["c", "e1", "r1", "Active"]], l: [["e1", ["r1"]]], p: [["e1", "r1"]] });
+  assert.equal(s[1].table, s[0].table); // time-only record: nothing changed
+  assert.deepEqual(s[2].table, { e: [["c", "r2", 255, null]], r: [], l: [["r2", []]], p: [] });
+  const lines = readFileSync(new URL("./fixtures/golden/history-day.jsonl", import.meta.url), "utf8")
+    .trim().split("\n").map((x) => JSON.parse(x));
+  assert.deepEqual(decodeRecords({ records: lines }), s);
+});
+
+// Seeded PRNG (mulberry32): fixed seeds keep the random tables reproducible.
+const prng = (a) => () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+test("tableWalk on random tables with self-loops and mutual next hops: always ends, visits a holder once", () => {
+  for (let seed = 1; seed <= 5; seed++) {
+    const rnd = prng(seed);
+    const pick = (n) => Math.floor(rnd() * n);
+    const devices = Array.from({ length: 8 }, (_, i) => ({ id: `d${i}`, role: i === 0 ? "coordinator" : i < 6 ? "router" : "end device",
+      available: true, hasTable: true, parent: i < 6 ? null : `d${pick(6)}` }));
+    const routes = Array.from({ length: 30 }, () => ({ owner: `d${pick(6)}`, destination: `d${pick(8)}`, nextHop: `d${pick(8)}`,
+      status: "Active", stale: false })); // next hop may equal the owner (self-loop) or point back (mutual)
+    const network = { devices, routes, readings: [] };
+    for (const a of devices) for (const b of devices) {
+      const w = tableWalk(network, a.id, b.id);
+      assert.equal(new Set(w.ids).size, w.ids.length, `seed ${seed} ${a.id}>${b.id} visits a holder twice`);
+      assert.equal(w.ids[0], a.id);
+      if (w.complete) assert.equal(w.ids.at(-1), b.id);
+    }
+  }
+});

@@ -993,6 +993,8 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
 
 ## 11. Settings per network [v1]
 
+*Format goldens:* `tests/fixtures/golden/` holds the on-disk formats as written by the current code (day file, `history/records` answer, `zigpy_routes` answer, store file version 1); a format change keeps the old file there as the sample to migrate from.
+
 Each network keeps its settings under its id (ZHA: config entry id; Thread: `thread-` plus the extended PAN id). The
 chosen network (`network`: `zha` or `thread`) is stored under the reserved id `panel` by read-merge-write; the first
 load shows Zigbee.
