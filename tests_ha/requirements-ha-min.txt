@@ -3,5 +3,5 @@
 # says it is superseded. Frontend and zigpy are those this release's frontend and zha manifests require (zha 2.3.1).
 # Never install together with ../requirements-ha-latest.txt.
 pytest-homeassistant-custom-component==0.13.375
-home-assistant-frontend==20260930.5
-zigpy==2.3.0
+home-assistant-frontend==20261028.3
+zigpy==2.4.1

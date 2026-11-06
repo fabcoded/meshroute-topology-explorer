@@ -3,5 +3,5 @@
 # requirements-ha-min.txt. Pin sources: the frontend and zigpy versions are those the pinned release requires
 # (homeassistant/components/frontend/manifest.json, zha/manifest.json -> zha 2.4.2 -> zigpy).
 pytest-homeassistant==2026.11.0
-home-assistant-frontend==20261028.4
+home-assistant-frontend==20261028.3
 zigpy==2.4.1
