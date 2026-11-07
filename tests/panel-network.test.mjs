@@ -138,12 +138,23 @@ test("status line for Thread: coverage, collection time with age, missing border
   const parts = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
   assert.deepEqual(parts.map(([k]) => k), ["status.source", "status.thread_links", "status.thread_read"]);
   assert.equal(t(parts[1][0], parts[1][1]), "Links with both directions: 3/5");
-  assert.equal(t(parts[2][0], parts[2][1]), "read 14:14 (5 min ago)");
+  assert.equal(t(parts[2][0], parts[2][1]), "snapshot 14:14 (5 min ago)");
   const noBr = { ...thread, status: { ...thread.status, borderRouters: 0 } };
   assert.equal(threadParts(noBr, {}).at(-1)[0], "status.thread_no_br");
   assert.deepEqual(threadParts(thread, { compact: true }).map(([k]) => k), ["status.short_thread_links"]);
   assert.deepEqual(ageParts("2026-01-01T12:00:00Z", Date.parse("2026-01-01T12:07:30Z")), ["status.age_minutes", { n: 7 }]);
   assert.deepEqual(ageParts("2026-01-01T12:00:00Z", Date.parse("2026-01-01T15:00:00Z")), ["status.age_hours", { n: 3 }]);
+});
+
+test("#13: Thread status does not present collected_at as the read time of the tables", () => {
+  const t = translator("en");
+  const [key, params, note] = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } }).at(-1);
+  assert.equal(key, "status.thread_read");
+  assert.match(t(key, params), /^snapshot /);
+  assert.doesNotMatch(t(key, params), /read/);
+  assert.match(t(note), /many hours old/);
+  assert.match(t(note), /read time is not reported/);
+  assert.match(t("details.thread_note"), /hours old/);
 });
 
 test("map: the overview draws parent links and neighbours; a click shows the device's own lanes and glyphs", () => {
