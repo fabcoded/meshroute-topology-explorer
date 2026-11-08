@@ -7,7 +7,7 @@
 //
 // What the snapshot gives and what it does not (capability set, spec 4.6): readings per direction (Thread link
 // quality 0-3 and RSSI in dBm, measured by the receiver), the role of each node (leader, router, end device, sleepy
-// end device, border router), a collection time. It has no next hop per destination: routes stay empty, so there
+// end device, border router), a snapshot time. It has no next hop per destination: routes stay empty, so there
 // are no paths, path stages or theoretical paths for Thread, and no up or down lanes; a parent link (an end device and
 // the router it is attached to) is the only traffic the map can name. Unknown stays unknown: a missing value is null,
 // never 0.
@@ -108,7 +108,7 @@ function largestNetwork(nodes) {
 
 /** The snapshot mapped for the Thread engine's model: the Thread nodes of the largest network (by extended PAN id) as
  *  devices (labels made distinct), the readings of available reporters, the stale ones of unavailable reporters, the
- *  links and what could not be resolved, the extended PAN id and the collection time. tableRead marks a device whose
+ *  links and what could not be resolved, the extended PAN id and the snapshot time. tableRead marks a device whose
  *  neighbour table came with the snapshot. Null when the answer holds no Thread node. */
 export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};

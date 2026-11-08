@@ -3,9 +3,10 @@
 // npm test
 
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
- *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when the panel's
- *  snapshot was built with its age (collected: { time, age }, formatted by the panel; `collected_at` is the time of
- *  the request, not the read time of the Thread tables, which the snapshot does not report; the note says so), and "no border router listed" when the snapshot names none. */
+ *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
+ *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
+ *  router listed" when the snapshot names none. `collected_at` is the time of the request, not the read time of the
+ *  Thread tables, which the snapshot does not report; the note says so. */
 export function threadParts(network, { collected = null, compact = false } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];

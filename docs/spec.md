@@ -97,7 +97,7 @@ The panel reads through Home Assistant's websocket API and requires an administr
   older Home Assistant `unknown_command`; both grey the Thread entry of the network switch (9.1) with "Home Assistant
   2026.9 or newer is required"; ZHA stays.
 - Read once per load, only when the Matter integration is loaded (`config_entries/get`, domain `matter`), always with
-  `refresh: false`: the Matter server's cached snapshot, no radio traffic. `refresh: true` would re-read every node's
+  `refresh: false`: a snapshot built from the Matter server's cache, no radio traffic. `refresh: true` would re-read every node's
   tables over the radio; `tools/guard.py` refuses it in shipped code. `tools/capture.py --matter` captures the same
   answer. Scan re-reads (6) and zigpy's route records (3.1) are ZHA only.
 - **Direction** (matter.js server `packages/ws-client/src/models/model.ts` NetworkTopologyConnection, schema 13):
@@ -131,12 +131,15 @@ The panel reads through Home Assistant's websocket API and requires an administr
   parent links solid (both directions) and measured neighbour lanes dashed; a click shows the device's own lanes with
   values and the glyphs of its unread directions. Leader and border routers are always labelled; the fit contains
   every device and label (7.1).
-- `collected_at` is built by the Matter server when the request arrives (matterjs-server `WebSocketControllerHandler.ts`,
-  `NetworkTopologyService.ts`): the time the panel (or the recorder) took the snapshot, never the read time of the
-  tables. The server re-reads neighbour and route tables about once a day (`ThreadDetailsPoller.ts`), on a new
-  subscription and on an explicit refresh; when it last did is not reported, and 24 h is no guaranteed upper bound.
-- Limits: the tables in the snapshot are what the Matter server last read, at an unknown time; it may list removed routers or miss end devices; border
-  routers vanish when Thread diagnostics are off. No reconciliation with OTBR data (`otbr/*` returns keys, 3.4).
+- `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
+  `WebSocketControllerHandler.ts`, `NetworkTopologyService.ts`): the time the panel (or the recorder) took the
+  snapshot, never the read time of the tables. The server re-reads neighbour and route tables about once a day
+  (`ThreadDetailsPoller.ts`, daily poller since PR #943), on a new subscription and on an explicit refresh; some
+  devices also report table changes themselves. When the server last read is not reported, and 24 h is no guaranteed
+  upper bound.
+- Limits: the tables in the snapshot are what the Matter server last read, at an unknown time; the snapshot may list
+  removed routers or miss end devices; border routers vanish when Thread diagnostics are off. No reconciliation with
+  OTBR data (`otbr/*` returns keys, 3.4).
 - **[later]** `matter/subscribe_network_topology` (also 2026.9); `thread/discover_routers` and `thread/list_datasets`
   label border routers and mark the preferred one; networks grouped by extended PAN id.
 
@@ -159,7 +162,7 @@ The panel and the integration call only these commands; `tools/guard.py` enforce
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
 | `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), reception history (10.2, read only) | v1 |
-| `matter/network_topology` with `refresh: false` | Thread topology, cached snapshot (3.2) | v1.1 preview |
+| `matter/network_topology` with `refresh: false` | Thread topology, snapshot from the server's cache (3.2) | v1.1 preview |
 | `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
 
@@ -180,8 +183,8 @@ One normalized model per network; every value knows its origin.
 
 ### 4.1 Network
 
-Source (adapter), network id (ZHA config entry; Thread extended PAN id), coordinator or border routers, time of the
-newest data, completeness (6).
+Source (adapter), network id (ZHA config entry; Thread extended PAN id), coordinator or border routers, snapshot time
+(Thread `collected_at`, 3.2), completeness (6).
 
 ### 4.2 Device
 
@@ -960,9 +963,10 @@ dropping it; a scan that is still not over after twice ZHA's period writes nothi
 (re)load builds a new topology: the listener moves to it when ZHA's config entry changes and on each timer tick. If no
 listener can be attached (internals changed, said in `last_error`), ZHA's scan is off or ZHA is not running, a timer at
 ZHA's period (240 min without ZHA) records instead (`timer`), dated with the read and guarded the same way. Thread has
-no events: a timer at ZHA's period reads only Thread, and a snapshot is dated with the Matter server's `collected_at`, which is
-always the time of the read (3.2); a Thread record therefore means what the Matter server held when Meshroute read it, and
-the rule "skipped when not newer than the last one" never fires. One Thread read follows 30 s after Home Assistant has started or
+no events: a timer at ZHA's period reads only Thread, and a snapshot is dated with the Matter server's
+`collected_at`, which is the time of Meshroute's request (3.2); a Thread record therefore means what the Matter server
+held when Meshroute read it, and the rule "skipped when not newer than the last one" does not fire in practice (it
+still catches a clock step back). One Thread read follows 30 s after Home Assistant has started or
 the entry was reloaded (in timer mode also Zigbee; in events mode Zigbee is not read then, since zigpy restores its last
 scan from its database and it would be dated as new). Recording off keeps only a 6-hour expiry timer. The values come from the
 registered handlers of `zha/devices` and `matter/network_topology`

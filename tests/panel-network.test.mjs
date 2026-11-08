@@ -133,7 +133,7 @@ test("settings are kept per network: the Thread id is its own and valid for the 
   assert.equal(stored.has("entry_01"), false, "ZHA's settings are untouched");
 });
 
-test("status line for Thread: coverage, collection time with age, missing border routers", () => {
+test("status line for Thread: coverage, snapshot time with age, missing border routers", () => {
   const t = translator("en");
   const parts = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
   assert.deepEqual(parts.map(([k]) => k), ["status.source", "status.thread_links", "status.thread_read"]);
@@ -151,7 +151,10 @@ test("#13: Thread status does not present collected_at as the read time of the t
   const [key, params, note] = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } }).at(-1);
   assert.equal(key, "status.thread_read");
   assert.match(t(key, params), /^snapshot /);
-  assert.doesNotMatch(t(key, params), /read/);
+  assert.doesNotMatch(t(key, params), /\bread\b/);
+  const short = threadParts(thread, { compact: true, collected: { time: "14:14", age: "5 min ago" } })
+    .find(([k]) => k === "status.short_thread_read");
+  assert.equal(t(short[0], short[1]), "snapshot 14:14");
   assert.match(t(note), /many hours old/);
   assert.match(t(note), /read time is not reported/);
   assert.match(t("details.thread_note"), /hours old/);
