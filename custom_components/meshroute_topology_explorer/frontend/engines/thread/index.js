@@ -16,13 +16,18 @@ import { entryText } from "./history.js";
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
 
-/** Thread owns no settings keys today: a stored Zigbee key under a Thread id is kept by the
- *  shell, never read and never written. */
-const SETTINGS = Object.freeze({ keys: Object.freeze([]), defaults: Object.freeze({}), sanitize: (src, out) => out });
+/** Thread's own settings key (spec 11): unusedRoutes, the View option that adds the routes a router holds but does
+ *  not use now (default off, owner 2026-11-08). A stored Zigbee key under a Thread id is kept by the shell, never
+ *  read and never written. */
+const SETTINGS = Object.freeze({ keys: Object.freeze(["unusedRoutes"]), defaults: Object.freeze({ unusedRoutes: false }),
+  sanitize: (src, out) => Object.assign(out, { unusedRoutes: src.unusedRoutes === true }) });
 
-/** The View tab's Thread groups: one line where the paths would be, no controls (ui/view-tab.js renders a group
- *  without a legend as its note). */
-const THREAD_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
+/** The View tab's Thread groups: with the Matter cache's route tables the routes group and its one option; without
+ *  them one line saying why there are no routes (ui/view-tab.js renders a group without a legend as its note). */
+const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note",
+  controls: Object.freeze([Object.freeze({ kind: "checkbox", key: "unusedRoutes", id: "unused-routes",
+    label: "view.thread_unused", hint: "view.thread_unused_hint" })]) })]);
+const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
   controls: Object.freeze([]) })]);
 
 export const thread = Object.freeze({
@@ -54,13 +59,14 @@ export const thread = Object.freeze({
     const parent = network.devices.find((x) => x.id === device.parent);
     return parent ? { kind: "via", label: parent.label } : null;
   },
-  /** Fill the Details tab: one stack of cards, no sub-tabs (no routes, signature or clusters). */
+  /** Fill the Details tab: one stack of cards, no sub-tabs (no signature or clusters); the route card first. */
   details: renderThreadDetails,
   /** The View tab's Thread groups: none of the Zigbee path groups (hidden, not greyed;
-   *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
-  options: () => THREAD_OPTIONS,
-  /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's own
-   *  lanes, no band, no ends (scene.js). anchors: the leader and the border routers, always labelled; fit "contain":
+   *  colour by reception waits for the Thread reception model); the routes group with "unused routes", or one line
+   *  saying why there are no routes. */
+  options: (network) => (network && network.routing ? ROUTE_OPTIONS : NO_ROUTE_OPTIONS),
+  /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's route
+   *  to the default border router with every other lane in grey, else its own lanes (scene.js). anchors: the leader and the border routers, always labelled; fit "contain":
    *  the whole network in the window at the active density. */
   scene: Object.freeze({ lanes: threadScene.lanes, classify: threadScene.classify, viewKey: threadScene.viewKey,
     overview: threadScene.overview, focus: threadScene.focus, classes: threadScene.CLASSES,
@@ -71,6 +77,6 @@ export const thread = Object.freeze({
     anchorRole: "border router" }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
-  /** Its own settings keys: none. */
+  /** Its own settings key: unusedRoutes. */
   settings: SETTINGS,
 });

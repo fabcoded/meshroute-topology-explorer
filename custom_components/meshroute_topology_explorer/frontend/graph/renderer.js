@@ -423,7 +423,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // (spec 9.3). Both kinds slide along their own lane for a free place; values of the focus's lanes (extra.path) are
   // never dropped (spec 7.1): they fall back to the middle whatever is there. See value() below.
   const addValue = (lane, text, extra) => {
-    const { w, h } = pillSize(measure(text));
+    // Two lines (Thread routes: RSSI over LQI) stack in a taller pill, as in the path history (ui/history-route.js).
+    const rows = String(text).split("\n");
+    const one = pillSize(Math.max(...rows.map((row) => measure(row))));
+    const w = one.w;
+    const h = rows.length > 1 ? one.h * 1.7 : one.h;
     let dists = pillDistances(lane, size, w, h);
     // Then every place along the lane clear of the arrowhead and the start, nearest the first choice first: a value
     // dodges a label or a symbol by sliding along its own lane.
@@ -530,26 +534,43 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // longer hides the lane (a router between another and the coordinator read as the way up, 2026-11-02).
   const pathValues = [];
   const ends = [];
+  const hopNumbers = [];
   if (route) {
     ctx.globalAlpha = 1;
     const items = [];
     const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
+    // An engine's hop may bring its own text (hop.text), be drawn in grey (muted), mark the weakest of a way (weak:
+    // wider, the pill outlined in the scale's bad colour), carry a hop number, or be context whose value may give way
+    // (context: placed like the debug overview's values, after everything else).
+    const numbers = [];
     for (const hop of hops) {
       const { s, h, dir } = hop;
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
+      const base = laneStyle(hop.stroke, dir.rating, theme, { colored, state: hop.muted ? "unknown" : state,
+        weight: hop.weight });
+      const style = hop.weak ? { ...base, width: base.width + 1.5 } : base;
       items.push({ lane, style, key: styleKey(style), rank: hop.rank });
       count(hop);
-      let text = engine.laneValue(dir, texts);
-      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color, pair: [s, h] });
+      let text = hop.text ?? engine.laneValue(dir, texts);
+      if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${scene.nodes[h].label}`;
+      const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
+      const t = addValue(lane, text, { path: !hop.context, context: Boolean(hop.context), alpha: 1,
+        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h] });
+      if (hop.number) numbers.push({ lane, n: hop.number });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
+    // Hop numbers sit near the sender's end, outside the lane (the value pill sits near the hearer's); drawn after the
+    // values, so no pill covers them.
+    for (const { lane, n: number } of numbers) {
+      const d = Math.min(lane.len * 0.3, 28);
+      hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
+    }
+    for (const b of hopNumbers) obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
     const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
@@ -741,6 +762,14 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
+  for (const b of hopNumbers) {
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 7, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = theme.background;
+    ctx.fillText(b.text, b.x, b.y + 0.5);
+  }
   for (const e of ends) endText(e);
   // A device on the focus's paths is always labelled (Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
@@ -755,7 +784,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     rest.sort((a, b) => rank(a) - rank(b) || a - b);
     for (const i of rest) label(i, false);
   }
-  for (const t of laneTexts) if (!t.path) value(t);
+  for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
   // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
   if (view.pairBadges && view.selected >= 0) {

@@ -6129,12 +6129,19 @@ function laneValue(dir, texts) {
   return threadValue(dir);
 }
 
-/** The link rows of the legend (spec 3.2): what a Thread map draws, parent links, measured neighbours, the glyphs a
- *  click shows, RX with an RSSI sample; no stage or option notes. */
+/** The link rows of the legend (spec 3.2): what a Thread map draws, parent links, measured neighbours, a selected
+ *  device's route (hop, derived hop, weakest hop, unused alternative, the other links in grey), the glyphs a click
+ *  shows, RX with an RSSI sample; no stage notes. */
 function legendEntries(theme) {
+  const strong = laneStyle("solid", 1, theme, { weight: "strong" });
   return [
-    { id: "parent", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "strong" }) },
+    { id: "parent", kind: "lane", style: strong },
     { id: "neighbour", kind: "lane", style: laneStyle("dashed", 1, theme, { weight: "thin" }) },
+    { id: "route", kind: "lane", style: strong },
+    { id: "route-derived", kind: "lane", style: laneStyle("dashdot", 1, theme, { weight: "strong" }) },
+    { id: "route-weak", kind: "lane", style: { ...strong, width: strong.width + 1.5 } },
+    { id: "unused", kind: "lane", style: laneStyle("dashed", 1, theme, { weight: "regular", state: "unknown" }) },
+    { id: "context", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "thin", state: "unknown" }) },
     { id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
     { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
     { id: "rx-thread", kind: "rx", sample: "−75 dBm" },
@@ -6185,11 +6192,12 @@ function findingText(f, t, name) {
 }
 
 // SPDX-License-Identifier: MIT
-// Details of a device in a Thread network (spec 3.2, 9.2): Thread data has no routes, no signature and no clusters, so
-// instead of the three sub-tabs one stack of cards: the head (name, type · role · vendor model, the state), the
-// neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its receiver),
-// parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
-// Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows) and tested in Node.
+// Details of a device in a Thread network (spec 3.2, 9.2): Thread data has no signature and no clusters, so instead
+// of the three sub-tabs one stack of cards: the head (name, type · role · vendor model, the state), the route to the
+// default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
+// the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
+// receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
+// Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 function threadReception(dir) {
@@ -6216,6 +6224,54 @@ function threadNeighbourRows(network, id) {
   return rows.sort((x, y) => (y.parent - x.parent) || label(x).localeCompare(label(y), undefined, { numeric: true }));
 }
 
+/** Older than this a table's values show in amber (spec 6: the age at which the pill's dot turns amber). */
+const OLD_TABLE_MS = 4 * 3600 * 1000;
+
+/** The rows of a route's hop list (spec 3.2 "Routes"): one per hop there, with the reverse hop back beside it; a hop
+ *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder (whose
+ *  table it comes from: the receiver's neighbours, else the sender's LQI out), source, old (that table is older than
+ *  OLD_TABLE_MS by what Meshroute observed), derived }; the cost as the sender counts it. Pure. */
+function routeRows(tables, r, now) {
+  const cell = (x) => {
+    if (!x) return null;
+    const holder = x.source === "neighbours" ? x.to : x.source === "lqi out" ? x.from : null;
+    const since = holder && tables.holders.get(holder) ? tables.holders.get(holder).unchangedSince : null;
+    return { lqi: x.lqi, rssi: x.rssi, holder, source: x.source, derived: x.derived,
+      old: typeof since === "number" && now - since > OLD_TABLE_MS };
+  };
+  const back = r.back ? [...r.back.hops] : [];
+  const rows = r.there.hops.map((x, k) => {
+    const j = back.findIndex((y) => y && y.from === x.to && y.to === x.from);
+    const b = j >= 0 ? back[j] : null;
+    if (j >= 0) back[j] = null;
+    return { n: k + 1, from: x.from, to: x.to, there: cell(x), back: cell(b), cost: x.cost, backDerived: Boolean(b && b.derived),
+      child: x.decided === "parent", weakThere: k === r.there.weakest, weakBack: Boolean(b && r.back.hops.indexOf(b) === r.back.weakest) };
+  });
+  back.forEach((b, j) => {
+    if (b) rows.push({ n: null, from: b.to, to: b.from, there: null, back: cell(b), cost: b.cost, backDerived: b.derived,
+      child: false, weakThere: false, weakBack: j === r.back.weakest });
+  });
+  return rows;
+}
+
+/** The holders whose tables the route's values come from, in order: [{ id, since (ms or null), table (whether its
+ *  tables are in the cache) }]. */
+function routeHolders(tables, rows) {
+  const out = new Map();
+  for (const row of rows) {
+    for (const c of [row.there, row.back]) {
+      if (!c) continue;
+      const ids = c.holder ? [c.holder] : [row.from, row.to].filter((id) => !tables.holders.has(id));
+      for (const id of ids) {
+        if (out.has(id)) continue;
+        const h = tables.holders.get(id);
+        out.set(id, { id, since: h ? h.unchangedSince : null, table: Boolean(h) });
+      }
+    }
+  }
+  return [...out.values()];
+}
+
 const card = (title, ...children) => h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null,
   ...children);
 
@@ -6237,6 +6293,8 @@ function renderThreadDetails(container, ctx) {
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.thread_stale") }));
   if (!d.availabilityKnown) head.append(h("p", { class: "muted small", text: t("details.thread_availability_unknown") }));
   container.append(head);
+  const route = routeCard(ctx, d, name);
+  if (route) container.append(route);
 
   const link = (id) => h("button", { type: "button", class: "link", text: name(id), on: { click: () => ctx.onSelect(id) } });
   const rows = threadNeighbourRows(network, d.id);
@@ -6261,6 +6319,79 @@ function renderThreadDetails(container, ctx) {
     h("li", { text: t("details.thread_ext", { value: d.extAddress || "?" }) }),
     h("li", { text: t("details.thread_rloc", { value: hex(d.rloc16) }) }),
     d.nodeId !== null ? h("li", { text: t("details.thread_node", { value: String(d.nodeId) }) }) : null)));
+}
+
+/** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
+ *  each receiver hears and the table it comes from, the cost as each sender counts it, the weakest hop per
+ *  direction, a derived hop's note, and one line with the source and since when Meshroute saw each table unchanged
+ *  (amber over 4 hours). Null for a border router and where the network has no border router; without the Matter
+ *  cache's tables the reason they could not be read. */
+function routeCard(ctx, d, name) {
+  const { network, t } = ctx;
+  if (!network.routing) {
+    return network.routingProblem
+      ? card(t("details.route_title", { name: t("role.border router") }),
+        h("p", { class: "muted small", text: t("details.route_problem", { message: network.routingProblem }) }))
+      : null;
+  }
+  const r = network.routing.defaultRoute(d.id);
+  if (!r) return null;
+  const now = ctx.now ?? Date.now();
+  const tables = network.routing.tables;
+  const reason = (code) => t(`route.reason.${code}`);
+  const value = (c) => {
+    if (!c || (c.lqi === null && c.rssi === null)) return "?";
+    const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
+    return `${rssi} · LQI ${c.lqi ?? "?"}`;
+  };
+  const sourceText = (c) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
+    { name: name(c.holder) }) : "");
+  const rows = routeRows(tables, r, now);
+  const td = (c, weak, derived) => h("td", { class: [weak ? "weak" : "", c && c.old ? "warn-text" : ""].filter(Boolean).join(" ") },
+    h("span", { class: "nowrap", text: value(c) }),
+    derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
+    c && c.holder ? h("div", { class: "muted small", text: sourceText(c) }) : null);
+  const table = rows.length ? h("table", { class: "route-table" },
+    h("tr", {}, ...["#", t("details.route_head_hop"), t("details.route_head_there"), t("details.route_head_back"),
+      t("details.route_head_cost")].map((text) => h("th", { text }))),
+    ...rows.map((row) => h("tr", {},
+      h("td", { text: row.n === null ? "" : String(row.n) }),
+      h("td", { text: `${name(row.from)} → ${name(row.to)}` }),
+      td(row.there, row.weakThere, false),
+      td(row.back, row.weakBack, row.backDerived),
+      h("td", {}, typeof row.cost === "number" ? String(row.cost) : "?",
+        row.child ? h("div", { class: "muted small", text: t("route.cost_child") }) : null)))) : null;
+  const way = (hops) => hops.length ? [hops[0].from, ...hops.map((x) => x.to)].map(name).join(" → ") : "";
+  const hopCount = r.there.hops.length;
+  const summary = !r.there.complete ? null : r.there.cost === null ? t("details.route_unknown_cost")
+    : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
+  const lines = [];
+  if (r.there.hops.length) lines.push(t("details.route_there", { list: way(r.there.hops) }));
+  if (r.back && r.back.hops.length) lines.push(t("details.route_back", { list: way(r.back.hops) }));
+  if (!r.there.complete) {
+    lines.push(r.there.hops.length ? t("details.route_stops", { name: name(r.there.at), reason: reason(r.there.reason) })
+      : t("details.route_none", { reason: reason(r.there.reason) }));
+  } else if (r.back && !r.back.complete && r.back.reason !== "there_incomplete") {
+    lines.push(t("details.route_stops", { name: name(r.back.at), reason: reason(r.back.reason) }));
+  }
+  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
+  const wt = weakest(r.there, r.there.weakest);
+  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
+  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${value(x)})` : "?");
+  const holders = routeHolders(tables, rows);
+  const holderText = (x) => (!x.table ? t("details.route_holder_unknown", { name: name(x.id) })
+    : t("details.route_holder", { name: name(x.id), time: x.since === null ? "?" : t.when(x.since) }));
+  const old = holders.some((x) => typeof x.since === "number" && now - x.since > OLD_TABLE_MS);
+  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].some((x) => x.derived);
+  return card(t("details.route_title", { name: name(r.to) }),
+    summary ? h("p", { class: "muted small", text: summary }) : null,
+    ...lines.map((text) => h("p", { class: "muted small", text })),
+    table,
+    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
+    derived ? h("p", { class: "muted small", text: `${t("details.route_derived")}: ${t("details.route_derived_note")}` }) : null,
+    holders.length ? h("p", { class: `small${old ? " warn-text" : " muted"}`, title: t("details.route_source_note"),
+      text: t("details.route_source", { holders: holders.map(holderText).join(" · ") }) }) : null,
+    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
 }
 
 // SPDX-License-Identifier: MIT
@@ -6308,15 +6439,18 @@ function statusLine(network, { compact = false, collected = null, now = Date.now
 }
 
 // SPDX-License-Identifier: MIT
-// What a Thread map draws (spec 3.2, 4.6, 7.1): Thread data names neighbours and parents, not
-// routes, so there are no views and no paths. The overview draws every lane with a class, parent links solid
+// What a Thread map draws (spec 3.2, 4.6, 7.1): the overview draws every lane with a class, parent links solid
 // ("parent", the end device's lane to its parent above the parent's lane back) and measured neighbours dashed
-// ("neighbour"); debug mode every lane. A click shows the device's own lanes with their values and the glyph of each
-// own direction without a reading: no band, no unknown ends. The shared renderer (graph/renderer.js) strokes the looks.
+// ("neighbour"); debug mode every lane. A click on a device with a route (routes.js, from the Matter cache's tables)
+// shows its route to the default border router there and back, each hop with what its receiver hears (RSSI over
+// LQI), hop numbers on the way there, the weakest hop per direction marked, a derived hop dash-dot; every other lane
+// stays in grey with its value (board M40 A), and the View option "unused routes" adds the alternatives the routers
+// hold but do not use, dashed. Without a route a click shows the device's own lanes with their values and the glyph
+// of each own direction without a reading. The shared renderer (graph/renderer.js) strokes the looks.
 // Pure. npm test
 
 /** Counters of the drawn lanes per class (graph/renderer.js drawScene stats). */
-const CLASSES = Object.freeze(["neighbour", "parent"]);
+const CLASSES = Object.freeze(["neighbour", "parent", "route", "context", "unused"]);
 
 /** The look of a lane of class `cls` ("parent", "neighbour" or null); rank orders the drawing, the end device's lane to
  *  its parent on top. */
@@ -6368,7 +6502,7 @@ function labelRank(node) {
  *  past the window at medium density). */
 const FIT = "contain";
 
-/** Cache key of the engine's view: only debug mode changes what a Thread map draws. */
+/** Cache key of the engine's overview: only debug mode changes it (the option "unused routes" changes the focus). */
 function viewKey(view) {
   return view && view.debug ? "debug" : "plain";
 }
@@ -6385,11 +6519,15 @@ function overview(scene, view) {
   return scene.lookCache.get(key);
 }
 
-/** The focus of device i: its own lanes, each with its class and value, and the glyph of each own direction without
- *  a reading (the renderer draws them on click). { hops: [{ s, h, dir, cls, stroke, rank, assumed, predicted }],
- *  ends: [], glyphs: [{ s, h, dir }], nodes: Set (i and its partners), band: null }. */
-function focus(scene, i) {
+/** The focus of device i. Selected with a route (view.selected === i): routeFocus. Otherwise its own lanes, each
+ *  with its class and value, and the glyph of each own direction without a reading (the renderer draws them on
+ *  click). { hops: [{ s, h, dir, cls, stroke, rank, assumed, predicted }], ends: [], glyphs: [{ s, h, dir }], nodes:
+ *  Set (i and its partners), band: null }. */
+function focus(scene, i, view = {}) {
   classify(scene);
+  const routing = scene.network.routing;
+  const r = routing && view.selected === i ? routing.defaultRoute(scene.nodes[i].id) : null;
+  if (r) return routeFocus(scene, i, r, view);
   const hops = [];
   const glyphs = [];
   const nodes = new Set([i]);
@@ -6404,6 +6542,61 @@ function focus(scene, i) {
     }
   }
   return { hops, ends: [], glyphs, nodes, band: null };
+}
+
+/** Two numbers of a hop as its receiver hears it: RSSI over LQI, "– dBm" where no RSSI was read (board M38). */
+function hopText$1(x) {
+  const rssi = typeof x.rssi === "number" ? `${String(x.rssi).replace("-", "−")} dBm` : "– dBm";
+  return `${rssi}\nLQI ${typeof x.lqi === "number" ? x.lqi : "?"}`;
+}
+
+/** The selection's route (routes.js route) on the map: there and back, each hop on the lane of its direction with
+ *  its two numbers, the way there numbered, the weakest hop of each direction marked (weak), a derived hop dash-dot
+ *  (assumed); a route that stops ends in a stem towards its goal. Every other lane with a reading keeps its value in
+ *  grey (cls "context", board M40 A); with view.unusedRoutes each route hop's unused alternative is drawn dashed
+ *  with its cost (cls "unused"). Every device stays undimmed. */
+function routeFocus(scene, i, r, view = {}) {
+  const at = (id) => scene.index.get(id);
+  const hops = [];
+  const used = new Set();
+  const add = (x, extra) => {
+    const s = at(x.from);
+    const h = at(x.to);
+    if (s === undefined || h === undefined) return;
+    used.add(`${s}>${h}`);
+    const dir = { state: x.lqi !== null || x.rssi !== null ? "measured" : "unknown", lqi: x.lqi, rssi: x.rssi,
+      rating: null, reason: null };
+    hops.push({ s, h, dir, cls: "route", stroke: x.derived ? "dashdot" : "solid", weight: "strong", rank: 5,
+      assumed: x.derived, predicted: false, text: hopText$1(x), ...extra });
+  };
+  r.there.hops.forEach((x, k) => add(x, { number: k + 1, weak: k === r.there.weakest }));
+  if (r.back) r.back.hops.forEach((x, k) => add(x, { weak: k === r.back.weakest }));
+  if (view.unusedRoutes) {
+    for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
+      const alt = x.alternative;
+      const s = at(x.from);
+      const h = alt && at(alt.via);
+      if (!alt || s === undefined || h === undefined || used.has(`${s}>${h}`)) continue;
+      used.add(`${s}>${h}`);
+      const lane = scene.laneByKey.get(`${s}>${h}`);
+      hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
+        stroke: "dashed", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
+        text: `unused · cost ${alt.cost}` });
+    }
+  }
+  for (const lane of scene.lanes) {
+    if (used.has(lane.key) || !lane.dir || lane.dir.state !== "measured") continue;
+    hops.push({ s: lane.s, h: lane.h, dir: lane.dir, cls: "context", stroke: "solid", weight: "thin", rank: 0,
+      assumed: false, predicted: false, muted: true, context: true, text: hopText$1(lane.dir) });
+  }
+  const ends = [];
+  const goal = at(r.to);
+  if (!r.there.complete && at(r.there.at) !== undefined && goal !== undefined) {
+    ends.push({ at: at(r.there.at), toward: goal, cls: "route" });
+  } else if (r.back && !r.back.complete && at(r.back.at) !== undefined) {
+    ends.push({ at: at(r.back.at), toward: i, cls: "route" });
+  }
+  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null };
 }
 
 // SPDX-License-Identifier: MIT
@@ -6424,14 +6617,55 @@ const TEXTS$3 = Object.freeze({
   "status.thread_read_note": "Built by the Matter server from its cache when the panel asked; no radio traffic. The Thread tables in it can be many hours old (the server reads them about once a day and when it reconnects to a device), and their read time is not reported.",
   "status.thread_tables_age": "Thread tables: age unknown",
   "status.thread_no_br": "no border router listed",
-  "view.thread_paths_note": "Thread data names neighbours and parents, not routes; there are no path views.",
+  "view.thread_paths_note": "The route tables of the Matter server's copy could not be read: only neighbours and parents are shown.",
+  "view.thread_routes": "Routes",
+  "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",
+  "view.thread_unused": "Unused routes",
+  "view.thread_unused_hint": "Also draw the alternatives a router on the route holds but does not use now, dashed, with their cost.",
   "legend.link.parent": "Parent link: end device and its parent",
-  "legend.link.neighbour": "Neighbour (measured, from the neighbour table); no route data for Thread",
+  "legend.link.neighbour": "Neighbour (measured, from the neighbour table)",
+  "legend.link.route": "Route hop of the selected device, one line per direction: what the receiver hears, RSSI over LQI (0–3); circled numbers count the hops there.",
+  "legend.link.route-derived": "Derived hop: the border router's first hop back, mirrored from the way there; its own table is not in the Matter cache.",
+  "legend.link.route-weak": "Weakest hop of a direction: wider, pill outlined red (lowest LQI, ties by the weaker RSSI).",
+  "legend.link.unused": "Unused route: an alternative a router holds but does not use now (View: Unused routes).",
+  "legend.link.context": "Other links while a route is shown: grey, with their values.",
   "legend.link.no-table-thread": "No reception value in this direction: no table to ask (border router or a node not read). This alone does not indicate a weak link.",
   "legend.rx_thread": "Number in the line = reception at the arrowhead, as reported by the receiver: RSSI in dBm; link quality (LQI 0–3) where no RSSI was reported.",
   "evidence.thread_no_parent": "The topology lists no link between this end device and a router.",
   "details.thread_title": "Neighbours (Thread)",
-  "details.thread_note": "From the neighbour tables in the Matter server's snapshot; the tables can be many hours old. Thread data has no routes, so no paths are shown.",
+  "details.thread_note": "From the neighbour tables in the Matter server's snapshot; the tables can be many hours old.",
+  "details.route_title": "Route to {name}",
+  "details.route_summary": "{hops} hops · path cost {cost}",
+  "details.route_summary_one": "1 hop · path cost {cost}",
+  "details.route_there": "there: {list}",
+  "details.route_back": "back: {list}",
+  "details.route_head_hop": "hop (there)",
+  "details.route_head_there": "there: receiver hears",
+  "details.route_head_back": "back: receiver hears",
+  "details.route_head_cost": "cost",
+  "details.route_derived": "derived",
+  "details.route_derived_note": "Exact values for this hop only with the border router query (#12).",
+  "details.route_weakest": "Weakest there: {there}; back: {back}.",
+  "details.route_source": "Source: Matter server's copy · {holders}",
+  "details.route_holder": "{name} unchanged since {time}",
+  "details.route_holder_unknown": "{name}: no table",
+  "details.route_source_note": "Meshroute saw these values unchanged since then; the Matter server re-reads its tables about once a day.",
+  "details.route_old": "Values older than 4 hours in amber: the route may have changed since.",
+  "details.route_none": "No route: {reason}",
+  "details.route_stops": "The route stops at {name}: {reason}",
+  "details.route_unknown_cost": "path cost unknown",
+  "details.route_problem": "Route tables not read: {message}",
+  "route.reason.table_missing": "its table is not in the Matter cache",
+  "route.reason.no_entry": "its route table has no entry for the destination",
+  "route.reason.no_route": "no usable link towards the destination",
+  "route.reason.next_hop_unknown": "its next hop is a router no table names",
+  "route.reason.loop": "the next hops form a loop",
+  "route.reason.parent_unknown": "parent unknown",
+  "route.reason.no_tables": "no route tables",
+  "route.reason.there_incomplete": "the way there is incomplete",
+  "route.source.neighbours": "{name}'s table",
+  "route.source.lqi_out": "{name}'s “LQI out”",
+  "route.cost_child": "as the device receives",
   "details.thread_hears": "hears {name}: {value}",
   "history.no_route": "Thread has no routing table in the Matter topology: no walked route, so no route bands. The Route tab shows the direct link and its neighbours.",
   "details.thread_heard_by": "heard by {name}: {value}",
@@ -6471,13 +6705,18 @@ function entryText(entry) {
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
 
-/** Thread owns no settings keys today: a stored Zigbee key under a Thread id is kept by the
- *  shell, never read and never written. */
-const SETTINGS = Object.freeze({ keys: Object.freeze([]), defaults: Object.freeze({}), sanitize: (src, out) => out });
+/** Thread's own settings key (spec 11): unusedRoutes, the View option that adds the routes a router holds but does
+ *  not use now (default off, owner 2026-11-08). A stored Zigbee key under a Thread id is kept by the shell, never
+ *  read and never written. */
+const SETTINGS = Object.freeze({ keys: Object.freeze(["unusedRoutes"]), defaults: Object.freeze({ unusedRoutes: false }),
+  sanitize: (src, out) => Object.assign(out, { unusedRoutes: src.unusedRoutes === true }) });
 
-/** The View tab's Thread groups: one line where the paths would be, no controls (ui/view-tab.js renders a group
- *  without a legend as its note). */
-const THREAD_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
+/** The View tab's Thread groups: with the Matter cache's route tables the routes group and its one option; without
+ *  them one line saying why there are no routes (ui/view-tab.js renders a group without a legend as its note). */
+const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note",
+  controls: Object.freeze([Object.freeze({ kind: "checkbox", key: "unusedRoutes", id: "unused-routes",
+    label: "view.thread_unused", hint: "view.thread_unused_hint" })]) })]);
+const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
   controls: Object.freeze([]) })]);
 
 const thread = Object.freeze({
@@ -6509,13 +6748,14 @@ const thread = Object.freeze({
     const parent = network.devices.find((x) => x.id === device.parent);
     return parent ? { kind: "via", label: parent.label } : null;
   },
-  /** Fill the Details tab: one stack of cards, no sub-tabs (no routes, signature or clusters). */
+  /** Fill the Details tab: one stack of cards, no sub-tabs (no signature or clusters); the route card first. */
   details: renderThreadDetails,
   /** The View tab's Thread groups: none of the Zigbee path groups (hidden, not greyed;
-   *  colour by reception waits for the Thread reception model), one line where the paths would be saying why. */
-  options: () => THREAD_OPTIONS,
-  /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's own
-   *  lanes, no band, no ends (scene.js). anchors: the leader and the border routers, always labelled; fit "contain":
+   *  colour by reception waits for the Thread reception model); the routes group with "unused routes", or one line
+   *  saying why there are no routes. */
+  options: (network) => (network && network.routing ? ROUTE_OPTIONS : NO_ROUTE_OPTIONS),
+  /** What its map draws (graph/renderer.js): parent links and measured neighbours; a click shows the device's route
+   *  to the default border router with every other lane in grey, else its own lanes (scene.js). anchors: the leader and the border routers, always labelled; fit "contain":
    *  the whole network in the window at the active density. */
   scene: Object.freeze({ lanes: lanes, classify: classify, viewKey: viewKey,
     overview: overview, focus: focus, classes: CLASSES,
@@ -6526,7 +6766,7 @@ const thread = Object.freeze({
     anchorRole: "border router" }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS$3,
-  /** Its own settings keys: none. */
+  /** Its own settings key: unusedRoutes. */
   settings: SETTINGS,
 });
 
@@ -7408,7 +7648,11 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
   // (spec 9.3). Both kinds slide along their own lane for a free place; values of the focus's lanes (extra.path) are
   // never dropped (spec 7.1): they fall back to the middle whatever is there. See value() below.
   const addValue = (lane, text, extra) => {
-    const { w, h } = pillSize(measure(text));
+    // Two lines (Thread routes: RSSI over LQI) stack in a taller pill, as in the path history (ui/history-route.js).
+    const rows = String(text).split("\n");
+    const one = pillSize(Math.max(...rows.map((row) => measure(row))));
+    const w = one.w;
+    const h = rows.length > 1 ? one.h * 1.7 : one.h;
     let dists = pillDistances(lane, size, w, h);
     // Then every place along the lane clear of the arrowhead and the start, nearest the first choice first: a value
     // dodges a label or a symbol by sliding along its own lane.
@@ -7515,26 +7759,43 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
   // longer hides the lane (a router between another and the coordinator read as the way up, 2026-11-02).
   const pathValues = [];
   const ends = [];
+  const hopNumbers = [];
   if (route) {
     ctx.globalAlpha = 1;
     const items = [];
     const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
+    // An engine's hop may bring its own text (hop.text), be drawn in grey (muted), mark the weakest of a way (weak:
+    // wider, the pill outlined in the scale's bad colour), carry a hop number, or be context whose value may give way
+    // (context: placed like the debug overview's values, after everything else).
+    const numbers = [];
     for (const hop of hops) {
       const { s, h, dir } = hop;
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
+      const base = laneStyle(hop.stroke, dir.rating, theme, { colored, state: hop.muted ? "unknown" : state,
+        weight: hop.weight });
+      const style = hop.weak ? { ...base, width: base.width + 1.5 } : base;
       items.push({ lane, style, key: styleKey(style), rank: hop.rank });
       count(hop);
-      let text = engine.laneValue(dir, texts);
-      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color, pair: [s, h] });
+      let text = hop.text ?? engine.laneValue(dir, texts);
+      if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${scene.nodes[h].label}`;
+      const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
+      const t = addValue(lane, text, { path: !hop.context, context: Boolean(hop.context), alpha: 1,
+        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h] });
+      if (hop.number) numbers.push({ lane, n: hop.number });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
+    // Hop numbers sit near the sender's end, outside the lane (the value pill sits near the hearer's); drawn after the
+    // values, so no pill covers them.
+    for (const { lane, n: number } of numbers) {
+      const d = Math.min(lane.len * 0.3, 28);
+      hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
+    }
+    for (const b of hopNumbers) obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
     const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
@@ -7726,6 +7987,14 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
+  for (const b of hopNumbers) {
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 7, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = theme.background;
+    ctx.fillText(b.text, b.x, b.y + 0.5);
+  }
   for (const e of ends) endText(e);
   // A device on the focus's paths is always labelled (Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
@@ -7740,7 +8009,7 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     rest.sort((a, b) => rank(a) - rank(b) || a - b);
     for (const i of rest) label(i, false);
   }
-  for (const t of laneTexts) if (!t.path) value(t);
+  for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
   // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
   if (view.pairBadges && view.selected >= 0) {
@@ -13307,6 +13576,10 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--mte-divider); vertical-align: top; }
 th { color: var(--mte-muted); font-weight: 500; }
 .num { text-align: right; padding-right: 12px; white-space: nowrap; }
+/* Route hop list (board M38): the weakest hop of a direction marked at the cell's left edge. */
+.route-table { font-size: 12px; margin: 4px 0; }
+.route-table .nowrap { white-space: nowrap; }
+.route-table td.weak { box-shadow: inset 3px 0 0 var(--mte-error); padding-left: 6px; }
 .scroll { overflow-x: auto; }
 .raw-table { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 details > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 4px; font-weight: 600;

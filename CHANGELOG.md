@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Thread routes** (#11): selecting a Thread device draws its route to the border router with the lowest path cost,
+  there and back, as Thread forwards it, computed from the route and neighbour tables Home Assistant's Matter client
+  holds (no refresh, no radio traffic): two numbers per hop (RSSI over LQI), hop numbers, the weakest hop marked, the
+  border router's first hop back derived (dash-dot; its own table needs the border router query, #12); the other
+  links stay grey with their values. Details get the hop list with both directions, path cost and the source line
+  with since when Meshroute saw each table unchanged, amber over 4 hours. The View option "Unused routes" adds the
+  alternatives routers hold but do not use. New read-only command `meshroute_topology_explorer/thread_tables`; the
+  reception history's Thread timer keeps its table times current. Needs a restart of Home Assistant.
+
 ## 0.2.1 – 2026-11-08
 
 - **Fixed:** on Android with three-button navigation the status pill and the fit button sat under the navigation bar; the panel now keeps clear of the system insets Home Assistant reports, and the phone's history window too (#4). Frontend only.

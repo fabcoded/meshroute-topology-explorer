@@ -200,7 +200,8 @@ def _seconds(value: Any) -> float | None:
 
 
 def parse_thread(topology: Any) -> tuple[str, Snapshot, float | None] | None:
-    """(network id, snapshot, time the Matter server collected it) of the largest Thread network in matter/network_topology, or None without a Thread node.
+    """(network id, snapshot, its collected_at) of the largest Thread network in matter/network_topology, or None without a Thread node.
+    collected_at is when the Matter server answered the request, not when it read the tables (spec 3.2).
 
     Mirrors the panel (from-matter.js): Thread nodes that are no Wi-Fi access point; the largest extended PAN id wins
     and nodes without one stay; a duplicate node or connection is ignored (first wins). Network id and device keys as

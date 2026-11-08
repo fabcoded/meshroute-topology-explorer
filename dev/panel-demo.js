@@ -38,6 +38,9 @@ const VARIANTS = [
     ["Debug", "debug=1"], ["Labels with HA name", "labels=type,name,ha"], ["Labels: name only", "labels=name"]]],
   ["Thread (Matter)", [["Thread map", "network=thread"], ["Zigbee with the switch", "matter=1"],
     ["Thread: details of the leader", "network=thread&select=Matter%20node%2014&left=details"],
+    ["Thread routes (synthetic, #11)", "matter=routes&network=thread"],
+    ["Thread routes: Motion sensor selected", "matter=routes&network=thread&select=Motion%20sensor&left=details"],
+    ["Thread routes: Plug 1, unused routes", "matter=routes&network=thread&select=Plug%201&left=details&right=view&unused=1"],
     ["Thread: View tab", "network=thread&right=view"], ["Thread: Legend", "network=thread&right=legend"],
     ["Matter too old", "matter=notsupported"], ["Narrow: Thread", "phone=1&network=thread"],
     ["Thread only", "nozha=1&matter=1"], ["Thread only: View tab", "nozha=1&matter=1&right=view"],
@@ -253,9 +256,15 @@ const responses = fixture.responses["zha/devices"] ? fixture.responses
 // matter=notsupported answers like a Matter server too old for the topology; network=thread starts on Thread (as a
 // stored choice); a capture that holds a Matter topology implies both, with its own (real) data.
 const captureTopology = fixture.responses["matter/network_topology"] || null;
+// matter=routes: the synthetic network with route tables (tests/thread-routes-fixture.mjs, #11), answering
+// thread_tables too; the other samples have no tables, so the panel shows why there are no routes.
 const matterMode = captureTopology ? "1" : q.get("matter") || (q.get("network") === "thread" ? "1" : null);
+const routesSample = matterMode === "routes" ? (await import("../tests/thread-routes-fixture.mjs"))
+  .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }) : null; // read now: tables 1, 3 and 21 h unchanged
 const matterResponses = captureTopology ? fixture.responses
-  : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses : null;
+  : routesSample ? { "matter/network_topology": routesSample.topology, "config/device_registry/list": routesSample.registry,
+    "meshroute_topology_explorer/thread_tables": routesSample.tables }
+    : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses : null;
 let devices = responses["zha/devices"];
 const variant = q.get("variant");
 if (variant) devices = withoutTables(devices, removedTables(devices)[variant] || []);
@@ -274,6 +283,7 @@ if (q.get("open")) initial.openDetailsOnSelect = q.get("open") === "on";
 if (q.get("paths")) initial.paths = q.get("paths"); // paths=coordinator|table|all
 if (q.get("heard")) initial.heard = q.get("heard") === "1";
 if (q.get("returns")) initial.returnRoutes = q.get("returns") === "1"; // "include return routes" of the view "table"
+if (q.get("unused")) initial.unusedRoutes = q.get("unused") === "1"; // Thread: "unused routes" (#11)
 // colors=1: paths coloured by reception; bad, medium, good: own colours as hex without "#" (bad=0072b2).
 if (q.get("colors")) {
   const hex = (key) => (q.get(key) ? `#${q.get(key)}` : null);
@@ -336,6 +346,9 @@ async function callWS(msg) {
       if (matterMode === "notsupported") throw { code: "not_supported", message: "Matter server too old" };
       if (!matterResponses) throw unknown;
       return matterResponses["matter/network_topology"];
+    case "meshroute_topology_explorer/thread_tables":
+      if (!matterResponses || !matterResponses[msg.type]) throw { code: "not_supported", message: "dev page: this sample has no Thread tables" };
+      return matterResponses[msg.type];
     case "zha/devices":
       if (flag("error")) throw { code: "home_assistant_error", message: "ZHA did not answer" };
       return flag("empty") ? [] : currentDevices();

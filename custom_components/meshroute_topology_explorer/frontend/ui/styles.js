@@ -252,6 +252,10 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--mte-divider); vertical-align: top; }
 th { color: var(--mte-muted); font-weight: 500; }
 .num { text-align: right; padding-right: 12px; white-space: nowrap; }
+/* Route hop list (board M38): the weakest hop of a direction marked at the cell's left edge. */
+.route-table { font-size: 12px; margin: 4px 0; }
+.route-table .nowrap { white-space: nowrap; }
+.route-table td.weak { box-shadow: inset 3px 0 0 var(--mte-error); padding-left: 6px; }
 .scroll { overflow-x: auto; }
 .raw-table { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 details > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 4px; font-weight: 600;

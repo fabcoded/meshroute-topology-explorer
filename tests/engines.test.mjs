@@ -61,7 +61,7 @@ test("finding kinds: Zigbee's order as the model lists them; Thread's three, in 
 test("settings: each engine sanitizes its own keys; the shell keeps the others verbatim", async () => {
   const { sanitizeSettings, DEFAULTS } = await import("../custom_components/meshroute_topology_explorer/frontend/ui/settings.js");
   assert.deepEqual(zigbee.settings.keys, ["paths", "heard", "returnRoutes", "sourceRoute"]);
-  assert.deepEqual(thread.settings.keys, []);
+  assert.deepEqual(thread.settings.keys, ["unusedRoutes"]); // #11
   for (const key of zigbee.settings.keys) assert.equal(key in DEFAULTS, false, `${key} is no shell key`);
   const stored = { paths: "bogus", heard: true, sourceRoute: "bogus", density: "spread", other: 1 };
   const z = sanitizeSettings(stored, zigbee.settings);
@@ -70,7 +70,12 @@ test("settings: each engine sanitizes its own keys; the shell keeps the others v
   const t = sanitizeSettings(stored, thread.settings);
   for (const key of ["paths", "heard", "sourceRoute", "other"]) assert.deepEqual(t[key], stored[key], key);
   assert.equal(t.density, "spread");
-  assert.deepEqual(sanitizeSettings(stored), t, "no engine: shell keys only, the same as Thread's");
+  assert.equal(t.unusedRoutes, false);
+  assert.equal(sanitizeSettings({ ...stored, unusedRoutes: true }, thread.settings).unusedRoutes, true);
+  assert.equal(sanitizeSettings({ ...stored, unusedRoutes: "yes" }, thread.settings).unusedRoutes, false);
+  const { unusedRoutes, ...shellOnly } = t;
+  assert.equal(unusedRoutes, false);
+  assert.deepEqual(sanitizeSettings(stored), shellOnly, "no engine: shell keys only, Thread's without its own key");
 });
 
 test("the builds stamp the engine and the source's capabilities (spec 4.6)", () => {

@@ -147,8 +147,12 @@ export function threadRoutesSample({ fresh = false, readAt = 1767268800 } = {}) 
         target_to_source: dir(rev), via_route_table: null, path_cost: null });
     }
   }
+  // Device registry entries for the Matter nodes, so the map shows the names.
+  const registry = Object.entries(KEYS).filter(([, v]) => v.node !== null)
+    .map(([k, v]) => ({ id: `routes-${k}`, name: v.name, name_by_user: null, manufacturer: "Example", model: k.startsWith("P")
+      ? "Plug" : k in CHILDREN ? "Sensor" : "Bulb", area_id: null, sw_version: null }));
   return { topology: { collected_at: readAt * 1000, nodes, connections },
-    tables: { nodes: tables, read_at: readAt } };
+    tables: { nodes: tables, read_at: readAt }, registry };
 }
 
 /** Device id (colon form) of a key, as the Thread engine keys devices. */
