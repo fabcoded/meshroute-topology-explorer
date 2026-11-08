@@ -62,7 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             webcomponent_name=PANEL_ELEMENT,
             frontend_url_path=PANEL_URL_PATH,
-            module_url=f"{base}/panel.js",
+            # One request instead of about 100 (issue #16): the bundle built by tools/bundle.mjs; the sources beside
+            # it stay for tests and the dev page. dist/ is inside FRONTEND_DIR, so the content hash covers it.
+            module_url=f"{base}/dist/panel.js",
             sidebar_title="Meshroute",
             sidebar_icon="mdi:graph-outline",
             require_admin=True,

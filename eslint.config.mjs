@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Lint browser modules and Node tests without a build step. Run npm run lint; see CONTRIBUTING.md.
+// Lint browser modules (sources and the generated bundle) and Node tests. Run npm run lint; see CONTRIBUTING.md.
 import js from "@eslint/js";
 import globals from "globals";
 

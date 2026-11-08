@@ -29,7 +29,8 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 
 | Command | Checks |
 |---|---|
-| `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, JSON/YAML/TOML, merge markers, keys, large files |
+| `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, bundle freshness, JSON/YAML/TOML, merge markers, keys, large files |
+| `npm run bundle` | Rebuilds `frontend/dist/panel.js`, the one file Home Assistant serves, from the sources (Rollup, `tools/bundle.mjs`); commit it with every frontend change |
 | `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
 | `MESHROUTE_UPDATE_GOLDENS=1 python3 -m unittest discover -s tests` | Rewrites the golden files in `tests/fixtures/golden/` (Python output that the JavaScript tests read too); review the diff |
 | `python3 -m pytest tests_ha` | L2, in its own environment: the integration inside a real Home Assistant test instance, plus a zigpy contract test. Setup below |
@@ -38,6 +39,8 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 
 - `tools/guard.py` enforces the ground rules: allowed Home Assistant commands, no outside URLs or HTML sinks in
   shipped files, SPDX lines.
+- The hook `bundle-fresh` (`node tools/bundle.mjs --check`) fails while `frontend/dist/panel.js` does not match the
+  sources: run `npm run bundle` and stage the result. The dev page loads the sources; `?bundle=1` loads the bundle.
 - The whitespace and end-of-file hooks fix files in place and fail; review the change, stage it and commit again.
 - `python3 tools/screenshots.py` regenerates `docs/images/*.png` from the dev page (needs Pillow from `requirements-dev.txt` and a Chromium; `--chrome PATH` overrides the Playwright cache).
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.
@@ -70,8 +73,9 @@ Security issues: [SECURITY.md](SECURITY.md).
 
 1. Set the version in three places, which `tests/test_integration_files.py` requires to be equal: `"version"` in
    `custom_components/meshroute_topology_explorer/manifest.json`, `VERSION` in `.../const.py` and `VERSION` in
-   `.../frontend/panel.js`. The panel's files are served under a hash of their content, so browsers pick up a new
-   release without a forced reload.
+   `.../frontend/panel.js`; then `npm run bundle` carries it into `.../frontend/dist/panel.js`, which the test checks
+   too. The panel's files are served under a hash of their content, so browsers pick up a new release without a
+   forced reload.
 2. Run `python3 tools/check.py`.
 3. Commit with sign-off (`git commit -s`, see AGENTS.md).
 4. Tag `vX.Y.Z` on that commit and push the tag.
