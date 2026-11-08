@@ -87,8 +87,14 @@ export function openHistoryWindow(ctx) {
   function fillMenu(query) {
     const net = ctx.network();
     const name = (k) => (net.devices.find((d) => d.id === k) || {}).label || k;
+    // The coordinator is labelled "Coordinator": show the role beside the name only when it adds something (#5).
+    const groupText = (c) => {
+      if (c.group !== "anchor") return t(`history.partner_${c.group}`);
+      const role = roleText(net.devices.find((d) => d.id === c.id).role, t);
+      return role.trim().toLowerCase() === name(c.id).trim().toLowerCase() ? "" : role;
+    };
     const rows = partnerChoices(net, a, historyCaps(net).anchorRole, query).map((c) => h("button", { type: "button", class: `hist-choice${c.id === b ? " on" : ""}`, "aria-current": String(c.id === b),
-      on: { click: () => setPartner(c.id) } }, h("span", { text: name(c.id) }), h("small", { class: "muted", text: c.group === "anchor" ? roleText(net.devices.find((d) => d.id === c.id).role, t) : t(`history.partner_${c.group}`) })));
+      on: { click: () => setPartner(c.id) } }, h("span", { text: name(c.id) }), h("small", { class: "muted", text: groupText(c) })));
     choicesBox.replaceChildren(...(rows.length ? rows : [h("p", { class: "muted small", text: t("history.partner_none") })]));
   }
   function toggleMenu() {

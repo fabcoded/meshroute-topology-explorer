@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Fixed:** the history window's partner menu showed "Coordinator Coordinator"; the role beside a name is now left out when it equals the name, ignoring case and spaces (#5). Frontend only.
 - **Fixed:** Thread-only and Zigbee-only setups (#15). The options form shows the Zigbee section (with "Allow scan and
   attribute reads in the panel", formerly "Allow radio actions", and the one-time scan) only when ZHA is set up, and
   keeps its stored values while it is hidden (ignored or disabled ZHA entries do not count). Without any network the
