@@ -30,10 +30,12 @@ class IntegrationFilesTest(unittest.TestCase):
         self.assertEqual(m["domain"], COMP.name)
         self.assertEqual(m["name"], "Meshroute Topology Explorer")
         self.assertEqual(m["dependencies"], ["frontend", "http", "panel_custom"])
-        # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared.
-        # after_dependencies, not dependencies: the integration must also load without ZHA (Thread only).
-        self.assertEqual(m.get("after_dependencies"), ["zha"])
+        # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared; the recorder reads the
+        # Matter server's topology at start, so Matter loads first where it is set up (#15).
+        # after_dependencies, not dependencies: the integration must also load with only one of them.
+        self.assertEqual(m.get("after_dependencies"), ["matter", "zha"])
         self.assertNotIn("zha", m["dependencies"])
+        self.assertNotIn("matter", m["dependencies"])
         self.assertEqual(m["iot_class"], "calculated")
         self.assertEqual(m["requirements"], [])
         self.assertTrue(m["config_flow"] and m["single_config_entry"])

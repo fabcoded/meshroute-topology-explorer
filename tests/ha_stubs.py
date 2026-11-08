@@ -120,10 +120,18 @@ class FakeHass:
         return func(*args)
 
 
+def _interval(rec, action, period):
+    """Record an interval timer as (period, action); its cancel is recorded in rec.cancelled_intervals."""
+    entry = (period, action)
+    rec.intervals.append(entry)
+    return lambda: rec.cancelled_intervals.append(entry)
+
+
 def install():  # noqa: C901 - existing; see plan-qualitaet S6
     """Put fake modules into sys.modules; returns (module dict, recorders). Caller restores sys.modules."""
     FakeStore.instances, FakeStore.stored, FakeStore.load_error = [], None, None
-    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[])
+    rec = types.SimpleNamespace(commands={}, panels=[], removed=[], later=[], intervals=[], started=[], signals=[],
+                                cancelled_intervals=[])
 
     def mod(name, **attrs):
         m = types.ModuleType(name)
@@ -203,8 +211,7 @@ def install():  # noqa: C901 - existing; see plan-qualitaet S6
 
     event = mod("homeassistant.helpers.event",
                 async_call_later=lambda hass, delay, action: later(delay, action),
-                async_track_time_interval=lambda hass, action, interval: rec.intervals.append((interval, action))
-                or (lambda: None))
+                async_track_time_interval=lambda hass, action, period: _interval(rec, action, period))
     helpers = mod("homeassistant.helpers")
     st = mod("homeassistant.helpers.storage", Store=FakeStore)
     hjson = mod("homeassistant.helpers.json", json_bytes=fake_json_bytes)

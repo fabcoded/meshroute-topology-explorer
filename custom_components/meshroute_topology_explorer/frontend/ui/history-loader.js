@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Loads the reception history for the path history window and the Details sparklines (spec 9.5, 10.2): the admin
-// commands records (one range) and info (recording on or off, how long records are kept, the last
-// problem), the histories cached per network and range, and the state the UI shows. Pure but for the injected
+// commands records (one range) and info (recording on or off, how long records are kept, the last problem of each
+// source), the histories cached per network and range, and the state the UI shows. Pure but for the injected
 // callWS. npm test
 import { createHistoryCache, historyFor, RANGES } from "../engines/index.js";
 
@@ -22,7 +22,8 @@ export function rangesFor(keepDays) {
  *  now(): epoch seconds. get(range) resolves { state, history, info, error }: state "ok", "sparse" (1 or 2 records),
  *  "empty" (no record, recording on), "off" (no record, recording off), "unsupported" (no record, the source reported a
  *  problem: info.lastError) or "failed" (a command was refused). `info` = { record, keepDays, lastError } with null
- *  for fields an older integration does not send. */
+ *  for fields an older integration does not send; lastError is the shown network's own source problem (the info's
+ *  `problems` by `network.source`), never the other network's (#15). */
 export function createLoader({ callWS, network, now = () => Date.now() / 1000, cache = createHistoryCache() }) {
   let infoPromise = null;
   const readInfo = () => {
@@ -30,17 +31,22 @@ export function createLoader({ callWS, network, now = () => Date.now() / 1000, c
       infoPromise = callWS({ type: "meshroute_topology_explorer/history/info" }).then((a) => ({
         record: typeof a.record === "boolean" ? a.record : null,
         keepDays: Number.isFinite(a.keep_days) ? a.keep_days : null,
-        lastError: typeof a.last_error === "string" && a.last_error ? a.last_error : null }))
+        problems: a.problems && typeof a.problems === "object" ? a.problems : {} }))
         .catch((error) => { infoPromise = null; throw error; });
     }
     return infoPromise;
   };
+  /** The info for a network: the cached answer is shared by both networks, its problem is not. */
+  const infoFor = (net) => readInfo().then(({ record, keepDays, problems }) => {
+    const problem = problems[net.source];
+    return { record, keepDays, lastError: typeof problem === "string" && problem ? problem : null };
+  }).catch(() => ({ record: null, keepDays: null, lastError: null }));
   const read = async (range) => {
     const net = network();
     const until = now();
     const [response, info] = await Promise.all([
       callWS({ type: "meshroute_topology_explorer/history/records", network: net.id, since: until - RANGES[range], until }),
-      readInfo().catch(() => ({ record: null, keepDays: null, lastError: null }))]);
+      infoFor(net)]);
     const history = historyFor(net, response);
     const n = history.snapshots.length;
     const state = n >= MIN_LINE_RECORDS ? "ok" : n ? "sparse" : info.lastError ? "unsupported" : info.record === false ? "off" : "empty";
@@ -60,7 +66,7 @@ export function createLoader({ callWS, network, now = () => Date.now() / 1000, c
       return result;
     },
     /** The info alone (for the window's range list before anything is loaded). */
-    info: () => readInfo().catch(() => ({ record: null, keepDays: null, lastError: null })),
+    info: () => infoFor(network()),
     /** Forget what was loaded: a new capture, a changed recording. */
     clear() { cache.clear(); infoPromise = null; },
   };

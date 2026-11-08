@@ -105,10 +105,8 @@ async def test_15_options_zha_section_with_a_zha_entry_and_hidden_values_kept(ha
     assert (entry.options["radio_actions"], entry.options["scan_after_start"]) == (True, False)
 
 
-@pytest.fixture
-def thread_and_zha(hass):
-    """A Matter command with one Thread link and a ZHA command that must stay unread; ZHA's topology is a fake."""
-    reads = []
+def register_matter(hass: HomeAssistant) -> None:
+    """A Matter topology command with one Thread link, dated now (+5 s) on every call."""
 
     @websocket_api.websocket_command({"type": "matter/network_topology", "refresh": bool})
     @websocket_api.async_response
@@ -119,13 +117,21 @@ def thread_and_zha(hass):
             "nodes": [{"id": i, "network_type": "thread", "ext_pan_id": "aabbccdd", "ext_address": f"0x{i:016x}"}
                       for i in (1, 2)]})
 
+    websocket_api.async_register_command(hass, matter)
+
+
+@pytest.fixture
+def thread_and_zha(hass):
+    """A Matter command with one Thread link and a ZHA command that must stay unread; ZHA's topology is a fake."""
+    reads = []
+    register_matter(hass)
+
     @websocket_api.websocket_command({"type": "zha/devices"})
     @websocket_api.async_response
     async def zha(hass, connection, msg):
         reads.append(msg)
         connection.send_result(msg["id"], [])
 
-    websocket_api.async_register_command(hass, matter)
     websocket_api.async_register_command(hass, zha)
     hass.config.components.update({"zha", "matter"})
     MockConfigEntry(domain="zha").add_to_hass(hass)
@@ -149,4 +155,24 @@ async def test_start_path_reads_thread_but_not_zigbee_in_events_mode(hass, entry
     info = await recorder.async_info(hass)
     assert info["follow_mode"] == "events" and info["records"] == 1
     assert thread_and_zha == []  # no Zigbee read at start
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_15_thread_only_records_at_start_and_every_4_hours(hass, entry, caplog):
+    register_matter(hass)
+    hass.config.components.add("matter")  # no ZHA: neither component nor config entry
+    await setup(hass, entry)
+    start = dt_util.utcnow()
+    async_fire_time_changed(hass, start + timedelta(seconds=recorder.FIRST_RECORD_DELAY + 1))
+    await hass.async_block_till_done()
+    info = await recorder.async_info(hass)
+    assert info["records"] == 1 and info["follow_mode"] == "timer"
+    assert info["problems"] == {"zha": None, "thread": None}
+    history = recorder.get_history(hass)
+    clock = history.clock
+    history.clock = lambda: clock() + recorder.THREAD_PERIOD * 60  # the 10-minute floor runs on its own clock
+    async_fire_time_changed(hass, start + timedelta(minutes=recorder.THREAD_PERIOD, seconds=5))
+    await hass.async_block_till_done()
+    assert (await recorder.async_info(hass))["records"] == 2  # the Thread timer, not ZHA's period
+    assert "Reception history" not in caplog.text  # nothing to warn about without ZHA
     assert await hass.config_entries.async_unload(entry.entry_id)

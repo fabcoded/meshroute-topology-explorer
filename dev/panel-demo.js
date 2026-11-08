@@ -328,7 +328,8 @@ async function callWS(msg) {
     case "meshroute_topology_explorer/history/info":
       return { records: historyFile.records.length, first: historyTimes.length ? Math.min(...historyTimes) + historyShift : null,
         last: historyTimes.length ? Math.max(...historyTimes) + historyShift : null, bytes: 0,
-        last_error: historyName === "unsupported" ? "zha/devices: handler not found" : null, record: historyName !== "off",
+        problems: { zha: historyName === "unsupported" ? "zha/devices: handler not found" : null, thread: null },
+        record: historyName !== "off",
         keep_days: Number(q.get("keep")) || 90 };
     case "meshroute_topology_explorer/observations/set":
       store.observations.set(msg.network, msg.observations);

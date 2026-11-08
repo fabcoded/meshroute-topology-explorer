@@ -295,14 +295,15 @@ class SourcesTest(unittest.TestCase):
         got = asyncio.run(self.src.collect(hass))
         networks, problems = got.networks, got.problems
         self.assertEqual(networks["zha-entry"].relays, ((a, (b, "0x0077")), (b, ())))
-        self.assertEqual(problems, [])
+        self.assertEqual(problems, {"zha": [], "thread": []})
         self.relays.side_effect = self.src.NotSupported("internals_changed", "gone")
         got = asyncio.run(self.src.collect(hass))
         networks, problems = got.networks, got.problems
         self.assertEqual(networks["zha-entry"].relays, ())  # the rest of the record is still taken
-        self.assertIn("route records", problems[0])
+        self.assertIn("route records", problems["zha"][0])
+        self.assertEqual(problems["thread"], [])  # a Zigbee problem is Zigbee's (#15)
         self.relays.side_effect = RuntimeError
-        self.assertIn("RuntimeError", asyncio.run(self.src.collect(hass))[1][0])
+        self.assertIn("RuntimeError", asyncio.run(self.src.collect(hass)).problems["zha"][0])
 
     def test_parse_zha_rules(self):
         me, a, b = "aa:bb:cc:dd:00:00:00:01", "aa:bb:cc:dd:00:00:00:02", "aa:bb:cc:dd:00:00:00:03"
@@ -366,8 +367,8 @@ class SourcesTest(unittest.TestCase):
                 return await self.src.collect(hass), await self.src.collect(hass)
 
             first, second = asyncio.run(twice())
-        self.assertIn("did not answer", first[1][0])
-        self.assertIn("previous read", second[1][0])
+        self.assertIn("did not answer", first.problems["thread"][0])
+        self.assertIn("previous read", second.problems["thread"][0])
         self.assertEqual(len(calls), 1)
 
     def test_collect_calls_exactly_the_two_commands_with_refresh_false(self):
@@ -378,7 +379,7 @@ class SourcesTest(unittest.TestCase):
         got = asyncio.run(self.src.collect(hass))
         networks, problems = got.networks, got.problems
         self.assertEqual(sorted(networks), ["thread-aabbccddeeff0001", "zha-entry"])
-        self.assertEqual(problems, [])
+        self.assertEqual(problems, {"zha": [], "thread": []})
         self.assertEqual([(c["type"], c.get("refresh")) for c in calls],
                          [("zha/devices", None), ("matter/network_topology", False)])
 
@@ -399,7 +400,7 @@ class SourcesTest(unittest.TestCase):
         for name, registry in cases.items():
             got = asyncio.run(self.src.collect(self.hass(registry)))
             self.assertEqual(got.networks, {}, name)
-            self.assertEqual(len(got.problems), 2, name)
+            self.assertEqual({k: len(v) for k, v in got.problems.items()}, {"zha": 1, "thread": 1}, name)
         hass = self.hass(None)  # no registry at all
         self.assertEqual(asyncio.run(self.src.collect(hass))[0], {})
 
@@ -410,13 +411,13 @@ class SourcesTest(unittest.TestCase):
             got = asyncio.run(self.src.collect(hass))
         networks, problems = got.networks, got.problems
         self.assertEqual(networks, {})
-        self.assertIn("did not answer", problems[0])
+        self.assertIn("did not answer", problems["zha"][0])
 
     def test_sources_that_are_not_loaded_are_skipped_silently(self):
         hass = self.hass({})
         hass.config.components = set()
         got = asyncio.run(self.src.collect(hass))
-        self.assertEqual((got.networks, got.problems), ({}, []))
+        self.assertEqual((got.networks, got.problems), ({}, {"zha": [], "thread": []}))
 
 
 class RecorderTest(unittest.TestCase):
@@ -477,6 +478,8 @@ class RecorderTest(unittest.TestCase):
         info = self.command("info")[0][0][1]
         self.assertEqual(info["records"], 0)
         self.assertIn("zha", info["last_error"])
+        self.assertIn("zha/devices", info["problems"]["zha"])  # #15: per source, Thread's stays clear
+        self.assertIsNone(info["problems"]["thread"])
 
     def test_empty_tables_are_not_recorded(self):
         self.registry([{"ieee": "aa:bb:cc:dd:00:00:00:01", "available": True, "neighbors": []}])

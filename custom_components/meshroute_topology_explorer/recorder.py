@@ -5,13 +5,15 @@ When to record (owner decision 2026-11-03): ZHA's topology fires events while it
 they have been quiet for DEBOUNCE seconds and the scan task is done ("events"); the record is dated with the end of the
 scan, not with the read. Never mid-scan: zigpy replaces the stored tables router by router while it scans, so a read
 waits for the scan task (`_scan_task`) to end, and a record due within MIN_GAP of the last one is postponed to
-last + MIN_GAP. Where no listener can be attached (internals changed, ZHA's scan off or ZHA not running) a timer at
-ZHA's scan period (240 min without ZHA) records instead, dated with the read ("timer"). Thread has no events: its own
-timer runs at ZHA's period, and a snapshot is dated with the Matter server's collection time. Every ZHA (re)load builds
-a new topology, so the listener is re-attached when ZHA's config entry changes and on each timer tick. Per Home
-Assistant run one HistoryFiles object and one status; a config entry reload only restarts the listener and timers.
-Read only: sources.py takes what ZHA and the Matter server hold and never starts a scan. A failed or empty read writes
-nothing (a missing table is not a table without neighbours). Plan: docs/spec.md section 10.2.
+last + MIN_GAP. Where no listener can be attached (internals changed, ZHA's scan off or ZHA not running) the Zigbee
+timer at ZHA's scan period (240 min without ZHA) records instead, dated with the read ("timer"). Thread has no events:
+its own timer runs every THREAD_PERIOD, independent of ZHA (owner 2026-11-08, #15), and a snapshot is dated with the
+Matter server's collection time. Every ZHA (re)load builds a new topology, so the listener is re-attached, and the
+Zigbee timer set to ZHA's period, when ZHA's config entry changes and on each Zigbee tick. Problems are kept per source
+("zha", "thread"), so one network's problem never shows in the other's history. Per Home Assistant run one
+HistoryFiles object and one status; a config entry reload only restarts the listener and timers. Read only: sources.py
+takes what ZHA and the Matter server hold and never starts a scan. A failed or empty read writes nothing (a missing
+table is not a table without neighbours). Plan: docs/spec.md section 10.2.
 """
 
 from __future__ import annotations
@@ -54,6 +56,10 @@ PRUNE_ONLY_HOURS = 6  # recording off: old files still expire
 FORCED_SCAN_DELAY = 1800  # seconds after Home Assistant has started: the optional one-time scan
 _FORCED_KEY = f"{DOMAIN}_forced_scan_done"  # per Home Assistant run: reloads of the entry do not repeat the scan
 THREAD_PREFIX = "thread-"
+# Minutes. Thread's own fixed interval until #12/#14 bring a schedule of their own (owner 2026-11-08, #15); 4 hours is
+# also the age at which the panel's dot turns amber for a Thread snapshot (spec 6).
+THREAD_PERIOD = 240
+SOURCES = ("zha", "thread")  # the panel's source keys (network.source): problems are kept and answered per source
 
 
 class History:
@@ -63,8 +69,8 @@ class History:
         self.hass = hass
         self.files = HistoryFiles(hass.config.path(".storage", HISTORY_DIR))
         self.lock = asyncio.Lock()  # HistoryFiles is not thread-safe: one executor job at a time
-        self.last_error: str | None = None
-        self.follow_note: str | None = None  # why events could not be followed (kept apart: records reset last_error)
+        self.problems: dict[str, str | None] = dict.fromkeys(SOURCES)  # the last problem of each source, or None
+        self.follow_note: str | None = None  # why ZHA's events could not be followed (kept apart: reads reset problems)
         # Bumped by every delete: a record that was collected before it must not be written after it.
         self.generation = 0
         self.clock = time.monotonic  # the gap between records; the wall clock stays for the record times
@@ -87,6 +93,12 @@ class History:
     def gap_ok(self, network: str) -> bool:
         return self.clock() - self.last_mono.get(network, float("-inf")) >= MIN_GAP
 
+    def note(self, source: str, problem: str | None) -> None:
+        """Keep a source's last problem; logged once per change, not once per interval."""
+        if problem and problem != self.problems[source]:
+            _LOGGER.warning("Reception history (%s): %s", source, problem)
+        self.problems[source] = problem
+
     async def record(self, keep_days: int, now: float | None = None, *, zigbee: bool = True, thread: bool = True,
                      zigbee_time: float | None = None) -> None:
         """Take what the sources asked for hold now and append one record per network, then drop expired day files.
@@ -101,11 +113,10 @@ class History:
         try:
             zigbee = zigbee and not self.scan_busy()
             got = await collect(self.hass, zigbee, thread)
+            for source, asked in zip(SOURCES, (zigbee, thread), strict=True):
+                if asked:  # a source not read keeps its problem: a Thread read must not clear ZHA's
+                    self.note(source, "; ".join(got.problems[source]) or None)
             zigbee = zigbee and not self.scan_busy()
-            error = "; ".join(got.problems) or None
-            if error and error != self.last_error:
-                _LOGGER.warning("Reception history: %s", error)  # once per change, not once per interval
-            self.last_error = error
             for network, snapshot in got.networks.items():
                 is_thread = network.startswith(THREAD_PREFIX)
                 t = got.times.get(network) if is_thread else (zigbee_time or now)
@@ -132,8 +143,8 @@ def get_history(hass: HomeAssistant) -> History:
 
 
 class Recording:
-    """The triggers of one config entry: follows ZHA's scans (or a timer), a Thread timer, expiry. Nothing here starts
-    a scan; `stop` undoes everything."""
+    """The triggers of one config entry: follows ZHA's scans (or the Zigbee timer), the Thread timer, expiry. Nothing
+    here starts a scan; `stop` undoes everything."""
 
     def __init__(self, hass: HomeAssistant, options: dict[str, Any]) -> None:
         self.hass = hass
@@ -141,7 +152,9 @@ class Recording:
         self.history.options, self.history.follow_mode, self.history.follow_note = options, None, None
         self.keep, self.recording = options[CONF_KEEP_DAYS], options[CONF_RECORD]
         self.scan_after_start, self.radio_actions = options[CONF_SCAN_AFTER_START], options[CONF_RADIO_ACTIONS]
-        self.period = ZHA_DEFAULT_PERIOD  # minutes
+        self.period = ZHA_DEFAULT_PERIOD  # minutes: ZHA's scan period as last read
+        self._zigbee_timer: Callable[[], None] | None = None  # the Zigbee timer, running at _zigbee_period
+        self._zigbee_period: int | None = None
         self.topology: Any = None  # the topology our listener sits on
         self._detach: Callable[[], None] | None = None
         self._cancels: list[Callable[[], None]] = []  # timers and subscriptions to undo
@@ -157,10 +170,10 @@ class Recording:
         return self.stop
 
     def stop(self) -> None:
-        for cancel in [*self._cancels, *([self._pending] if self._pending else [])]:
+        for cancel in [*self._cancels, *(c for c in (self._pending, self._zigbee_timer) if c)]:
             cancel()
         self._cancels.clear()
-        self._pending = None
+        self._pending, self._zigbee_timer = None, None
         self._drop_waiting()
         self._release()
         self.history.scan_busy = lambda: False
@@ -198,6 +211,17 @@ class Recording:
             self.history.follow_mode = "timer"
             self.history.follow_note = (f"following ZHA's scans is not possible, recording on a timer: {err}"
                                         if err.reason == "internals_changed" else None)
+        self._schedule_zigbee()
+
+    def _schedule_zigbee(self) -> None:
+        """Run the Zigbee timer at ZHA's period; restart it when the period changed (ZHA came up later or was reloaded
+        with another period, #15)."""
+        if self._zigbee_timer is not None and self._zigbee_period == self.period:
+            return
+        if self._zigbee_timer is not None:
+            self._zigbee_timer()
+        self._zigbee_period = self.period
+        self._zigbee_timer = async_track_time_interval(self.hass, self._tick, timedelta(minutes=self.period))
 
     def _current(self) -> Any:
         """The topology to ask about a running scan: ours, else ZHA's current one, else None."""
@@ -225,11 +249,9 @@ class Recording:
         if not self.recording:
             self._cancels.append(async_track_time_interval(self.hass, self._tick, timedelta(hours=PRUNE_ONLY_HOURS)))
             return
-        self._follow()
-        self._cancels.append(async_track_time_interval(self.hass, self._tick, timedelta(minutes=self.period)))
-        # Events mode: no read of ZHA at start (zigpy restores its last scan from its database; it would be dated as
-        # new). Thread and the timer mode have nothing else to wait for.
-        self._cancels.append(async_call_later(self.hass, FIRST_RECORD_DELAY, self._tick))
+        self._follow()  # also starts the Zigbee timer
+        self._cancels.append(async_track_time_interval(self.hass, self._tick_thread, timedelta(minutes=THREAD_PERIOD)))
+        self._cancels.append(async_call_later(self.hass, FIRST_RECORD_DELAY, self._first))
         if self.scan_after_start and not self.hass.data.get(_FORCED_KEY):
             self._cancels.append(async_call_later(self.hass, FORCED_SCAN_DELAY, self._one_time))
 
@@ -259,22 +281,37 @@ class Recording:
         except Exception as err:  # noqa: BLE001 - a timer callback: never raise into Home Assistant
             history.forced_scan_note = f"failed: {type(err).__name__}: {err}"
 
+    async def _first(self, _now: Any = None) -> None:
+        """30 s after the start: Thread, and Zigbee in timer mode. Events mode reads no Zigbee then: zigpy restores its
+        last scan from its database, and it would be dated as new."""
+        await self._tick_thread()
+        await self._tick()
+
     async def _tick(self, _now: Any = None) -> None:
-        """Timer: the Thread read in events mode, everything in timer mode; expiry only when recording is off."""
+        """Zigbee timer: the identity check (a new application since the last tick), the Zigbee read in timer mode;
+        expiry alone when recording is off."""
         try:
             if not self.recording:
                 await self.history.prune(self.keep)
                 return
-            self._follow()  # also the identity check: a new application since the last tick
-            await self.history.record(self.keep, zigbee=self.history.follow_mode != "events")
+            self._follow()
+            if self.history.follow_mode != "events":
+                await self.history.record(self.keep, zigbee=True, thread=False)
         except Exception as err:  # noqa: BLE001 - a timer callback: log and try again at the next trigger
-            self._failed(err)
+            self._failed(err, "zha")
 
-    def _failed(self, err: Exception) -> None:
+    async def _tick_thread(self, _now: Any = None) -> None:
+        """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow."""
+        try:
+            await self.history.record(self.keep, zigbee=False, thread=True)
+        except Exception as err:  # noqa: BLE001 - a timer callback
+            self._failed(err, "thread")
+
+    def _failed(self, err: Exception, source: str) -> None:
         message = f"recording failed: {type(err).__name__}: {err}"
-        if message != self.history.last_error:  # once per change, like the source problems
+        if message != self.history.problems[source]:  # once per change, like the source problems
             _LOGGER.exception("Reception history failed")
-        self.history.last_error = message
+        self.history.problems[source] = message
 
     def _delay(self) -> int:
         return DEBOUNCE if self.topology is not None and scan_state(self.topology)[0] != "unknown" else DEBOUNCE_UNKNOWN
@@ -304,7 +341,7 @@ class Recording:
         try:
             if self._trigger_start is not None and self.history.clock() - self._trigger_start > 2 * self.period * 60:
                 self._trigger_start = None
-                self.history.last_error = "ZHA's scan did not end in time; nothing was recorded for it"
+                self.history.problems["zha"] = "ZHA's scan did not end in time; nothing was recorded for it"
                 return
             state, task = scan_state(self.topology) if self.topology is not None else ("idle", None)
             if state == "running":
@@ -322,7 +359,7 @@ class Recording:
             if not self.scan_busy():
                 self._trigger_start = None
         except Exception as err:  # noqa: BLE001 - a timer callback
-            self._failed(err)
+            self._failed(err, "zha")
 
 
 def start_recording(hass: HomeAssistant, options: dict[str, Any]) -> list[Callable[[], None]]:
@@ -332,7 +369,8 @@ def start_recording(hass: HomeAssistant, options: dict[str, Any]) -> list[Callab
 
 
 async def async_info(hass: HomeAssistant) -> dict[str, Any]:
-    """Result of the info command: the history's size and how it is fed."""
+    """Result of the info command: the history's size, how it is fed, and the last problem per source (`problems`, read
+    by the panel; `last_error` joins them, kept for older readers)."""
     history = get_history(hass)
     zha: ScanSettings | None = None
     state: str | None = None
@@ -342,8 +380,9 @@ async def async_info(hass: HomeAssistant) -> dict[str, Any]:
     except NotSupported:
         pass  # ZHA is not running: no period, no scan state
     options = get_options(history.options)
+    problems = {**history.problems, "zha": "; ".join(filter(None, [history.follow_note, history.problems["zha"]])) or None}
     return {**await history.run(history.files.info),
-            "last_error": "; ".join(filter(None, [history.follow_note, history.last_error])) or None,
+            "last_error": "; ".join(filter(None, problems.values())) or None, "problems": problems,
             "zha_scan_period": zha.period if zha else None, "zha_scan_enabled": zha.enabled if zha else None,
             "follow_mode": history.follow_mode, "scan_state": state,
             "last_forced_scan": history.forced_scan_time,
