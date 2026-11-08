@@ -90,9 +90,27 @@ const neighbour = (sender, [rssi, lqi], child = false) => ({
   isChild: child,
 });
 
-/** The network: { topology (matter/network_topology), tables (meshroute_topology_explorer/thread_tables) }.
- *  fresh: the sensors TE and KF hang on border router A (the parent change of the owner's fresh read). */
-export function threadRoutesSample({ fresh = false, readAt = 1767268800 } = {}) {
+/** The network: { topology (matter/network_topology), tables (meshroute_topology_explorer/thread_tables), registry }.
+ *  fresh: the sensors TE and KF hang on border router A (the parent change of the owner's fresh read). atelier: only
+ *  the owner-shaped part (sofaunten, sofaoben, border router A, the two sensors), without the example extension. */
+export function threadRoutesSample({ fresh = false, readAt = 1767268800, atelier = false } = {}) {
+  const full = buildSample({ fresh, readAt });
+  if (!atelier) return full;
+  const keep = new Set(["LU", "LO", "BRA", "TE", "KF"].map((k) => KEYS[k].ext.toLowerCase()));
+  const kept = (ext) => keep.has(String(ext).toLowerCase());
+  const nodes = full.topology.nodes.filter((n) => kept(n.ext_address));
+  const ids = new Set(nodes.map((n) => n.id));
+  return {
+    topology: { ...full.topology, nodes,
+      connections: full.topology.connections.filter((c) => ids.has(c.source) && ids.has(c.target)) },
+    tables: { ...full.tables, nodes: full.tables.nodes.filter((n) => kept(n.ext_address)).map((n) => ({ ...n,
+      neighbor_table: n.neighbor_table.filter((e) => kept(e.extAddress)),
+      route_table: n.route_table.filter((e) => kept(e.extAddress)) })) },
+    registry: full.registry.filter((r) => ["LU", "LO", "TE", "KF"].some((k) => r.id === `routes-${k}`)),
+  };
+}
+
+function buildSample({ fresh, readAt }) {
   const parentOf = (k) => (fresh && CHILDREN[k].fresh) || CHILDREN[k].parent;
   const childHeard = (key) => {
     if (CHILD_HEARD[key]) return CHILD_HEARD[key];

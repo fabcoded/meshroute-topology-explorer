@@ -878,8 +878,9 @@ One place per thing; nothing appears twice.
   router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
   numbers on the way there, the weakest hop of each direction wider with its pill outlined red, the derived hop
   dash-dot; every other measured lane stays in grey with its value, and no device is dimmed. With "Unused routes" on,
-  each route hop's unused alternative is drawn dashed with "unused · cost N". A route that stops ends in a stem with
-  "?". Hovering previews the device's own lanes; a border router shows its own lanes. No times on the map.
+  each route hop's unused alternative is drawn dashed with "unused · cost N". No value covers another or a hop
+  number (owner: every value readable): a pill that would moves to the right of its lane, then along it, then across
+  to the left (`tests/graph-thread-routes.test.mjs`). A route that stops ends in a stem with "?". Hovering previews the device's own lanes; a border router shows its own lanes. No times on the map.
 - **Details on click** defaults to on for wide screens, off for narrow ones. It applies to clicks on the map and in
   Devices: it opens the left panel on Details (closed, on Devices, or following on Details), never takes Findings away
   and on narrow screens never pushes the right sheet away. Selecting from Findings or a device named in Details zooms

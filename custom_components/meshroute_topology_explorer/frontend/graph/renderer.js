@@ -440,7 +440,15 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!extra.path) return null;
       dists = [lane.len / 2]; // never dropped: the middle, overlap accepted
     }
-    const spots = dists.filter((d, i) => dists.findIndex((e) => Math.abs(e - d) < 1) === i).map((d) => pillCentre(lane, d));
+    let spots = dists.filter((d, i) => dists.findIndex((e) => Math.abs(e - d) < 1) === i).map((d) => pillCentre(lane, d));
+    // An engine that wants every focus value apart (focus.separate: Thread routes, board M38) also offers each place
+    // shifted to the lane's right, away from the other direction's lane, so the two pills of a short hop sit side by
+    // side; value() then keeps them clear of each other and of the hop numbers.
+    if (extra.separate) {
+      // To the right first; where that side is taken, across the other lane to the left.
+      const shifts = [0, h / 2 + 4, h + 6, 1.5 * h + 8, 2 * h + 10, -(h + 6), -(1.5 * h + 8)];
+      spots = spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
+    }
     const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
     return t;
@@ -535,6 +543,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const pathValues = [];
   const ends = [];
   const hopNumbers = [];
+  const numberRects = []; // the hop numbers' boxes, which separate values keep clear of
   if (route) {
     ctx.globalAlpha = 1;
     const items = [];
@@ -558,7 +567,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${scene.nodes[h].label}`;
       const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
       const t = addValue(lane, text, { path: !hop.context, context: Boolean(hop.context), alpha: 1,
-        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h] });
+        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h], separate: Boolean(route.separate) });
       if (hop.number) numbers.push({ lane, n: hop.number });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
@@ -570,7 +579,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const d = Math.min(lane.len * 0.3, 28);
       hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
     }
-    for (const b of hopNumbers) obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
+    for (const b of hopNumbers) {
+      obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
+      numberRects.push({ x: b.x - 8, y: b.y - 8, w: 16, h: 16 });
+    }
     const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
@@ -704,13 +716,16 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const value = (t) => {
     let rect = null;
     // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
-    // place on the lane, else the one covering least); they are never dropped. Only the debug overview's values need
-    // a free spot and may be dropped.
+    // place on the lane, else the one covering least); they are never dropped. With focus.separate a value placed
+    // earlier or a hop number weighs far more than a label or a symbol: no two values cover each other where any
+    // place is free. Only the debug overview's values need a free spot and may be dropped.
     let least = Infinity;
     for (const [x, y] of t.spots) {
       const r = { x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 };
       if (t.path) {
-        const area = protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
+        const apart = t.separate ? [...valueRects.map((v) => v.rect), ...numberRects]
+          .reduce((sum, q) => sum + overlapArea(r, q), 0) * 1000 : 0;
+        const area = apart + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
         if (area >= least) continue;
         least = area;
         rect = r;
@@ -802,7 +817,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.textBaseline = "bottom";
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, height - 8, theme);
   }
-  const paths = route ? { hops: pathHops.length, ends: ends.length,
+  const paths = route ? { hops: pathHops.length, ends: ends.length, numbers: hopNumbers.map(({ x, y, text }) => ({ x, y, text })),
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
       drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;

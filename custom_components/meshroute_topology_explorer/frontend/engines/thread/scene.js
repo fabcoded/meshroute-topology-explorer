@@ -115,7 +115,7 @@ export function hopText(x) {
  *  its two numbers, the way there numbered, the weakest hop of each direction marked (weak), a derived hop dash-dot
  *  (assumed); a route that stops ends in a stem towards its goal. Every other lane with a reading keeps its value in
  *  grey (cls "context", board M40 A); with view.unusedRoutes each route hop's unused alternative is drawn dashed
- *  with its cost (cls "unused"). Every device stays undimmed. */
+ *  with its cost (cls "unused"). Every device stays undimmed; `separate` asks the renderer to keep every value apart. */
 export function routeFocus(scene, i, r, view = {}) {
   const at = (id) => scene.index.get(id);
   const hops = [];
@@ -157,5 +157,7 @@ export function routeFocus(scene, i, r, view = {}) {
   } else if (r.back && !r.back.complete && at(r.back.at) !== undefined) {
     ends.push({ at: at(r.back.at), toward: i, cls: "route" });
   }
-  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null };
+  // separate: every value of the route readable (owner, board M38): the renderer keeps them apart from each other and
+  // from the hop numbers.
+  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null, separate: true };
 }
