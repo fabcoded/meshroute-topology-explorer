@@ -70,6 +70,13 @@ repos:
         language: system
         pass_filenames: false
         files: '(\.(js|mjs|cjs)$|^package(-lock)?\.json$)'
+      - id: bundle-fresh
+        name: Panel bundle matches its sources (npm run bundle)
+        # frontend/dist/panel.js is what Home Assistant loads (issue #16); a stale copy would ship old code.
+        entry: node tools/bundle.mjs --check
+        language: system
+        pass_filenames: false
+        files: '^(custom_components/meshroute_topology_explorer/frontend/|tools/bundle\.mjs$|package(-lock)?\.json$)'
       - id: guard
         name: Meshroute safety and source guard
         entry: python3 tools/guard.py

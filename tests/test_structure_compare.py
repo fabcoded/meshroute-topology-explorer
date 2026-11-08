@@ -150,6 +150,14 @@ class StructureCompareTest(unittest.TestCase):
         self.assertIn("sharedDistinctiveName", text)
         self.assertIn("weak signal", text)
 
+    def test_our_generated_bundle_is_skipped_their_dist_is_not(self):
+        """Issue #16: our dist/ repeats the sources (tools/bundle.mjs) and would double each finding; their dist/
+        can be the only copy of their code."""
+        s = self.summary({"a.js": UNRELATED, "dist/panel.js": RENAMED}, {"dist/t.js": ORIGINAL})
+        self.assertEqual([f["ours"] for f in s["files"]], ["a.js"])
+        s = self.summary({"a.js": RENAMED}, {"dist/t.js": ORIGINAL})
+        self.assertGreater(s["max_pair_share"], 0.8)
+
     def test_missing_directory_still_exits_zero(self):
         self.assertEqual(sc.main(["--ours", "/nonexistent-a", "--theirs", "/nonexistent-b"]), 0)
 
