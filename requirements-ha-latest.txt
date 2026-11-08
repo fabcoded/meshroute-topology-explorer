@@ -1,7 +1,11 @@
 # L2 tests (tests_ha/) against the latest Home Assistant release. Python 3.14.2 or newer. Dependabot proposes bumps
 # monthly; a bump is a pull request whose CI runs the tests against the new release. Never install together with
 # requirements-ha-min.txt. Pin sources: the frontend and zigpy versions are those the pinned release requires
-# (homeassistant/components/frontend/manifest.json, zha/manifest.json -> zha 2.4.2 -> zigpy).
+# (homeassistant/components/frontend/manifest.json, zha/manifest.json -> zha 2.4.2 -> zigpy, matter/manifest.json ->
+# matter-python-client, whose node model tests_ha/test_matter_contract.py builds).
 pytest-homeassistant==2026.11.0
 home-assistant-frontend==20261028.4
 zigpy==2.4.1
+matter-python-client==1.5.5
+# The hassio manifest's pin: HA's Matter integration imports it (matter/__init__.py), pytest-homeassistant only has it as an extra.
+aiohasupervisor==0.8.1

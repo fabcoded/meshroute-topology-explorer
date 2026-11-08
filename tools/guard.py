@@ -13,9 +13,11 @@
   code. URL_ALLOW is matched exactly up to a path boundary. NAMESPACES are XML namespace names, matched exactly: they
   name a vocabulary and are never fetched, and document.createElementNS() needs the SVG one to draw icons.
 - Shipped Python may read zigpy's route records (custom_components/*/zigpy_routes.py: each device's address and relay
-  list) and, for the reception history (sources.py), call the registered handlers of `zha/devices` and
-  `matter/network_topology` (refresh false) in-process, and nothing else of zigpy or ZHA: PY_DENY names the internals that
-  hold network settings, keys or their saved copies, and the calls that send to the radio or change the network.
+  list), the Matter client's cached Thread tables (thread_tables.py: get_nodes and each node's ThreadNetworkDiagnostics
+  cluster) and, for the reception history (sources.py), call the registered handlers of `zha/devices` and
+  `matter/network_topology` (refresh false) in-process, and nothing else of zigpy, ZHA or the Matter client: PY_DENY
+  names the internals that hold network settings, keys or their saved copies, and the calls that send to the radio or
+  change the network.
 - Shipped Python must not import voluptuous (Home Assistant 2026.10 replaced it by probatio, the minimum version).
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
@@ -61,6 +63,11 @@ PY_DENY = (
     "permit", "form_network", "reset_network", "write_network", "load_network", "send_packet", "request(", "broadcast(",
     "energy_scan", "scan(", "periodic_scans", "unknown_device", "_scan_table", "_scan_neighbors", "_scan_routes",
     "zdo", "bind(", "write_attributes", "read_attributes", ".remove(", "leave(",
+    # the Matter client (matter_server.client.MatterClient): reads over the radio, writes, commissioning (#11; the
+    # Thread tables come from its node cache, thread_tables.py)
+    "read_attribute", "refresh_attribute", "write_attribute", "send_device_command", "interview_node",
+    "get_network_topology", "ping_node", "remove_node", "commission", "subscribe_attribute", "set_thread_dataset",
+    "set_wifi_credentials",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

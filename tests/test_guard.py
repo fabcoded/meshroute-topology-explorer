@@ -189,6 +189,12 @@ class GuardTest(unittest.TestCase):
             "leave": "await app.remove(ieee)",
             "write": "await cluster.write_attributes({0: 1})",
             "zha_data": "data = get_zha_data(hass)",
+            # #11: the Matter client's calls that go to the radio or change the fabric
+            "matter_read": "await client.read_attribute(14, '0/53/8')",
+            "matter_refresh": "await client.refresh_attribute(14, '0/53/7')",
+            "matter_topology": "await client.get_network_topology(refresh=True)",
+            "matter_command": "await client.send_device_command(14, 1, cmd)",
+            "matter_interview": "await client.interview_node(14)",
         }
         for name, code in denied.items():
             with self.subTest(name):
@@ -196,7 +202,8 @@ class GuardTest(unittest.TestCase):
                 self.assertTrue(guard.check(root), code)
         # The route records themselves pass, and the rule is for shipped Python only (tests and tools may name them).
         allowed = ("app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
-                   "app.topology.add_listener(listener)\nperiod = app.config.get('topology_scan_period')\n")
+                   "app.topology.add_listener(listener)\nperiod = app.config.get('topology_scan_period')\n"
+                   "nodes = get_matter(hass).matter_client.get_nodes()\ncluster = nodes[0].get_cluster(0, 53)\n")
         root = self.tree({"custom_components/x/routes.py": py + allowed, "tests/fake.py": py + "app.state.network_info\n",
                           "custom_components/x/panel.js": SPDX + "// permit joining is a raw value name\n"})
         self.assertEqual(guard.check(root), [])

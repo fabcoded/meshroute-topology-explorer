@@ -43,6 +43,7 @@ from .const import (
 from .history import HistoryFiles
 from .options import get_options
 from .sources import collect, request_update, set_up_entries
+from .thread_tables import async_observe
 from .zha_scan import ScanSettings, attach, read_settings, scan_state, topology
 from .zigpy_routes import NotSupported
 
@@ -313,7 +314,9 @@ class Recording:
             self._failed(err, "zha")
 
     async def _tick_thread(self, _now: Any = None) -> None:
-        """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow."""
+        """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow. It also refreshes the
+        Thread table fingerprints (thread_tables.py, in memory), so "unchanged since" is at most one period late."""
+        await async_observe(self.hass)
         try:
             await self.history.record(self.keep, zigbee=False, thread=True)
         except Exception as err:  # noqa: BLE001 - a timer callback
