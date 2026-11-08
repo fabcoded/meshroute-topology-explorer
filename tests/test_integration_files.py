@@ -54,9 +54,9 @@ class IntegrationFilesTest(unittest.TestCase):
         en = load(folder / "en.json")
         self.assertIn("title", en["config"]["step"]["user"])
         init = en["options"]["step"]["init"]
-        self.assertEqual(set(init["data"]), {"sidebar", "radio_actions"})
+        self.assertEqual(set(init["data"]), {"sidebar"})
         self.assertEqual(set(init["sections"]["history"]["data"]), {"record", "keep_days", "delete_history"})
-        self.assertEqual(set(init["sections"]["zha"]["data"]), {"scan_after_start"})
+        self.assertEqual(set(init["sections"]["zha"]["data"]), {"radio_actions", "scan_after_start"})  # #15
         self.assertIn("topology_scan_period", init["sections"]["zha"]["description"])
         self.assertEqual(set(en["options"]["error"]), {"days_range"})
 

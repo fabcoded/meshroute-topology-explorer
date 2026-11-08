@@ -25,11 +25,10 @@ async def setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     assert entry.state is ConfigEntryState.LOADED
 
 
-def submit(sidebar=True, keep_days=30, delete_history=False) -> dict:
-    """A complete form submission: the real schema requires every field and both sections."""
-    return {"sidebar": sidebar, "radio_actions": True,
-            "history": {"record": True, "keep_days": keep_days, "delete_history": delete_history},
-            "zha": {"scan_after_start": False}}
+def submit(sidebar=True, keep_days=30, delete_history=False, zha=None) -> dict:
+    """A complete form submission: the real schema requires every field of the sections it shows (zha: that section)."""
+    return {"sidebar": sidebar, "history": {"record": True, "keep_days": keep_days, "delete_history": delete_history},
+            **({"zha": zha} if zha is not None else {})}
 
 
 def panels(hass: HomeAssistant) -> dict:
@@ -68,7 +67,7 @@ async def test_options_flow_form_error_delete_and_reload(hass, entry):
     await setup(hass, entry)
     form = await hass.config_entries.options.async_init(entry.entry_id)
     assert form["type"] is FlowResultType.FORM
-    assert set(form["data_schema"].schema) >= {"sidebar", "radio_actions", "history", "zha"}
+    assert set(form["data_schema"].schema) == {"sidebar", "history"}  # #15: no ZHA config entry, no ZHA section
     flow_id = form["flow_id"]
     bad = await hass.config_entries.options.async_configure(flow_id, submit(keep_days=0))
     assert bad["type"] is FlowResultType.FORM and bad["errors"] == {"base": "days_range"}
@@ -84,6 +83,26 @@ async def test_options_flow_form_error_delete_and_reload(hass, entry):
     assert entry.options["keep_days"] == 7 and "delete_history" not in entry.options
     assert entry.state is ConfigEntryState.LOADED
     assert PANEL_URL_PATH not in panels(hass)  # the reload ran setup again with sidebar off
+
+
+async def test_15_options_zha_section_with_a_zha_entry_and_hidden_values_kept(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={"radio_actions": False, "scan_after_start": True})
+    entry.add_to_hass(hass)
+    await setup(hass, entry)
+    form = await hass.config_entries.options.async_init(entry.entry_id)
+    assert set(form["data_schema"].schema) == {"sidebar", "history"}
+    done = await hass.config_entries.options.async_configure(form["flow_id"], submit(keep_days=9))
+    assert done["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert (entry.options["radio_actions"], entry.options["scan_after_start"], entry.options["keep_days"]) == (False, True, 9)
+    MockConfigEntry(domain="zha").add_to_hass(hass)  # ZHA set up (not loaded: the entry is what counts)
+    form = await hass.config_entries.options.async_init(entry.entry_id)
+    assert set(form["data_schema"].schema) == {"sidebar", "history", "zha"}
+    done = await hass.config_entries.options.async_configure(
+        form["flow_id"], submit(zha={"radio_actions": True, "scan_after_start": False}))
+    assert done["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert (entry.options["radio_actions"], entry.options["scan_after_start"]) == (True, False)
 
 
 @pytest.fixture

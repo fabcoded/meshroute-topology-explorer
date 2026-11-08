@@ -50,8 +50,9 @@ class MeshrouteConfigFlow(ConfigFlow, domain=DOMAIN):
 class MeshrouteOptionsFlow(OptionsFlowWithReload):
     """One form; saving reloads the entry (never Home Assistant). Home Assistant checks values only on Submit, so
     problems come back as errors. Those of the section's fields are returned as `base` errors, which always show at the
-    top of the form (the frontend's mapping of section field errors is not guaranteed). ZHA's scan period is only
-    shown, with a note how to change it in configuration.yaml, which this integration never writes."""
+    top of the form (the frontend's mapping of section field errors is not guaranteed). The ZHA section appears only
+    when ZHA has a config entry (owner 2026-11-08, #15); its stored values are kept while it is hidden. ZHA's scan
+    period is only shown, with a note how to change it in configuration.yaml, which this integration never writes."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         try:
@@ -59,33 +60,34 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
         except NotSupported:
             zha = None
         errors: dict[str, str] = {}
-        flat: dict[str, Any] = {}
+        stored = get_options(self.config_entry.options)
+        current = stored
         if user_input is not None:
-            # The sections' fields arrive nested; flatten before validating.
+            # The sections' fields arrive nested; flatten before validating. A hidden section sends nothing.
             flat = {**{k: v for k, v in user_input.items() if k not in SECTIONS},
                     **{k: v for name in SECTIONS for k, v in user_input.get(name, {}).items()}}
-            options, delete, errors = validate_options(flat)
+            options, delete, errors = validate_options(flat, stored)
             if not errors:
                 if delete:
                     await async_delete_history(self.hass)
                 return self.async_create_entry(data=options)
             # One base error (the first); the texts carry the numbers. Keep what the user typed.
             errors = {"base": next(iter(errors.values()))}
-            current = {**get_options(None), **flat}
-        else:
-            current = get_options(self.config_entry.options)
+            current = {**stored, **flat}
         history = probatio.Schema({
             probatio.Required(CONF_RECORD, default=current[CONF_RECORD]): bool,
             probatio.Required(CONF_KEEP_DAYS, default=current[CONF_KEEP_DAYS]): int,
             probatio.Required(CONF_DELETE_HISTORY, default=False): bool,
         })
-        zha_section = probatio.Schema({probatio.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool})
         schema = {
             probatio.Required(CONF_SIDEBAR, default=current[CONF_SIDEBAR]): bool,
-            probatio.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
             probatio.Required(SECTIONS[0]): section(history, {"collapsed": False}),
-            probatio.Required(SECTIONS[1]): section(zha_section, {"collapsed": False}),
         }
+        if self.hass.config_entries.async_entries("zha"):
+            schema[probatio.Required(SECTIONS[1])] = section(probatio.Schema({
+                probatio.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
+                probatio.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool,
+            }), {"collapsed": False})
         return self.async_show_form(step_id="init", data_schema=probatio.Schema(schema), errors=errors,
                                     description_placeholders={
             "zha_scan": describe(zha), "days_range": f"{KEEP_DAYS_RANGE[0]} to {KEEP_DAYS_RANGE[1]}"})
