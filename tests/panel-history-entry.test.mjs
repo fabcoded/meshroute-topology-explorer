@@ -137,7 +137,7 @@ test("partner menu: coordinator first, then the first device's neighbours by rec
   partnerButton(w).click();
   const expected = [coordinator, ...neighboursByReception(network, router).map((n) => n.id).filter((id) => id !== coordinator)].slice(0, 13);
   assert.deepEqual(choices(w).map((c) => text(c.children[0])), expected.map(label), "anchor first, then neighbours, strongest first");
-  assert.match(text(choices(w)[0]), /^Coordinator.*Coordinator$/s, "the group word is the engine's anchor role");
+  assert.equal(text(choices(w)[0]).trim(), "Coordinator", "no duplicate role beside a name equal to it (#5)");
   // Search over all devices, not only neighbours.
   const stranger = network.devices.find((d) => d.id !== router && !expected.includes(d.id) && !neighboursByReception(network, router).some((n) => n.id === d.id));
   const search = find(w.el, (e) => e.tag === "input")[0];
@@ -152,6 +152,26 @@ test("partner menu: coordinator first, then the first device's neighbours by rec
   assert.equal(w.state.range, "30d", "the range stays");
   assert.deepEqual([w.state.lane.x, w.state.lane.y], [router, stranger.id]);
   w.close();
+});
+
+test("partner menu (#5): an anchor whose role differs from its name still shows the role, case and spaces ignored when equal", async () => {
+  forgetTab();
+  const dev = network.devices.find((d) => d.id === coordinator);
+  const saved = dev.label;
+  try {
+    dev.label = "Main gateway";
+    let w = await openWindow([router, coordinator], "route");
+    partnerButton(w).click();
+    assert.equal(text(choices(w)[0]), "Main gatewayCoordinator", "different name: role shown");
+    w.close();
+    dev.label = "  coordinator ";
+    w = await openWindow([router, coordinator], "route");
+    partnerButton(w).click();
+    assert.equal(text(choices(w)[0]).trim(), "coordinator", "same up to case and spaces: role hidden");
+    w.close();
+  } finally {
+    dev.label = saved;
+  }
 });
 
 test("partnerChoices: the device itself is never offered; a query filters by name", () => {
