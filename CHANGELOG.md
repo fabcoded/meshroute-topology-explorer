@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fixed:** the Thread status line called the snapshot time "read"; it now says "snapshot" and notes that the
+  Thread tables in it can be many hours old, with an unreported read time (#13). Frontend only.
 - **Breaking: requires Home Assistant 2026.10 or newer.** The options form uses `probatio`, which replaced `voluptuous` in Home Assistant's forms and websocket validation in 2026.10.
 - **Path history:** select a device and click the "?" badge at another one to open the pair's window: Timeline (route bands and the weakest hop's rank over time), Route (Metro-Map or Mesh with a time slider, earlier routes as ghosts) and Direct link (both directions of one hop as LQI, Thread with RSSI below); Details' "Heard by · hears" rows get a 48 h sparkline. Thread pairs show their direct link and neighbours. Needs the reception history (administrators).
 - **Route tab, stable structure:** Metro-Map and Mesh lay out the union of all devices on the pair's routes in the range once; the time slider only moves the highlight (current route solid, other devices faded, earlier routes as ghosts), so nothing appears or jumps while scrubbing. Frontend only.

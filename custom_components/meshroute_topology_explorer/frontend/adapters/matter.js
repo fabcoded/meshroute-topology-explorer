@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration and hands the
-// topology to the Thread engine (engines/index.js), which builds the model. Read only: the server's cached snapshot.
+// topology to the Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache.
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { errorCode, errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
- *  (the server's cached snapshot; refresh true reads every node's tables over the radio and is never sent from here).
+ *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
+ *  sent from here).
  *  Returns { status: "ok" | "not_loaded" | "not_supported" | "empty" | "error", network?, message? }; a lost
  *  connection is thrown to the caller. Home Assistant before 2026.9 has no such command (unknown_command), a Matter
  *  server too old for it answers not_supported (spec 3.2): both are "not_supported". */
