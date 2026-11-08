@@ -190,6 +190,23 @@ const lang = q.get("lang") || "en";
 document.documentElement.lang = lang;
 // phone=1: the panel in a 390 × 844 frame, with Home Assistant's narrow flag, as on a phone.
 if (flag("phone")) document.body.classList.add("phone");
+// inset=<bottom> or inset=<top>,<bottom> in px (#4; one value: status bar 24 px on top): the system insets as Home Assistant hands them to a panel. The root carries --safe-area-inset-*
+// (the app sets --app-safe-area-inset-*, the frontend derives these, main.globals.ts) and ha-panel-custom pads its
+// container with them (src/panels/custom/ha-panel-custom.ts, _createPanel, panel without handle_safe_area).
+if (q.has("inset")) {
+  const root = document.documentElement.style;
+  const given = q.get("inset").split(",").map(Number);
+  root.setProperty("--safe-area-inset-top", `${given.length > 1 ? given[0] : 24}px`);
+  root.setProperty("--safe-area-inset-bottom", `${given[given.length - 1]}px`);
+  root.setProperty("--safe-area-inset-left", "0px");
+  root.setProperty("--safe-area-inset-right", "0px");
+  document.body.classList.add("inset");
+  const container = document.createElement("div");
+  Object.assign(container.style, { display: "block", boxSizing: "border-box", paddingTop: "var(--safe-area-inset-top)",
+    paddingBottom: "var(--safe-area-inset-bottom)", paddingLeft: "var(--safe-area-inset-left)", paddingRight: "var(--safe-area-inset-right)" });
+  el.replaceWith(container);
+  container.append(el);
+}
 buildVariantMenu(); // before the sample loads, so the menu is there even if loading fails
 
 /** Connection stand-in: the events home-assistant-js-websocket's Connection emits ("ready", "disconnected"). */
@@ -525,6 +542,13 @@ async function drive() {
 /** steps=click:<selector>;focus:<selector>;key:<Key>;wait:<ms>;note:<text> replays input inside the panel and records
  *  after each step which element has focus, what is selected and which tab is open, in body[data-log] (read it with
  *  the browser's --dump-dom). A synthetic Enter on a button clicks it, as a real key press would. */
+/** Bottom edges (px from the window top) of the status pill and the fit button, and the window height, for #4. */
+const edges = () => {
+  const bottom = (node) => (node ? Math.round(node.getBoundingClientRect().bottom) : -1);
+  const root = el.shadowRoot;
+  return `pill ${bottom(root.querySelector(".status-pill-button"))} fit ${bottom(root.querySelector(".zoom:not(.spread) .icon-button:last-child"))} window ${innerHeight}`;
+};
+
 async function replay() {
   const list = q.get("steps");
   if (!list) return;
@@ -559,6 +583,7 @@ async function replay() {
       + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
       + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `
       + `module ${panelModules()}; `
+      + `edges ${edges()}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");
