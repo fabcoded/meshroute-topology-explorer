@@ -12,11 +12,10 @@ import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
 import { TEXTS } from "./zha-texts.js";
 
-/** Decide which empty/error state applies before any data is shown (spec 9.4): not an administrator, or ZHA not
- *  loaded (its config entries name none in state "loaded"). Returns a phase key or null. */
-export function blockingState({ configEntries }) {
-  const loaded = Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
-  return loaded ? null : "zha_not_loaded";
+/** Whether ZHA is loaded: its config entries name one in state "loaded". Not loaded is no reason the panel names: ZHA
+ *  is then simply not set up (spec 9.4). */
+export function zhaLoaded({ configEntries }) {
+  return Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
 }
 
 /** ZHA's own page of a device, on one of its tabs ("signature" is the Zigbee info, "clusters" the management). The
@@ -84,26 +83,28 @@ export function sendScan(hass) {
 }
 
 /** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty" or "not_loaded"),
- *  network, raw, blocking (the phase to show when no source has a network: "zha_not_loaded"), unavailable: false }.
- *  registries(): the shared device and area registries, read once on first need. Errors are thrown to the caller. */
+ *  network, raw }. registries(): the shared device and area registries, read once on first need. Errors are thrown to
+ *  the caller, which turns them into this source's "error" read and keeps the other sources (#15). */
 export async function readSource(hass, { registries }) {
   const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
-  const blocked = blockingState({ configEntries });
-  if (blocked) return { status: "not_loaded", network: null, raw: null, blocking: blocked };
+  if (!zhaLoaded({ configEntries })) return { status: "not_loaded", network: null, raw: null };
   const { raw, network } = await readZha(hass, { configEntries, registries });
-  return { status: network ? "ok" : "empty", network, raw, blocking: null };
+  return { status: network ? "ok" : "empty", network, raw };
 }
 
+/** Empty-state phases of a ZHA read without a network (spec 9.4); not loaded is none (ZHA is not set up). */
+const EMPTY_STATES = Object.freeze({ empty: "no_devices", error: "zha_error" });
+
 /** The ZHA adapter as the shell sees it (adapters/index.js): key (the source its networks carry and the stored choice
- *  of the network switch), the read, the phase of a blocked source, ZHA's device page, the scan (send, follow,
- *  compare tables), the observations client and the reload note (a text key: ZHA's held tables, no scan). A ZHA
- *  network that cannot be read is never offered greyed. */
+ *  of the network switch), the read, the empty-state phase of a read without a network, whether a read lists the
+ *  network greyed (a read error, #15) and the words for why, ZHA's device page, the scan (send, follow, compare
+ *  tables), the observations client and the reload note (a text key: ZHA's held tables, no scan). */
 export const adapter = Object.freeze({
   key: "zha",
   read: readSource,
-  blocking: "zha_not_loaded",
-  unavailable: () => false,
-  reasonText: () => "",
+  emptyState: (read) => (read && EMPTY_STATES[read.status]) || null,
+  unavailable: (read) => Boolean(read && read.status === "error"),
+  reasonText: (choice, t) => t("status.zha_error", { message: choice.message || "?" }),
   devicePage: (device, tab = "signature") => ({ key: "zha", path: zhaDevicePath(device.id, tab) }),
   scan: Object.freeze({ send: sendScan, Follower: ScanFollower, differ: tablesDiffer }),
   Observations: ObservationsClient,

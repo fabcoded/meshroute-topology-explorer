@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// The ZHA adapter's texts: its blocked and empty states, its name in the network switch,
+// The ZHA adapter's texts: its empty and error states, its name in the network switch,
 // its scan dialog, its device page link and the reload note. Merged into the panel's table by ui/i18n.js through adapters/index.js. Pure data. npm test
 
 export const TEXTS = Object.freeze({
-  "message.zha_not_loaded": "ZHA is not loaded. Set up the Zigbee Home Automation integration, then try again.",
   "message.no_devices": "ZHA has no devices yet. Pair a device, then try again.",
+  "message.zha_error": "ZHA's devices could not be read: {message}",
+  "status.zha_error": "the devices could not be read ({message})",
   "scan.title": "Scan the topology?",
   "scan.body_radio": "The coordinator asks every router for its neighbour and routing tables, one after another, about a second per table page. On a network of this size that takes several minutes, and the network carries extra traffic meanwhile.",
   "scan.body_auto": "ZHA does the same by itself, every 4 hours by default. Starting a scan cancels one that is already running.",

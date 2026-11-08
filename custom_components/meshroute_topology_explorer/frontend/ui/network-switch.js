@@ -16,7 +16,7 @@ export const PANEL_STORE = "panel";
 
 /** Menu entries from the controller state: [{ key, available, reason?, message? }], in the adapters' order. A network
  *  is listed when it was read; a source that could not be used is listed greyed with its reason where its adapter
- *  says so (the Matter topology: not supported, empty or an error; never ZHA). */
+ *  says so (the Matter topology: not supported, empty or an error; ZHA: a read error, #15). */
 export function networkChoices(state) {
   const networks = (state && state.networks) || {};
   const reads = (state && state.reads) || {};

@@ -41,10 +41,10 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test("readNetwork decides the states of spec 9.4", async () => {
   assert.equal((await readNetwork(fakeHass({ admin: false }))).phase, "not_admin");
-  assert.equal((await readNetwork(fakeHass({ zha: false }))).phase, "zha_not_loaded");
+  assert.equal((await readNetwork(fakeHass({ zha: false }))).phase, "no_network", "#15: nothing set up, no ZHA blame");
   assert.equal((await readNetwork(fakeHass({ devices: [] }))).phase, "no_devices");
   const err = await readNetwork(fakeHass({ fail: { type: "zha/devices", error: { code: "home_assistant_error", message: "boom" } } }));
-  assert.deepEqual(err, { phase: "error", message: "boom" });
+  assert.deepEqual([err.phase, err.message, err.reasons], ["zha_error", "boom", [{ phase: "zha_error", message: "boom" }]]);
   assert.equal((await readNetwork(fakeHass({ fail: { type: "zha/devices", error: LOST } }))).phase, "disconnected");
   const ok = await readNetwork(fakeHass());
   assert.equal(ok.phase, "ready");
@@ -114,7 +114,7 @@ test("a load that meets a lost connection waits for the reconnect; errors offer 
   second.attach();
   second.setHass(failing);
   await settle();
-  assert.equal(second.state.phase, "error");
+  assert.deepEqual([second.state.phase, second.state.reasons], ["zha_error", [{ phase: "zha_error", message: "boom" }]]);
   failing.callWS = fakeHass().callWS;
   await second.reload();
   assert.equal(second.state.phase, "ready");

@@ -18,6 +18,7 @@ import { laneValue, legendEntries, threadValue } from "../custom_components/mesh
 import { threadNeighbourRows, threadReception } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/details.js";
 import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { adapterByKey } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")).responses;
 const zhaResponses = load("zha-sample.json");
@@ -25,7 +26,7 @@ const topology = load("matter-sample.json")["matter/network_topology"];
 const thread = buildThreadNetwork(topology);
 
 /** A fake hass: ZHA and Matter loaded or not, the topology answer or an error code, every message recorded. */
-function fakeHass({ zha = true, matter = true, topologyError = null } = {}) {
+function fakeHass({ zha = true, matter = true, topologyError = null, topologyAnswer = topology, zhaError = null } = {}) {
   const calls = [];
   return {
     user: { is_admin: true }, connected: true, calls,
@@ -35,12 +36,14 @@ function fakeHass({ zha = true, matter = true, topologyError = null } = {}) {
         case "config_entries/get":
           if (msg.domain === "matter") return matter ? [{ entry_id: "m", domain: "matter", state: "loaded" }] : [];
           return zha ? zhaResponses["config_entries/get"] : [];
-        case "zha/devices": return zhaResponses["zha/devices"];
+        case "zha/devices":
+          if (zhaError) throw { code: zhaError, message: "ZHA did not answer" };
+          return zhaResponses["zha/devices"];
         case "config/device_registry/list": return zhaResponses["config/device_registry/list"];
         case "config/area_registry/list": return zhaResponses["config/area_registry/list"];
         case "matter/network_topology":
           if (topologyError) throw { code: topologyError, message: "x" };
-          return topology;
+          return topologyAnswer;
         default: throw { code: "unknown_command" };
       }
     },
@@ -58,12 +61,47 @@ test("both networks are read; the topology is asked with refresh false, never tr
   assert.deepEqual(asks, [{ type: "matter/network_topology", refresh: false }]);
 });
 
-test("Thread alone is shown when ZHA is not loaded; neither gives ZHA's message", async () => {
+test("Thread alone is shown when ZHA is not loaded; neither set up is one shared message (#15)", async () => {
   const only = await readNetwork(fakeHass({ zha: false }));
   assert.equal(only.phase, "ready");
   assert.equal(only.network.source, "thread");
   assert.deepEqual(only.raw, []);
-  assert.equal((await readNetwork(fakeHass({ zha: false, matter: false }))).phase, "zha_not_loaded");
+  assert.deepEqual(networkChoices(only).map((c) => c.key), ["thread"], "one network: the pill menu lists none");
+  const none = await readNetwork(fakeHass({ zha: false, matter: false }));
+  assert.equal(none.phase, "no_network");
+  assert.equal(translator("en")(`message.${none.phase}`), "No Zigbee or Thread network: set up ZHA or Matter, then try again.");
+});
+
+test("#15: without ZHA, a Thread network that cannot be shown gives Thread's reason, never ZHA's", async () => {
+  const t = translator("en");
+  const cases = [[{ topologyError: "not_supported" }, "thread_not_supported", /Matter server does not offer/],
+    [{ topologyAnswer: { nodes: [], connections: [] } }, "thread_empty", /lists no Thread device/],
+    [{ topologyError: "home_assistant_error" }, "thread_error", /could not be read \(x\)/]];
+  for (const [opts, phase, text] of cases) {
+    const result = await readNetwork(fakeHass({ zha: false, ...opts }));
+    assert.equal(result.phase, phase);
+    assert.deepEqual(result.reasons.map((r) => r.phase), [phase], "ZHA is not set up: no ZHA line");
+    assert.match(t(`message.${phase}`, { message: result.message || "?" }), text);
+    assert.doesNotMatch(t(`message.${phase}`, { message: result.message || "?" }), /ZHA/);
+  }
+  assert.doesNotMatch(t("status.thread_not_supported"), /Home Assistant 20/, "the minimum is 2026.10: the cause is the Matter server");
+  // Both set up, neither shows a network: each says why, ZHA first.
+  const both = await readNetwork(fakeHass({ zhaError: "home_assistant_error", topologyError: "not_supported" }));
+  assert.deepEqual(both.reasons.map((r) => r.phase), ["zha_error", "thread_not_supported"]);
+});
+
+test("#15: a ZHA read error keeps a readable Thread network and greys the Zigbee entry with its reason", async () => {
+  const result = await readNetwork(fakeHass({ zhaError: "home_assistant_error" }));
+  assert.equal(result.phase, "ready");
+  assert.equal(result.network.source, "thread");
+  assert.deepEqual(result.reads.zha, { status: "error", network: null, raw: null, message: "ZHA did not answer" });
+  const choices = networkChoices(result);
+  assert.deepEqual(choices[0], { key: "zha", available: false, reason: "error", message: "ZHA did not answer" });
+  assert.equal(activeNetwork(choices, "zha"), "thread", "a greyed Zigbee is never shown");
+  const t = translator("en");
+  assert.equal(adapterByKey("zha").reasonText(choices[0], t), "the devices could not be read (ZHA did not answer)");
+  const lost = await readNetwork(fakeHass({ zhaError: 3 }));
+  assert.equal(lost.phase, "disconnected", "a lost connection still fails the whole read");
 });
 
 test("not_supported and an older Home Assistant (unknown_command) say so; other errors carry the message", async () => {

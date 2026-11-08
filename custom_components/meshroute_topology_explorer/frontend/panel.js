@@ -19,7 +19,7 @@ import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/parse.js";
 import { KINDS } from "./graph/symbols.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
-import { ADAPTERS, adapterFor } from "./adapters/index.js";
+import { adapterFor } from "./adapters/index.js";
 import { engineFor } from "./engines/index.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, densityFactor, pinsForView, presentPins, spreadStep } from "./ui/settings.js";
@@ -427,7 +427,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (!ready) {
       this._left.close();
       this._right.close();
-      this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message);
+      this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message,
+        mismatch || st.phase === "ready" ? null : st.reasons);
       if (this._view) this._view.resize();
       return;
     }
@@ -522,19 +523,21 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       pathUnknown: t("lane.path_unknown"), kinds };
   }
 
-  _renderMessage(phase, detail) {
+  /** The message instead of the map (spec 9.4). reasons: without any network, why each set-up source shows none (its
+   *  adapter's empty-state phase and message), one line each; the first one's phase sets the tone. */
+  _renderMessage(phase, detail, reasons = null) {
     const ui = this._ui;
     const t = this._t;
-    // A source the panel cannot read yet (its adapter's blocking phase, e.g. its integration not loaded) is a warning
-    // with a retry, like no devices.
-    const blocked = ADAPTERS.some((a) => a.blocking === phase);
-    const kind = blocked ? "warn"
-      : { not_admin: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
-    const retry = blocked || ["no_devices", "error"].includes(phase);
+    // Errors are alerts; "no devices yet" and loading are neutral; every other message is a warning. All but the
+    // states that clear by themselves or need a page reload offer a retry.
+    const kind = /(^|_)error$/.test(phase) ? "error" : ["loading", "no_devices"].includes(phase) ? "" : "warn";
+    const retry = !["loading", "not_admin", "disconnected", "version"].includes(phase);
     const reload = phase === "version";
+    const lines = reasons && reasons.length ? reasons : [{ phase, message: detail }];
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
-    ui.message.replaceChildren(h("p", { role: kind === "error" ? "alert" : "status", text: t(`message.${phase}`, { message: detail || "?" }) }));
+    ui.message.replaceChildren(...lines.map((r) => h("p", { role: kind === "error" ? "alert" : "status",
+      text: t(`message.${r.phase}`, { message: r.message || "?" }) })));
     if (retry) ui.message.append(h("button", { type: "button", class: "button", text: t("message.retry"), on: { click: () => this._controller.reload() } }));
     // A stale panel file in the browser cache: only a page reload fetches the new one (spec 10).
     if (reload) ui.message.append(h("button", { type: "button", class: "button", text: t("message.reload"), on: { click: () => location.reload() } }));

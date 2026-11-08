@@ -10,8 +10,8 @@ import { TEXTS } from "./matter-texts.js";
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
  *  sent from here).
  *  Returns { status: "ok" | "not_loaded" | "not_supported" | "empty" | "error", network?, message? }; a lost
- *  connection is thrown to the caller. Home Assistant before 2026.9 has no such command (unknown_command), a Matter
- *  server too old for it answers not_supported (spec 3.2): both are "not_supported". */
+ *  connection is thrown to the caller. A Matter server too old for the command answers not_supported, Home Assistant
+ *  before 2026.9 unknown_command (below the minimum 2026.10, spec 3.2): both are "not_supported". */
 export async function readThread(hass, registries = {}) {
   let entries;
   try {
@@ -40,21 +40,25 @@ export async function readThread(hass, registries = {}) {
  *  read and skipped are no reasons. */
 const UNAVAILABLE = Object.freeze(["not_supported", "empty", "error"]);
 
-/** One read of this source for the panel (ui/controller.js readNetwork): readThread's { status, network?, message? }
- *  with blocking null (Thread alone never blocks the panel). The registries are read before the Matter read. */
+/** One read of this source for the panel (ui/controller.js readNetwork): readThread's { status, network?, message? }.
+ *  The registries are read before the Matter read. */
 export async function readSource(hass, { registries }) {
   // hass.entities and hass.states are already in the panel: the Thread engine derives each device's kind from them.
   const read = await readThread(hass, { ...(await registries()), entities: hass.entities, states: hass.states });
-  return { ...read, network: read.network || null, blocking: null };
+  return { ...read, network: read.network || null };
 }
 
+/** Empty-state phases of a Matter read without a network (spec 9.4): the same reasons the network switch names. */
+const EMPTY_STATES = Object.freeze({ not_supported: "thread_not_supported", empty: "thread_empty", error: "thread_error" });
+
 /** The Matter adapter as the shell sees it (adapters/index.js): key (the source its networks carry, "thread", and the
- *  stored choice of the network switch), the read, whether a read lists the network greyed and the words for why, and
- *  the reload note (a text key: the server's cached topology, refresh false, no radio traffic). */
+ *  stored choice of the network switch), the read, the empty-state phase of a read without a network, whether a read
+ *  lists the network greyed and the words for why, and the reload note (a text key: the server's cached topology,
+ *  refresh false, no radio traffic). */
 export const adapter = Object.freeze({
   key: "thread",
   read: readSource,
-  blocking: null,
+  emptyState: (read) => (read && EMPTY_STATES[read.status]) || null,
   unavailable: (read) => Boolean(read && UNAVAILABLE.includes(read.status)),
   reasonText: (choice, t) => {
     if (choice.reason === "not_supported") return t("status.thread_not_supported");
