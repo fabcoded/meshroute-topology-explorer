@@ -14,7 +14,7 @@ for development only. From the repository root:
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-npm ci
+npm ci --ignore-scripts
 pre-commit install
 ```
 
@@ -41,6 +41,8 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
   shipped files, SPDX lines.
 - The hook `bundle-fresh` (`node tools/bundle.mjs --check`) fails while `frontend/dist/panel.js` does not match the
   sources: run `npm run bundle` and stage the result. The dev page loads the sources; `?bundle=1` loads the bundle.
+  A Dependabot pull request that moves Rollup turns `bundle-fresh` red when the output changes: run `npm run bundle`
+  on that branch and commit the result.
 - The whitespace and end-of-file hooks fix files in place and fail; review the change, stage it and commit again.
 - `python3 tools/screenshots.py` regenerates `docs/images/*.png` from the dev page (needs Pillow from `requirements-dev.txt` and a Chromium; `--chrome PATH` overrides the Playwright cache).
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.

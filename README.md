@@ -88,7 +88,7 @@ synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
   topology scan you start and confirm, and reading one cluster's values when you press the button for it.
 - **Nothing leaves your house.** No telemetry, no requests to outside services; map tiles only from an address you
   configure yourself.
-- **Nothing to build.** Your browser loads one readable file, `frontend/dist/panel.js`, generated from the JavaScript
+- **Nothing to build at install.** Your browser loads one readable file, `frontend/dist/panel.js`, generated from the JavaScript
   beside it with its comments and committed with it; a check proves the two match.
 
 ## Status
