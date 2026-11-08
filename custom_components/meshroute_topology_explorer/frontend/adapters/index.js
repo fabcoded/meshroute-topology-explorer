@@ -3,10 +3,15 @@
 // Matter topology for Thread, in the order the network switch lists them and the first load prefers. The shell reaches
 // an adapter only through this registry: by its key (the stored choice of the network switch, ui/network-switch.js) or
 // by a network (adapterFor: the adapter whose key is the network's source). An adapter's capabilities travel on its
-// networks (spec 4.6); here are its I/O: read, the phase of a blocked source, the device page, the scan and the
-// observations, each null where the source has none. No DOM. npm test
+// networks (spec 4.6); here are its I/O: read, the empty-state phase of a read without a network, the device page, the
+// scan and the observations, each null where the source has none. No DOM. npm test
 import { adapter as zha } from "./zha.js";
 import { adapter as matter } from "./matter.js";
+
+/** Texts of the registry itself: the message when no source has a config entry names them all (spec 9.4). */
+export const TEXTS = Object.freeze({
+  "message.no_network": "No Zigbee or Thread network: set up ZHA or Matter, then try again.",
+});
 
 /** Every adapter, in menu order. */
 export const ADAPTERS = Object.freeze([zha, matter]);

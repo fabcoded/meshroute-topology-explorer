@@ -41,10 +41,10 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test("readNetwork decides the states of spec 9.4", async () => {
   assert.equal((await readNetwork(fakeHass({ admin: false }))).phase, "not_admin");
-  assert.equal((await readNetwork(fakeHass({ zha: false }))).phase, "zha_not_loaded");
+  assert.equal((await readNetwork(fakeHass({ zha: false }))).phase, "no_network", "#15: nothing set up, no ZHA blame");
   assert.equal((await readNetwork(fakeHass({ devices: [] }))).phase, "no_devices");
   const err = await readNetwork(fakeHass({ fail: { type: "zha/devices", error: { code: "home_assistant_error", message: "boom" } } }));
-  assert.deepEqual(err, { phase: "error", message: "boom" });
+  assert.deepEqual([err.phase, err.message, err.reasons], ["zha_error", "boom", [{ phase: "zha_error", message: "boom" }]]);
   assert.equal((await readNetwork(fakeHass({ fail: { type: "zha/devices", error: LOST } }))).phase, "disconnected");
   const ok = await readNetwork(fakeHass());
   assert.equal(ok.phase, "ready");
@@ -114,10 +114,35 @@ test("a load that meets a lost connection waits for the reconnect; errors offer 
   second.attach();
   second.setHass(failing);
   await settle();
-  assert.equal(second.state.phase, "error");
+  assert.deepEqual([second.state.phase, second.state.reasons], ["zha_error", [{ phase: "zha_error", message: "boom" }]]);
   failing.callWS = fakeHass().callWS;
   await second.reload();
   assert.equal(second.state.phase, "ready");
+});
+
+test("#15 (rev15): reasons belong to their phase: loading, disconnected and an engine error carry none", async () => {
+  const reasons = [{ phase: "zha_error", message: "boom" }];
+  const answers = [{ phase: "zha_error", message: "boom", reasons }, { phase: "disconnected" },
+    { phase: "zha_error", message: "boom", reasons }, { phase: "ready", network: { source: "nowhere" }, networks: {} }];
+  let release = null;
+  const controller = new PanelController({ read: async () => {
+    if (answers.length === 3) await new Promise((resolve) => { release = resolve; }); // the second read waits
+    return answers.shift();
+  } });
+  controller.attach();
+  controller.setHass(fakeHass());
+  await settle();
+  assert.deepEqual(controller.state.reasons, reasons);
+  const next = controller.reload();
+  await settle();
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["loading", null], "no stale lines while loading");
+  release();
+  await next;
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["disconnected", null]);
+  await controller.reload();
+  assert.deepEqual(controller.state.reasons, reasons);
+  await controller.reload(); // a network of no known engine: the error state
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["error", null]);
 });
 
 test("hidden panels do not listen to the connection; a reconnect missed while hidden is caught up", async () => {

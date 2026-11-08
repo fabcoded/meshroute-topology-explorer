@@ -4,7 +4,7 @@
 // never as HTML. No DOM. The shared table is below; each engine and adapter holds its own words (engines/<type>/texts.js,
 // adapters/<source>-texts.js), merged through the two registries.
 import { ENGINES } from "../engines/index.js";
-import { ADAPTERS } from "../adapters/index.js";
+import { ADAPTERS, TEXTS as ADAPTER_TEXTS } from "../adapters/index.js";
 import { HISTORY_TEXTS } from "./history-texts.js";
 
 /** The shared table. */
@@ -236,7 +236,7 @@ export function mergeTexts(parts) {
 
 /** Every text of the panel: the shared table, every engine's and every adapter's. */
 export const STRINGS = mergeTexts([SHARED, HISTORY_TEXTS, ...Object.values(ENGINES).map((e) => e.texts),
-  ...ADAPTERS.map((a) => a.texts)]);
+  ...ADAPTERS.map((a) => a.texts), ADAPTER_TEXTS]);
 
 function primaryTag(hass) {
   const tag = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "en";

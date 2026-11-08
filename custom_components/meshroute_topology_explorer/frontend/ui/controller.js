@@ -12,10 +12,12 @@ import { engineFor } from "../engines/index.js";
 
 /** One read of the networks through hass.callWS, one adapter per data source (adapters/index.js), in their order.
  *  Returns { phase, network?, raw?, networks?: { <adapter key>: network | null }, reads?: { <adapter key>: the
- *  adapter's read }, registriesFailed?, message? }; never throws. `network` is the first adapter's network that could be read; the
+ *  adapter's read }, registriesFailed?, message?, reasons? }; never throws. `network` is the first adapter's network that could be read; the
  *  panel picks which of `networks` it shows (ui/network-switch.js). keys: read only these adapters, the others are
- *  "skipped" (the scan's re-reads follow their own source only). Without any network the phase is the first blocked
- *  adapter's (its own key, e.g. ZHA not loaded), else "no_devices". */
+ *  "skipped" (the scan's re-reads follow their own source only). A source whose read fails is that source's "error"
+ *  read, and the others are still shown (#15); only a lost connection fails the whole read. Without any network
+ *  (spec 9.4) `reasons` lists the empty-state phase of each source that is set up ({ phase, message }, menu order) and
+ *  phase is the first one's; with no source set up the phase is "no_network". */
 export async function readNetwork(hass, { keys = null } = {}) {
   try {
     // The adapters' commands are admin only, so the cheap check comes first and nothing is sent without it.
@@ -37,14 +39,26 @@ export async function readNetwork(hass, { keys = null } = {}) {
       }
       return registries;
     };
+    const readOne = async (adapter) => {
+      try {
+        return await adapter.read(hass, { registries: readRegistries });
+      } catch (err) {
+        if (isConnectionLost(err)) throw err;
+        return { status: "error", network: null, raw: null, message: errorText(err) };
+      }
+    };
     const reads = {};
     for (const adapter of ADAPTERS) {
-      reads[adapter.key] = keys && !keys.includes(adapter.key) ? { status: "skipped", network: null, blocking: null }
-        : await adapter.read(hass, { registries: readRegistries });
+      reads[adapter.key] = keys && !keys.includes(adapter.key) ? { status: "skipped", network: null } : await readOne(adapter);
     }
     const networks = Object.fromEntries(ADAPTERS.map((a) => [a.key, reads[a.key].network || null]));
     const first = ADAPTERS.find((a) => networks[a.key]);
-    if (!first) return { phase: ADAPTERS.map((a) => reads[a.key].blocking).find(Boolean) || "no_devices", reads };
+    if (!first) {
+      const reasons = ADAPTERS.map((a) => ({ phase: a.emptyState(reads[a.key]), message: reads[a.key].message || null }))
+        .filter((r) => r.phase);
+      if (!reasons.length) return { phase: "no_network", reads };
+      return { phase: reasons[0].phase, message: reasons[0].message, reasons, reads };
+    }
     return { phase: "ready", network: networks[first.key], raw: reads[first.key].raw || [], networks, reads, registriesFailed };
   } catch (err) {
     if (isConnectionLost(err)) return { phase: "disconnected" };
@@ -70,11 +84,12 @@ export class PanelController extends EventTarget {
     this.hass = null;
     this.attached = false;
     this.started = false;
-    /** phase ("loading", "not_admin", an adapter's blocking phase, "no_devices", "disconnected", "error" or "ready", which
-     *  carries a network; the others are messages, spec 9.4), network (kept while a reload runs or the connection is
-     *  down), raw (the shown source's own answer, for the Details' raw tables), reads (each adapter's read), message,
-     *  connection "ok" | "lost", loading (a reload is running while the old picture stays). */
-    this.state = { phase: "loading", network: null, raw: null, networks: null, reads: null, message: null,
+    /** phase ("loading", "not_admin", "no_network", an adapter's empty-state phase, "disconnected", "error" or "ready",
+     *  which carries a network; the others are messages, spec 9.4), network (kept while a reload runs or the connection
+     *  is down), raw (the shown source's own answer, for the Details' raw tables), reads (each adapter's read), message,
+     *  reasons (every set-up source's empty-state phase and message, when no network is left), connection "ok" |
+     *  "lost", loading (a reload is running while the old picture stays). */
+    this.state = { phase: "loading", network: null, raw: null, networks: null, reads: null, message: null, reasons: null,
       registriesFailed: false, connection: "ok", loading: false };
     this._token = 0;
     this._conn = null;
@@ -130,7 +145,7 @@ export class PanelController extends EventTarget {
     }
     this._set({ phase: result.phase, network: result.network || null, raw: result.raw || null,
       networks: result.networks || null, reads: result.reads || null, message: result.message || null,
-      registriesFailed: result.registriesFailed === true, loading: false });
+      reasons: result.reasons || null, registriesFailed: result.registriesFailed === true, loading: false });
   }
 
   /** A network read elsewhere (the re-reads that follow a scan) becomes the one shown; a load under way is superseded. */
@@ -175,8 +190,10 @@ export class PanelController extends EventTarget {
     if (this.started) this.reload();
   }
 
+  /** A patch that changes the phase without naming reasons clears them: they belong to the phase that carried them
+   *  (no stale lines under "loading", "disconnected" or an error). */
   _set(patch) {
-    this.state = { ...this.state, ...patch };
+    this.state = { ...this.state, ...("phase" in patch && !("reasons" in patch) ? { reasons: null } : {}), ...patch };
     this.dispatchEvent(new Event("change"));
   }
 }

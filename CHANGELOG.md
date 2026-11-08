@@ -2,22 +2,31 @@
 
 ## Unreleased
 
+- **Fixed:** Thread-only and Zigbee-only setups (#15). The options form shows the Zigbee section (with "Allow scan and
+  attribute reads in the panel", formerly "Allow radio actions", and the one-time scan) only when ZHA is set up, and
+  keeps its stored values while it is hidden (ignored or disabled ZHA entries do not count). Without any network the
+  panel names each set-up source's reason ("Zigbee cannot be shown: …", "Thread cannot be shown: …", including an
+  integration that is set up but not running, with its state), and only with neither set up says "No Zigbee or Thread
+  network: set up ZHA or Matter". A ZHA read error or a ZHA that is not running no longer hides a readable Thread
+  network, nor the reverse: the entry of the network switch is greyed with its reason. The reception history keeps problems per network
+  (`history/info` gains `problems`), records Thread every 4 hours on its own timer instead of at ZHA's period, and
+  follows a changed ZHA period (240 min once ZHA is gone). The integration loads after Matter as well as ZHA. Needs a restart of Home Assistant.
 - **Fixed:** the Thread status line called the snapshot time "read"; it now says "snapshot" and notes that the
   Thread tables in it can be many hours old, with an unreported read time (#13). Frontend only.
 - **Breaking: requires Home Assistant 2026.10 or newer.** The options form uses `probatio`, which replaced `voluptuous` in Home Assistant's forms and websocket validation in 2026.10.
 - **Path history:** select a device and click the "?" badge at another one to open the pair's window: Timeline (route bands and the weakest hop's rank over time), Route (Metro-Map or Mesh with a time slider, earlier routes as ghosts) and Direct link (both directions of one hop as LQI, Thread with RSSI below); Details' "Heard by · hears" rows get a 48 h sparkline. Thread pairs show their direct link and neighbours. Needs the reception history (administrators).
 - **Route tab, stable structure:** Metro-Map and Mesh lay out the union of all devices on the pair's routes in the range once; the time slider only moves the highlight (current route solid, other devices faded, earlier routes as ghosts), so nothing appears or jumps while scrubbing. Frontend only.
 - **History in one click:** a click on a reception value on the map opens a small "Direct link" card at it (both directions with value, rank and a 48 h line; buttons "Direct link history ⇄" and "Route history" open the pair window; the selection stays); Details gets a "History" button next to the device's name (partner: the coordinator, Thread the strongest border router; for those themselves the strongest neighbour) and "history ↗" on the path lines; the window's second name is a partner menu (coordinator, neighbours by reception, search) that keeps tab and range. The window's tab "Lane" is now "Direct link". The weakest hop is marked only on routes of at least 2 hops. Frontend only.
-- **Options:** "Configure" on the integration (administrators) offers: show in the sidebar, allow radio actions (off hides
-  the scan control and the attribute read in the panel; a panel switch, not a lock), and a reception history. Saving
-  reloads the integration, not Home Assistant.
+- **Options:** "Configure" on the integration (administrators) offers: show in the sidebar, a reception history, and,
+  with ZHA set up, allow scan and attribute reads in the panel (off hides the scan control and the attribute read; a
+  panel switch, not a lock). Saving reloads the integration, not Home Assistant.
 - **Reception history:** records the neighbour-table values (Zigbee LQI; Thread LQI and RSSI), Zigbee routing entries and
   route records and parent links after each of ZHA's own topology scans (a listener on its events; a timer at ZHA's
-  period where that is not possible, and for Thread), from what ZHA and the Matter server already hold, never starting
+  period where that is not possible) and Thread every 4 hours, from what ZHA and the Matter server already hold, never starting
   a scan, in the integration's own day files (kept 30 days, 1 to 90). The options show ZHA's scan period with a note
   how to change it in configuration.yaml (the integration never writes it). New administrator commands
   `history/series`, `history/records`, `history/info`, shown in the pair-history window (below). An optional, default-off "scan once 30 minutes after Home Assistant starts" asks ZHA for one topology scan
-  when radio actions are allowed and the last record is older than ZHA's period. English translations only.
+  when scan and attribute reads are allowed and the last record is older than ZHA's period. English translations only.
 - **Status pill:** the status line at the bottom is now a pill floating at the bottom centre of the map: a round arrow
   button, the network's name over its data state ("29/29 router tables · unchanged since 15:50"), and a dot last (green:
   all tables read; amber: something missing or old; red: connection lost). It is the network menu; the menu also holds

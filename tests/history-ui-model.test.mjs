@@ -61,11 +61,26 @@ test("loader: states ok, sparse, empty, off, unsupported, failed; one read per r
   assert.equal((await make().loader.get("48h")).state, "sparse", "48 h hold fewer than 3 records");
   assert.equal((await make({}, last + 400 * 86400).loader.get("48h")).state, "empty");
   assert.equal((await make({ record: false }, last + 400 * 86400).loader.get("48h")).state, "off");
-  const bad = await make({ last_error: "zha/devices: no handler" }, last + 400 * 86400).loader.get("48h");
+  const bad = await make({ problems: { zha: "zha/devices: no handler", thread: null } }, last + 400 * 86400).loader.get("48h");
   assert.equal(bad.state, "unsupported");
   assert.equal(bad.info.lastError, "zha/devices: no handler");
   const failed = await createLoader({ callWS: async () => { throw { code: "unauthorized", message: "no admin" }; }, network: () => network }).get("48h");
   assert.deepEqual([failed.state, failed.error], ["failed", "no admin"]);
+});
+
+test("#15: each network's history shows its own source's problem, never the other's", async () => {
+  const later = last + 400 * 86400; // no records in range: the problem decides the state
+  const info = { record: true, keep_days: 30, last_error: "matter: matter/network_topology failed: KeyError",
+    problems: { zha: null, thread: "matter: matter/network_topology failed: KeyError" } };
+  let shown = network;
+  const { callWS } = callWsFor(response, info);
+  const loader = createLoader({ callWS, network: () => shown, now: () => later });
+  const zigbee = await loader.get("48h");
+  assert.deepEqual([zigbee.state, zigbee.info.lastError], ["empty", null], "Thread's problem is not Zigbee's");
+  shown = { ...network, id: "thread-aabbccddeeff0001", source: "thread" };
+  assert.equal((await loader.info()).lastError, info.problems.thread);
+  const thread = await loader.get("48h");
+  assert.deepEqual([thread.state, thread.info.lastError], ["unsupported", info.problems.thread]);
 });
 
 test("route: the weakest hop is marked once per direction, by rank; ghosts are earlier routes only and carry no date", () => {

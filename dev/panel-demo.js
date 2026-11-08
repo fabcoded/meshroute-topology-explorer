@@ -33,7 +33,12 @@ const VARIANTS = [
   ["Thread (Matter)", [["Thread map", "network=thread"], ["Zigbee with the switch", "matter=1"],
     ["Thread: details of the leader", "network=thread&select=Matter%20node%2014&left=details"],
     ["Thread: View tab", "network=thread&right=view"], ["Thread: Legend", "network=thread&right=legend"],
-    ["Matter too old", "matter=notsupported"], ["Narrow: Thread", "phone=1&network=thread"]]],
+    ["Matter too old", "matter=notsupported"], ["Narrow: Thread", "phone=1&network=thread"],
+    ["Thread only", "nozha=1&matter=1"], ["Thread only: View tab", "nozha=1&matter=1&right=view"],
+    ["ZHA error, Thread shown", "error=1&matter=1"], ["Thread only, Matter too old", "nozha=1&matter=notsupported"],
+    ["ZHA error, Matter too old", "error=1&matter=notsupported"], ["ZHA not running, Thread shown", "zhastate=setup_retry&matter=1"],
+    ["Matter not running", "matterstate=setup_retry&matter=1"],
+    ["Neither running", "zhastate=setup_error&matterstate=setup_retry&matter=1"]]],
   ["Panels", [["Left: Devices", "left=devices"], ["Left: Findings", "left=findings"],
     ["Left: Details (Router 03)", "select=Router%2003&left=details"], ["Right: View", "right=view"],
     ["Right: View, coloured", "right=view&colors=1"], ["Right: View, own colours", "right=view&colors=1&bad=0072b2&good=e69f00"],
@@ -69,7 +74,7 @@ const VARIANTS = [
     ["Coloured by reception, dark", "select=Router%2016&colors=1&dark=1"]]],
   ["Data variants", [["minus1", "variant=minus1"], ["minus3", "variant=minus3"], ["coordinator-only", "variant=coordinator-only"],
     ["without-coordinator", "variant=without-coordinator"]]],
-  ["Errors", [["Not admin", "nonadmin=1"], ["ZHA missing", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
+  ["Errors", [["Not admin", "nonadmin=1"], ["Neither ZHA nor Matter", "nozha=1"], ["No devices", "empty=1"], ["Error", "error=1"],
     ["Connection lost (3 s, back 5 s later)", "lost=3&back=5"]]],
   ["Scan (debug mode)", [["Scan dialog", "scan=dialog"], ["Scan running", "scan=run"],
     ["Scan running, German locale", "scan=run&lang=de"]]],
@@ -296,7 +301,11 @@ async function callWS(msg) {
   const unknown = { code: "unknown_command", message: "Unknown command." };
   switch (msg.type) {
     case "config_entries/get":
-      if (msg.domain === "matter") return matterMode ? [{ entry_id: "entry_matter", domain: "matter", title: "", state: "loaded" }] : [];
+      // zhastate= / matterstate=: the entry is set up but in that state (setup_retry, setup_error: not running).
+      if (msg.domain === "matter") {
+        return matterMode ? [{ entry_id: "entry_matter", domain: "matter", title: "", state: q.get("matterstate") || "loaded" }] : [];
+      }
+      if (q.get("zhastate")) return responses["config_entries/get"].map((e) => ({ ...e, state: q.get("zhastate") }));
       return flag("nozha") ? [] : responses["config_entries/get"];
     case "matter/network_topology":
       // The panel must never ask for a refresh (radio traffic): the fake refuses it loudly.
@@ -328,7 +337,8 @@ async function callWS(msg) {
     case "meshroute_topology_explorer/history/info":
       return { records: historyFile.records.length, first: historyTimes.length ? Math.min(...historyTimes) + historyShift : null,
         last: historyTimes.length ? Math.max(...historyTimes) + historyShift : null, bytes: 0,
-        last_error: historyName === "unsupported" ? "zha/devices: handler not found" : null, record: historyName !== "off",
+        problems: { zha: historyName === "unsupported" ? "zha/devices: handler not found" : null, thread: null },
+        record: historyName !== "off",
         keep_days: Number(q.get("keep")) || 90 };
     case "meshroute_topology_explorer/observations/set":
       store.observations.set(msg.network, msg.observations);
@@ -536,6 +546,10 @@ async function replay() {
       + `paths ${el._settings && el._settings.settings.paths}; view ${el._view && el._view.paths}; `
       + `history ${(root.querySelector(".htab.on") || {}).textContent || "closed"}; `
       + `card ${root.querySelector(".pair-card") ? "open" : "closed"}; menu ${root.querySelector("#mte-pill-menu") ? "open" : "closed"}; `
+      + `source ${el._network ? el._network.source : "-"}; networks ${root.querySelectorAll('[role="menuitemradio"]').length}; `
+      + `zigbee-inputs ${[...root.querySelectorAll("input")].filter((n) => /-(paths|sourceRoute|heard|pathMode|color-)/.test(`${n.name} ${n.id}`)).length}; `
+      + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
+      + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");

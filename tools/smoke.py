@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Browser smoke test: six user journeys on the dev page's anonymised sample network, no Playwright.
+"""Browser smoke test: user journeys on the dev page's anonymised sample network, no Playwright.
 
   python3 tools/smoke.py [--chrome PATH]      exit 1 if any journey fails; one line per journey
 
@@ -41,6 +41,9 @@ JOURNEYS = [
     ("Esc closes the card", "select=Router%2032&history=long&steps=pill:Router%2032>Router%2019;key:Escape",
      [r"card closed"]),
     ("Esc closes window", PAIR + ";key:Escape", [r"history closed"]),
+    # #15: without ZHA the Thread map loads, the View tab has no Zigbee controls, the pill menu lists no networks
+    ("Thread only: map, View, pill menu", "nozha=1&matter=1&right=view&steps=wait:100;click:%23mte-pill",
+     [r"menu open", r"source thread", r"networks 0;", r"zigbee-inputs 0;", r"right view"]),
 ]
 
 

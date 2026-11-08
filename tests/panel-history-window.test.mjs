@@ -115,7 +115,7 @@ test("states without data: not recorded (with the Settings link), no records yet
   assert.match(text(link), /Settings/);
   assert.equal(find(off.w.el, (e) => e.tag === "svg" && cls(e) === "hist-timeline").length, 0);
   assert.match(text((await open({ resp: empty })).w.el), /No records in this range yet\./);
-  const bad = await open({ info: { record: true, keep_days: 30, last_error: "zha/devices: handler missing" }, resp: empty });
+  const bad = await open({ info: { record: true, keep_days: 30, problems: { zha: "zha/devices: handler missing", thread: null } }, resp: empty });
   assert.match(text(bad.w.el), /cannot be recorded for this source: zha\/devices: handler missing/);
   const failing = createLoader({ callWS: async () => { throw { message: "Unauthorized" }; }, network: () => network, now: () => now });
   const root = new FakeEl("div");

@@ -2,6 +2,7 @@
   "domain": "meshroute_topology_explorer",
   "name": "Meshroute Topology Explorer",
   "after_dependencies": [
+    "matter",
     "zha"
   ],
   "codeowners": [

@@ -19,7 +19,7 @@ import { resolveTheme } from "./graph/palette.js";
 import { normalizeIeee } from "./model/parse.js";
 import { KINDS } from "./graph/symbols.js";
 import { PanelController, readNetwork } from "./ui/controller.js";
-import { ADAPTERS, adapterFor } from "./adapters/index.js";
+import { adapterFor } from "./adapters/index.js";
 import { engineFor } from "./engines/index.js";
 import { confirmDialog } from "./ui/dialog.js";
 import { SettingsClient, densityFactor, pinsForView, presentPins, spreadStep } from "./ui/settings.js";
@@ -237,8 +237,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   // ---- state ---------------------------------------------------------------------------------------------------
 
-  /** The integration's option "Allow radio actions" (panel config, spec 10.1): off hides the scan control and the
-   *  attribute read. A switch of this panel, not a lock: ZHA's own pages offer both. Absent (dev page) means allowed. */
+  /** The integration's option "Allow scan and attribute reads in the panel" (panel config `radio_actions`, spec
+   *  10.1): off hides the scan control and the attribute read. A switch of this panel, not a lock: ZHA's own pages
+   *  offer both. Absent (dev page) means allowed. */
   _radioActions() {
     return !(this._panel && this._panel.config && this._panel.config.radio_actions === false);
   }
@@ -427,7 +428,8 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     if (!ready) {
       this._left.close();
       this._right.close();
-      this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message);
+      this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message,
+        mismatch || st.phase === "ready" ? null : st.reasons);
       if (this._view) this._view.resize();
       return;
     }
@@ -522,19 +524,22 @@ class MeshrouteTopologyExplorer extends HTMLElement {
       pathUnknown: t("lane.path_unknown"), kinds };
   }
 
-  _renderMessage(phase, detail) {
+  /** The message instead of the map (spec 9.4). reasons: without any network, why each set-up source shows none (its
+   *  adapter's empty-state phase and message), one line each; the block takes the worst tone of its lines. */
+  _renderMessage(phase, detail, reasons = null) {
     const ui = this._ui;
     const t = this._t;
-    // A source the panel cannot read yet (its adapter's blocking phase, e.g. its integration not loaded) is a warning
-    // with a retry, like no devices.
-    const blocked = ADAPTERS.some((a) => a.blocking === phase);
-    const kind = blocked ? "warn"
-      : { not_admin: "warn", no_devices: "", disconnected: "warn", error: "error", version: "warn" }[phase] || "";
-    const retry = blocked || ["no_devices", "error"].includes(phase);
+    const lines = reasons && reasons.length ? reasons : [{ phase, message: detail }];
+    // Errors are alerts; "no devices yet" and loading are neutral; every other message is a warning. All but the
+    // states that clear by themselves or need a page reload offer a retry.
+    const tone = (p) => (/(^|_)error$/.test(p) ? "error" : ["loading", "no_devices"].includes(p) ? "" : "warn");
+    const kind = ["error", "warn", ""].find((k) => lines.some((r) => tone(r.phase) === k));
+    const retry = !["loading", "not_admin", "disconnected", "version"].includes(phase);
     const reload = phase === "version";
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
-    ui.message.replaceChildren(h("p", { role: kind === "error" ? "alert" : "status", text: t(`message.${phase}`, { message: detail || "?" }) }));
+    ui.message.replaceChildren(...lines.map((r) => h("p", { role: kind === "error" ? "alert" : "status",
+      text: t(`message.${r.phase}`, { message: r.message || "?" }) })));
     if (retry) ui.message.append(h("button", { type: "button", class: "button", text: t("message.retry"), on: { click: () => this._controller.reload() } }));
     // A stale panel file in the browser cache: only a page reload fetches the new one (spec 10).
     if (reload) ui.message.append(h("button", { type: "button", class: "button", text: t("message.reload"), on: { click: () => location.reload() } }));

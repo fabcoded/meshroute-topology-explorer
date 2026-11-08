@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Meshroute Topology Explorer",
-        "description": "Adds a read-only map of your Zigbee network to the sidebar. Nothing needs to be configured."
+        "description": "Adds a read-only map of your Zigbee and Thread networks to the sidebar. Nothing needs to be configured."
       }
     }
   },
@@ -13,17 +13,15 @@
         "title": "Meshroute Topology Explorer Options",
         "description": "Changes take effect when you save; Home Assistant itself is not restarted.",
         "data": {
-          "sidebar": "Show in the sidebar (administrators)",
-          "radio_actions": "Allow radio actions (scan, attribute reads)"
+          "sidebar": "Show in the sidebar (administrators)"
         },
         "data_description": {
-          "sidebar": "Off removes the panel from the sidebar and from the address /meshroute-topology.",
-          "radio_actions": "Off hides the scan button and the attribute read in the panel. It is a switch of this panel, not a lock: ZHA's own pages still offer both."
+          "sidebar": "Off removes the panel from the sidebar and from the address /meshroute-topology."
         },
         "sections": {
           "history": {
             "name": "Reception history",
-            "description": "Records the reception values of the neighbour tables that ZHA and the Matter server already hold, after each of ZHA's own topology scans. It never starts a scan.",
+            "description": "Records the reception values of the neighbour tables that ZHA and the Matter server already hold: Zigbee after each of ZHA's own topology scans, Thread every 4 hours. It never starts a scan.",
             "data": {
               "record": "Record reception values",
               "keep_days": "Keep for (days)",
@@ -35,13 +33,15 @@
             }
           },
           "zha": {
-            "name": "ZHA topology scan",
+            "name": "Zigbee (ZHA)",
             "description": "{zha_scan}. To change it, add this to configuration.yaml (merge it with an existing `zha:` block) and restart Home Assistant Core:\n\n```yaml\nzha:\n  zigpy_config:\n    topology_scan_period: 240\n```\n\nMinutes, at least 20. Scans more often than every 3 hours mean more radio traffic in the whole network.",
             "data": {
+              "radio_actions": "Allow scan and attribute reads in the panel",
               "scan_after_start": "Scan once 30 minutes after Home Assistant starts"
             },
             "data_description": {
-              "scan_after_start": "Asks ZHA for one topology scan, once per start, if radio actions are allowed, no scan is running and the last Zigbee record is older than ZHA's period. It is ZHA's own scan (radio traffic); the result is recorded like any other."
+              "radio_actions": "Off hides the scan button and the attribute read in the panel. It is a switch of this panel, not a lock: ZHA's own pages still offer both.",
+              "scan_after_start": "Asks ZHA for one topology scan, once per start, if scan and attribute reads are allowed, no scan is running and the last Zigbee record is older than ZHA's period. It is ZHA's own scan (radio traffic); the result is recorded like any other."
             }
           }
         }

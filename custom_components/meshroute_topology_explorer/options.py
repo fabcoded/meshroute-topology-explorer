@@ -42,11 +42,14 @@ def get_options(options: Mapping[str, Any] | None) -> dict[str, Any]:
     return out
 
 
-def validate_options(user_input: Mapping[str, Any]) -> tuple[dict[str, Any], bool, dict[str, str]]:
+def validate_options(user_input: Mapping[str, Any], stored: Mapping[str, Any] | None = None) \
+        -> tuple[dict[str, Any], bool, dict[str, str]]:
     """Check a submitted form: (options to store, delete the history, errors by field).
 
-    Out of range: error (the form's description placeholders carry the range). The delete switch is not stored."""
-    merged = {**DEFAULT_OPTIONS, **{k: v for k, v in user_input.items() if k in DEFAULT_OPTIONS}}
+    A key the form did not send (its section is hidden: ZHA has no config entry) keeps its `stored` value, not the
+    default (#15). Out of range: error (the form's description placeholders carry the range). The delete switch is not
+    stored."""
+    merged = {**get_options(stored), **{k: v for k, v in user_input.items() if k in DEFAULT_OPTIONS}}
     errors: dict[str, str] = {}
     if not _in_range(merged[CONF_KEEP_DAYS], KEEP_DAYS_RANGE):
         errors[CONF_KEEP_DAYS] = ERR_DAYS_RANGE

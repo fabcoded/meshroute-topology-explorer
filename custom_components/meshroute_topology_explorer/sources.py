@@ -247,33 +247,42 @@ def parse_thread(topology: Any) -> tuple[str, Snapshot, float | None] | None:
             _seconds(topology.get("collected_at")))
 
 
+def set_up_entries(hass: HomeAssistant, domain: str) -> list[Any]:
+    """The integration's config entries that count as set up: neither ignored nor disabled, a loaded one first. The
+    first one names the network (ZHA's entry id), as the panel's countedEntries does (adapters/ws.js, #15)."""
+    loaded = hass.config_entries.async_loaded_entries(domain)  # never ignored or disabled ones (Home Assistant)
+    entries = hass.config_entries.async_entries(domain, include_ignore=False, include_disabled=False)
+    return [*loaded, *(e for e in entries if e not in loaded)]
+
+
 class Collected(NamedTuple):
-    """networks by id, problems as text, and the time of each snapshot the source dates itself (Thread)."""
+    """networks by id, problems as text per source ("zha", "thread": the panel's source keys, so one network's problem
+    never shows in the other's history, #15), and the time of each snapshot the source dates itself (Thread)."""
 
     networks: dict[str, Snapshot]
-    problems: list[str]
+    problems: dict[str, list[str]]
     times: dict[str, float | None]
 
 
 async def collect(hass: HomeAssistant, zigbee: bool = True, thread: bool = True) -> Collected:
     """Snapshots of the loaded sources asked for. A source that is not loaded is skipped silently; one that fails adds
     a problem text and does not stop the other."""
-    out = Collected({}, [], {})
+    out = Collected({}, {"zha": [], "thread": []}, {})
     components = getattr(getattr(hass, "config", None), "components", None) or ()
     if zigbee and "zha" in components:
         try:
-            zha = hass.config_entries.async_entries("zha")
+            zha = set_up_entries(hass, "zha")
             if zha:
                 snapshot = parse_zha(await call_command(hass, "zha/devices"))
                 try:
                     snapshot = snapshot._replace(relays=parse_relays(read_routes(hass)))
                 except NotSupported as err:  # no route records: the rest of the record stays valid
-                    out.problems.append(f"zigpy route records: {err}")
+                    out.problems["zha"].append(f"zigpy route records: {err}")
                 except Exception as err:  # noqa: BLE001 - zigpy internals: never raise into Home Assistant
-                    out.problems.append(f"zigpy route records: {type(err).__name__}")
+                    out.problems["zha"].append(f"zigpy route records: {type(err).__name__}")
                 out.networks[zha[0].entry_id] = snapshot
         except SourceError as err:
-            out.problems.append(f"zha: {err}")
+            out.problems["zha"].append(f"zha: {err}")
     if thread and "matter" in components:
         try:
             found = parse_thread(await call_command(hass, "matter/network_topology"))
@@ -281,5 +290,5 @@ async def collect(hass: HomeAssistant, zigbee: bool = True, thread: bool = True)
                 out.networks[found[0]] = found[1]
                 out.times[found[0]] = found[2]
         except SourceError as err:
-            out.problems.append(f"matter: {err}")
+            out.problems["thread"].append(f"matter: {err}")
     return out

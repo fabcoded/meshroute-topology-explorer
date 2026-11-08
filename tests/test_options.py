@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Options: validation (ranges), the options form (delete on submit, reload on save),
-sidebar off, radio-actions flag in the panel config, removal deletes the history (stubbed Home Assistant).
+"""Options: validation (ranges, hidden fields keep their stored values), the options form (the ZHA section only with a
+ZHA entry, delete on submit, reload on save), sidebar off, radio-actions flag in the panel config, removal deletes the
+history (stubbed Home Assistant).
 python3 -m unittest discover -s tests"""
 
 import sys
@@ -53,6 +54,12 @@ class ValidationTest(Base):
         self.assertTrue(delete)
         self.assertNotIn("delete_history", stored)
 
+    def test_15_a_field_the_form_did_not_send_keeps_its_stored_value(self):
+        """#15: a hidden section sends nothing; its fields must not fall back to their defaults."""
+        stored, _, _ = self.opt.validate_options({"keep_days": 10}, {"scan_after_start": True, "radio_actions": False})
+        self.assertEqual((stored["scan_after_start"], stored["radio_actions"], stored["keep_days"]), (True, False, 10))
+        self.assertTrue(self.opt.validate_options({}, None)[0]["radio_actions"])  # nothing stored: the default
+
     def test_get_options_out_of_range_falls_back(self):
         self.assertEqual(self.opt.get_options({"keep_days": 500})["keep_days"], 30)
 
@@ -65,6 +72,7 @@ class FlowTest(Base):
     def setUp(self):
         super().setUp()
         self.set_zha(period=240)
+        self.hass.zha_entries = [mock.Mock(entry_id="zha-entry")]  # ZHA is set up: its section is shown
 
     def set_zha(self, period=240, enabled=True):
         """ZHA's application config as read through zigpy_routes' gateway access."""
@@ -80,11 +88,30 @@ class FlowTest(Base):
         flow.config_entry = ha_stubs.FakeEntry(options)
         return flow
 
-    def submit(self, flow, keep_days=30, delete=False, sidebar=True, radio=True):
-        data = {"sidebar": sidebar, "radio_actions": radio,
-                "history": {"record": True, "keep_days": keep_days, "delete_history": delete},
-                "zha": {"scan_after_start": False}}
+    def submit(self, flow, keep_days=30, delete=False, sidebar=True, radio=True, zha=True):
+        data = {"sidebar": sidebar, "history": {"record": True, "keep_days": keep_days, "delete_history": delete}}
+        if zha:
+            data["zha"] = {"radio_actions": radio, "scan_after_start": False}
         return ha_stubs.run(flow.async_step_init(data))
+
+    def test_15_zha_section_only_with_a_zha_entry_and_radio_actions_inside_it(self):
+        result = ha_stubs.run(self.flow().async_step_init())
+        self.assertEqual(set(result["data_schema"]), {"sidebar", "history", "zha"})
+        self.assertEqual(set(result["data_schema"]["zha"][1][1]), {"radio_actions", "scan_after_start"})
+        self.hass.zha_entries = []  # Thread only: no ZHA item in the form
+        result = ha_stubs.run(self.flow().async_step_init())
+        self.assertEqual(set(result["data_schema"]), {"sidebar", "history"})
+
+    def test_15_saving_without_the_zha_section_keeps_its_stored_values(self):
+        self.hass.zha_entries = []
+        flow = self.flow({"radio_actions": False, "scan_after_start": True, "keep_days": 7})
+        result = self.submit(flow, keep_days=12, zha=False)
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"], {"sidebar": True, "radio_actions": False, "record": True, "keep_days": 12,
+                                          "scan_after_start": True})
+        refused = self.submit(self.flow({"scan_after_start": True}), keep_days=0, zha=False)
+        self.assertEqual(refused["errors"], {"base": "days_range"})  # the form comes back: still no ZHA section
+        self.assertNotIn("zha", refused["data_schema"])
 
     def test_form_shows_current_values_and_the_zha_line(self):
         result = ha_stubs.run(self.flow({"keep_days": 7}).async_step_init())
@@ -92,7 +119,7 @@ class FlowTest(Base):
         history = result["data_schema"]["history"][1][1]
         self.assertEqual(history["keep_days"][0].default(), 7)
         self.assertNotIn("record_hours", history)
-        self.assertEqual(set(result["data_schema"]["zha"][1][1]), {"scan_after_start"})  # no period field
+        self.assertEqual(set(result["data_schema"]["zha"][1][1]), {"radio_actions", "scan_after_start"})  # no period field
         self.assertEqual(result["description_placeholders"]["zha_scan"], "ZHA scans every 240 min")
 
     def test_form_schema_is_probatio_with_defaults(self):
@@ -100,7 +127,8 @@ class FlowTest(Base):
         self.assertIn("probatio", sys.modules)
         self.assertNotIn("voluptuous", sys.modules)
         schema = result["data_schema"]
-        self.assertEqual({k: schema[k][0].default() for k in ("sidebar", "radio_actions")}, {"sidebar": True, "radio_actions": True})
+        self.assertTrue(schema["sidebar"][0].default())
+        self.assertTrue(schema["zha"][1][1]["radio_actions"][0].default())
         history = schema["history"][1][1]
         self.assertFalse(history["delete_history"][0].default())  # deleting is never preselected
 

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Recording follows ZHA's topology scans: listener attach/remove, debounce, the 10-minute floor, the fallback timer,
-the Thread timer, the info fields (stubbed Home Assistant and zigpy).
+"""Recording follows ZHA's topology scans: listener attach/remove, debounce, the 10-minute floor, the fallback timer
+and its period, the Thread timer (4 h, independent of ZHA), Thread only, problems per source, the info fields (stubbed
+Home Assistant and zigpy).
 python3 -m unittest discover -s tests"""
 
 import asyncio
@@ -214,7 +215,8 @@ class FollowTest(unittest.TestCase):
         self.topology.fire()
         self.clock[0] += 2 * 360 * 60 + 1
         self.quiet()
-        self.assertIn("did not end in time", self.history().last_error)
+        self.assertIn("did not end in time", self.history().problems["zha"])
+        self.assertIsNone(self.history().problems["thread"])
         self.assertEqual(self.networks_on_disk(), [])
         self.topology.fire()  # still listening
         self.assertEqual(len(self.pending()), 1)
@@ -247,27 +249,110 @@ class FollowTest(unittest.TestCase):
         self.assertEqual(self.networks_on_disk(), ["thread-aabbccddeeff0001"])
         self.assertEqual(self.history().last_time["thread-aabbccddeeff0001"], 1767268800.0)
         self.clock[0] += 5000
-        ha_stubs.run(self.rec.intervals[0][1]())  # the same snapshot again: not newer, not written
+        ha_stubs.run(self.thread_timer()[1]())  # the same snapshot again: not newer, not written
         self.assertEqual(self.history().files.info()["records"], 1)
 
-    def test_thread_timer_does_not_read_zha(self):
+    def thread_timer(self):
+        """The Thread timer: the interval whose action is Recording._tick_thread."""
+        return next(i for i in self.rec.intervals if i[1].__name__ == "_tick_thread")
+
+    def zigbee_timers(self):
+        """The Zigbee timers that were not cancelled."""
+        return [i for i in self.rec.intervals if i[1].__name__ == "_tick" and i not in self.rec.cancelled_intervals]
+
+    def test_15_thread_timer_runs_every_4_hours_whatever_zha_period_and_does_not_read_zha(self):
         calls = []
         zha = self.hass.data["websocket_api"]["zha/devices"]
         self.hass.data["websocket_api"]["zha/devices"] = (lambda *a: calls.append(a), zha[1])
-        self.start()
-        ha_stubs.run(self.rec.intervals[0][1]())
+        self.start()  # ZHA scans every 360 min
+        self.assertEqual(self.thread_timer()[0].total_seconds(), 4 * 3600)
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [360 * 60])
+        ha_stubs.run(self.thread_timer()[1]())
         self.assertEqual(calls, [])
-        self.assertEqual(self.rec.intervals[0][0].total_seconds(), 360 * 60)
+        self.assertEqual(self.networks_on_disk(), ["thread-aabbccddeeff0001"])
+
+    def test_15_thread_only_records_thread_without_a_zha_call_or_warning(self):
+        self.hass.config.components, self.hass.zha_entries = {"matter"}, []
+        calls = []
+        self.hass.data["websocket_api"]["zha/devices"] = (lambda *a: calls.append(a), None)
+        gone = ha_stubs.load(".zigpy_routes").NotSupported("zha_not_loaded", "ZHA is not loaded")
+        with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone), \
+                self.assertNoLogs(self.recorder._LOGGER, "WARNING"):
+            self.start()
+            ha_stubs.run(self.rec.later[0].action())  # the first read, 30 s after the start
+            ha_stubs.run(self.zigbee_timers()[0][1]())  # the Zigbee timer finds no ZHA: nothing to read
+            info = ha_stubs.run(self.recorder.async_info(self.hass))
+        self.assertEqual(self.networks_on_disk(), ["thread-aabbccddeeff0001"])
+        self.assertEqual(calls, [])
+        self.assertEqual((info["problems"], info["last_error"]), ({"zha": None, "thread": None}, None))
+
+    def test_15_the_zigbee_timer_follows_zha_when_it_comes_up_with_another_period(self):
+        gone = ha_stubs.load(".zigpy_routes").NotSupported("no_gateway", "ZHA has no running gateway")
+        with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone):
+            self.start()
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [240 * 60])  # ZHA's default
+        self.app.config["topology_scan_period"] = 60
+        self.rec.signals[0]("updated", types.SimpleNamespace(domain="zha"))  # ZHA comes up, scanning hourly
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [60 * 60])
+        self.rec.signals[0]("updated", types.SimpleNamespace(domain="zha"))  # reloaded, same period: same timer
+        self.assertEqual(len(self.zigbee_timers()), 1)
+        self.assertEqual(self.thread_timer()[0].total_seconds(), 4 * 3600)  # Thread is not ZHA's
+        self.recording.stop()
+        self.assertEqual(self.zigbee_timers(), [])
+
+    def test_15_zha_gone_sets_the_zigbee_timer_back_to_the_default_period(self):
+        self.start()  # ZHA scans every 360 min
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [360 * 60])
+        gone = ha_stubs.load(".zigpy_routes").NotSupported("zha_not_loaded", "ZHA is not loaded")
+        with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone):
+            self.rec.signals[0]("unloaded", types.SimpleNamespace(domain="zha"))
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [240 * 60])  # spec 10.2
+        self.app.config["topology_scan_enabled"] = False  # ZHA running, its scan off: its period still counts
+        self.rec.signals[0]("updated", types.SimpleNamespace(domain="zha"))
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [360 * 60])
+
+    def test_15_an_unload_during_the_first_read_leaves_no_timer_and_no_listener(self):
+        """rev15: the first read awaits Thread; a stop() meanwhile must not let the Zigbee tick re-attach or restart."""
+        collect = self.recorder.collect
+
+        async def stop_during_thread_read(hass, zigbee, thread):
+            if thread:
+                self.recording.stop()
+            return await collect(hass, zigbee, thread)
+
+        self.app.topology = object()  # timer mode: the first read would also read Zigbee
+        self.start()
+        self.app.topology = self.topology  # ZHA has a listener-capable topology again by the time the tick runs
+        with mock.patch.object(self.recorder, "collect", side_effect=stop_during_thread_read):
+            ha_stubs.run(self.rec.later[0].action())
+        self.assertEqual(self.zigbee_timers(), [])
+        self.assertEqual(self.topology.listeners, [])
+        self.assertNotIn("zha-entry", self.networks_on_disk())  # no Zigbee record after the unload
+
+    def test_15_problems_are_kept_per_source(self):
+        self.hass.data["websocket_api"]["matter/network_topology"] = (mock.Mock(side_effect=KeyError), None)
+        self.start()
+        with self.assertLogs(self.recorder._LOGGER, "WARNING") as logs:
+            ha_stubs.run(self.rec.later[0].action())
+        self.assertEqual([r.args[0] for r in logs.records], ["thread"])  # the source, not the log format
+        self.topology.fire()
+        self.quiet()  # a Zigbee-only record: it must not clear Thread's problem
+        info = ha_stubs.run(self.recorder.async_info(self.hass))
+        self.assertIn("zha-entry", self.networks_on_disk())
+        self.assertIsNone(info["problems"]["zha"])
+        self.assertIn("matter", info["problems"]["thread"])
+        self.assertEqual(info["last_error"], info["problems"]["thread"])  # the joined field stays for older readers
 
     def test_timer_fallback_when_the_listener_cannot_be_attached(self):
         self.app.topology = object()  # internals changed
         self.start()
         self.assertEqual(self.history().follow_mode, "timer")
         info = ha_stubs.run(self.recorder.async_info(self.hass))
-        self.assertIn("recording on a timer", info["last_error"])
+        self.assertIn("recording on a timer", info["problems"]["zha"])
+        self.assertIsNone(info["problems"]["thread"])
         self.assertEqual(self.rec.intervals[0][0].total_seconds(), 360 * 60)
-        ha_stubs.run(self.rec.intervals[0][1]())  # the timer records every network, Zigbee dated with the read
-        self.assertEqual(self.networks_on_disk(), ["thread-aabbccddeeff0001", "zha-entry"])
+        ha_stubs.run(self.rec.intervals[0][1]())  # the Zigbee timer records Zigbee, dated with the read
+        self.assertEqual(self.networks_on_disk(), ["zha-entry"])
 
     def test_the_fallback_timer_does_not_read_zigbee_during_a_scan(self):
         self.topology._scan_task = FakeTask()
@@ -275,7 +360,7 @@ class FollowTest(unittest.TestCase):
         self.start()
         self.assertEqual(self.history().follow_mode, "timer")
         ha_stubs.run(self.rec.intervals[0][1]())
-        self.assertEqual(self.networks_on_disk(), ["thread-aabbccddeeff0001"])
+        self.assertEqual(self.networks_on_disk(), [])
 
     def test_timer_when_zha_scans_are_off_or_zha_is_not_running(self):
         self.app.config["topology_scan_enabled"] = False
@@ -355,8 +440,8 @@ class FollowTest(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertIn(expected, ha_stubs.run(self.recorder.async_info(self.hass))["forced_scan_note"])
 
-    def test_skip_when_radio_actions_are_off(self):
-        self.skipped("radio actions are off", radio_actions=False)
+    def test_skip_when_scan_and_attribute_reads_are_off(self):
+        self.skipped("scan and attribute reads are off", radio_actions=False)
 
     def test_skip_when_zha_is_not_running(self):
         gone = ha_stubs.load(".zigpy_routes").NotSupported("no_gateway", "x")
@@ -404,13 +489,14 @@ class FollowTest(unittest.TestCase):
 
     def test_timer_logs_an_exception_once_per_change(self):
         self.start()
-        action = self.rec.intervals[0][1]
+        action = self.thread_timer()[1]
         with mock.patch.object(self.recorder, "collect", side_effect=RuntimeError("boom")), \
                 self.assertLogs(self.recorder._LOGGER, "ERROR") as logs:
             ha_stubs.run(action())
             ha_stubs.run(action())
         self.assertEqual(len(logs.records), 1)
-        self.assertIn("RuntimeError: boom", self.history().last_error)
+        self.assertIn("RuntimeError: boom", self.history().problems["thread"])
+        self.assertIsNone(self.history().problems["zha"])
 
 
 if __name__ == "__main__":
