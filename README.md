@@ -100,7 +100,8 @@ synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
 
 ## Install
 
-Requirements: Home Assistant 2026.10 or newer with ZHA set up. The panel is for administrators.
+Requirements: Home Assistant 2026.10 or newer with ZHA (Zigbee) or the Matter integration (Thread) set up, or both.
+The panel is for administrators.
 
 1. In HACS open the three-dot menu, then Custom repositories.
 2. Add `https://github.com/fabcoded/meshroute-topology-explorer` with type Integration.
@@ -118,11 +119,12 @@ Known limits:
 - Zigbee2MQTT is not supported yet.
 
 Update: download the new version in HACS, restart Home Assistant and reload the browser page.
-Settings: Settings > Devices & services > Meshroute > Configure (administrators). Show in the sidebar; allow radio actions
-(off hides the scan control and the attribute read in the panel; ZHA's own pages still offer them); record reception values
-after each of ZHA's own topology scans (keep 1 to 90 days, default 30), from what ZHA and the Matter server already hold,
-never starting a scan; delete the recorded history; optionally one ZHA scan 30 minutes after each start (off by default); see ZHA's scan period with a note how to change it (the
-integration never edits configuration.yaml). Details: [spec](docs/spec.md#101-options-v1).
+Settings: Settings > Devices & services > Meshroute > Configure (administrators). Show in the sidebar; record reception
+values (Zigbee after each of ZHA's own topology scans, Thread every 4 hours; keep 1 to 90 days, default 30), from what ZHA
+and the Matter server already hold, never starting a scan; delete the recorded history. With ZHA set up, a Zigbee section:
+allow scan and attribute reads in the panel (off hides the scan control and the attribute read; ZHA's own pages still
+offer them); optionally one ZHA scan 30 minutes after each start (off by default); ZHA's scan period with a note how to
+change it (the integration never edits configuration.yaml). Details: [spec](docs/spec.md#101-options-v1).
 
 Removal: delete the integration under Settings > Devices & services, then remove it in HACS and restart.
 

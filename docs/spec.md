@@ -93,9 +93,10 @@ The panel reads through Home Assistant's websocket API and requires an administr
 
 ### 3.2 Thread through Matter [v1.1 preview]
 
-- `matter/network_topology` needs Home Assistant 2026.9 or newer: an old Matter server answers `not_supported`, an
-  older Home Assistant `unknown_command`; both grey the Thread entry of the network switch (9.1) with "Home Assistant
-  2026.9 or newer is required"; ZHA stays.
+- `matter/network_topology` is in every supported Home Assistant (2026.9 or newer; the minimum is 2026.10, 10): a Matter
+  server too old for it answers `not_supported` (an older Home Assistant would answer `unknown_command`, treated the
+  same); the Thread entry of the network switch (9.1) is greyed with "the Matter server does not offer the topology;
+  update the Matter server"; ZHA stays. Without a Zigbee network this is the panel's message (9.4).
 - Read once per load, only when the Matter integration is loaded (`config_entries/get`, domain `matter`), always with
   `refresh: false`: a snapshot built from the Matter server's cache, no radio traffic. `refresh: true` would re-read every node's
   tables over the radio; `tools/guard.py` refuses it in shipped code. `tools/capture.py --matter` captures the same
@@ -683,7 +684,9 @@ One place per thing; nothing appears twice.
   divider ("⚙ Settings (Home Assistant) ↗", and the grey line "Integration options in Home Assistant"). Where the map is
   narrower than 600 px the second line is hidden and the name is the network's short one ("Zigbee", "Thread"); the dot
   keeps the state. The pill leaves 72 px at each side for the zoom group, and the fit leaves room below the map for the pill.
-  Switching networks clears the selection, keeps the panels on their tab and refits the map; the first load shows Zigbee.
+  Switching networks clears the selection, keeps the panels on their tab and refits the map; the first load shows Zigbee
+  where it can be shown. Greyed entries: Thread when the Matter topology is not supported, empty or unreadable; Zigbee
+  when ZHA's devices cannot be read (#15). A network that is not set up is not listed.
 - **Two panels.** The **left panel** has the tabs Devices, Findings (with count) and Details; the button Devices opens
   it on Devices. The **right panel** has View and Legend, each opened by its button. A button pressed while its tab is
   in view closes the panel. Wide screens: side panels on their own side (both may be open), hiding their corner's
@@ -847,9 +850,14 @@ One place per thing; nothing appears twice.
 
 ### 9.4 Errors and empty states
 
-Clear messages for: ZHA not loaded; user not an administrator; connection lost (retry automatically); Home Assistant
-too old for a source; no devices yet; scan running. A lost connection keeps the last picture under a banner and reads
-again when the connection is back.
+Clear messages for: user not an administrator; connection lost (retry automatically); scan running; and, when no
+network can be shown, the reason of each source that is set up, one line each in menu order (Zigbee: no devices yet,
+ZHA's devices could not be read; Thread: the Matter server does not offer the topology, the topology lists no Thread
+device, the topology could not be read), with a retry. With neither ZHA nor Matter loaded the one message is "No
+Zigbee or Thread network: set up ZHA or Matter, then try again." (owner 2026-11-08, #15). Each source is read on its
+own: a failing read greys that source in the network switch (9.1) and the other is shown; the error page comes only
+when no network is left. A lost connection keeps the last picture under a banner and reads again when the connection
+is back.
 
 ### 9.5 Path history window [v1.1]
 
@@ -871,7 +879,7 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   "Communication path with the coordinator". Terms: a **direct link** is two neighbours that hear each other (history in
   both directions), a **route** is the way between two devices.
 - **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Direct link (the last one used is remembered), ranges 48 h, 7 d,
-  30 d, 90 d limited to "Keep for" (read from `history/info`: `keep_days`, with `record` and `last_error`); a full-screen
+  30 d, 90 d limited to "Keep for" (read from `history/info`: `keep_days`, with `record` and `problems`); a full-screen
   sheet on a phone. Records are read per range (`history/records`) and cached per network and range for 5 minutes; the
   live input is what the panel already holds (`network.live`).
 - **Partner menu:** the second name in the header is a menu: the coordinator (Thread: the border routers) first, then
@@ -901,7 +909,8 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 - **Details** (9.2), "Heard by · hears": each row gets a 48 h sparkline (one grey series, the last point a dot) and "48 h
   min–max"; a click opens the window on the tab Direct link. Zigbee only.
 - **States:** not recorded ("Reception history is not recorded. Settings ↗", also instead of the sparklines), no records
-  yet, source not supported (`last_error`), fewer than 3 records (points only), a refused command (message).
+  yet, source not supported (the problem of the shown network's own source, `problems`; never the other network's),
+  fewer than 3 records (points only), a refused command (message).
 - **Dev page:** `?history=<name>` reads `captures/<name>.json` (git-ignored), `sample` the committed fixture, `none`, `off`,
   `unsupported`; `keep=<days>`.
 
@@ -909,7 +918,8 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 
 - Custom integration with a config flow; manifest `name` "Meshroute Topology Explorer", domain
   `meshroute_topology_explorer`, version, documentation, issue tracker, code owners, `brand/icon.png`, `hacs.json`;
-  hassfest and HACS checks in CI. No Python dependencies beyond Home Assistant. Minimum Home Assistant 2026.10 (owner 2026-11-06):
+  hassfest and HACS checks in CI. No Python dependencies beyond Home Assistant; it needs neither ZHA nor Matter and loads
+  after both where they are set up (`after_dependencies`). Minimum Home Assistant 2026.10 (owner 2026-11-06):
   forms use `probatio`, which replaced `voluptuous` there; `tools/guard.py` forbids importing `voluptuous`.
 - One admin panel (URL path `meshroute-topology`, custom element `meshroute-topology-explorer`), removed on unload. The panel
   takes the viewport's height (Home Assistant's custom-panel container has none) and brings its own sidebar button
@@ -917,7 +927,7 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 - Websocket commands, each checking admin rights, validating input and rejecting payloads above 256 KiB:
   `meshroute_topology_explorer/settings/get` and `/settings/set`, `meshroute_topology_explorer/observations/get` and
   `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store.
-  - Requests carry `network` (1–64 characters of `A-Za-z0-9_.:-`, today the ZHA config entry id) and, for `set`,
+  - Requests carry `network` (1–64 characters of `A-Za-z0-9_.:-`; the network ids of 11) and, for `set`,
     `settings` or `observations` (a JSON object, at most 256 KiB compact UTF-8, replacing the stored one).
   - Results: `get` → `{settings: object|null}` or `{observations: object|null}` (null = never set); `set` → `{}`.
   - Errors: `unauthorized` (not an administrator), `invalid_format` (bad `network`, field missing or not an object),
@@ -938,17 +948,20 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 ### 10.1 Options [v1]
 
 "Configure" on the integration (Settings > Devices & services; administrators only) opens one form; saving reloads the
-config entry, never Home Assistant. Stored in the entry's options (defaults apply to missing keys).
+config entry, never Home Assistant. Stored flat in the entry's options (defaults apply to missing keys). Layout (owner
+2026-11-08, #15): "Show in the sidebar", the section "Reception history", and the section "Zigbee (ZHA)" only when ZHA
+has a config entry. A hidden section sends nothing; its stored values are kept (the form is checked against the stored
+options, not the defaults). Thread gets its section with the query mode of #12/#14 ("off" is its switch).
 
 | Option | Default | Effect |
 |---|---|---|
 | Show in the sidebar (administrators) | on | Off: the panel is not registered (removed on reload); the websocket commands stay. |
-| Allow radio actions (scan, attribute reads) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
-| Record reception values | on | Off stops recording; records stay until they expire. When they are taken: 10.2. |
-| ZHA topology scan (section) | - | Shows "ZHA scans every N min" ("ZHA's topology scan is off", with the note that a changed period would also need `topology_scan_enabled: true`; "unknown" where the period cannot be read) and a note how to change it: add `zha:` / `zigpy_config:` / `topology_scan_period: 240` (minutes, at least 20; more often than every 3 hours means more radio traffic in the whole network) to configuration.yaml and restart Home Assistant Core. No input field: the integration never writes configuration.yaml or changes ZHA at runtime. |
-| Keep for (days) | 30 | 1 to 90, else refused with the range. |
-| Scan once 30 minutes after Home Assistant starts | off | Once per Home Assistant run (a reload of the entry does not repeat it, an unload before the time cancels it), only if recording is on, "Allow radio actions" is on, ZHA is running, its scan task is seen and not running, and the newest Zigbee record is older than ZHA's period (or none). It asks ZHA through its registered `zha/topology/update` handler (in-process, no parameters; never the topology's own scan method); the scan's events are recorded by the normal path (10.2, guarded, floor). `history/info` gives `last_forced_scan` or `forced_scan_note` (why it was skipped). |
-| Delete the recorded history | off | Acts on Submit (when the form is valid), not stored. |
+| Record reception values (history) | on | Off stops recording; records stay until they expire. When they are taken: 10.2. |
+| Allow scan and attribute reads in the panel (Zigbee; key `radio_actions`) | on | Off: the panel config carries `radio_actions: false`; the panel hides the scan control and the cluster dialog's read row. A switch of this panel, not a lock: the commands are ZHA's own, and administrators can still use ZHA's pages. |
+| ZHA's scan period (Zigbee section text) | - | Shows "ZHA scans every N min" ("ZHA's topology scan is off", with the note that a changed period would also need `topology_scan_enabled: true`; "unknown" where the period cannot be read) and a note how to change it: add `zha:` / `zigpy_config:` / `topology_scan_period: 240` (minutes, at least 20; more often than every 3 hours means more radio traffic in the whole network) to configuration.yaml and restart Home Assistant Core. No input field: the integration never writes configuration.yaml or changes ZHA at runtime. |
+| Keep for (days) (history) | 30 | 1 to 90, else refused with the range. |
+| Scan once 30 minutes after Home Assistant starts (Zigbee) | off | Once per Home Assistant run (a reload of the entry does not repeat it, an unload before the time cancels it), only if recording is on, "Allow scan and attribute reads" is on, ZHA is running, its scan task is seen and not running, and the newest Zigbee record is older than ZHA's period (or none). It asks ZHA through its registered `zha/topology/update` handler (in-process, no parameters; never the topology's own scan method); the scan's events are recorded by the normal path (10.2, guarded, floor). `history/info` gives `last_forced_scan` or `forced_scan_note` (why it was skipped). |
+| Delete the recorded history (history) | off | Acts on Submit (when the form is valid), not stored. |
 
 ### 10.2 Reception history [v1]
 
@@ -961,11 +974,13 @@ with the end of the scan, not with the read. Never mid-scan: zigpy replaces the 
 it scans, so the integration reads the topology's scan task state (`_scan_task`, internal; 300 s of quiet instead and
 `scan_state: unknown` in the info if the attribute is missing), waits for the task to end, drops a Zigbee read during
 which a scan began, and postpones a record due within 10 minutes of the last one to last + 10 minutes instead of
-dropping it; a scan that is still not over after twice ZHA's period writes nothing for it (`last_error`). Every ZHA
-(re)load builds a new topology: the listener moves to it when ZHA's config entry changes and on each timer tick. If no
-listener can be attached (internals changed, said in `last_error`), ZHA's scan is off or ZHA is not running, a timer at
-ZHA's period (240 min without ZHA) records instead (`timer`), dated with the read and guarded the same way. Thread has
-no events: a timer at ZHA's period reads only Thread, and a snapshot is dated with the Matter server's
+dropping it; a scan that is still not over after twice ZHA's period writes nothing for it (Zigbee's problem). Every ZHA
+(re)load builds a new topology: the listener moves to it when ZHA's config entry changes and on each Zigbee timer tick.
+The Zigbee timer runs at ZHA's period (240 min without ZHA) and is restarted when ZHA comes up or reloads with another
+period; it reads Zigbee only where no listener can be attached (internals changed, said in Zigbee's problem), ZHA's
+scan is off or ZHA is not running (`timer`), dated with the read and guarded the same way. Thread has no events: its
+own timer reads only Thread every 4 hours, independent of ZHA (owner 2026-11-08, #15, until #12/#14 bring their own
+schedule), and a snapshot is dated with the Matter server's
 `collected_at`, which is the time of Meshroute's request (3.2); a Thread record therefore means what the Matter server
 held when Meshroute read it, and the rule "skipped when not newer than the last one" does not fire in practice (it
 still catches a clock step back). One Thread read follows 30 s after Home Assistant has started or
@@ -974,7 +989,8 @@ scan from its database and it would be dated as new). Recording off keeps only a
 registered handlers of `zha/devices` and `matter/network_topology`
 (`refresh: false`) are called in-process (`hass.data["websocket_api"][command]`, exactly these two). Zigbee adds zigpy's
 route records (`zigpy_routes.read_routes`, in memory). Fragile parts: that registry layout and handler calling convention
-(core-internal) and the zigpy reader; any mismatch is logged once per change, shown as `last_error` by `history/info`, and
+(core-internal) and the zigpy reader; any mismatch is logged once per change, kept as the problem of its source (`zha`
+or `thread`; a read of one source never clears the other's) and shown by `history/info`, and
 writes nothing for that source (a failed route-record read still writes the rest). A read that has not answered blocks
 the next one of that command (no piling up). The Thread side mirrors the panel's node, duplicate and "measured" rules
 (`from-matter.js`): unknown strength and link quality 0 without RSSI are no values. Expiry runs even when a source fails,
@@ -1001,7 +1017,7 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
   epoch seconds) returns `{sender_to_receiver, receiver_to_sender}`, lists of `[time, lqi(, rssi)]` (the receiver's table
   value for the sender, and the reverse; a record without the entry gives no point); `history/records` (`network`, `since`,
   optional `until`) returns `{k, records}` in the file format with one key table over the range, the first record full;
-  `history/info` returns `{records, first, last, bytes, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, scan_state, last_forced_scan, forced_scan_note}`. The UI (9.5) reads `record`, `keep_days` and `last_error`.
+  `history/info` returns `{records, first, last, bytes, problems, last_error, record, keep_days, zha_scan_period, zha_scan_enabled, follow_mode, scan_state, last_forced_scan, forced_scan_note}`; `problems` is `{zha, thread}`, each source's last problem or null (the panel's source keys), `last_error` both joined (kept for older readers). The UI (9.5) reads `record`, `keep_days` and `problems` by the shown network's source.
 
 ## 11. Settings per network [v1]
 
@@ -1009,7 +1025,7 @@ and a delete wins over a read still under way. Unavailable devices' tables are s
 
 Each network keeps its settings under its id (ZHA: config entry id; Thread: `thread-` plus the extended PAN id). The
 chosen network (`network`: `zha` or `thread`) is stored under the reserved id `panel` by read-merge-write; the first
-load shows Zigbee.
+load shows Zigbee where it can be shown, else the other network (9.1).
 
 Keys:
 - Density: `density` (`dense`, `medium`, `spread`, `custom`; else `medium`) and `densityFactor` (the custom D, a number clamped to 0.6 to 8; else 1.44).

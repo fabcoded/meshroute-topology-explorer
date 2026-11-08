@@ -15,7 +15,7 @@ STORE_VERSION = 1
 STORE_SAVE_DELAY = 10  # seconds
 # Spec section 10: payloads above this serialized size are rejected.
 MAX_PAYLOAD_BYTES = 256 * 1024
-# Network id as used by the panel (today the ZHA config entry id); spec section 10.
+# Network id as used by the panel (ZHA: its config entry id; Thread: `thread-` plus the extended PAN id); spec 10, 11.
 NETWORK_ID_PATTERN = r"[A-Za-z0-9_.:-]{1,64}"
 
 # Options (entry.options; docs/spec.md section 10.1). Defaults apply to keys an entry does not hold yet.
