@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration and hands the
-// topology to the Thread engine (engines/index.js), which builds the model. Read only: the server's cached snapshot.
+// topology to the Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache.
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { errorCode, errorText, isConnectionLost } from "./ws.js";

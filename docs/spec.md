@@ -423,8 +423,10 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   old on a quiet network, so ZHA's age plays no part; 4 hours is ZHA's default scan interval, reused for Thread, where
   the dot's criterion is the age of the panel's snapshot, not of the tables in it (unknown, 3.2).
 - **Thread**: source "Thread (Matter)"; "Links with both directions: x/y" (pairs measured both ways of all linked
-  pairs; sample 3/5); "snapshot {time} ({age})" from the snapshot's `collected_at`, noted as built by the Matter server from its cache
-  when the panel asked, with tables that can be many hours old and an unreported read time; "no border router listed" when there is none. No banner, no "unchanged since".
+  pairs; sample 3/5); "snapshot {time} ({age})" from the snapshot's `collected_at`, noted as built by the Matter
+  server from its cache when the panel asked, with tables that can be many hours old and an unreported read time; in
+  the menu's full line only, right after it, "Thread tables: age unknown" with the same note as tooltip (the compact
+  line keeps "snapshot {time}"); "no border router listed" when there is none. No banner, no "unchanged since".
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
   evidence rule (5.6). Below 90 % the map carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp, and the integration cannot read ZHA's tables publicly. The panel keeps

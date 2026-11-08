@@ -14,6 +14,7 @@ export const TEXTS = Object.freeze({
   "status.thread_read": "snapshot {time} ({age})",
   "status.short_thread_read": "snapshot {time}",
   "status.thread_read_note": "Built by the Matter server from its cache when the panel asked; no radio traffic. The Thread tables in it can be many hours old (the server reads them about once a day and when it reconnects to a device), and their read time is not reported.",
+  "status.thread_tables_age": "Thread tables: age unknown",
   "status.thread_no_br": "no border router listed",
   "view.thread_paths_note": "Thread data names neighbours and parents, not routes; there are no path views.",
   "legend.link.parent": "Parent link: end device and its parent",

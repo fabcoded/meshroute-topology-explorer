@@ -136,7 +136,7 @@ test("settings are kept per network: the Thread id is its own and valid for the 
 test("status line for Thread: coverage, snapshot time with age, missing border routers", () => {
   const t = translator("en");
   const parts = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
-  assert.deepEqual(parts.map(([k]) => k), ["status.source", "status.thread_links", "status.thread_read"]);
+  assert.deepEqual(parts.map(([k]) => k), ["status.source", "status.thread_links", "status.thread_read", "status.thread_tables_age"]);
   assert.equal(t(parts[1][0], parts[1][1]), "Links with both directions: 3/5");
   assert.equal(t(parts[2][0], parts[2][1]), "snapshot 14:14 (5 min ago)");
   const noBr = { ...thread, status: { ...thread.status, borderRouters: 0 } };
@@ -148,7 +148,14 @@ test("status line for Thread: coverage, snapshot time with age, missing border r
 
 test("#13: Thread status does not present collected_at as the read time of the tables", () => {
   const t = translator("en");
-  const [key, params, note] = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } }).at(-1);
+  const full = threadParts(thread, { collected: { time: "14:14", age: "5 min ago" } });
+  const age = full.find(([k]) => k === "status.thread_tables_age");
+  assert.equal(t(age[0], age[1]), "Thread tables: age unknown");
+  assert.equal(age[2], "status.thread_read_note");
+  assert.equal(threadParts(thread, { compact: true, collected: { time: "14:14", age: "5 min ago" } })
+    .some(([k]) => k === "status.thread_tables_age"), false);
+  assert.equal(threadParts(thread, {}).some(([k]) => k === "status.thread_tables_age"), false);
+  const [key, params, note] = full.find(([k]) => k === "status.thread_read");
   assert.equal(key, "status.thread_read");
   assert.match(t(key, params), /^snapshot /);
   assert.doesNotMatch(t(key, params), /\bread\b/);

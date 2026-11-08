@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The Matter side of the Thread engine (spec 3.2, 4.6): maps the answer of `matter/network_topology` (Home Assistant
-// 2026.9 or newer, read with refresh false: the server's cached snapshot, no radio traffic) onto devices, readings
+// 2026.9 or newer, read with refresh false: a snapshot built from the server's cache, no radio traffic) onto devices, readings
 // and links, and holds the capability set of a Thread network read through Matter. The engine's model (model.js)
 // derives parents, pairs, status and findings from it. Pure, no DOM.
 // npm test
