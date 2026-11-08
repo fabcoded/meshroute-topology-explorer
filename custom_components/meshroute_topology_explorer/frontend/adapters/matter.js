@@ -8,7 +8,7 @@ import { TEXTS } from "./matter-texts.js";
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
- *  sent from here).
+ *  sent from here), then the route tables of the same cache through the integration (thread_tables).
  *  Returns { status: "ok" | "not_set_up" | "not_running" | "not_supported" | "empty" | "error", network?, message?
  *  (not_running: the entry's state) }; a lost
  *  connection is thrown to the caller. A Matter server too old for the command answers not_supported, Home Assistant
@@ -33,7 +33,17 @@ export async function readThread(hass, registries = {}) {
     if (code === "not_supported" || code === "unknown_command") return { status: "not_supported" };
     return { status: "error", message: errorText(err) };
   }
-  const network = ENGINES.thread.build(topology, registries);
+  // The route and neighbour tables of the Matter client's cache (the integration's own command, read only, no radio
+  // traffic; spec 3.2 "Routes"): without them the map has no routes and Details say why.
+  let tables = null;
+  let tablesProblem = null;
+  try {
+    tables = await hass.callWS({ type: "meshroute_topology_explorer/thread_tables" });
+  } catch (err) {
+    if (isConnectionLost(err)) throw err;
+    tablesProblem = errorText(err);
+  }
+  const network = ENGINES.thread.build(topology, { ...registries, tables, tablesProblem });
   return network ? { status: "ok", network } : { status: "empty" };
 }
 
