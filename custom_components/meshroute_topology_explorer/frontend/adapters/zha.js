@@ -7,7 +7,7 @@
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
-import { entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
+import { countedEntries, entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
 import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
 import { TEXTS } from "./zha-texts.js";
@@ -81,7 +81,8 @@ export function sendScan(hass) {
  *  the shared device and area registries, read once on first need. Errors are thrown to the caller, which turns them
  *  into this source's "error" read and keeps the other sources (#15). */
 export async function readSource(hass, { registries }) {
-  const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
+  // Only the entries that count reach the engine, which names the network after the first (#15).
+  const configEntries = countedEntries(await hass.callWS({ type: "config_entries/get", domain: "zha" }), "zha");
   const entry = entryState(configEntries, "zha");
   if (entry.status === "not_set_up") return { status: "not_set_up", network: null, raw: null };
   if (entry.status === "not_running") return { status: "not_running", network: null, raw: null, message: entry.state };

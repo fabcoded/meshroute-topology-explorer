@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { entryState } from "../custom_components/meshroute_topology_explorer/frontend/adapters/ws.js";
+import { countedEntries, entryState } from "../custom_components/meshroute_topology_explorer/frontend/adapters/ws.js";
 import { statusParts, isIncomplete } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { deviceRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
@@ -32,6 +32,9 @@ test("deviceRows are sorted text rows; entryState follows spec 9.4 (#15: ignored
   assert.deepEqual(entryState([{ domain: "zha", state: "setup_error" }, { domain: "zha", state: "loaded" }], "zha"),
     { status: "loaded" });
   assert.deepEqual(entryState(sample.responses["config_entries/get"], "zha"), { status: "loaded" });
+  assert.deepEqual(countedEntries([{ entry_id: "a", domain: "zha", state: "setup_error" }, { entry_id: "i", domain: "zha",
+    source: "ignore", state: "loaded" }, { entry_id: "b", domain: "zha", state: "loaded" }, { entry_id: "m", domain: "matter",
+    state: "loaded" }], "zha").map((e) => e.entry_id), ["b", "a"], "loaded first; ignored and other domains left out");
   assert.deepEqual(entryState(sample.responses["config_entries/get"], "matter"), { status: "not_set_up" });
 });
 

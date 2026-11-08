@@ -24,13 +24,20 @@ export function errorText(err) {
   return String(e.message || e.code || e);
 }
 
-/** What a source's config entries (config_entries/get) say (spec 9.4): { status: "loaded" } when an entry that counts
- *  is loaded; { status: "not_running", state } when entries count but none is loaded (state: the first one's, e.g.
- *  "setup_retry" while its server or radio is unreachable); else { status: "not_set_up" }. Ignored and disabled
- *  entries do not count (#15). */
-export function entryState(entries, domain) {
+/** A source's config entries (config_entries/get) that count: neither ignored nor disabled, a loaded one first. The
+ *  first one names the network (the ZHA entry id), as the integration's sources.set_up_entries does for the history
+ *  (#15). */
+export function countedEntries(entries, domain) {
   const counted = (Array.isArray(entries) ? entries : [])
     .filter((e) => e && e.domain === domain && e.source !== "ignore" && !e.disabled_by);
-  if (counted.some((e) => e.state === "loaded")) return { status: "loaded" };
-  return counted.length ? { status: "not_running", state: String(counted[0].state ?? "unknown") } : { status: "not_set_up" };
+  return [...counted.filter((e) => e.state === "loaded"), ...counted.filter((e) => e.state !== "loaded")];
+}
+
+/** What a source's config entries say (spec 9.4): { status: "loaded" } when an entry that counts is loaded;
+ *  { status: "not_running", state } when entries count but none is loaded (state: the first one's, e.g. "setup_retry"
+ *  while its server or radio is unreachable); else { status: "not_set_up" }. */
+export function entryState(entries, domain) {
+  const [first] = countedEntries(entries, domain);
+  if (!first) return { status: "not_set_up" };
+  return first.state === "loaded" ? { status: "loaded" } : { status: "not_running", state: String(first.state ?? "unknown") };
 }

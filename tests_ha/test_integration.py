@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.util import dt as dt_util
 
-from custom_components.meshroute_topology_explorer import recorder
+from custom_components.meshroute_topology_explorer import recorder, sources
 from custom_components.meshroute_topology_explorer.const import DOMAIN, PANEL_URL_PATH
 
 from .compat import MockConfigEntry, async_fire_time_changed
@@ -182,3 +182,15 @@ async def test_15_thread_only_records_at_start_and_every_4_hours(hass, entry, ca
     assert (await recorder.async_info(hass))["records"] == 2  # the Thread timer, not ZHA's period
     assert "Reception history" not in caplog.text  # nothing to warn about without ZHA
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_15_set_up_entries_skip_ignored_and_disabled_and_put_a_loaded_one_first(hass):
+    """rev15b: the recorder names the Zigbee network after this first entry; the panel's countedEntries does the same."""
+    entries = [MockConfigEntry(domain="zha", **kwargs) for kwargs in (
+        {"source": SOURCE_IGNORE, "entry_id": "ignored"}, {"disabled_by": ConfigEntryDisabler.USER, "entry_id": "disabled"},
+        {"entry_id": "retrying", "state": ConfigEntryState.SETUP_RETRY},
+        {"entry_id": "real", "state": ConfigEntryState.LOADED})]
+    for entry in entries:
+        entry.add_to_hass(hass)
+    assert [e.entry_id for e in sources.set_up_entries(hass, "zha")] == ["real", "retrying"]
+    entries[-1].mock_state(hass, ConfigEntryState.NOT_LOADED)  # no ZHA to unload at teardown

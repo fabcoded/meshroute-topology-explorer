@@ -248,8 +248,11 @@ def parse_thread(topology: Any) -> tuple[str, Snapshot, float | None] | None:
 
 
 def set_up_entries(hass: HomeAssistant, domain: str) -> list[Any]:
-    """The integration's config entries that count as set up: neither ignored nor disabled (#15)."""
-    return hass.config_entries.async_entries(domain, include_ignore=False, include_disabled=False)
+    """The integration's config entries that count as set up: neither ignored nor disabled, a loaded one first. The
+    first one names the network (ZHA's entry id), as the panel's countedEntries does (adapters/ws.js, #15)."""
+    loaded = hass.config_entries.async_loaded_entries(domain)  # never ignored or disabled ones (Home Assistant)
+    entries = hass.config_entries.async_entries(domain, include_ignore=False, include_disabled=False)
+    return [*loaded, *(e for e in entries if e not in loaded)]
 
 
 class Collected(NamedTuple):

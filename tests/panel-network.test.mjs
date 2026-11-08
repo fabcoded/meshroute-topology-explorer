@@ -26,7 +26,8 @@ const topology = load("matter-sample.json")["matter/network_topology"];
 const thread = buildThreadNetwork(topology);
 
 /** A fake hass: ZHA and Matter loaded or not, the topology answer or an error code, every message recorded. */
-/** zha / matter: true (loaded), false (no entry) or an entry state such as "setup_retry" (set up, not running). */
+/** zha / matter: true (loaded), false (no entry), an entry state such as "setup_retry" (set up, not running), or for
+ *  zha a list of entries as config_entries/get answers. */
 function fakeHass({ zha = true, matter = true, topologyError = null, topologyAnswer = topology, zhaError = null } = {}) {
   const calls = [];
   return {
@@ -39,6 +40,7 @@ function fakeHass({ zha = true, matter = true, topologyError = null, topologyAns
             return matter ? [{ entry_id: "m", domain: "matter", state: matter === true ? "loaded" : matter }] : [];
           }
           if (typeof zha === "string") return [{ entry_id: "z", domain: "zha", state: zha }];
+          if (Array.isArray(zha)) return zha;
           return zha ? zhaResponses["config_entries/get"] : [];
         case "zha/devices":
           if (zhaError) throw { code: zhaError, message: "ZHA did not answer" };
@@ -117,6 +119,16 @@ test("#15 (rev15): an entry that is set up but not running is greyed with its st
     "Thread cannot be shown: the Matter integration is not running (setup_retry)."]);
   const onlyMatterDown = await readNetwork(fakeHass({ zha: false, matter: "setup_retry" }));
   assert.deepEqual(onlyMatterDown.reasons.map((r) => r.phase), ["thread_not_running"]);
+});
+
+test("#15 (rev15b): the Zigbee network is named after the ZHA entry that counts, as the recorder names it", async () => {
+  const real = zhaResponses["config_entries/get"][0];
+  const entries = [{ entry_id: "ignored", domain: "zha", source: "ignore", state: "not_loaded" },
+    { entry_id: "disabled", domain: "zha", disabled_by: "user", state: "not_loaded" },
+    { entry_id: "retrying", domain: "zha", state: "setup_retry" }, real];
+  const result = await readNetwork(fakeHass({ zha: entries }));
+  assert.equal(result.network.id, real.entry_id, "history, settings and observations use the real entry's id");
+  assert.deepEqual(result.network.live.configEntries.map((e) => e.entry_id), [real.entry_id, "retrying"]);
 });
 
 test("#15: a ZHA read error keeps a readable Thread network and greys the Zigbee entry with its reason", async () => {
