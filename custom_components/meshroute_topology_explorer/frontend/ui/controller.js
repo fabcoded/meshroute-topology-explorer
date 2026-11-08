@@ -190,8 +190,10 @@ export class PanelController extends EventTarget {
     if (this.started) this.reload();
   }
 
+  /** A patch that changes the phase without naming reasons clears them: they belong to the phase that carried them
+   *  (no stale lines under "loading", "disconnected" or an error). */
   _set(patch) {
-    this.state = { ...this.state, ...patch };
+    this.state = { ...this.state, ...("phase" in patch && !("reasons" in patch) ? { reasons: null } : {}), ...patch };
     this.dispatchEvent(new Event("change"));
   }
 }

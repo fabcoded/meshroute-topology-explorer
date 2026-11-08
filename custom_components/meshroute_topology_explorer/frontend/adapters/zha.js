@@ -7,16 +7,10 @@
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { normalizeIeee, parseAddress } from "../model/parse.js";
-import { errorCode, errorText, isConnectionLost } from "./ws.js";
+import { entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
 import { ScanFollower, tablesDiffer } from "./zha-scan.js";
 import { ObservationsClient } from "./zha-observations.js";
 import { TEXTS } from "./zha-texts.js";
-
-/** Whether ZHA is loaded: its config entries name one in state "loaded". Not loaded is no reason the panel names: ZHA
- *  is then simply not set up (spec 9.4). */
-export function zhaLoaded({ configEntries }) {
-  return Array.isArray(configEntries) && configEntries.some((e) => e.domain === "zha" && e.state === "loaded");
-}
 
 /** ZHA's own page of a device, on one of its tabs ("signature" is the Zigbee info, "clusters" the management). The
  *  IEEE goes in with its colons, as the frontend writes it: the page reads the path segment as it is, so an encoded
@@ -82,29 +76,34 @@ export function sendScan(hass) {
   hass.connection.sendMessage({ type: "zha/topology/update" });
 }
 
-/** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty" or "not_loaded"),
- *  network, raw }. registries(): the shared device and area registries, read once on first need. Errors are thrown to
- *  the caller, which turns them into this source's "error" read and keeps the other sources (#15). */
+/** One read of this source for the panel (ui/controller.js readNetwork): { status ("ok", "empty", "not_set_up" or
+ *  "not_running", adapters/ws.js entryState), network, raw, message (not_running: the entry's state) }. registries():
+ *  the shared device and area registries, read once on first need. Errors are thrown to the caller, which turns them
+ *  into this source's "error" read and keeps the other sources (#15). */
 export async function readSource(hass, { registries }) {
   const configEntries = await hass.callWS({ type: "config_entries/get", domain: "zha" });
-  if (!zhaLoaded({ configEntries })) return { status: "not_loaded", network: null, raw: null };
+  const entry = entryState(configEntries, "zha");
+  if (entry.status === "not_set_up") return { status: "not_set_up", network: null, raw: null };
+  if (entry.status === "not_running") return { status: "not_running", network: null, raw: null, message: entry.state };
   const { raw, network } = await readZha(hass, { configEntries, registries });
   return { status: network ? "ok" : "empty", network, raw };
 }
 
-/** Empty-state phases of a ZHA read without a network (spec 9.4); not loaded is none (ZHA is not set up). */
-const EMPTY_STATES = Object.freeze({ empty: "no_devices", error: "zha_error" });
+/** Empty-state phases of a ZHA read without a network (spec 9.4); not set up is none. */
+const EMPTY_STATES = Object.freeze({ empty: "no_devices", error: "zha_error", not_running: "zha_not_running" });
+/** Reads the network switch lists greyed, with the words for why (#15). */
+const UNAVAILABLE = Object.freeze({ error: "status.zha_error", not_running: "status.zha_not_running" });
 
 /** The ZHA adapter as the shell sees it (adapters/index.js): key (the source its networks carry and the stored choice
  *  of the network switch), the read, the empty-state phase of a read without a network, whether a read lists the
- *  network greyed (a read error, #15) and the words for why, ZHA's device page, the scan (send, follow, compare
+ *  network greyed (not running or a read error, #15) and the words for why, ZHA's device page, the scan (send, follow, compare
  *  tables), the observations client and the reload note (a text key: ZHA's held tables, no scan). */
 export const adapter = Object.freeze({
   key: "zha",
   read: readSource,
   emptyState: (read) => (read && EMPTY_STATES[read.status]) || null,
-  unavailable: (read) => Boolean(read && read.status === "error"),
-  reasonText: (choice, t) => t("status.zha_error", { message: choice.message || "?" }),
+  unavailable: (read) => Boolean(read && UNAVAILABLE[read.status]),
+  reasonText: (choice, t) => t(UNAVAILABLE[choice.reason], { message: choice.message || "?" }),
   devicePage: (device, tab = "signature") => ({ key: "zha", path: zhaDevicePath(device.id, tab) }),
   scan: Object.freeze({ send: sendScan, Follower: ScanFollower, differ: tablesDiffer }),
   Observations: ObservationsClient,

@@ -418,8 +418,8 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   table. ZHA's own 4-hourly table reads are explained by an info button beside "Read data again" (9.1).
 - **The dot** (11 px, last in the pill): green = every available router's table read (Thread: every linked pair measured
   both ways, a border router listed, snapshot younger than 4 hours); amber = anything else (a table missing, a one-way
-  link, no border router, a snapshot of 4 hours and older); red = connection to Home Assistant lost (sources that
-  cannot be loaded show their message instead of the map, 9.4). Colour is never the only signal: the second line says
+  link, no border router, a snapshot of 4 hours and older); red = connection to Home Assistant lost (a message
+  replaces the map only when no network is left, 9.4). Colour is never the only signal: the second line says
   the same and takes a matching text tone in amber and red. ZHA gives no scan time and "unchanged since" can be days
   old on a quiet network, so ZHA's age plays no part; 4 hours is ZHA's default scan interval, reused for Thread, where
   the dot's criterion is the age of the panel's snapshot, not of the tables in it (unknown, 3.2).
@@ -685,8 +685,9 @@ One place per thing; nothing appears twice.
   narrower than 600 px the second line is hidden and the name is the network's short one ("Zigbee", "Thread"); the dot
   keeps the state. The pill leaves 72 px at each side for the zoom group, and the fit leaves room below the map for the pill.
   Switching networks clears the selection, keeps the panels on their tab and refits the map; the first load shows Zigbee
-  where it can be shown. Greyed entries: Thread when the Matter topology is not supported, empty or unreadable; Zigbee
-  when ZHA's devices cannot be read (#15). A network that is not set up is not listed.
+  where it can be shown. Greyed entries: Thread when the Matter integration is not running or its topology is not
+  supported, empty or unreadable; Zigbee when ZHA is not running or its devices cannot be read (#15, 9.4). A network
+  that is not set up is not listed.
 - **Two panels.** The **left panel** has the tabs Devices, Findings (with count) and Details; the button Devices opens
   it on Devices. The **right panel** has View and Legend, each opened by its button. A button pressed while its tab is
   in view closes the panel. Wide screens: side panels on their own side (both may be open), hiding their corner's
@@ -851,12 +852,16 @@ One place per thing; nothing appears twice.
 ### 9.4 Errors and empty states
 
 Clear messages for: user not an administrator; connection lost (retry automatically); scan running; and, when no
-network can be shown, the reason of each source that is set up, one line each in menu order (Zigbee: no devices yet,
-ZHA's devices could not be read; Thread: the Matter server does not offer the topology, the topology lists no Thread
-device, the topology could not be read), with a retry. With neither ZHA nor Matter loaded the one message is "No
-Zigbee or Thread network: set up ZHA or Matter, then try again." (owner 2026-11-08, #15). Each source is read on its
-own: a failing read greys that source in the network switch (9.1) and the other is shown; the error page comes only
-when no network is left. A lost connection keeps the last picture under a banner and reads again when the connection
+network can be shown, the reason of each source that is set up, one line each in menu order, "Zigbee cannot be shown:
+…" (ZHA is not running ({state}), ZHA has no devices yet, ZHA's devices could not be read) and "Thread cannot be shown:
+…" (the Matter integration is not running ({state}), the Matter server does not offer the topology, the topology lists
+no Thread device, the topology could not be read), with a retry; the block takes the worst tone of its lines (error,
+else warning, else neutral). A source is set up when it has a config entry that is neither ignored nor disabled
+(`config_entries/get`); it is running when one such entry is loaded, else it is "not running" with that entry's state
+(`setup_retry`, `setup_error`, ...). Only with no such entry for either source the one message is "No Zigbee or Thread
+network: set up ZHA or Matter, then try again." (owner 2026-11-08, #15). Each source is read on its own: a source that
+is not running or whose read fails is greyed in the network switch (9.1) and the other is shown; the error page
+comes only when no network is left. A lost connection keeps the last picture under a banner and reads again when the connection
 is back.
 
 ### 9.5 Path history window [v1.1]
@@ -950,8 +955,9 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 "Configure" on the integration (Settings > Devices & services; administrators only) opens one form; saving reloads the
 config entry, never Home Assistant. Stored flat in the entry's options (defaults apply to missing keys). Layout (owner
 2026-11-08, #15): "Show in the sidebar", the section "Reception history", and the section "Zigbee (ZHA)" only when ZHA
-has a config entry. A hidden section sends nothing; its stored values are kept (the form is checked against the stored
-options, not the defaults). Thread gets its section with the query mode of #12/#14 ("off" is its switch).
+has a config entry that is neither ignored nor disabled (loaded or not). A hidden section sends nothing; its stored
+values are kept (the form is checked against the stored options, not the defaults). Thread will get its section with
+the query mode of #12/#14 ("off" is its switch).
 
 | Option | Default | Effect |
 |---|---|---|
@@ -976,8 +982,8 @@ it scans, so the integration reads the topology's scan task state (`_scan_task`,
 which a scan began, and postpones a record due within 10 minutes of the last one to last + 10 minutes instead of
 dropping it; a scan that is still not over after twice ZHA's period writes nothing for it (Zigbee's problem). Every ZHA
 (re)load builds a new topology: the listener moves to it when ZHA's config entry changes and on each Zigbee timer tick.
-The Zigbee timer runs at ZHA's period (240 min without ZHA) and is restarted when ZHA comes up or reloads with another
-period; it reads Zigbee only where no listener can be attached (internals changed, said in Zigbee's problem), ZHA's
+The Zigbee timer runs at ZHA's period and is restarted when that changes: ZHA comes up or reloads with another period,
+or is gone (no running gateway: back to 240 min, zigpy's default; a running ZHA that names no period keeps the last); it reads Zigbee only where no listener can be attached (internals changed, said in Zigbee's problem), ZHA's
 scan is off or ZHA is not running (`timer`), dated with the read and guarded the same way. Thread has no events: its
 own timer reads only Thread every 4 hours, independent of ZHA (owner 2026-11-08, #15, until #12/#14 bring their own
 schedule), and a snapshot is dated with the Matter server's

@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import SOURCE_IGNORE, ConfigEntryDisabler, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.util import dt as dt_util
@@ -95,6 +95,11 @@ async def test_15_options_zha_section_with_a_zha_entry_and_hidden_values_kept(ha
     assert done["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert (entry.options["radio_actions"], entry.options["scan_after_start"], entry.options["keep_days"]) == (False, True, 9)
+    MockConfigEntry(domain="zha", source=SOURCE_IGNORE).add_to_hass(hass)  # ignored and disabled entries do not count
+    MockConfigEntry(domain="zha", disabled_by=ConfigEntryDisabler.USER).add_to_hass(hass)
+    form = await hass.config_entries.options.async_init(entry.entry_id)
+    assert set(form["data_schema"].schema) == {"sidebar", "history"}
+    hass.config_entries.options.async_abort(form["flow_id"])
     MockConfigEntry(domain="zha").add_to_hass(hass)  # ZHA set up (not loaded: the entry is what counts)
     form = await hass.config_entries.options.async_init(entry.entry_id)
     assert set(form["data_schema"].schema) == {"sidebar", "history", "zha"}
@@ -158,7 +163,8 @@ async def test_start_path_reads_thread_but_not_zigbee_in_events_mode(hass, entry
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_15_thread_only_records_at_start_and_every_4_hours(hass, entry, caplog):
+async def test_15_thread_only_records_at_start_and_every_4_hours(hass, entry, caplog, monkeypatch):
+    monkeypatch.setattr(recorder, "ZHA_DEFAULT_PERIOD", 10 * 60)  # ZHA's timer at 10 h: only Thread's fires at 4 h
     register_matter(hass)
     hass.config.components.add("matter")  # no ZHA: neither component nor config entry
     await setup(hass, entry)

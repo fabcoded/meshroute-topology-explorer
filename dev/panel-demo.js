@@ -36,7 +36,9 @@ const VARIANTS = [
     ["Matter too old", "matter=notsupported"], ["Narrow: Thread", "phone=1&network=thread"],
     ["Thread only", "nozha=1&matter=1"], ["Thread only: View tab", "nozha=1&matter=1&right=view"],
     ["ZHA error, Thread shown", "error=1&matter=1"], ["Thread only, Matter too old", "nozha=1&matter=notsupported"],
-    ["ZHA error, Matter too old", "error=1&matter=notsupported"]]],
+    ["ZHA error, Matter too old", "error=1&matter=notsupported"], ["ZHA not running, Thread shown", "zhastate=setup_retry&matter=1"],
+    ["Matter not running", "matterstate=setup_retry&matter=1"],
+    ["Neither running", "zhastate=setup_error&matterstate=setup_retry&matter=1"]]],
   ["Panels", [["Left: Devices", "left=devices"], ["Left: Findings", "left=findings"],
     ["Left: Details (Router 03)", "select=Router%2003&left=details"], ["Right: View", "right=view"],
     ["Right: View, coloured", "right=view&colors=1"], ["Right: View, own colours", "right=view&colors=1&bad=0072b2&good=e69f00"],
@@ -299,7 +301,11 @@ async function callWS(msg) {
   const unknown = { code: "unknown_command", message: "Unknown command." };
   switch (msg.type) {
     case "config_entries/get":
-      if (msg.domain === "matter") return matterMode ? [{ entry_id: "entry_matter", domain: "matter", title: "", state: "loaded" }] : [];
+      // zhastate= / matterstate=: the entry is set up but in that state (setup_retry, setup_error: not running).
+      if (msg.domain === "matter") {
+        return matterMode ? [{ entry_id: "entry_matter", domain: "matter", title: "", state: q.get("matterstate") || "loaded" }] : [];
+      }
+      if (q.get("zhastate")) return responses["config_entries/get"].map((e) => ({ ...e, state: q.get("zhastate") }));
       return flag("nozha") ? [] : responses["config_entries/get"];
     case "matter/network_topology":
       // The panel must never ask for a refresh (radio traffic): the fake refuses it loudly.

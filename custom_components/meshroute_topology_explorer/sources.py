@@ -247,6 +247,11 @@ def parse_thread(topology: Any) -> tuple[str, Snapshot, float | None] | None:
             _seconds(topology.get("collected_at")))
 
 
+def set_up_entries(hass: HomeAssistant, domain: str) -> list[Any]:
+    """The integration's config entries that count as set up: neither ignored nor disabled (#15)."""
+    return hass.config_entries.async_entries(domain, include_ignore=False, include_disabled=False)
+
+
 class Collected(NamedTuple):
     """networks by id, problems as text per source ("zha", "thread": the panel's source keys, so one network's problem
     never shows in the other's history, #15), and the time of each snapshot the source dates itself (Thread)."""
@@ -263,7 +268,7 @@ async def collect(hass: HomeAssistant, zigbee: bool = True, thread: bool = True)
     components = getattr(getattr(hass, "config", None), "components", None) or ()
     if zigbee and "zha" in components:
         try:
-            zha = hass.config_entries.async_entries("zha")
+            zha = set_up_entries(hass, "zha")
             if zha:
                 snapshot = parse_zha(await call_command(hass, "zha/devices"))
                 try:

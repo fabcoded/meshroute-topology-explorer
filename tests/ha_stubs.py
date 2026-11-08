@@ -112,7 +112,9 @@ class FakeHass:
                                             path=lambda *parts: os.path.join(config_dir, *parts))
         self.zha_entries = []
         self.config_entries = types.SimpleNamespace(
-            async_entries=lambda domain: list(self.zha_entries) if domain == "zha" else [], async_reload=mock.AsyncMock())
+            # include_ignore / include_disabled: the stub's entries are all set up; the filter is tested in tests_ha.
+            async_entries=lambda domain, include_ignore=True, include_disabled=True:
+            list(self.zha_entries) if domain == "zha" else [], async_reload=mock.AsyncMock())
         self.http = types.SimpleNamespace(async_register_static_paths=mock.AsyncMock())
 
     async def async_add_executor_job(self, func, *args):
@@ -120,9 +122,16 @@ class FakeHass:
         return func(*args)
 
 
+class _Interval(tuple):
+    """(period, action) of one interval timer, equal only to itself: a timer created again with the same period and
+    action is never taken for the cancelled one (`in rec.cancelled_intervals`)."""
+
+    __eq__, __ne__, __hash__ = object.__eq__, object.__ne__, object.__hash__
+
+
 def _interval(rec, action, period):
     """Record an interval timer as (period, action); its cancel is recorded in rec.cancelled_intervals."""
-    entry = (period, action)
+    entry = _Interval((period, action))
     rec.intervals.append(entry)
     return lambda: rec.cancelled_intervals.append(entry)
 

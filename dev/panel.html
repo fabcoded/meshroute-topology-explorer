@@ -9,8 +9,10 @@
        narrow=1        Home Assistant's narrow flag (default: window narrower than 870 px)
        dark=1          dark theme variables; switchdark=<s>  switch to dark after s seconds; lang=de  sets the
                        locale only: texts stay English; dates and numbers follow it
-       nonadmin=1      a user without administrator rights;  nozha=1  ZHA not loaded;  empty=1  no devices
+       nonadmin=1      a user without administrator rights;  nozha=1  ZHA has no config entry;  empty=1  no devices
        error=1         zha/devices fails with a server error
+       zhastate=<s>    ZHA's entry is in state s (setup_retry, setup_error: set up, not running); matterstate=<s>
+                       the same for Matter (with matter=1)
        lost=<s>        connection lost after s seconds, back after back=<s> more (default 4; back=0 stays lost)
        downfirst=1     the connection is down from the start (comes back after back=<s>)
        variant=minus1|minus3|without-coordinator|coordinator-only   sample with tables removed (spec 12)

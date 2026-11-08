@@ -37,17 +37,18 @@ test("a network finds its adapter by its source; an unknown source throws (no de
 test("the network switch greys a Matter source that could not be used, and ZHA after a read error (#15)", () => {
   const thread = adapterByKey("thread");
   for (const status of ["not_supported", "empty", "error"]) assert.equal(thread.unavailable({ status }), true, status);
-  for (const status of ["not_loaded", "ok", "skipped"]) assert.equal(thread.unavailable({ status }), false, status);
+  for (const status of ["not_set_up", "ok", "skipped"]) assert.equal(thread.unavailable({ status }), false, status);
+  assert.equal(thread.unavailable({ status: "not_running" }), true);
   assert.equal(thread.unavailable(null), false);
   const zha = adapterByKey("zha");
-  assert.equal(zha.unavailable({ status: "error" }), true);
-  for (const status of ["not_loaded", "empty", "ok", "skipped"]) assert.equal(zha.unavailable({ status }), false, status);
+  for (const status of ["error", "not_running"]) assert.equal(zha.unavailable({ status }), true, status);
+  for (const status of ["not_set_up", "empty", "ok", "skipped"]) assert.equal(zha.unavailable({ status }), false, status);
 });
 
 test("#15: empty-state phases per source; a source that is not set up names none", () => {
   const phase = (key, status) => adapterByKey(key).emptyState({ status });
-  assert.deepEqual(["empty", "error", "not_loaded", "ok", "skipped"].map((s) => phase("zha", s)),
-    ["no_devices", "zha_error", null, null, null]);
-  assert.deepEqual(["not_supported", "empty", "error", "not_loaded", "ok", "skipped"].map((s) => phase("thread", s)),
-    ["thread_not_supported", "thread_empty", "thread_error", null, null, null]);
+  assert.deepEqual(["empty", "error", "not_running", "not_set_up", "ok", "skipped"].map((s) => phase("zha", s)),
+    ["no_devices", "zha_error", "zha_not_running", null, null, null]);
+  assert.deepEqual(["not_supported", "empty", "error", "not_running", "not_set_up", "ok", "skipped"].map((s) => phase("thread", s)),
+    ["thread_not_supported", "thread_empty", "thread_error", "thread_not_running", null, null, null]);
 });

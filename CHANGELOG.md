@@ -4,12 +4,13 @@
 
 - **Fixed:** Thread-only and Zigbee-only setups (#15). The options form shows the Zigbee section (with "Allow scan and
   attribute reads in the panel", formerly "Allow radio actions", and the one-time scan) only when ZHA is set up, and
-  keeps its stored values while it is hidden. Without any network the panel names each set-up source's reason (Thread:
-  the Matter server does not offer the topology, lists no Thread device, or could not be read), and with neither set up
-  says "No Zigbee or Thread network: set up ZHA or Matter". A ZHA read error no longer hides a readable Thread network:
-  the Zigbee entry of the network switch is greyed with its reason. The reception history keeps problems per network
+  keeps its stored values while it is hidden (ignored or disabled ZHA entries do not count). Without any network the
+  panel names each set-up source's reason ("Zigbee cannot be shown: …", "Thread cannot be shown: …", including an
+  integration that is set up but not running, with its state), and only with neither set up says "No Zigbee or Thread
+  network: set up ZHA or Matter". A ZHA read error or a ZHA that is not running no longer hides a readable Thread
+  network, nor the reverse: the entry of the network switch is greyed with its reason. The reception history keeps problems per network
   (`history/info` gains `problems`), records Thread every 4 hours on its own timer instead of at ZHA's period, and
-  follows a changed ZHA period. The integration loads after Matter as well as ZHA. Needs a restart of Home Assistant.
+  follows a changed ZHA period (240 min once ZHA is gone). The integration loads after Matter as well as ZHA. Needs a restart of Home Assistant.
 - **Fixed:** the Thread status line called the snapshot time "read"; it now says "snapshot" and notes that the
   Thread tables in it can be many hours old, with an unreported read time (#13). Frontend only.
 - **Breaking: requires Home Assistant 2026.10 or newer.** The options form uses `probatio`, which replaced `voluptuous` in Home Assistant's forms and websocket validation in 2026.10.

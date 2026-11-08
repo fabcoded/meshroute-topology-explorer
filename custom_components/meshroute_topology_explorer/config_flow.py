@@ -24,6 +24,7 @@ from .const import (
 )
 from .options import get_options, validate_options
 from .recorder import async_delete_history
+from .sources import set_up_entries
 from .zha_scan import ScanSettings, describe, read_settings
 from .zigpy_routes import NotSupported
 
@@ -51,7 +52,8 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
     """One form; saving reloads the entry (never Home Assistant). Home Assistant checks values only on Submit, so
     problems come back as errors. Those of the section's fields are returned as `base` errors, which always show at the
     top of the form (the frontend's mapping of section field errors is not guaranteed). The ZHA section appears only
-    when ZHA has a config entry (owner 2026-11-08, #15); its stored values are kept while it is hidden. ZHA's scan
+    when ZHA has a config entry that is neither ignored nor disabled (owner 2026-11-08, #15); its stored values are
+    kept while it is hidden. ZHA's scan
     period is only shown, with a note how to change it in configuration.yaml, which this integration never writes."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -83,7 +85,7 @@ class MeshrouteOptionsFlow(OptionsFlowWithReload):
             probatio.Required(CONF_SIDEBAR, default=current[CONF_SIDEBAR]): bool,
             probatio.Required(SECTIONS[0]): section(history, {"collapsed": False}),
         }
-        if self.hass.config_entries.async_entries("zha"):
+        if set_up_entries(self.hass, "zha"):  # ignored or disabled entries do not count
             schema[probatio.Required(SECTIONS[1])] = section(probatio.Schema({
                 probatio.Required(CONF_RADIO_ACTIONS, default=current[CONF_RADIO_ACTIONS]): bool,
                 probatio.Required(CONF_SCAN_AFTER_START, default=current[CONF_SCAN_AFTER_START]): bool,

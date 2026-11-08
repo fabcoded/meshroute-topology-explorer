@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { zhaLoaded } from "../custom_components/meshroute_topology_explorer/frontend/adapters/zha.js";
+import { entryState } from "../custom_components/meshroute_topology_explorer/frontend/adapters/ws.js";
 import { statusParts, isIncomplete } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js";
 import { deviceRows } from "../custom_components/meshroute_topology_explorer/frontend/ui/device-list.js";
 import { buildNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/model.js";
@@ -20,13 +20,19 @@ test("status counts on the sample: only available routers count (spec 6), the co
   assert.equal(s.routersWithTable, 29);
 });
 
-test("deviceRows are sorted text rows; zhaLoaded follows spec 9.4", () => {
+test("deviceRows are sorted text rows; entryState follows spec 9.4 (#15: ignored and disabled entries do not count)", () => {
   const rows = deviceRows(buildNetwork(sample.responses["zha/devices"]));
   assert.equal(rows.length, 45);
   assert.ok(rows.every((r) => typeof r.label === "string" && r.label));
-  assert.equal(zhaLoaded({ configEntries: [] }), false);
-  assert.equal(zhaLoaded({ configEntries: [{ domain: "zha", state: "setup_error" }] }), false);
-  assert.equal(zhaLoaded({ configEntries: sample.responses["config_entries/get"] }), true);
+  assert.deepEqual(entryState([], "zha"), { status: "not_set_up" });
+  assert.deepEqual(entryState(null, "zha"), { status: "not_set_up" });
+  assert.deepEqual(entryState([{ domain: "zha", state: "setup_retry" }], "zha"), { status: "not_running", state: "setup_retry" });
+  assert.deepEqual(entryState([{ domain: "zha", state: "not_loaded", source: "ignore" },
+    { domain: "zha", state: "not_loaded", disabled_by: "user" }], "zha"), { status: "not_set_up" });
+  assert.deepEqual(entryState([{ domain: "zha", state: "setup_error" }, { domain: "zha", state: "loaded" }], "zha"),
+    { status: "loaded" });
+  assert.deepEqual(entryState(sample.responses["config_entries/get"], "zha"), { status: "loaded" });
+  assert.deepEqual(entryState(sample.responses["config_entries/get"], "matter"), { status: "not_set_up" });
 });
 
 test("status line parts on the sample and a network below 90 %", () => {

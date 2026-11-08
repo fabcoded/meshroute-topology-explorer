@@ -26,6 +26,7 @@ const topology = load("matter-sample.json")["matter/network_topology"];
 const thread = buildThreadNetwork(topology);
 
 /** A fake hass: ZHA and Matter loaded or not, the topology answer or an error code, every message recorded. */
+/** zha / matter: true (loaded), false (no entry) or an entry state such as "setup_retry" (set up, not running). */
 function fakeHass({ zha = true, matter = true, topologyError = null, topologyAnswer = topology, zhaError = null } = {}) {
   const calls = [];
   return {
@@ -34,7 +35,10 @@ function fakeHass({ zha = true, matter = true, topologyError = null, topologyAns
       calls.push(msg);
       switch (msg.type) {
         case "config_entries/get":
-          if (msg.domain === "matter") return matter ? [{ entry_id: "m", domain: "matter", state: "loaded" }] : [];
+          if (msg.domain === "matter") {
+            return matter ? [{ entry_id: "m", domain: "matter", state: matter === true ? "loaded" : matter }] : [];
+          }
+          if (typeof zha === "string") return [{ entry_id: "z", domain: "zha", state: zha }];
           return zha ? zhaResponses["config_entries/get"] : [];
         case "zha/devices":
           if (zhaError) throw { code: zhaError, message: "ZHA did not answer" };
@@ -90,6 +94,31 @@ test("#15: without ZHA, a Thread network that cannot be shown gives Thread's rea
   assert.deepEqual(both.reasons.map((r) => r.phase), ["zha_error", "thread_not_supported"]);
 });
 
+test("#15 (rev15): an entry that is set up but not running is greyed with its state, never 'not set up'", async () => {
+  const t = translator("en");
+  // ZHA not running (coordinator unreachable), Thread readable: Thread shown, Zigbee greyed.
+  const zhaDown = await readNetwork(fakeHass({ zha: "setup_retry" }));
+  assert.equal(zhaDown.network.source, "thread");
+  const zhaChoice = networkChoices(zhaDown)[0];
+  assert.deepEqual(zhaChoice, { key: "zha", available: false, reason: "not_running", message: "setup_retry" });
+  assert.equal(adapterByKey("zha").reasonText(zhaChoice, t), "ZHA is not running (setup_retry)");
+  // Matter not running (server add-on down), Zigbee readable: Zigbee shown, Thread greyed.
+  const matterDown = await readNetwork(fakeHass({ matter: "setup_retry" }));
+  assert.equal(matterDown.network.source, "zha");
+  const threadChoice = networkChoices(matterDown)[1];
+  assert.deepEqual(threadChoice, { key: "thread", available: false, reason: "not_running", message: "setup_retry" });
+  assert.equal(adapterByKey("thread").reasonText(threadChoice, t), "the Matter integration is not running (setup_retry)");
+  // Neither readable: one line each, never the "set up ZHA or Matter" message.
+  const bothDown = await readNetwork(fakeHass({ zha: "setup_error", matter: "setup_retry" }));
+  assert.deepEqual(bothDown.reasons, [{ phase: "zha_not_running", message: "setup_error" },
+    { phase: "thread_not_running", message: "setup_retry" }]);
+  assert.deepEqual(bothDown.reasons.map((r) => t(`message.${r.phase}`, { message: r.message })), [
+    "Zigbee cannot be shown: ZHA is not running (setup_error).",
+    "Thread cannot be shown: the Matter integration is not running (setup_retry)."]);
+  const onlyMatterDown = await readNetwork(fakeHass({ zha: false, matter: "setup_retry" }));
+  assert.deepEqual(onlyMatterDown.reasons.map((r) => r.phase), ["thread_not_running"]);
+});
+
 test("#15: a ZHA read error keeps a readable Thread network and greys the Zigbee entry with its reason", async () => {
   const result = await readNetwork(fakeHass({ zhaError: "home_assistant_error" }));
   assert.equal(result.phase, "ready");
@@ -99,7 +128,7 @@ test("#15: a ZHA read error keeps a readable Thread network and greys the Zigbee
   assert.deepEqual(choices[0], { key: "zha", available: false, reason: "error", message: "ZHA did not answer" });
   assert.equal(activeNetwork(choices, "zha"), "thread", "a greyed Zigbee is never shown");
   const t = translator("en");
-  assert.equal(adapterByKey("zha").reasonText(choices[0], t), "the devices could not be read (ZHA did not answer)");
+  assert.equal(adapterByKey("zha").reasonText(choices[0], t), "ZHA's devices could not be read (ZHA did not answer)");
   const lost = await readNetwork(fakeHass({ zhaError: 3 }));
   assert.equal(lost.phase, "disconnected", "a lost connection still fails the whole read");
 });
@@ -109,7 +138,8 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
   assert.equal((await readThread(fakeHass({ topologyError: "unknown_command" }))).status, "not_supported");
   const err = await readThread(fakeHass({ topologyError: "home_assistant_error" }));
   assert.equal(err.status, "error");
-  assert.equal((await readThread(fakeHass({ matter: false }))).status, "not_loaded");
+  assert.equal((await readThread(fakeHass({ matter: false }))).status, "not_set_up");
+  assert.deepEqual(await readThread(fakeHass({ matter: "setup_retry" })), { status: "not_running", message: "setup_retry" });
   const hass = fakeHass();
   const failing = { ...hass, callWS: async (msg) => {
     if (msg.type === "config_entries/get" && msg.domain === "matter") throw { code: "home_assistant_error", message: "entries" };
@@ -123,7 +153,7 @@ test("not_supported and an older Home Assistant (unknown_command) say so; other 
 
 test("switch choices: one network is plain text, a greyed Thread entry names its reason; first load is Zigbee", () => {
   const zha = { id: "z" };
-  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_loaded" } } }),
+  assert.deepEqual(networkChoices({ networks: { zha, thread: null }, reads: { thread: { status: "not_set_up" } } }),
     [{ key: "zha", available: true }]);
   const both = networkChoices({ networks: { zha, thread }, reads: { thread: { status: "ok" } } });
   assert.deepEqual(both.map((c) => c.key), ["zha", "thread"]);

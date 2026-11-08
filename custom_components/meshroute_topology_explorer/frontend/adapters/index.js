@@ -8,7 +8,7 @@
 import { adapter as zha } from "./zha.js";
 import { adapter as matter } from "./matter.js";
 
-/** Texts of the registry itself: the message when no source is set up names them all (spec 9.4). */
+/** Texts of the registry itself: the message when no source has a config entry names them all (spec 9.4). */
 export const TEXTS = Object.freeze({
   "message.no_network": "No Zigbee or Thread network: set up ZHA or Matter, then try again.",
 });

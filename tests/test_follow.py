@@ -300,12 +300,41 @@ class FollowTest(unittest.TestCase):
         self.recording.stop()
         self.assertEqual(self.zigbee_timers(), [])
 
+    def test_15_zha_gone_sets_the_zigbee_timer_back_to_the_default_period(self):
+        self.start()  # ZHA scans every 360 min
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [360 * 60])
+        gone = ha_stubs.load(".zigpy_routes").NotSupported("zha_not_loaded", "ZHA is not loaded")
+        with mock.patch.object(ha_stubs.load(".zha_scan"), "_application", side_effect=gone):
+            self.rec.signals[0]("unloaded", types.SimpleNamespace(domain="zha"))
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [240 * 60])  # spec 10.2
+        self.app.config["topology_scan_enabled"] = False  # ZHA running, its scan off: its period still counts
+        self.rec.signals[0]("updated", types.SimpleNamespace(domain="zha"))
+        self.assertEqual([t[0].total_seconds() for t in self.zigbee_timers()], [360 * 60])
+
+    def test_15_an_unload_during_the_first_read_leaves_no_timer_and_no_listener(self):
+        """rev15: the first read awaits Thread; a stop() meanwhile must not let the Zigbee tick re-attach or restart."""
+        collect = self.recorder.collect
+
+        async def stop_during_thread_read(hass, zigbee, thread):
+            if thread:
+                self.recording.stop()
+            return await collect(hass, zigbee, thread)
+
+        self.app.topology = object()  # timer mode: the first read would also read Zigbee
+        self.start()
+        self.app.topology = self.topology  # ZHA has a listener-capable topology again by the time the tick runs
+        with mock.patch.object(self.recorder, "collect", side_effect=stop_during_thread_read):
+            ha_stubs.run(self.rec.later[0].action())
+        self.assertEqual(self.zigbee_timers(), [])
+        self.assertEqual(self.topology.listeners, [])
+        self.assertNotIn("zha-entry", self.networks_on_disk())  # no Zigbee record after the unload
+
     def test_15_problems_are_kept_per_source(self):
         self.hass.data["websocket_api"]["matter/network_topology"] = (mock.Mock(side_effect=KeyError), None)
         self.start()
         with self.assertLogs(self.recorder._LOGGER, "WARNING") as logs:
             ha_stubs.run(self.rec.later[0].action())
-        self.assertIn("(thread)", logs.output[0])
+        self.assertEqual([r.args[0] for r in logs.records], ["thread"])  # the source, not the log format
         self.topology.fire()
         self.quiet()  # a Zigbee-only record: it must not clear Thread's problem
         info = ha_stubs.run(self.recorder.async_info(self.hass))
@@ -411,8 +440,8 @@ class FollowTest(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertIn(expected, ha_stubs.run(self.recorder.async_info(self.hass))["forced_scan_note"])
 
-    def test_skip_when_radio_actions_are_off(self):
-        self.skipped("radio actions are off", radio_actions=False)
+    def test_skip_when_scan_and_attribute_reads_are_off(self):
+        self.skipped("scan and attribute reads are off", radio_actions=False)
 
     def test_skip_when_zha_is_not_running(self):
         gone = ha_stubs.load(".zigpy_routes").NotSupported("no_gateway", "x")

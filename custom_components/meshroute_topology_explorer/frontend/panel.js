@@ -237,8 +237,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
 
   // ---- state ---------------------------------------------------------------------------------------------------
 
-  /** The integration's option "Allow radio actions" (panel config, spec 10.1): off hides the scan control and the
-   *  attribute read. A switch of this panel, not a lock: ZHA's own pages offer both. Absent (dev page) means allowed. */
+  /** The integration's option "Allow scan and attribute reads in the panel" (panel config `radio_actions`, spec
+   *  10.1): off hides the scan control and the attribute read. A switch of this panel, not a lock: ZHA's own pages
+   *  offer both. Absent (dev page) means allowed. */
   _radioActions() {
     return !(this._panel && this._panel.config && this._panel.config.radio_actions === false);
   }
@@ -524,16 +525,17 @@ class MeshrouteTopologyExplorer extends HTMLElement {
   }
 
   /** The message instead of the map (spec 9.4). reasons: without any network, why each set-up source shows none (its
-   *  adapter's empty-state phase and message), one line each; the first one's phase sets the tone. */
+   *  adapter's empty-state phase and message), one line each; the block takes the worst tone of its lines. */
   _renderMessage(phase, detail, reasons = null) {
     const ui = this._ui;
     const t = this._t;
+    const lines = reasons && reasons.length ? reasons : [{ phase, message: detail }];
     // Errors are alerts; "no devices yet" and loading are neutral; every other message is a warning. All but the
     // states that clear by themselves or need a page reload offer a retry.
-    const kind = /(^|_)error$/.test(phase) ? "error" : ["loading", "no_devices"].includes(phase) ? "" : "warn";
+    const tone = (p) => (/(^|_)error$/.test(p) ? "error" : ["loading", "no_devices"].includes(p) ? "" : "warn");
+    const kind = ["error", "warn", ""].find((k) => lines.some((r) => tone(r.phase) === k));
     const retry = !["loading", "not_admin", "disconnected", "version"].includes(phase);
     const reload = phase === "version";
-    const lines = reasons && reasons.length ? reasons : [{ phase, message: detail }];
     ui.message.hidden = false;
     ui.message.className = `message ${kind}`.trim();
     ui.message.replaceChildren(...lines.map((r) => h("p", { role: kind === "error" ? "alert" : "status",

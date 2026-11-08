@@ -73,7 +73,8 @@ export function openClusterDialog(ctx) {
     h("p", { id: `${id}-about`, class: "about", text: sentence }),
     h("div", { class: "attr-block" }, h("h3", { class: "card-title", text: t("attr.title") }),
       // The read row sits directly above the table so that nobody has to scroll to see that values can be read.
-      // The option "Allow radio actions" off (ctx.radioActions false, spec 10.1) leaves out the read row.
+      // The option "Allow scan and attribute reads in the panel" off (ctx.radioActions false, spec 10.1) leaves out
+      // the read row.
       ctx.radioActions === false ? null : h("div", { class: "read-row" },
         h("div", { class: "read-line" }, readButton, live),
         h("span", { class: "small muted", text: t("read.note") }),

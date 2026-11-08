@@ -3,13 +3,14 @@
 // topology to the Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache.
 // No DOM. npm test
 import { ENGINES } from "../engines/index.js";
-import { errorCode, errorText, isConnectionLost } from "./ws.js";
+import { entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
  *  sent from here).
- *  Returns { status: "ok" | "not_loaded" | "not_supported" | "empty" | "error", network?, message? }; a lost
+ *  Returns { status: "ok" | "not_set_up" | "not_running" | "not_supported" | "empty" | "error", network?, message?
+ *  (not_running: the entry's state) }; a lost
  *  connection is thrown to the caller. A Matter server too old for the command answers not_supported, Home Assistant
  *  before 2026.9 unknown_command (below the minimum 2026.10, spec 3.2): both are "not_supported". */
 export async function readThread(hass, registries = {}) {
@@ -20,9 +21,9 @@ export async function readThread(hass, registries = {}) {
     if (isConnectionLost(err)) throw err;
     return { status: "error", message: errorText(err) };
   }
-  if (!(Array.isArray(entries) && entries.some((e) => e && e.domain === "matter" && e.state === "loaded"))) {
-    return { status: "not_loaded" };
-  }
+  const entry = entryState(entries, "matter");
+  if (entry.status === "not_set_up") return { status: "not_set_up" };
+  if (entry.status === "not_running") return { status: "not_running", message: entry.state };
   let topology;
   try {
     topology = await hass.callWS({ type: "matter/network_topology", refresh: false });
@@ -36,9 +37,10 @@ export async function readThread(hass, registries = {}) {
   return network ? { status: "ok", network } : { status: "empty" };
 }
 
-/** Reasons a Thread network cannot be shown that the network switch names (it lists the network greyed); not loaded,
- *  read and skipped are no reasons. */
-const UNAVAILABLE = Object.freeze(["not_supported", "empty", "error"]);
+/** Reasons a Thread network cannot be shown that the network switch names (it lists the network greyed), with their
+ *  words; not set up, read and skipped are no reasons. */
+const UNAVAILABLE = Object.freeze({ not_running: "status.thread_not_running", not_supported: "status.thread_not_supported",
+  empty: "status.thread_empty", error: "status.thread_error" });
 
 /** One read of this source for the panel (ui/controller.js readNetwork): readThread's { status, network?, message? }.
  *  The registries are read before the Matter read. */
@@ -49,7 +51,8 @@ export async function readSource(hass, { registries }) {
 }
 
 /** Empty-state phases of a Matter read without a network (spec 9.4): the same reasons the network switch names. */
-const EMPTY_STATES = Object.freeze({ not_supported: "thread_not_supported", empty: "thread_empty", error: "thread_error" });
+const EMPTY_STATES = Object.freeze({ not_running: "thread_not_running", not_supported: "thread_not_supported",
+  empty: "thread_empty", error: "thread_error" });
 
 /** The Matter adapter as the shell sees it (adapters/index.js): key (the source its networks carry, "thread", and the
  *  stored choice of the network switch), the read, the empty-state phase of a read without a network, whether a read
@@ -59,12 +62,8 @@ export const adapter = Object.freeze({
   key: "thread",
   read: readSource,
   emptyState: (read) => (read && EMPTY_STATES[read.status]) || null,
-  unavailable: (read) => Boolean(read && UNAVAILABLE.includes(read.status)),
-  reasonText: (choice, t) => {
-    if (choice.reason === "not_supported") return t("status.thread_not_supported");
-    if (choice.reason === "empty") return t("status.thread_empty");
-    return t("status.thread_error", { message: choice.message || "?" });
-  },
+  unavailable: (read) => Boolean(read && UNAVAILABLE[read.status]),
+  reasonText: (choice, t) => t(UNAVAILABLE[choice.reason], { message: choice.message || "?" }),
   devicePage: null,
   scan: null,
   Observations: null,

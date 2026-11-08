@@ -42,7 +42,7 @@ from .const import (
 )
 from .history import HistoryFiles
 from .options import get_options
-from .sources import collect, request_update
+from .sources import collect, request_update, set_up_entries
 from .zha_scan import ScanSettings, attach, read_settings, scan_state, topology
 from .zigpy_routes import NotSupported
 
@@ -162,6 +162,9 @@ class Recording:
         self._waiting: Any = None  # the scan task whose end restarts the quiet timer
         self._last_event: float | None = None  # wall time of the last event or scan end
         self._trigger_start: float | None = None  # clock() of the first trigger since the last record
+        # Set by stop(): a callback still awaiting a read (the first one) must not attach or start anything after the
+        # unload (the one-time scan skips by itself: stop() drops the topology).
+        self._stopped = False
         self.history.scan_busy = self.scan_busy
 
     def start(self) -> Callable[[], None]:
@@ -170,6 +173,7 @@ class Recording:
         return self.stop
 
     def stop(self) -> None:
+        self._stopped = True
         for cancel in [*self._cancels, *(c for c in (self._pending, self._zigbee_timer) if c)]:
             cancel()
         self._cancels.clear()
@@ -192,9 +196,13 @@ class Recording:
             self._waiting = None
 
     def _follow(self) -> None:
-        """(Re-)resolve ZHA's topology: attach to a new one, drop a dead one, set the follow mode and its note."""
+        """(Re-)resolve ZHA's topology: attach to a new one, drop a dead one, set the follow mode, its note and the
+        period (ZHA's, kept while ZHA does not name one; its default once ZHA is gone, spec 10.2). Nothing after stop."""
+        if self._stopped:
+            return
+        settings: ScanSettings | None = None
         try:
-            settings: ScanSettings = read_settings(self.hass)
+            settings = read_settings(self.hass)
             if settings.period:
                 self.period = settings.period
             if settings.enabled is False:
@@ -211,12 +219,14 @@ class Recording:
             self.history.follow_mode = "timer"
             self.history.follow_note = (f"following ZHA's scans is not possible, recording on a timer: {err}"
                                         if err.reason == "internals_changed" else None)
+            if settings is None:
+                self.period = ZHA_DEFAULT_PERIOD
         self._schedule_zigbee()
 
     def _schedule_zigbee(self) -> None:
         """Run the Zigbee timer at ZHA's period; restart it when the period changed (ZHA came up later or was reloaded
         with another period, #15)."""
-        if self._zigbee_timer is not None and self._zigbee_period == self.period:
+        if self._stopped or (self._zigbee_timer is not None and self._zigbee_period == self.period):
             return
         if self._zigbee_timer is not None:
             self._zigbee_timer()
@@ -256,19 +266,19 @@ class Recording:
             self._cancels.append(async_call_later(self.hass, FORCED_SCAN_DELAY, self._one_time))
 
     async def _one_time(self, _now: Any = None) -> None:
-        """The optional one-time scan, 30 min after the start: only with radio actions on, ZHA running, no scan under
+        """The optional one-time scan, 30 min after the start: only with scan and attribute reads on, ZHA running, no scan under
         way and no Zigbee record younger than ZHA's period. The scan is ZHA's own (its command handler); the records
         follow from its events by the normal path. Why not is kept for the info command."""
         self.hass.data[_FORCED_KEY] = True  # once per run, whatever the outcome
         history = self.history
         try:
             self._follow()
-            zha = self.hass.config_entries.async_entries("zha")
+            zha = set_up_entries(self.hass, "zha")
             state = scan_state(self.topology)[0] if self.topology is not None else None
             last = await history.run(history.files.last_time, zha[0].entry_id) if zha else None
             age = None if last is None else (time.time() - last) / 60
             if not self.radio_actions:
-                history.forced_scan_note = "skipped: radio actions are off"
+                history.forced_scan_note = "skipped: scan and attribute reads are off"
             elif not zha or self.topology is None:
                 history.forced_scan_note = "skipped: ZHA is not running"
             elif state != "idle":
@@ -285,11 +295,13 @@ class Recording:
         """30 s after the start: Thread, and Zigbee in timer mode. Events mode reads no Zigbee then: zigpy restores its
         last scan from its database, and it would be dated as new."""
         await self._tick_thread()
-        await self._tick()
+        await self._tick()  # returns at once when the entry was unloaded during the Thread read
 
     async def _tick(self, _now: Any = None) -> None:
         """Zigbee timer: the identity check (a new application since the last tick), the Zigbee read in timer mode;
         expiry alone when recording is off."""
+        if self._stopped:
+            return
         try:
             if not self.recording:
                 await self.history.prune(self.keep)

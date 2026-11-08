@@ -120,6 +120,31 @@ test("a load that meets a lost connection waits for the reconnect; errors offer 
   assert.equal(second.state.phase, "ready");
 });
 
+test("#15 (rev15): reasons belong to their phase: loading, disconnected and an engine error carry none", async () => {
+  const reasons = [{ phase: "zha_error", message: "boom" }];
+  const answers = [{ phase: "zha_error", message: "boom", reasons }, { phase: "disconnected" },
+    { phase: "zha_error", message: "boom", reasons }, { phase: "ready", network: { source: "nowhere" }, networks: {} }];
+  let release = null;
+  const controller = new PanelController({ read: async () => {
+    if (answers.length === 3) await new Promise((resolve) => { release = resolve; }); // the second read waits
+    return answers.shift();
+  } });
+  controller.attach();
+  controller.setHass(fakeHass());
+  await settle();
+  assert.deepEqual(controller.state.reasons, reasons);
+  const next = controller.reload();
+  await settle();
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["loading", null], "no stale lines while loading");
+  release();
+  await next;
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["disconnected", null]);
+  await controller.reload();
+  assert.deepEqual(controller.state.reasons, reasons);
+  await controller.reload(); // a network of no known engine: the error state
+  assert.deepEqual([controller.state.phase, controller.state.reasons], ["error", null]);
+});
+
 test("hidden panels do not listen to the connection; a reconnect missed while hidden is caught up", async () => {
   const controller = new PanelController();
   const hass = fakeHass();
