@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 – 2026-11-08
 
 - **Fixed:** on Android with three-button navigation the status pill and the fit button sat under the navigation bar; the panel now keeps clear of the system insets Home Assistant reports, and the phone's history window too (#4). Frontend only.
 
