@@ -24,6 +24,7 @@ import time
 from screenshots import ROOT, find_chrome, handler_for
 
 PORT = 8899
+INSET = 48  # the simulated system bar of #4, px
 PAIR = "select=Router%2032&pair=Router%2019&history=long&steps=wait:300"  # Router 32 / Router 19 on the long history
 ROUTE = "select=Router%2023&pair=Coordinator&history=long&htab=route&steps=wait:300"
 # name, query, patterns the last state line must match (spec 12: the coordinator stage draws 95 lanes)
@@ -47,14 +48,25 @@ JOURNEYS = [
     ("Thread only: map, View, pill menu", "nozha=1&matter=1&right=view&steps=wait:100;click:%23mte-pill",
      [r"menu open", r"source thread", r"networks 0;", r"zigbee-inputs 0;", r"right view"]),
 ]
+# #4: a phone window with a system bar; the dev page pads the panel's container as Home Assistant does
+INSET_JOURNEY = ("#4 phone: pill and fit button clear of the system bar", f"inset={INSET}&steps=wait:300", "412,860")
 
 
-def run_journey(chrome: str, query: str) -> tuple[str, str]:
+def inset_clear(state: str) -> list[str]:
+    """#4: with a 48 px system bar the pill's and the fit button's bottom edges lie at least 48 px above the window bottom."""
+    found = re.search(r"edges pill (-?\d+) fit (-?\d+) window (\d+)", state)
+    if not found:
+        return ["edges missing"]
+    pill, fit, window = map(int, found.groups())
+    return [f"{name} bottom {edge} > {window - INSET}" for name, edge in (("pill", pill), ("fit", fit)) if not 0 < edge <= window - INSET]
+
+
+def run_journey(chrome: str, query: str, size: str = "1280,800") -> tuple[str, str]:
     """Load one dev-page URL and return (last state line, errors)."""
     url = f"http://127.0.0.1:{PORT}/dev/panel.html?{query}"
     # A fixed window: the overview skips lanes outside the view, and full Chrome's default window is smaller than
     # the headless shell's, so the lane count would depend on the browser (CI drew 91 of 95).
-    dom = subprocess.run([chrome, "--headless", "--no-sandbox", "--window-size=1280,800", "--virtual-time-budget=10000",  # noqa: S603 - fixed arguments
+    dom = subprocess.run([chrome, "--headless", "--no-sandbox", f"--window-size={size}", "--virtual-time-budget=10000",  # noqa: S603 - fixed arguments
                           "--dump-dom", url],
                          check=True, capture_output=True, text=True, timeout=90).stdout
     grab = lambda name: html.unescape((re.search(rf'data-{name}="([^"]*)"', dom) or [None, ""])[1])  # noqa: E731
@@ -78,6 +90,13 @@ def main() -> int:
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name} ({time.monotonic() - started:.1f}s)"
                   + ("" if ok else f"\n     state: {state or 'no data-log'}\n     errors: {errors or '-'}\n     missing: {missing}"))
+        started = time.monotonic()
+        name, query, size = INSET_JOURNEY
+        state, errors = run_journey(chrome, query, size)
+        problems = inset_clear(state)
+        failed += bool(problems or errors)
+        print(f"{'FAIL' if problems or errors else 'ok  '} {name} ({time.monotonic() - started:.1f}s)"
+              + (f"\n     {problems or errors}" if problems or errors else ""))
     finally:
         server.shutdown()
     return 1 if failed else 0

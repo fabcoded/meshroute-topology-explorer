@@ -92,7 +92,7 @@ test("the links legend is built from the graph's entries, with words for every e
 test("the panel takes the viewport's height: Home Assistant's custom-panel container has none (spec 10)", () => {
   // In Home Assistant the host sat in a container without a height, so "height: 100%" gave the map zero height.
   const host = STYLES.slice(STYLES.indexOf(":host {"), STYLES.indexOf("}", STYLES.indexOf(":host {")));
-  assert.match(host, /height:\s*100dvh/);
+  assert.match(host, /height:\s*calc\(100dvh /); // minus the system insets (#4)
   assert.doesNotMatch(host, /height:\s*100%/);
 });
 

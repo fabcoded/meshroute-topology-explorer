@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed:** on Android with three-button navigation the status pill and the fit button sat under the navigation bar; the panel now keeps clear of the system insets Home Assistant reports, and the phone's history window too (#4). Frontend only.
+
 ## 0.2.0 – 2026-11-08
 
 - **Breaking: requires Home Assistant 2026.10 or newer.** The options form uses `probatio`, which replaced `voluptuous` in Home Assistant's forms and websocket validation in 2026.10.

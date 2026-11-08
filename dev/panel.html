@@ -5,6 +5,8 @@
        python3 -m http.server 8823 --bind 127.0.0.1   then open   http://127.0.0.1:8823/dev/panel.html
      The small "dev" tab at the top centre (dev page only) opens a menu of the common variants and toggles. Query keys
      (combine freely):
+       inset=<px>      a system bar of that height at the bottom (and 24 px status bar on top) as in the Android app: the root
+                       gets --safe-area-inset-*, the panel sits in a container padded as ha-panel-custom does (#4)
        phone=1         the panel in a 390 × 844 frame with the narrow flag, as on a phone
        narrow=1        Home Assistant's narrow flag (default: window narrower than 870 px)
        dark=1          dark theme variables; switchdark=<s>  switch to dark after s seconds; lang=de  sets the
@@ -66,7 +68,7 @@
       --app-header-background-color: #101e24; --app-header-text-color: #e1e1e1;
     }
     html, body { margin: 0; height: 100%; background: var(--primary-background-color); }
-    meshroute-topology-explorer { display: block; height: 100%; }
+    body:not(.inset) meshroute-topology-explorer { display: block; height: 100%; }
     body.phone { display: flex; align-items: center; justify-content: center; background: #8a8a8a; }
     body.phone meshroute-topology-explorer { width: 390px; height: min(844px, 100vh); flex: none;
       box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35); }
