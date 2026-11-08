@@ -3,7 +3,7 @@
 (tests/test_integration_files.py checks all three)."""
 
 DOMAIN = "meshroute_topology_explorer"
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 TITLE = "Meshroute Topology Explorer"
 PANEL_URL_PATH = "meshroute-topology"
 PANEL_ELEMENT = "meshroute-topology-explorer"
