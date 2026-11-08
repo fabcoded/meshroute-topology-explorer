@@ -49,7 +49,11 @@ JOURNEYS = [
      [r"menu open", r"source thread", r"networks 0;", r"zigbee-inputs 0;", r"right view"]),
 ]
 # #4: a phone window with a system bar; the dev page pads the panel's container as Home Assistant does
-INSET_JOURNEY = ("#4 phone: pill and fit button clear of the system bar", f"inset={INSET}&steps=wait:300", "412,860")
+INSET_JOURNEYS = [
+    ("#4 phone: pill and fit button clear of the system bar", f"inset={INSET}&steps=wait:300", "412,860"),
+    # the owner's phone: the app reports no top inset (the WebView sits below the status bar), only the bottom one
+    ("#4 phone, no top inset: pill and fit button clear of the system bar", f"inset=0,{INSET}&steps=wait:300", "412,860"),
+]
 
 
 def inset_clear(state: str) -> list[str]:
@@ -90,13 +94,13 @@ def main() -> int:
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name} ({time.monotonic() - started:.1f}s)"
                   + ("" if ok else f"\n     state: {state or 'no data-log'}\n     errors: {errors or '-'}\n     missing: {missing}"))
-        started = time.monotonic()
-        name, query, size = INSET_JOURNEY
-        state, errors = run_journey(chrome, query, size)
-        problems = inset_clear(state)
-        failed += bool(problems or errors)
-        print(f"{'FAIL' if problems or errors else 'ok  '} {name} ({time.monotonic() - started:.1f}s)"
-              + (f"\n     {problems or errors}" if problems or errors else ""))
+        for name, query, size in INSET_JOURNEYS:
+            started = time.monotonic()
+            state, errors = run_journey(chrome, query, size)
+            problems = inset_clear(state)
+            failed += bool(problems or errors)
+            print(f"{'FAIL' if problems or errors else 'ok  '} {name} ({time.monotonic() - started:.1f}s)"
+                  + (f"\n     {problems or errors}" if problems or errors else ""))
     finally:
         server.shutdown()
     return 1 if failed else 0

@@ -667,7 +667,7 @@ One place per thing; nothing appears twice.
   data, connection lost, reading) between the top groups, or below them where that leaves less than 280 px. No header
   bar: the map fills the panel; on narrow screens Home Assistant's sidebar button joins the top left. Controls are
   rounded, on the theme's surface with a light shadow, targets at least 44 px. View switch **[v1.1]**.
-  **System insets** (#4): Home Assistant pads the panel's container with `--safe-area-inset-*` (status bar, Android navigation bar), so the panel is the viewport height minus the top and bottom inset, never a bare 100dvh; the phone's full-screen history window, in the top layer, pads the bottom inset itself.
+  **System insets** (#4): Home Assistant pads the panel's container with `--safe-area-inset-*` (status bar, Android navigation bar), so the panel is the viewport height minus the top and bottom inset, never a bare 100dvh (a bare 100dvh overflowed the container by the reported insets; the Android app reports the top inset only when the server handles it, else 0, `FrontendScreen.kt` `ReportSafeAreaInsetsEffect`, `FrontendViewModel.kt` `serverHandlesTopInsets`); the phone's full-screen history window, in the top layer, pads the top and bottom inset itself.
 - If the device or area registry cannot be read, the map keeps the integrations' own names and the pill's menu adds
   the line "Names and areas not read".
 - **Status pill** [spec 6; boards M31, M32]: a floating control at the bottom centre of the map, between the panels' insets,

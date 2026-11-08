@@ -190,13 +190,14 @@ const lang = q.get("lang") || "en";
 document.documentElement.lang = lang;
 // phone=1: the panel in a 390 × 844 frame, with Home Assistant's narrow flag, as on a phone.
 if (flag("phone")) document.body.classList.add("phone");
-// inset=<px> (#4): the system insets as Home Assistant hands them to a panel. The root carries --safe-area-inset-*
+// inset=<bottom> or inset=<top>,<bottom> in px (#4; one value: status bar 24 px on top): the system insets as Home Assistant hands them to a panel. The root carries --safe-area-inset-*
 // (the app sets --app-safe-area-inset-*, the frontend derives these, main.globals.ts) and ha-panel-custom pads its
 // container with them (src/panels/custom/ha-panel-custom.ts, _createPanel, panel without handle_safe_area).
 if (q.has("inset")) {
   const root = document.documentElement.style;
-  root.setProperty("--safe-area-inset-top", "24px");
-  root.setProperty("--safe-area-inset-bottom", `${Number(q.get("inset"))}px`);
+  const given = q.get("inset").split(",").map(Number);
+  root.setProperty("--safe-area-inset-top", `${given.length > 1 ? given[0] : 24}px`);
+  root.setProperty("--safe-area-inset-bottom", `${given[given.length - 1]}px`);
   root.setProperty("--safe-area-inset-left", "0px");
   root.setProperty("--safe-area-inset-right", "0px");
   document.body.classList.add("inset");

@@ -21,7 +21,8 @@ test("#4: :host height is the viewport minus the system insets, never a bare 100
   }
 });
 
-test("#4: the phone history dialog pads the bottom system inset", () => {
+test("#4: the phone history dialog pads the top and bottom system inset", () => {
   const phone = STYLES.slice(STYLES.indexOf("@media (max-width: 560px)"));
+  assert.match(phone, /dialog\.history-dialog\s*\{[^}]*padding-top:\s*var\(--safe-area-inset-top/);
   assert.match(phone, /dialog\.history-dialog\s*\{[^}]*padding-bottom:\s*var\(--safe-area-inset-bottom/);
 });

@@ -12759,8 +12759,10 @@ const STYLES = `
   /* The viewport's height, not the container's: Home Assistant's custom-panel container has no height of its own,
      so 100% gave the map zero height there (dev page unaffected). dvh follows mobile browser bars. Minus the system
      insets (#4): ha-panel-custom pads its container with --safe-area-inset-* (frontend src/panels/custom/
-     ha-panel-custom.ts, _createPanel; the app sets --app-safe-area-inset-* on the root, main.globals.ts derives them),
-     so a bare 100dvh overflowed by top + bottom and the bottom controls sat under the Android navigation bar. */
+     ha-panel-custom.ts, _createPanel), so a bare 100dvh overflowed it by the reported insets and the bottom controls
+     sat under the Android navigation bar. On the owner's phone that was the bottom inset only: the app reports the
+     top inset only when the server handles it, else 0 (android FrontendScreen.kt ReportSafeAreaInsetsEffect,
+     FrontendViewModel.kt serverHandlesTopInsets). */
   display: block; height: calc(100vh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px));
   height: calc(100dvh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px));
   position: relative; box-sizing: border-box;
@@ -13278,9 +13280,9 @@ dialog.history-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .hist-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .hist-table th, .hist-table td { padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--mte-divider); }
 @media (max-width: 560px) {
-  /* A dialog sits in the top layer, outside the padded container: keep its bottom clear of the system bar (#4). */
+  /* A dialog sits in the top layer, outside the padded container: keep it clear of the system bars (#4). */
   dialog.history-dialog { width: 100vw; height: 100dvh; max-width: none; border-radius: 0; box-sizing: border-box;
-    padding-bottom: var(--safe-area-inset-bottom, 0px); }
+    padding-top: var(--safe-area-inset-top, 0px); padding-bottom: var(--safe-area-inset-bottom, 0px); }
   .hist-body { padding: 0 12px 14px; }
 }
 `;
