@@ -4,7 +4,8 @@
 import sonarjs from "eslint-plugin-sonarjs";
 
 export default [
-  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv*/**"] },
+  // The panel bundle repeats every source function (tools/bundle.mjs, issue #16): measured in the sources only.
+  { ignores: ["node_modules/**", "captures/**", "**/vendor/**", ".venv*/**", "custom_components/*/frontend/dist/**"] },
   {
     files: ["**/*.{js,mjs,cjs}"],
     languageOptions: { ecmaVersion: 2022, sourceType: "module" },

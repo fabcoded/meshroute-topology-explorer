@@ -29,9 +29,9 @@ _PANEL_KEY = f"{DOMAIN}_panel_registered"
 def frontend_hash(directory: Path) -> str:
     """First 12 hex digits of SHA-256 over every file below `directory`: relative path and bytes, sorted by path.
 
-    The hash is part of the panel's URL path, so the relative ES-module imports resolve under it too (a query string
-    on panel.js would not reach them). Changed files get new addresses and the long browser cache cannot serve an
-    old mix; unchanged files keep theirs."""
+    Every file below frontend/, sources and dist/, enters the hash, although the shipped module dist/panel.js has no
+    imports any more (#16). The hash is part of the panel's URL path, so a changed file gets a new address and the
+    long browser cache cannot serve an old copy."""
     digest = hashlib.sha256()
     files = sorted((p.relative_to(directory).as_posix(), p) for p in directory.rglob("*") if p.is_file())
     for rel, path in files:
@@ -62,7 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             webcomponent_name=PANEL_ELEMENT,
             frontend_url_path=PANEL_URL_PATH,
-            module_url=f"{base}/panel.js",
+            # One request instead of about 100 (issue #16): the bundle built by tools/bundle.mjs; the sources beside
+            # it stay for tests and the dev page. dist/ is inside FRONTEND_DIR, so the content hash covers it.
+            module_url=f"{base}/dist/panel.js",
             sidebar_title="Meshroute",
             sidebar_icon="mdi:graph-outline",
             require_admin=True,

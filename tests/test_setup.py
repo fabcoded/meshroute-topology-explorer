@@ -47,7 +47,7 @@ class SetupTest(unittest.TestCase):
         self.assertTrue(path.endswith("frontend"))
         panel = self.rec.panels[0]
         self.assertEqual(panel["webcomponent_name"], "meshroute-topology-explorer")
-        self.assertEqual(panel["module_url"], f"{url}/panel.js")
+        self.assertEqual(panel["module_url"], f"{url}/dist/panel.js")  # issue #16: the bundle
 
     def test_unload_removes_panel_only(self):
         ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
@@ -81,7 +81,7 @@ class SetupTest(unittest.TestCase):
         self.assertNotEqual(urls[0], urls[1])
         self.assertTrue(all(call.args[0][0][1] == str(folder) for call in calls))
         self.assertEqual([p["module_url"] for p in self.rec.panels],
-                         [f"{urls[0]}/panel.js", f"{urls[1]}/panel.js", f"{urls[1]}/panel.js"])
+                         [f"{urls[0]}/dist/panel.js", f"{urls[1]}/dist/panel.js", f"{urls[1]}/dist/panel.js"])
 
 
 def write_files(folder: Path, files: dict[str, str]) -> None:

@@ -28,7 +28,9 @@ PAIR = "select=Router%2032&pair=Router%2019&history=long&steps=wait:300"  # Rout
 ROUTE = "select=Router%2023&pair=Coordinator&history=long&htab=route&steps=wait:300"
 # name, query, patterns the last state line must match (spec 12: the coordinator stage draws 95 lanes)
 JOURNEYS = [
-    ("overview draws 95 lanes", "steps=wait:100", [r"drawn 95 lanes"]),
+    ("overview draws 95 lanes", "steps=wait:100", [r"drawn 95 lanes", r"\bmodule panel\.js;"]),
+    # #16: the shipped bundle alone (a source copy loaded too would win the element name and hide a broken bundle)
+    ("bundle alone draws 95 lanes", "bundle=1&steps=wait:100", [r"drawn 95 lanes", r"\bmodule dist/panel\.js;"]),
     ("device row selects, opens Details", "left=devices&steps=click:.device-row:nth-child(3)",
      [r"selected \S+; left details"]),
     ("status pill opens network menu", "steps=click:%23mte-pill", [r"menu open"]),

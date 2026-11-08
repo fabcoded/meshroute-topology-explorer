@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FRONT = "custom_components/meshroute_topology_explorer/frontend/"
 JSCPD = "jscpd@5.4.2"  # pinned; CI uses the same script, so one place
+BUNDLE = FRONT + "dist/**"  # generated from the sources (tools/bundle.mjs, issue #16): counted there, not twice
 TESTABLE = ("adapters", "engines", "model", "python")  # gated; graph, ui, panel are reported only
 # index rows: label, metric key, target text, ok(value, last_week)
 TARGETS = [
@@ -117,7 +118,7 @@ def py_coverage(tmp):
 def duplication(tmp, changed):
     """jscpd at 100 tokens / 10 lines; return (overall %, duplicated lines on changed lines)."""
     r = run(["npx", "--yes", JSCPD, "custom_components", "tools", "tests", "--min-tokens", "100", "--min-lines", "10",
-             "--ignore", "**/fixtures/**,**/vendor/**", "--reporters", "json", "--output", tmp, "--silent"])
+             "--ignore", f"**/fixtures/**,**/vendor/**,{BUNDLE}", "--reporters", "json", "--output", tmp, "--silent"])
     rep = Path(tmp) / "jscpd-report.json"
     if not rep.exists():
         sys.exit(f"jscpd wrote no report: {r.stderr.strip()[-300:]}")

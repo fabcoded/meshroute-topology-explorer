@@ -7,12 +7,9 @@
 // `hass.areas` carry synthetic entity states and area names, never real captures. A small "dev" tab at the top centre
 // (not part of the panel) opens a menu of variants (links that reload the page with their query) and three toggles
 // that keep the other keys. See dev/panel.html for the query keys.
-import "../custom_components/meshroute_topology_explorer/frontend/panel.js";
-import { VERSION } from "../custom_components/meshroute_topology_explorer/frontend/panel.js";
 import { removedTables, withoutTables } from "../tests/derive.mjs";
+// The fake zigpy route records reuse the Zigbee engine's sources, also with bundle=1: they stand in for Home Assistant.
 import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
-import { openClusterDialog } from "../custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js";
-import { adapterFor } from "../custom_components/meshroute_topology_explorer/frontend/adapters/index.js";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
@@ -22,6 +19,15 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const noteError = (what) => { document.body.dataset.errors = `${document.body.dataset.errors || ""}${what} | `; };
 addEventListener("error", (e) => noteError(e.message));
 addEventListener("unhandledrejection", (e) => noteError(String(e.reason)));
+// bundle=1 loads the shipped bundle (frontend/dist/panel.js, what Home Assistant serves; issue #16) instead of the
+// sources, never both: the panel defines its element only if the name is free, so the copy loaded first would win.
+const FRONT = "../custom_components/meshroute_topology_explorer/frontend";
+const { VERSION } = await import(flag("bundle") ? `${FRONT}/dist/panel.js` : `${FRONT}/panel.js`);
+// The cluster dialog's modules load on first use (cluster=), so bundle=1 does not fetch them beside the bundle.
+const sourceModule = (path) => import(`${FRONT}/${path}`);
+// The panel modules this page fetched, for the state line: tools/smoke.py checks that bundle=1 loads no source copy.
+const panelModules = () => performance.getEntriesByType("resource").map((r) => new URL(r.name).pathname)
+  .filter((path) => /\/frontend\/(dist\/)?panel\.js$/.test(path)).map((path) => path.split("/frontend/")[1]).join("+") || "-";
 
 // ---- variant menu -------------------------------------------------------------------------------------------------
 
@@ -472,6 +478,8 @@ async function drive() {
     await sleep(100);
     // As the Details' cluster button does: the Zigbee engine opens the dialog through the panel's dialog host.
     const device = el._network.devices.find((d) => d.id === id);
+    const [{ openClusterDialog }, { adapterFor }] = await Promise.all(
+      [sourceModule("engines/zigbee/ui/cluster-dialog.js"), sourceModule("adapters/index.js")]);
     el._openDialog((host) => openClusterDialog({ ...host, t: el._t, device, endpoint: Number(q.get("ep") || 1),
       profile: 0x0104, cluster: parseInt(q.get("cluster"), 16), direction: q.get("dir") === "out" ? "out" : "in",
       opener: null, devicePage: adapterFor(el._network).devicePage }));
@@ -550,6 +558,7 @@ async function replay() {
       + `zigbee-inputs ${[...root.querySelectorAll("input")].filter((n) => /-(paths|sourceRoute|heard|pathMode|color-)/.test(`${n.name} ${n.id}`)).length}; `
       + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
       + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `
+      + `module ${panelModules()}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");

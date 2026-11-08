@@ -19,8 +19,10 @@ stays calm, and raw values, tables and scans are one click away.
   or change the network. `tools/guard.py` enforces this and allows exactly the one attribute read.
 - **Nothing leaves the house.** No telemetry, no CDNs. Map tiles only from an address the user configured; no outside
   URL in the code.
-- **Ship what you read.** No bundler, no runtime dependencies; Home Assistant serves the repository files. The panel
-  is plain DOM custom elements.
+- **Ship what you read.** Home Assistant serves one generated, readable file, `frontend/dist/panel.js`: Rollup builds
+  it from the sources beside it, without minifying and with comments kept, and a check (`node tools/bundle.mjs
+  --check`, pre-commit and CI) proves it matches them (owner 2026-11-08, #16). No runtime dependencies; the panel is
+  plain DOM custom elements.
 - **Unknown beats wrong.** Incomplete data is shown as unknown, never as weak or missing.
 
 ## Privacy and safety
@@ -51,7 +53,7 @@ stays calm, and raw values, tables and scans are one click away.
 
 - English in code, comments and docs. Plain ES modules (no TypeScript, no decorators). The integration uses only what
   Home Assistant ships; Python tools and unit tests (`tests/`) use the standard library only; the one exception is `tests_ha/`, which
-  runs pytest against a real Home Assistant (owner decision 2026-11-06, quality plan L2) and is never part of `tests/`. Development linters and hooks are
+  runs pytest against a real Home Assistant (owner decision 2026-11-06, quality plan L2) and is never part of `tests/`. Development linters, hooks and the bundler are
   pinned in `package-lock.json` and `.pre-commit-config.yaml` and never shipped.
 - Each file opens with what it does, how to run it, and `SPDX-License-Identifier: MIT`. Comments explain why.
 - Run `python3 tools/check.py` before handing over a change. Unit tests run without devices in under a minute.

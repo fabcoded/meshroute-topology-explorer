@@ -20,7 +20,8 @@ that reports late, a garden corner that hangs on one weak link.
   data is never a verdict. (A first attempt called garden lamps "weak" and five sensors "without parent" on
   incomplete tables.)
 - **Nothing leaves the house.** No telemetry, no third-party requests; map tiles only from a user-configured address.
-- **Ship what you read.** No build step; Home Assistant serves the repository files.
+- **Ship what you read.** Home Assistant serves one generated, readable file built from the repository's sources
+  (Rollup, no minifying, comments kept); a check proves it matches them (10).
 
 ## 2. Users and questions
 
@@ -944,6 +945,10 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 - Panel files are served from a path containing a content hash of the frontend folder, computed on entry setup, so
   caching is safe and an entry reload ships changed panel files without a restart; each hash's path is registered
   once per run.
+- The panel loads as one module, `dist/panel.js` (owner 2026-11-08, #16: about 100 module files took 4 s to 50 s on a
+  remote link). `tools/bundle.mjs` generates it from the sources beside it, and it is committed with every frontend
+  change; the pre-commit hook `bundle-fresh` fails when it no longer matches them. The sources stay in the folder for
+  the tests and the dev page, and the content hash covers both.
 - The panel defines its custom element only if the name is free, compares its version with the integration's and asks
   for a reload when they differ, does not reload data when Home Assistant pushes a new state object, and unsubscribes
   and stops drawing when hidden.

@@ -88,7 +88,8 @@ synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
   topology scan you start and confirm, and reading one cluster's values when you press the button for it.
 - **Nothing leaves your house.** No telemetry, no requests to outside services; map tiles only from an address you
   configure yourself.
-- **Nothing to build.** The JavaScript in this repository is exactly what Home Assistant serves to your browser.
+- **Nothing to build at install.** Your browser loads one readable file, `frontend/dist/panel.js`, generated from the JavaScript
+  beside it with its comments and committed with it; a check proves the two match.
 
 ## Status
 
@@ -175,6 +176,7 @@ network type, one adapter per data source, and a shared shell that knows neither
 | `graph/` | Shared drawing: layout (springs from the engine's quality), camera, gestures, symbols, palette, labels, lane geometry and stroke looks, the renderer of the engine's scene. |
 | `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status pill, shared texts (`i18n.js`). |
 | `panel.js` | The custom element that wires shell, engines and adapters together. |
+| `dist/panel.js` | Generated, do not edit: the sources above bundled into the one file Home Assistant serves (`npm run bundle`, #16). |
 
 `tests/engine-leaks.test.mjs` keeps the boundaries: no engine imports another, and shared code reaches the engines
 only through `engines/index.js` and names no network or source.

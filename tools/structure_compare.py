@@ -207,9 +207,10 @@ class Source:
         self.fps = fingerprints(self.tokens, k, window)
 
 
-def load(root: Path, k: int, window: int) -> list[Source]:
-    """All JavaScript files below root, sorted, with paths relative to root."""
-    files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix in EXTENSIONS)
+def load(root: Path, k: int, window: int, skip: str | None = None) -> list[Source]:
+    """All JavaScript files below root, sorted, with paths relative to root; `skip` names a top-level folder left out."""
+    files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix in EXTENSIONS
+                   and p.relative_to(root).parts[0] != skip)
     return [Source(p, p.relative_to(root).as_posix(), k, window) for p in files]
 
 
@@ -351,7 +352,9 @@ def main(argv: list[str] | None = None) -> int:
     if not ours_root.is_dir() or not theirs_root.is_dir():
         print("Both --ours and --theirs must be directories.", file=sys.stderr)
         return 0  # a report tool: never fails the caller's pipeline
-    ours = load(ours_root, args.k, args.window)
+    # Our dist/ is the bundle generated from the sources (tools/bundle.mjs, issue #16): comparing it would count every
+    # finding twice. Their side keeps its dist/ folders, which often hold the only copy of the code.
+    ours = load(ours_root, args.k, args.window, skip="dist")
     theirs = load(theirs_root, args.k, args.window)
     summary = compare(ours, theirs, args.min_run)
     params = {"k": args.k, "window": args.window, "min_run": args.min_run,
