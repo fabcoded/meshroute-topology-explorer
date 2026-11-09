@@ -299,16 +299,17 @@ if (q.get("pin") && byLabel(q.get("pin"))) initial.pins = { [byLabel(q.get("pin"
 // committed tests/fixtures/zha-history-sample.json, the default); history=none: nothing recorded yet; history=off:
 // recording is off; history=long: tests/fixtures/zha-history-sample-long.json (7 days, 6 h steps, made with
 // `node tools/history_synth.mjs --sample --days 7 --step-hours 6`); history=unsupported: the source reported a problem; keep=<days>: the "Keep for" option (default 90).
-// Records older than a week are shifted so the newest lies 6 h back (ranges then work as live); newer ones keep their times.
+// Records are shifted so the newest lies 6 h back (ranges then work as live) once the newest is older than 48 h.
 const historyName = q.get("history") || "sample";
 const historyUrl = historyName === "sample" ? "../tests/fixtures/zha-history-sample.json"
   : historyName === "long" ? "../tests/fixtures/zha-history-sample-long.json"
   : /^[A-Za-z0-9._-]+$/.test(historyName) && !["none", "off", "unsupported"].includes(historyName) ? `../captures/${historyName}.json` : null;
 const historyFile = historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
 const historyTimes = historyFile.records.filter((r) => Number.isFinite(r.t)).map((r) => r.t);
-// Only records older than a week are moved (the committed sample's dates are fixed); recent captures keep their times.
 const historyNewest = historyTimes.length ? Math.max(...historyTimes) : 0;
-const historyShift = historyTimes.length && Date.now() / 1000 - historyNewest > 7 * 86400 ? Math.round(Date.now() / 1000) - 6 * 3600 - historyNewest : 0;
+// Shifted once the newest record is older than 48 h, the shortest range: between 48 h and a week the default range
+// was empty and the smoke journey "pair window: Route, Mesh" found no Mesh switch (2026-11-09).
+const historyShift = historyTimes.length && Date.now() / 1000 - historyNewest > 2 * 86400 ? Math.round(Date.now() / 1000) - 6 * 3600 - historyNewest : 0;
 function historyRecords(msg) {
   let full = null;
   const out = [];

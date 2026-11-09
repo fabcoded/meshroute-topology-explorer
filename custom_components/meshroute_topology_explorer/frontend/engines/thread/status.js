@@ -15,8 +15,12 @@ export function threadParts(network, { collected = null, compact = false } = {})
   if (collected) {
     parts.push(compact ? ["status.short_thread_read", collected, "status.thread_read"]
       : ["status.thread_read", collected, "status.thread_read_note"]);
-    // Owner 2026-11-08: the full line says outright that the tables' age is unknown (tooltip: the long note).
-    if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
+    // Owner 2026-11-08: the full line says outright that the tables' age is unknown (tooltip: the long note); with
+    // the route tables read, how often Meshroute observes them (owner 2026-11-09).
+    const observeMs = network.routing ? network.routing.tables.observeMs : null;
+    if (!compact && observeMs) {
+      parts.push(["status.thread_tables_observed", { minutes: Math.round(observeMs / 60000) }, "status.thread_tables_observed_note"]);
+    } else if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
   }
   if (!s.borderRouters) parts.push(["status.thread_no_br", {}]);
   return parts;

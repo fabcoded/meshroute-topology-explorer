@@ -50,6 +50,11 @@ for (const [name, sample, selections] of CASES) {
             assert.equal(overlap(pills[a], pills[b]), 0, `pills ${JSON.stringify(pills[a])} and ${JSON.stringify(pills[b])}`);
           }
         }
+        // No pill on a device symbol (rev11a: symbols are as hard as other values).
+        for (let i = 0; i < draw.sx.length; i++) {
+          const symbol = { x: draw.sx[i], y: draw.sy[i], w: draw.size, h: draw.size };
+          for (const p of pills) assert.equal(overlap(symbol, p), 0, `a pill on device ${i}: ${JSON.stringify(p)}`);
+        }
         assert.ok(draw.paths.numbers.length >= 1);
         for (const n of draw.paths.numbers) {
           for (const p of pills) assert.equal(overlap({ x: n.x, y: n.y, w: 14, h: 14 }, p), 0, `hop ${n.text} on a pill`);

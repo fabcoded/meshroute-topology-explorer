@@ -9,9 +9,11 @@
   border router's first hop back derived (dash-dot; its own choice needs the border router query, #12), a route
   through an offline device stopped there; the other
   links stay grey with their values. Details get the hop list with both directions, path cost and the source line
-  with since when Meshroute saw each table unchanged, amber over 4 hours. The View option "Unused routes" adds the
-  alternatives routers hold but do not use. New read-only command `meshroute_topology_explorer/thread_tables`; the
-  reception history's Thread timer keeps its table times current. Needs a restart of Home Assistant.
+  with the interval in which the Matter server read each table ("read 09:50–10:00", "read before 13:50" where
+  Meshroute had not seen it before), amber where a value may be older than 4 hours. The View option "Unused routes"
+  adds the alternatives routers hold but do not use. New read-only command
+  `meshroute_topology_explorer/thread_tables`; the integration checks the Matter client's copy every 10 minutes, in
+  memory and without radio traffic. Needs a restart of Home Assistant.
 
 ## 0.2.1 – 2026-11-08
 

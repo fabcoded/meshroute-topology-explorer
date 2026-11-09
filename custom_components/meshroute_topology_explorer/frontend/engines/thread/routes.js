@@ -62,7 +62,9 @@ function entryRssi(n) {
 /** The tables of the answer per device id: { id, role ("router" | "end device" | null), available, routerId, routes
  *  (by device id: { routerId, nextHop, pathCost, lqiIn, lqiOut, linked }), byRouterId (router ID -> device id within
  *  this table, null where two entries claim one), neighbours (by device id: { lqi, rssi, child }), rloc16,
- *  unchangedSince (ms or null) }, plus the router ID map of all tables and its conflicts. Devices are matched by
+ *  times ({ neighbours, routes }: when the Matter server read each table, { lo, hi } in ms, lo null where unknown, or
+ *  null) }, plus the router ID map of all tables and its conflicts, the check's time (readAt) and the observer's
+ *  period (observeMs). Devices are matched by
  *  Matter node id, table entries by extended address. */
 export function readTables(network, answer) {
   const byNode = new Map(network.devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
@@ -80,7 +82,8 @@ export function readTables(network, answer) {
     const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
     const holder = { id: device.id, role, available: node.available !== false && device.available !== false,
       routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
-      unchangedSince: typeof node.unchanged_since === "number" ? node.unchanged_since * 1000 : null };
+      times: { neighbours: interval(node.times && node.times.neighbor_table),
+        routes: interval(node.times && node.times.route_table) } };
     if (Array.isArray(node.route_table)) {
       holder.routes = new Map();
       // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
@@ -114,7 +117,18 @@ export function readTables(network, answer) {
   }
   for (const h of holders.values()) claim(h.routerId, h.id);
   for (const r of conflicts) idOfRouter.delete(r);
-  return { holders, idOfRouter, conflicts, readAt: typeof (answer && answer.read_at) === "number" ? answer.read_at * 1000 : null };
+  const seconds = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
+  return { holders, idOfRouter, conflicts, readAt: seconds(answer && answer.read_at),
+    observeMs: seconds(answer && answer.observe_seconds) };
+}
+
+/** A table's read interval from the answer ({ lo, hi } in epoch seconds) in ms: { lo (null: unknown), hi }, or null
+ *  without an upper bound (not reported, or nothing observed). */
+function interval(t) {
+  const ms = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
+  if (!t || ms(t.hi) === null) return null;
+  const lo = ms(t.lo);
+  return { lo: lo !== null && lo <= ms(t.hi) ? lo : null, hi: ms(t.hi) };
 }
 
 /** The parent of end device `id` with how it was found: { id, source: "rloc16" | "route table" | "snapshot" } or

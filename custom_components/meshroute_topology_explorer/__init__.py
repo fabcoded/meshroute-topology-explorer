@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_RADIO_ACTIONS, CONF_SIDEBAR, DOMAIN, PANEL_ELEMENT, PANEL_URL_PATH, STATIC_URL_PREFIX, VERSION
 from .options import get_options
 from .recorder import async_delete_history, start_recording
+from .thread_tables import start_observer
 from .websocket_api import async_register_commands, async_remove_data
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
@@ -44,7 +45,7 @@ def frontend_hash(directory: Path) -> str:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Serve the frontend folder under its content hash and register the commands (each once per run), then add the
-    panel (unless the option "sidebar" is off) and start the history timers. An entry reload after changed panel
+    panel (unless the option "sidebar" is off), start the history timers and the Thread table observer. An entry reload after changed panel
     files or options yields a new hash or state, so it ships them without a restart."""
     options = get_options(entry.options)
     digest = await hass.async_add_executor_job(frontend_hash, FRONTEND_DIR)
@@ -74,7 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config={"version": VERSION, "radio_actions": options[CONF_RADIO_ACTIONS]},
         )
         hass.data[_PANEL_KEY] = True
-    for stop in start_recording(hass, options):
+    for stop in [*start_recording(hass, options), *start_observer(hass)]:
         entry.async_on_unload(stop)
     return True
 

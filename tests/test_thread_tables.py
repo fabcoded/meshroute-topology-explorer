@@ -3,9 +3,9 @@
 Home Assistant's Matter helper and the client's nodes (the real client model: tests_ha/test_matter_contract.py).
 
 Cases: Matter missing, without a loaded entry, with changed internals; attributes not reported stay null (never an
-empty table); extended addresses as 16 hex digits; nodes without Thread are left out; "unchanged since" keeps the
-first time for the same tables, restarts with new ones, survives a restart through the store, forgets removed nodes;
-read only. python3 -m unittest discover -s tests
+empty table); extended addresses as 16 hex digits; nodes without Thread are left out; the read interval per table
+(F5 tier C/D: unknown lower bound at first sight, last sight to now on a change, restarts, a changed fingerprint form,
+a clock jump, writes only on change) and the 10-minute observer; read only. python3 -m unittest discover -s tests
 """
 
 import dataclasses
@@ -109,6 +109,7 @@ class ThreadTablesTest(unittest.TestCase):
         sys.modules["homeassistant.components.matter.helpers"] = self.helper
         self.now = 1000.0
         self.tables.get_times(self.hass).clock = lambda: self.now
+        self.addCleanup(lambda: [task.close() for task in self.hass.tasks])  # observations scheduled, not run
 
     def call(self, admin=True):
         handler, schema = self.rec.commands[COMMAND]
@@ -138,7 +139,7 @@ class ThreadTablesTest(unittest.TestCase):
         self.assertIsNone(node["route_table"])
         self.assertIsNone(node["neighbor_table"])
         self.assertIsNone(node["rloc16"])  # set on the object, but not reported: the default is no value
-        self.assertIsNone(node["unchanged_since"])
+        self.assertEqual(node["times"], {"neighbor_table": None, "route_table": None})
 
     def test_11_rloc16_where_reported_and_nodes_without_thread_left_out(self):
         self.nodes = [router(rloc16=0x7000), Node(20, None)]
@@ -147,34 +148,109 @@ class ThreadTablesTest(unittest.TestCase):
         self.assertEqual([n["node_id"] for n in nodes], [14])
         self.assertEqual(nodes[0]["rloc16"], 0x7000)
 
-    def test_11_unchanged_since_keeps_the_first_time_and_restarts_on_new_tables(self):
-        first = self.answer()
-        self.assertEqual((first["nodes"][0]["unchanged_since"], first["read_at"]), (1000.0, 1000.0))
-        self.now = 5000.0
-        self.assertEqual(self.answer()["nodes"][0]["unchanged_since"], 1000.0)
-        self.nodes = [router(lqi_in=2)]  # the server read the tables again: other values
-        self.assertEqual(self.answer()["nodes"][0]["unchanged_since"], 5000.0)
+    def times(self, table="neighbor_table"):
+        return self.answer()["nodes"][0]["times"][table]
 
-    def test_11_times_survive_a_restart_and_removed_nodes_are_forgotten(self):
-        self.answer()
+    def test_11_read_interval_per_table_lo_unknown_first_then_last_seen_to_now(self):
+        """F5 tier C/D: the first sight has no lower bound; a change lies between the last sight and now."""
+        self.assertEqual(self.times(), {"lo": None, "hi": 1000.0})
+        self.now = 4000.0
+        self.assertEqual(self.times(), {"lo": None, "hi": 1000.0})  # unchanged: the interval stays
+        self.now = 4600.0
+        self.nodes = [router(lqi_in=2)]  # both tables read again by the server
+        self.assertEqual(self.times(), {"lo": 4000.0, "hi": 4600.0})
+        self.assertEqual(self.times("route_table"), {"lo": 4000.0, "hi": 4600.0})
+        self.now = 5200.0
+        node = router(lqi_in=2)
+        node._cluster.routeTable[1].pathCost = 3  # only the route table changed
+        self.nodes = [node]
+        answer = self.answer()["nodes"][0]["times"]
+        self.assertEqual(answer["neighbor_table"], {"lo": 4000.0, "hi": 4600.0})
+        self.assertEqual(answer["route_table"], {"lo": 4600.0, "hi": 5200.0})
+
+    def test_11_writes_on_change_and_last_seen_only_at_the_final_write(self):
         store = self.tables.get_times(self.hass)._store
-        data_func, _ = store.delay_calls[-1]
-        saved = data_func()
-        self.assertEqual(saved["nodes"]["14"]["first_seen"], 1000.0)
-        # A new run: the store file holds what was saved.
+        self.answer()
+        self.assertEqual(len(store.saved), 1)  # new tables: written at once
+        self.now = 1600.0
+        self.answer()
+        self.assertEqual(len(store.saved), 1)  # unchanged: no write, only the long delayed one
+        data_func, delay = store.delay_calls[-1]
+        self.assertEqual(delay, self.tables.SEEN_SAVE_DELAY)
+        self.assertEqual(data_func()["nodes"]["14"]["neighbor_table"]["seen"], 1600.0)
+        self.tables.get_times(self.hass).async_flush()  # the entry unloads: written soon
+        self.assertEqual(store.delay_calls[-1][1], 0)
+
+    def test_11_a_restart_keeps_the_bounds_and_spans_the_downtime(self):
+        self.answer()
+        self.now = 1600.0
+        self.answer()
+        final = self.tables.get_times(self.hass)._store.delay_calls[-1][0]()  # Home Assistant's final write
         self.hass.data.clear()
-        ha_stubs.FakeStore.stored = saved
+        ha_stubs.FakeStore.stored = final
         times = self.tables.get_times(self.hass)
-        times.clock = lambda: 9000.0
-        self.assertEqual(self.answer()["nodes"][0]["unchanged_since"], 1000.0)
+        times.clock = lambda: 9600.0
+        self.nodes = [router(lqi_in=2)]
+        # Changed when first seen after the restart: read some time after the last sight before it, or later.
+        self.assertEqual(self.times(), {"lo": 1600.0, "hi": 9600.0})
+        self.hass.data.clear()
+        ha_stubs.FakeStore.stored = final
+        self.tables.get_times(self.hass).clock = lambda: 9000.0
+        self.nodes = [router()]
+        self.assertEqual(self.times(), {"lo": None, "hi": 1000.0})  # unchanged across the restart
+
+    def test_11_lost_store_new_node_form_change_and_clock_jump(self):
+        self.answer()
+        # A new node: no lower bound.
+        self.nodes = [router(), router(node_id=16)]
+        self.now = 2000.0
+        nodes = {n["node_id"]: n for n in self.answer()["nodes"]}
+        self.assertEqual(nodes[16]["times"]["neighbor_table"], {"lo": None, "hi": 2000.0})
+        self.assertEqual(nodes[14]["times"]["neighbor_table"], {"lo": None, "hi": 1000.0})
+        # The fingerprint form changed since the file was written: from the old lower bound to now, never "now".
+        self.hass.data.clear()
+        ha_stubs.FakeStore.stored = {"nodes": {"14": {"neighbor_table": {"fp": "x", "v": 0, "lo": 500.0, "hi": 900.0,
+                                                                         "seen": 950.0}}}}
+        self.tables.get_times(self.hass).clock = lambda: 3000.0
+        self.nodes = [router()]
+        self.assertEqual(self.times(), {"lo": 500.0, "hi": 3000.0})
+        # The clock went back below the last sight: the bound is worthless.
+        self.hass.data.clear()
+        ha_stubs.FakeStore.stored = {"nodes": {"14": {"neighbor_table": {"fp": "x", "v": self.tables.FP_VERSION,
+                                                                         "lo": 100.0, "hi": 200.0, "seen": 8000.0}}}}
+        self.tables.get_times(self.hass).clock = lambda: 3000.0
+        self.assertEqual(self.times(), {"lo": None, "hi": 3000.0})
+        # A broken file: start over, nothing known.
+        self.hass.data.clear()
+        ha_stubs.FakeStore.stored = {"nodes": ["not", "a", "dict"]}
+        self.assertEqual(self.times()["lo"], None)
+
+    def test_11_removed_nodes_are_forgotten_but_not_while_the_client_starts(self):
+        self.answer()
         self.nodes = [router(node_id=16)]
         self.answer()
-        data_func, _ = times._store.delay_calls[-1]
-        self.assertEqual(sorted(data_func()["nodes"]), ["16"])
-        self.nodes = []  # the client starting: no reason to forget node 16
+        self.assertEqual(sorted(self.tables.get_times(self.hass)._nodes), ["16"])
+        self.nodes = []
         self.answer()
-        data_func, _ = times._store.delay_calls[-1]
-        self.assertEqual(sorted(data_func()["nodes"]), ["16"])
+        self.assertEqual(sorted(self.tables.get_times(self.hass)._nodes), ["16"])
+
+    def test_11_the_observer_runs_every_10_minutes_and_once_when_matter_is_loaded(self):
+        observer = [i for i in self.rec.intervals if i[0] == self.tables.OBSERVE_PERIOD]
+        self.assertEqual(len(observer), 1)
+        self.assertEqual(self.tables.OBSERVE_PERIOD.total_seconds(), 600)
+        # Matter was loaded at setup: the baseline observation is scheduled.
+        self.assertEqual(len(self.hass.tasks), 1)
+        ha_stubs.run(self.hass.tasks.pop())
+        self.assertEqual(self.tables.get_times(self.hass).last_check, 1000.0)
+        entry_changed = self.rec.signals[-1]
+        entry_changed("updated", types.SimpleNamespace(domain="zha", state="loaded"))
+        self.assertEqual(self.hass.tasks, [])
+        entry_changed("updated", types.SimpleNamespace(domain="matter", state="loaded"))
+        self.assertEqual(len(self.hass.tasks), 1)
+        ha_stubs.run(self.hass.tasks.pop())
+        self.now = 1600.0
+        ha_stubs.run(observer[0][1](None))  # the 10-minute tick
+        self.assertEqual(self.tables.get_times(self.hass).last_check, 1600.0)
 
     def test_11_reasons(self):
         self.hass.config.components.discard("matter")

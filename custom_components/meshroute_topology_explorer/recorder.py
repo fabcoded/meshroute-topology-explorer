@@ -315,7 +315,7 @@ class Recording:
 
     async def _tick_thread(self, _now: Any = None) -> None:
         """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow. It also refreshes the
-        Thread table fingerprints (thread_tables.py, in memory), so "unchanged since" is at most one period late."""
+        Thread table fingerprints (thread_tables.py, in memory); harmless next to the table observer's own 10 minutes."""
         await async_observe(self.hass)
         try:
             await self.history.record(self.keep, zigbee=False, thread=True)

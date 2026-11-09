@@ -141,7 +141,7 @@ The panel reads through Home Assistant's websocket API and requires an administr
   ExtAddress (0/53/63), RLOC16 (0/53/64), from the parsed cluster objects (they follow the client's attribute_updated
   events; the raw `node_data.attributes` do not); an attribute not reported is null, never an empty table; extended
   addresses as 16 hex digits. Answer `{ nodes: [{ node_id, available, routing_role, neighbor_table, route_table,
-  ext_address, rloc16, unchanged_since }], read_at }`, table entries with the client's field names; failures
+  ext_address, rloc16, times: { neighbor_table, route_table } }], read_at, observe_seconds }`, table entries with the client's field names; failures
   `not_supported` with "reason: text" (`matter_not_loaded`, `no_client`, `internals_changed`, `error`), and the
   Details say "Route tables not read".
   - **Forwarding** as OpenThread decides it (`RouterTable::GetNextHopAndPathCost`, `router_table.cpp`): at a router the
@@ -171,12 +171,18 @@ The panel reads through Home Assistant's websocket API and requires an administr
     network), else the sender's route entry's LQI out (no RSSI, "– dBm"). **Weakest hop** of a direction: the lowest
     LQI, ties by the weaker RSSI (a hop without RSSI never wins a tie), then the first; marked red only below LQI 3
     (owner 2026-11-09), Details name it either way.
-  - **Age**: no `Age` field is a data age (the route table's is 8 bit and wraps every 256 s, `router.cpp`). Per node
-    the integration keeps a fingerprint of both tables and when it first saw it (own store
-    `meshroute_topology_explorer.thread_tables`, kept across restarts, removed with the integration), refreshed on
-    every call and on the reception history's Thread timer (10.2), so at most one timer period late: `unchanged_since`,
-    observed, not reported (the neighbour table's frame counters change with every read the server makes). Values
-    from a table older than 4 hours by that time are amber.
+  - **Read time** (owner 2026-11-09, tiers C/D; the own query #12 and a listener come later): no `Age` field is a
+    data age (the route table's is 8 bit and wraps every 256 s, `router.cpp`), and the server reports no read time.
+    The integration observes the Matter client's copy every 10 minutes (its own timer from setup, whether or not the
+    history records; one observation as soon as Matter is loaded sets the baseline; no radio traffic; about 20 ms of
+    CPU for 60 nodes) and on every call, and keeps per node and per table (0/53/7, 0/53/8) a fingerprint (versioned
+    form): the neighbour table's frame counters change with every read the server makes. A changed fingerprint was
+    read in [lo, hi]: lo when the old one was last seen, hi now; lo null where unknown (first install, lost store, new
+    node); a changed fingerprint form keeps the old lo and sets hi to now; a clock step back below lo makes lo null.
+    Store `meshroute_topology_explorer.thread_tables` (kept across restarts, removed with the integration): written on
+    change; when each fingerprint was last seen only at Home Assistant's final write (a pending delayed save) or when
+    the entry unloads. Answer `times` per table `{ lo, hi }` (epoch seconds). A value is **old** on the worst case:
+    lo unknown or more than 4 hours ago; old values are amber.
 - `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
   `WebSocketControllerHandler.ts`, `NetworkTopologyService.ts`): the time the panel (or the recorder) took the
   snapshot, never the read time of the tables. The server re-reads neighbour and route tables about once a day
@@ -280,7 +286,7 @@ others are "possibly stale". `PreviousChild` is ignored.
 | Radio readings per direction | yes (LQI) | yes (LQI, RSSI) | yes (LQI) |
 | Routes with next hop | yes | yes (route tables of the Matter cache, 3.2) | partly |
 | Parents of end devices | yes | yes (the end device's own table) | yes |
-| Measurement time | no (observed, 6) | no: read time not reported; tables observed unchanged since (3.2) | per answer |
+| Measurement time | no (observed, 6) | no: read time not reported; an interval, observed every 10 minutes (3.2) | per answer |
 | User-started refresh | scan | refresh (not built; the panel reads the cache) | map request |
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
 | Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
@@ -477,8 +483,9 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   pairs; sample 3/5); "snapshot {time} ({age})" from the snapshot's `collected_at`, noted as built by the Matter
   server from its cache when the panel asked, with tables that can be many hours old and an unreported read time; in
   the menu's full line only, right after it, "Thread tables: age unknown" with the same note as tooltip (the compact
-  line keeps "snapshot {time}"); "no border router listed" when there is none. No banner; "unchanged since" only per
-  table in a route's source line (3.2, 9.2).
+  line keeps "snapshot {time}"); with the route tables read the full line says "Table times: observed every 10 min"
+  instead; "no border router listed" when there is none. No banner, no "unchanged since"; each table's read interval
+  in a route's source line (3.2, 9.2).
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
   evidence rule (5.6). Below 90 % the map carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp, and the integration cannot read ZHA's tables publicly. The panel keeps
@@ -876,9 +883,14 @@ One place per thing; nothing appears twice.
 - **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, role, "Thread leader" where it
   applies), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list with
   per hop what each receiver hears there and back and whose table it comes from, the cost as the sender counts it,
-  the weakest hop of each direction marked at the left edge, the derived hop's note, and one line "Source: Matter
-  server's copy · <holder> unchanged since <time> · …", tooltip "Meshroute saw these values unchanged since then; the
-  Matter server re-reads its tables about once a day", values older than 4 hours in amber; none for a border router),
+  the weakest hop of each direction below LQI 3 marked at the left edge, the derived hop's note, and one line
+  "Source: Matter server's copy · <holder> read 09:50–10:00 · …" per table the values come from (the date where not
+  today: "read yesterday 22:10–08:05"; unknown lower bound: "read before 13:50"; the table's name where a holder gives
+  both), tooltip "Read by the Matter server between 09:50 and 10:00. The server does not report when it reads;
+  Meshroute checks its copy every 10 minutes (last check 14:20)." or "Read at 13:50 or earlier; Meshroute had not seen
+  this table before (age unknown). The server re-reads its tables about once a day."; values that may be older than
+  4 hours in amber with the note "Values that may be older than 4 hours in amber: the route may have changed since.";
+  none for a border router),
   "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
   parent first), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
   reported" where missing).
@@ -1000,7 +1012,7 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 - Websocket commands, each checking admin rights, validating input and rejecting payloads above 256 KiB:
   `meshroute_topology_explorer/settings/get` and `/settings/set`, `meshroute_topology_explorer/observations/get` and
   `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store. Read-only
-  commands without a network: `zigpy_routes` (3.1), `thread_tables` (3.2, with its own store of table fingerprints),
+  commands without a network: `zigpy_routes` (3.1), `thread_tables` (3.2, with its own store of read intervals and a 10-minute observer),
   `history/series`, `history/records`, `history/info` (10.2).
   - Requests carry `network` (1–64 characters of `A-Za-z0-9_.:-`; the network ids of 11) and, for `set`,
     `settings` or `observations` (a JSON object, at most 256 KiB compact UTF-8, replacing the stored one).
@@ -1060,7 +1072,7 @@ The Zigbee timer runs at ZHA's period and is restarted when that changes: ZHA co
 or is gone (no running gateway: back to 240 min, zigpy's default; a running ZHA that names no period keeps the last); it reads Zigbee only where no listener can be attached (internals changed, said in Zigbee's problem), ZHA's
 scan is off or ZHA is not running (`timer`), dated with the read and guarded the same way. Thread has no events: its
 own timer reads only Thread every 4 hours, independent of ZHA (owner 2026-11-08, #15, until #12/#14 bring their own
-schedule), refreshes the Thread table fingerprints first (3.2, in memory), and a snapshot is dated with the Matter server's
+schedule), also observes the Thread tables (3.2, harmless next to their own observer), and a snapshot is dated with the Matter server's
 `collected_at`, which is the time of Meshroute's request (3.2); a Thread record therefore means what the Matter server
 held when Meshroute read it, and the rule "skipped when not newer than the last one" does not fire in practice (it
 still catches a clock step back). One Thread read follows 30 s after Home Assistant has started or

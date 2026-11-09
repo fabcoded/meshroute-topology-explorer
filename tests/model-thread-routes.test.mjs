@@ -176,7 +176,8 @@ test("#11 no Age field is read: changing every age changes no route", () => {
   const a = n.routing.routeTo(idOf("XS"), idOf("BRA"));
   const b = net.routing.routeTo(idOf("XS"), idOf("BRA"));
   assert.deepEqual(a.there.hops, b.there.hops);
-  assert.deepEqual(readTables(n, tables).holders.get(idOf("LU")).unchangedSince, (1767268800 - 3 * 3600) * 1000);
+  const hi = (1767268800 - 3 * 3600) * 1000;
+  assert.deepEqual(readTables(n, tables).holders.get(idOf("LU")).times.routes, { lo: hi - 600000, hi });
 });
 
 // ---- review rev11a: next hops from the holder's own table, cost edges, own entries, parents, offline, BR tables ----
@@ -297,7 +298,7 @@ test("#11 derived only where the border router's table is missing; its table dec
     const sample = threadRoutesSample();
     sample.topology.nodes.find((x) => x.id.startsWith("br_") && x.host_name === "Border router A").node_id = 99;
     sample.tables.nodes.push({ node_id: 99, available: true, routing_role: 5, ext_address: idOf("BRA").replace(/:/g, ""),
-      rloc16: null, neighbor_table: [], route_table: routeTable("BRA"), unchanged_since: 1767268800 });
+      rloc16: null, neighbor_table: [], route_table: routeTable("BRA"), times: null });
     return sample;
   };
   const sample = withTable();

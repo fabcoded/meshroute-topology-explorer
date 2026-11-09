@@ -84,6 +84,10 @@ export function routeTable(h) {
   });
 }
 
+/** Read intervals of both tables as thread_tables answers them: read between `hi` minus 10 minutes (the observer's
+ *  period) and `hi`, or with an unknown lower bound (lo null). */
+const readBetween = (hi, lo = hi - 600) => ({ neighbor_table: { lo, hi }, route_table: { lo, hi } });
+
 const neighbour = (sender, [rssi, lqi], child = false) => ({
   extAddress: KEYS[sender].ext, age: 30, rloc16: 0, linkFrameCounter: 5, mleFrameCounter: 2, lqi,
   averageRssi: typeof rssi === "object" && rssi ? rssi.average : rssi, lastRssi: typeof rssi === "object" && rssi ? rssi.last : rssi,
@@ -132,7 +136,7 @@ function buildSample({ fresh, readAt }) {
       heardHere.push(neighbour(c, childHeard(`${c}>${k}`), true));
     }
     tables.push({ node_id: r.node, available: true, routing_role: r.leader ? 6 : 5, ext_address: KEYS[k].ext.toLowerCase(),
-      rloc16: null, neighbor_table: heardHere, route_table: routeTable(k), unchanged_since: readAt - 3 * 3600 });
+      rloc16: null, neighbor_table: heardHere, route_table: routeTable(k), times: readBetween(readAt - 3 * 3600) });
   }
   for (const [k, c] of Object.entries(CHILDREN)) {
     const p = parentOf(k);
@@ -146,7 +150,8 @@ function buildSample({ fresh, readAt }) {
       pathCost: 0, LQIIn: d === p ? inQ : 0, LQIOut: d === p ? outQ : 0, age: 3, allocated: true, linkEstablished: d === p }));
     tables.push({ node_id: c.node, available: true, routing_role: 2, ext_address: KEYS[k].ext.toLowerCase(), rloc16: null,
       neighbor_table: [neighbour(p, childHeard(`${p}>${k}`))], route_table: routes,
-      unchanged_since: readAt - (k === "XS" ? 21 : 1) * 3600 });
+      // The motion sensor's tables were there before Meshroute first looked (lower bound unknown), 21 h ago.
+      times: k === "XS" ? readBetween(readAt - 21 * 3600, null) : readBetween(readAt - 3600) });
   }
   // The snapshot's links, both directions, from the same neighbour tables (source hears target).
   const nodeOf = (k) => nodes.find((n) => n.ext_address === KEYS[k].ext).id;
@@ -171,7 +176,7 @@ function buildSample({ fresh, readAt }) {
     .map(([k, v]) => ({ id: `routes-${k}`, name: v.name, name_by_user: null, manufacturer: "Example", model: k.startsWith("P")
       ? "Plug" : k in CHILDREN ? "Sensor" : "Bulb", area_id: null, sw_version: null }));
   return { topology: { collected_at: readAt * 1000, nodes, connections },
-    tables: { nodes: tables, read_at: readAt }, registry };
+    tables: { nodes: tables, read_at: readAt, observe_seconds: 600 }, registry };
 }
 
 /** Device id (colon form) of a key, as the Thread engine keys devices. */

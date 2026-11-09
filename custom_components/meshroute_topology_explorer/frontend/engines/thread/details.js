@@ -37,21 +37,28 @@ export function threadNeighbourRows(network, id) {
   return rows.sort((x, y) => (y.parent - x.parent) || label(x).localeCompare(label(y), undefined, { numeric: true }));
 }
 
-/** Older than this a table's values show in amber (spec 6: the age at which the pill's dot turns amber). */
+/** Older than this a table's values show in amber (spec 6: the age at which the pill's dot turns amber), judged by
+ *  the worst case: the read interval's lower bound, or unknown (owner 2026-11-09). */
 export const OLD_TABLE_MS = 4 * 3600 * 1000;
 
+/** Whether a table read in `times` ({ lo, hi } or null) may be older than OLD_TABLE_MS at `now`. */
+export const mayBeOld = (times, now) => !times || times.lo === null || now - times.lo > OLD_TABLE_MS;
+
 /** The rows of a route's hop list (spec 3.2 "Routes"): one per hop there, with the reverse hop back beside it; a hop
- *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder (whose
- *  table it comes from: the receiver's neighbours, else the sender's LQI out), source, old (that table is older than
- *  OLD_TABLE_MS by what Meshroute observed), derived }; the cost as the sender counts it; weakThere / weakBack mark
- *  the weakest hop of a direction below LQI 3 (routes.js markedWeak). Pure. */
+ *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder and table
+ *  (whose table it comes from: the receiver's neighbour table, else the sender's route table, its LQI out), source,
+ *  times (that table's read interval), old (it may be older than OLD_TABLE_MS: mayBeOld), derived }; the cost as the
+ *  sender counts it; weakThere / weakBack mark the weakest hop of a direction below LQI 3 (routes.js markedWeak).
+ *  Pure. */
 export function routeRows(tables, r, now) {
   const cell = (x) => {
     if (!x) return null;
     const holder = x.source === "neighbours" ? x.to : x.source === "lqi out" ? x.from : null;
-    const since = holder && tables.holders.get(holder) ? tables.holders.get(holder).unchangedSince : null;
-    return { lqi: x.lqi, rssi: x.rssi, holder, source: x.source, derived: x.derived,
-      old: typeof since === "number" && now - since > OLD_TABLE_MS };
+    const table = x.source === "neighbours" ? "neighbours" : x.source === "lqi out" ? "routes" : null;
+    const h = holder ? tables.holders.get(holder) : null;
+    const times = h ? h.times[table] : null;
+    return { lqi: x.lqi, rssi: x.rssi, holder, table, source: x.source, derived: x.derived, times,
+      old: holder !== null && mayBeOld(times, now) };
   };
   const back = r.back ? [...r.back.hops] : [];
   const rows = r.there.hops.map((x, k) => {
@@ -69,22 +76,40 @@ export function routeRows(tables, r, now) {
   return rows;
 }
 
-/** The holders whose tables the route's values come from, in order: [{ id, since (ms or null), table (whether its
- *  tables are in the cache) }]. */
+/** The tables the route's values come from, in order: [{ id (the holder), table ("neighbours" | "routes" | null
+ *  where the device has no tables in the cache), times ({ lo, hi } or null), both (the holder gives values from both
+ *  its tables) }]. */
 export function routeHolders(tables, rows) {
   const out = new Map();
   for (const row of rows) {
     for (const c of [row.there, row.back]) {
       if (!c) continue;
-      const ids = c.holder ? [c.holder] : [row.from, row.to].filter((id) => !tables.holders.has(id));
-      for (const id of ids) {
-        if (out.has(id)) continue;
+      const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
+        .map((id) => [id, null]);
+      for (const [id, table] of found) {
+        const key = `${id}|${table}`;
+        if (out.has(key)) continue;
         const h = tables.holders.get(id);
-        out.set(id, { id, since: h ? h.unchangedSince : null, table: Boolean(h) });
+        out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
       }
     }
   }
-  return [...out.values()];
+  const list = [...out.values()];
+  for (const x of list) x.both = list.filter((y) => y.id === x.id && y.table).length > 1;
+  return list;
+}
+
+/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" where the lower bound is unknown:
+ *  when the Matter server read a table, in the browser's local time. t: the panel's words (t.formatLocale). */
+export function readText(times, now, t) {
+  const at = (ms) => new Date(ms);
+  const sameDay = (a, b) => at(a).toDateString() === at(b).toDateString();
+  const clock = (ms) => new Intl.DateTimeFormat(t.formatLocale, { hour: "2-digit", minute: "2-digit" }).format(at(ms));
+  const day = (ms) => (sameDay(ms, now) ? "" : sameDay(ms, now - 86400000) ? `${t("details.route_yesterday")} `
+    : `${new Intl.DateTimeFormat(t.formatLocale, { month: "numeric", day: "numeric" }).format(at(ms))} `);
+  if (times.lo === null) return t("details.route_read_before", { time: `${day(times.hi)}${clock(times.hi)}` });
+  const end = sameDay(times.lo, times.hi) ? clock(times.hi) : `${day(times.hi)}${clock(times.hi)}`;
+  return t("details.route_read_between", { from: `${day(times.lo)}${clock(times.lo)}`, to: end });
 }
 
 const card = (title, ...children) => h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null,
@@ -194,9 +219,20 @@ function routeCard(ctx, d, name) {
   const wb = r.back ? weakest(r.back, r.back.weakest) : null;
   const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${value(x)})` : "?");
   const holders = routeHolders(tables, rows);
-  const holderText = (x) => (!x.table ? t("details.route_holder_unknown", { name: name(x.id) })
-    : t("details.route_holder", { name: name(x.id), time: x.since === null ? "?" : t.when(x.since) }));
-  const old = holders.some((x) => typeof x.since === "number" && now - x.since > OLD_TABLE_MS);
+  const holderName = (x) => (x.both ? `${name(x.id)} (${t(`details.route_table_${x.table}`)})` : name(x.id));
+  const minutes = Math.round((tables.observeMs ?? 600000) / 60000);
+  const checked = tables.readAt === null ? "?" : t.when(tables.readAt);
+  // One span per table, each with its own tooltip: an interval (C) or only an upper bound (D).
+  const holderSpan = (x) => {
+    if (!x.table) return h("span", { text: t("details.route_holder_unknown", { name: name(x.id) }) });
+    if (!x.times) return h("span", { text: t("details.route_holder_no_time", { name: holderName(x) }) });
+    const tip = x.times.lo === null
+      ? t("details.route_read_tip_unknown", { to: t.when(x.times.hi) })
+      : t("details.route_read_tip", { from: t.when(x.times.lo), to: t.when(x.times.hi), minutes, check: checked });
+    return h("span", { class: mayBeOld(x.times, now) ? "warn-text" : "", title: tip,
+      text: `${holderName(x)} ${readText(x.times, now, t)}` });
+  };
+  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
   const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
   return card(t("details.route_title", { name: name(r.to) }),
     summary ? h("p", { class: "muted small", text: summary }) : null,
@@ -204,7 +240,7 @@ function routeCard(ctx, d, name) {
     table,
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
-    holders.length ? h("p", { class: `small${old ? " warn-text" : " muted"}`, title: t("details.route_source_note"),
-      text: t("details.route_source", { holders: holders.map(holderText).join(" · ") }) }) : null,
+    holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
+      ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null,
     old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
 }

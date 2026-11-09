@@ -446,9 +446,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // side; value() then keeps them clear of each other and of the hop numbers.
     if (extra.separate) {
       // On the lane or half a pill to its right at every place along it first; only then a full pill height out,
-      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a).
+      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a). The height is
+      // that of a two-line pill, so a one-line value ("unused · cost 4") can step clear of a two-line one.
+      const tall = Math.max(h, one.h * 1.7);
       const shifted = (shifts) => spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
-      spots = [...shifted([0, h / 2 + 4]), ...shifted([h + 6, -(h / 2 + 4), -(h + 6)])];
+      spots = [...shifted([0, tall / 2 + 4]), ...shifted([tall + 6, -(tall / 2 + 4), -(tall + 6)])];
     }
     const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
@@ -719,12 +721,14 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
     // place on the lane, else the one covering least); they are never dropped. With focus.separate a value placed
     // earlier or a hop number weighs far more than a label or a symbol: no two values cover each other where any
-    // place is free. Only the debug overview's values need a free spot and may be dropped.
+    // place is free, and so does a device symbol. Only the debug overview's values need a free spot and may be
+    // dropped.
     let least = Infinity;
     const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
-    const cost = (r) => (t.separate ? [...valueRects.map((v) => v.rect), ...numberRects]
-      .reduce((sum, q) => sum + overlapArea(r, q), 0) * 1000 : 0)
-      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
+    // Separate values treat device symbols as hard as other values (rev11a): a pill on a symbol hides the device.
+    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000 : symbolArea(r))
+      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
     const consider = (x, y) => {
       const r = box(x, y);
       const area = cost(r);

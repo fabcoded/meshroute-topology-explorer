@@ -69,8 +69,9 @@ async def test_11_thread_tables_from_the_real_client_model(hass, hass_ws_client,
     assert (heard["extAddress"], heard["lqi"], heard["averageRssi"], heard["lastRssi"], heard["isChild"]) == \
         ("aabbccdd00000005", 2, -86, -88, False)
     assert by_id[16]["neighbor_table"] is None  # not reported: null, not the cluster's default []
-    since = first["unchanged_since"]
-    assert isinstance(since, float)
+    first_read = first["times"]["neighbor_table"]
+    assert first_read["lo"] is None and isinstance(first_read["hi"], float)  # first sight: read then or earlier
+    assert answer["result"]["observe_seconds"] == 600
 
     # An attribute_updated event as the client applies it: the parsed cluster changes, node_data.attributes does not.
     leader.update_attribute("0/53/7", [neighbour(EXT + 4, 0xF000, 3, None, -70, False)])
@@ -78,6 +79,8 @@ async def test_11_thread_tables_from_the_real_client_model(hass, hass_ws_client,
     await ws.send_json_auto_id({"type": f"{DOMAIN}/thread_tables"})
     updated = {n["node_id"]: n for n in (await ws.receive_json())["result"]["nodes"]}[14]
     assert (updated["neighbor_table"][0]["lqi"], updated["neighbor_table"][0]["averageRssi"]) == (3, None)
-    assert updated["unchanged_since"] >= since
-    assert thread_tables.fingerprint(updated) != thread_tables.fingerprint(first)
+    # The neighbour table changed: read between its last sight and now; the route table did not.
+    assert updated["times"]["neighbor_table"]["lo"] >= first_read["hi"]
+    assert updated["times"]["route_table"] == first["times"]["route_table"]
+    assert thread_tables.table_fingerprint(updated["neighbor_table"]) != thread_tables.table_fingerprint(first["neighbor_table"])
     matter.mock_state(hass, ConfigEntryState.NOT_LOADED)  # nothing to unload at teardown

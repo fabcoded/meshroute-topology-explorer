@@ -5732,7 +5732,9 @@ function entryRssi(n) {
 /** The tables of the answer per device id: { id, role ("router" | "end device" | null), available, routerId, routes
  *  (by device id: { routerId, nextHop, pathCost, lqiIn, lqiOut, linked }), byRouterId (router ID -> device id within
  *  this table, null where two entries claim one), neighbours (by device id: { lqi, rssi, child }), rloc16,
- *  unchangedSince (ms or null) }, plus the router ID map of all tables and its conflicts. Devices are matched by
+ *  times ({ neighbours, routes }: when the Matter server read each table, { lo, hi } in ms, lo null where unknown, or
+ *  null) }, plus the router ID map of all tables and its conflicts, the check's time (readAt) and the observer's
+ *  period (observeMs). Devices are matched by
  *  Matter node id, table entries by extended address. */
 function readTables(network, answer) {
   const byNode = new Map(network.devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
@@ -5750,7 +5752,8 @@ function readTables(network, answer) {
     const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
     const holder = { id: device.id, role, available: node.available !== false && device.available !== false,
       routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
-      unchangedSince: typeof node.unchanged_since === "number" ? node.unchanged_since * 1000 : null };
+      times: { neighbours: interval(node.times && node.times.neighbor_table),
+        routes: interval(node.times && node.times.route_table) } };
     if (Array.isArray(node.route_table)) {
       holder.routes = new Map();
       // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
@@ -5784,7 +5787,18 @@ function readTables(network, answer) {
   }
   for (const h of holders.values()) claim(h.routerId, h.id);
   for (const r of conflicts) idOfRouter.delete(r);
-  return { holders, idOfRouter, conflicts, readAt: typeof (answer && answer.read_at) === "number" ? answer.read_at * 1000 : null };
+  const seconds = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
+  return { holders, idOfRouter, conflicts, readAt: seconds(answer && answer.read_at),
+    observeMs: seconds(answer && answer.observe_seconds) };
+}
+
+/** A table's read interval from the answer ({ lo, hi } in epoch seconds) in ms: { lo (null: unknown), hi }, or null
+ *  without an upper bound (not reported, or nothing observed). */
+function interval(t) {
+  const ms = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
+  if (!t || ms(t.hi) === null) return null;
+  const lo = ms(t.lo);
+  return { lo: lo !== null && lo <= ms(t.hi) ? lo : null, hi: ms(t.hi) };
 }
 
 /** The parent of end device `id` with how it was found: { id, source: "rloc16" | "route table" | "snapshot" } or
@@ -6285,21 +6299,28 @@ function threadNeighbourRows(network, id) {
   return rows.sort((x, y) => (y.parent - x.parent) || label(x).localeCompare(label(y), undefined, { numeric: true }));
 }
 
-/** Older than this a table's values show in amber (spec 6: the age at which the pill's dot turns amber). */
+/** Older than this a table's values show in amber (spec 6: the age at which the pill's dot turns amber), judged by
+ *  the worst case: the read interval's lower bound, or unknown (owner 2026-11-09). */
 const OLD_TABLE_MS = 4 * 3600 * 1000;
 
+/** Whether a table read in `times` ({ lo, hi } or null) may be older than OLD_TABLE_MS at `now`. */
+const mayBeOld = (times, now) => !times || times.lo === null || now - times.lo > OLD_TABLE_MS;
+
 /** The rows of a route's hop list (spec 3.2 "Routes"): one per hop there, with the reverse hop back beside it; a hop
- *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder (whose
- *  table it comes from: the receiver's neighbours, else the sender's LQI out), source, old (that table is older than
- *  OLD_TABLE_MS by what Meshroute observed), derived }; the cost as the sender counts it; weakThere / weakBack mark
- *  the weakest hop of a direction below LQI 3 (routes.js markedWeak). Pure. */
+ *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder and table
+ *  (whose table it comes from: the receiver's neighbour table, else the sender's route table, its LQI out), source,
+ *  times (that table's read interval), old (it may be older than OLD_TABLE_MS: mayBeOld), derived }; the cost as the
+ *  sender counts it; weakThere / weakBack mark the weakest hop of a direction below LQI 3 (routes.js markedWeak).
+ *  Pure. */
 function routeRows(tables, r, now) {
   const cell = (x) => {
     if (!x) return null;
     const holder = x.source === "neighbours" ? x.to : x.source === "lqi out" ? x.from : null;
-    const since = holder && tables.holders.get(holder) ? tables.holders.get(holder).unchangedSince : null;
-    return { lqi: x.lqi, rssi: x.rssi, holder, source: x.source, derived: x.derived,
-      old: typeof since === "number" && now - since > OLD_TABLE_MS };
+    const table = x.source === "neighbours" ? "neighbours" : x.source === "lqi out" ? "routes" : null;
+    const h = holder ? tables.holders.get(holder) : null;
+    const times = h ? h.times[table] : null;
+    return { lqi: x.lqi, rssi: x.rssi, holder, table, source: x.source, derived: x.derived, times,
+      old: holder !== null && mayBeOld(times, now) };
   };
   const back = r.back ? [...r.back.hops] : [];
   const rows = r.there.hops.map((x, k) => {
@@ -6317,22 +6338,40 @@ function routeRows(tables, r, now) {
   return rows;
 }
 
-/** The holders whose tables the route's values come from, in order: [{ id, since (ms or null), table (whether its
- *  tables are in the cache) }]. */
+/** The tables the route's values come from, in order: [{ id (the holder), table ("neighbours" | "routes" | null
+ *  where the device has no tables in the cache), times ({ lo, hi } or null), both (the holder gives values from both
+ *  its tables) }]. */
 function routeHolders(tables, rows) {
   const out = new Map();
   for (const row of rows) {
     for (const c of [row.there, row.back]) {
       if (!c) continue;
-      const ids = c.holder ? [c.holder] : [row.from, row.to].filter((id) => !tables.holders.has(id));
-      for (const id of ids) {
-        if (out.has(id)) continue;
+      const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
+        .map((id) => [id, null]);
+      for (const [id, table] of found) {
+        const key = `${id}|${table}`;
+        if (out.has(key)) continue;
         const h = tables.holders.get(id);
-        out.set(id, { id, since: h ? h.unchangedSince : null, table: Boolean(h) });
+        out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
       }
     }
   }
-  return [...out.values()];
+  const list = [...out.values()];
+  for (const x of list) x.both = list.filter((y) => y.id === x.id && y.table).length > 1;
+  return list;
+}
+
+/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" where the lower bound is unknown:
+ *  when the Matter server read a table, in the browser's local time. t: the panel's words (t.formatLocale). */
+function readText(times, now, t) {
+  const at = (ms) => new Date(ms);
+  const sameDay = (a, b) => at(a).toDateString() === at(b).toDateString();
+  const clock = (ms) => new Intl.DateTimeFormat(t.formatLocale, { hour: "2-digit", minute: "2-digit" }).format(at(ms));
+  const day = (ms) => (sameDay(ms, now) ? "" : sameDay(ms, now - 86400000) ? `${t("details.route_yesterday")} `
+    : `${new Intl.DateTimeFormat(t.formatLocale, { month: "numeric", day: "numeric" }).format(at(ms))} `);
+  if (times.lo === null) return t("details.route_read_before", { time: `${day(times.hi)}${clock(times.hi)}` });
+  const end = sameDay(times.lo, times.hi) ? clock(times.hi) : `${day(times.hi)}${clock(times.hi)}`;
+  return t("details.route_read_between", { from: `${day(times.lo)}${clock(times.lo)}`, to: end });
 }
 
 const card = (title, ...children) => h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null,
@@ -6442,9 +6481,20 @@ function routeCard(ctx, d, name) {
   const wb = r.back ? weakest(r.back, r.back.weakest) : null;
   const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${value(x)})` : "?");
   const holders = routeHolders(tables, rows);
-  const holderText = (x) => (!x.table ? t("details.route_holder_unknown", { name: name(x.id) })
-    : t("details.route_holder", { name: name(x.id), time: x.since === null ? "?" : t.when(x.since) }));
-  const old = holders.some((x) => typeof x.since === "number" && now - x.since > OLD_TABLE_MS);
+  const holderName = (x) => (x.both ? `${name(x.id)} (${t(`details.route_table_${x.table}`)})` : name(x.id));
+  const minutes = Math.round((tables.observeMs ?? 600000) / 60000);
+  const checked = tables.readAt === null ? "?" : t.when(tables.readAt);
+  // One span per table, each with its own tooltip: an interval (C) or only an upper bound (D).
+  const holderSpan = (x) => {
+    if (!x.table) return h("span", { text: t("details.route_holder_unknown", { name: name(x.id) }) });
+    if (!x.times) return h("span", { text: t("details.route_holder_no_time", { name: holderName(x) }) });
+    const tip = x.times.lo === null
+      ? t("details.route_read_tip_unknown", { to: t.when(x.times.hi) })
+      : t("details.route_read_tip", { from: t.when(x.times.lo), to: t.when(x.times.hi), minutes, check: checked });
+    return h("span", { class: mayBeOld(x.times, now) ? "warn-text" : "", title: tip,
+      text: `${holderName(x)} ${readText(x.times, now, t)}` });
+  };
+  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
   const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
   return card(t("details.route_title", { name: name(r.to) }),
     summary ? h("p", { class: "muted small", text: summary }) : null,
@@ -6452,8 +6502,8 @@ function routeCard(ctx, d, name) {
     table,
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
-    holders.length ? h("p", { class: `small${old ? " warn-text" : " muted"}`, title: t("details.route_source_note"),
-      text: t("details.route_source", { holders: holders.map(holderText).join(" · ") }) }) : null,
+    holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
+      ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null,
     old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
 }
 
@@ -6474,8 +6524,12 @@ function threadParts(network, { collected = null, compact = false } = {}) {
   if (collected) {
     parts.push(compact ? ["status.short_thread_read", collected, "status.thread_read"]
       : ["status.thread_read", collected, "status.thread_read_note"]);
-    // Owner 2026-11-08: the full line says outright that the tables' age is unknown (tooltip: the long note).
-    if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
+    // Owner 2026-11-08: the full line says outright that the tables' age is unknown (tooltip: the long note); with
+    // the route tables read, how often Meshroute observes them (owner 2026-11-09).
+    const observeMs = network.routing ? network.routing.tables.observeMs : null;
+    if (!compact && observeMs) {
+      parts.push(["status.thread_tables_observed", { minutes: Math.round(observeMs / 60000) }, "status.thread_tables_observed_note"]);
+    } else if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
   }
   if (!s.borderRouters) parts.push(["status.thread_no_br", {}]);
   return parts;
@@ -6550,11 +6604,19 @@ const TEXTS$3 = Object.freeze({
   "lane.unused_cost": "unused · cost {cost}",
   "route.reason.offline": "offline",
   "details.route_weakest": "Weakest there: {there}; back: {back}.",
-  "details.route_source": "Source: Matter server's copy · {holders}",
-  "details.route_holder": "{name} unchanged since {time}",
+  "details.route_source": "Source: Matter server's copy ·",
   "details.route_holder_unknown": "{name}: no table",
-  "details.route_source_note": "Meshroute saw these values unchanged since then; the Matter server re-reads its tables about once a day.",
-  "details.route_old": "Values older than 4 hours in amber: the route may have changed since.",
+  "details.route_holder_no_time": "{name}: read time unknown",
+  "details.route_table_neighbours": "neighbour table",
+  "details.route_table_routes": "route table",
+  "details.route_yesterday": "yesterday",
+  "details.route_read_between": "read {from}–{to}",
+  "details.route_read_before": "read before {time}",
+  "details.route_read_tip": "Read by the Matter server between {from} and {to}. The server does not report when it reads; Meshroute checks its copy every {minutes} minutes (last check {check}).",
+  "details.route_read_tip_unknown": "Read at {to} or earlier; Meshroute had not seen this table before (age unknown). The server re-reads its tables about once a day.",
+  "details.route_old": "Values that may be older than 4 hours in amber: the route may have changed since.",
+  "status.thread_tables_observed": "Table times: observed every {minutes} min",
+  "status.thread_tables_observed_note": "Meshroute checks the Matter server's copy of the Thread tables this often, without radio traffic, and dates each table by the check that first saw it changed: Details show the interval in which the server read it.",
   "details.route_none": "No route: {reason}",
   "details.route_stops": "The route stops at {name}: {reason}",
   "details.route_unknown_cost": "path cost unknown",
@@ -7738,9 +7800,11 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     // side; value() then keeps them clear of each other and of the hop numbers.
     if (extra.separate) {
       // On the lane or half a pill to its right at every place along it first; only then a full pill height out,
-      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a).
+      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a). The height is
+      // that of a two-line pill, so a one-line value ("unused · cost 4") can step clear of a two-line one.
+      const tall = Math.max(h, one.h * 1.7);
       const shifted = (shifts) => spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
-      spots = [...shifted([0, h / 2 + 4]), ...shifted([h + 6, -(h / 2 + 4), -(h + 6)])];
+      spots = [...shifted([0, tall / 2 + 4]), ...shifted([tall + 6, -(tall / 2 + 4), -(tall + 6)])];
     }
     const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
@@ -8011,12 +8075,14 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
     // place on the lane, else the one covering least); they are never dropped. With focus.separate a value placed
     // earlier or a hop number weighs far more than a label or a symbol: no two values cover each other where any
-    // place is free. Only the debug overview's values need a free spot and may be dropped.
+    // place is free, and so does a device symbol. Only the debug overview's values need a free spot and may be
+    // dropped.
     let least = Infinity;
     const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
-    const cost = (r) => (t.separate ? [...valueRects.map((v) => v.rect), ...numberRects]
-      .reduce((sum, q) => sum + overlapArea(r, q), 0) * 1000 : 0)
-      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
+    // Separate values treat device symbols as hard as other values (rev11a): a pill on a symbol hides the device.
+    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000 : symbolArea(r))
+      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
     const consider = (x, y) => {
       const r = box(x, y);
       const area = cost(r);
