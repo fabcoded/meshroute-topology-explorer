@@ -134,24 +134,37 @@ export function routeFocus(scene, i, r, view = {}) {
   };
   r.there.hops.forEach((x, k) => add(x, { number: k + 1, weak: k === r.there.weakest && markedWeak(x) }));
   if (r.back) r.back.hops.forEach((x, k) => add(x, { weak: k === r.back.weakest && markedWeak(x) }));
-  if (view.unusedRoutes) {
-    for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
-      const alt = x.alternative;
-      const s = at(x.from);
-      const h = alt && at(alt.via);
-      if (!alt || s === undefined || h === undefined || used.has(`${s}>${h}`)) continue;
-      used.add(`${s}>${h}`);
-      const lane = scene.laneByKey.get(`${s}>${h}`);
-      hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
-        stroke: "dashdot-muted", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
-        text: TEXTS["lane.unused_cost"].replace("{cost}", String(alt.cost)) });
-    }
-  }
+  if (view.unusedRoutes) addUnused(scene, r, at, used, hops);
   for (const lane of scene.lanes) {
     if (used.has(lane.key) || !lane.dir || lane.dir.state !== "measured") continue;
     hops.push({ s: lane.s, h: lane.h, dir: lane.dir, cls: "context", stroke: "solid", weight: "thin", rank: 0,
       assumed: false, predicted: false, muted: true, context: true, text: hopText(lane.dir) });
   }
+  const ends = routeEnds(r, i, at);
+  // separate: every value of the route readable (owner, board M38): the renderer keeps them apart from each other and
+  // from the hop numbers.
+  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null, separate: true };
+}
+
+/** routeFocus with view.unusedRoutes: each route hop's unused alternative, dashed with its cost (cls "unused"), once
+ *  per lane and never on a lane the route uses. */
+function addUnused(scene, r, at, used, hops) {
+  for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
+    const alt = x.alternative;
+    const s = at(x.from);
+    const h = alt && at(alt.via);
+    if (!alt || s === undefined || h === undefined || used.has(`${s}>${h}`)) continue;
+    used.add(`${s}>${h}`);
+    const lane = scene.laneByKey.get(`${s}>${h}`);
+    hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
+      stroke: "dashdot-muted", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
+      text: TEXTS["lane.unused_cost"].replace("{cost}", String(alt.cost)) });
+  }
+}
+
+/** The stem of a route that stops (routeFocus): from where the way there stops towards the border router, else from
+ *  where the way back stops towards the device i. */
+function routeEnds(r, i, at) {
   const ends = [];
   const goal = at(r.to);
   if (!r.there.complete && at(r.there.at) !== undefined && goal !== undefined) {
@@ -159,7 +172,5 @@ export function routeFocus(scene, i, r, view = {}) {
   } else if (r.back && !r.back.complete && at(r.back.at) !== undefined) {
     ends.push({ at: at(r.back.at), toward: i, cls: "route" });
   }
-  // separate: every value of the route readable (owner, board M38): the renderer keeps them apart from each other and
-  // from the hop numbers.
-  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null, separate: true };
+  return ends;
 }

@@ -4,10 +4,6 @@
   "custom_components/meshroute_topology_explorer/frontend/engines/history-records.js": {
    "decodeRecords": 69
   },
-  "custom_components/meshroute_topology_explorer/frontend/engines/thread/details.js": {
-   "routeCard": 27,
-   "routeHolders": 22
-  },
   "custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js": {
    "fromMatter": 75
   },
@@ -16,14 +12,6 @@
   },
   "custom_components/meshroute_topology_explorer/frontend/engines/thread/quality.js": {
    "nodeQualityFindings": 22
-  },
-  "custom_components/meshroute_topology_explorer/frontend/engines/thread/routes.js": {
-   "nextHop": 17,
-   "readTables": 58,
-   "route": 31
-  },
-  "custom_components/meshroute_topology_explorer/frontend/engines/thread/scene.js": {
-   "routeFocus": 20
   },
   "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/findings.js": {
    "computeFindings": 55

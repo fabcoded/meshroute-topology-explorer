@@ -2207,7 +2207,7 @@ function routePath(network, from, to) {
 
 /** Destinations of `id`'s own active, current routes, and owners of active, current routes towards `id`, both in
  *  the network's order of routes: what "all paths" follows. */
-function routeEnds(network, id) {
+function routeEnds$1(network, id) {
   const c = lookups$1(network);
   const destinations = c.routes.has(id) ? [...c.routes.get(id).keys()].filter((d) => d !== id && c.byId.has(d)) : [];
   const owners = [];
@@ -3354,7 +3354,7 @@ function nodePaths(network, id, mode = DEFAULT_PATHS, { sourceRoute = "off", ret
   };
   if (mode === "table") {
     if (!device.available) return out;
-    const { destinations } = routeEnds(network, id);
+    const { destinations } = routeEnds$1(network, id);
     for (const d of destinations) add("out", id, d, tableWalk(network, id, d));
     if (returns) for (const d of destinations) add("in", d, id, tableWalk(network, d, id));
     return out;
@@ -3366,7 +3366,7 @@ function nodePaths(network, id, mode = DEFAULT_PATHS, { sourceRoute = "off", ret
   }
   if (mode !== "all" && id !== coordinator) return out;
   if (id === coordinator && mode !== "all") {
-    const { destinations, owners } = routeEnds(network, id);
+    const { destinations, owners } = routeEnds$1(network, id);
     for (const d of destinations) add("out", id, d, routePath(network, id, d));
     for (const o of owners) add("in", o, id, routePath(network, o, id));
     return out;
@@ -3443,7 +3443,7 @@ const byRating = (a, b) => ((b.rating ?? -1) - (a.rating ?? -1)) || ((b.lqi ?? -
 
 /** The reception at a hop as the map writes it after "RX:": the LQI at the hearer, Parent or Route where only a parent
  *  link or a route implies the hop, "?" where nothing does. */
-function hopValue(hop, t) {
+function hopValue$1(hop, t) {
   if (hop.state === "implied") return t(hop.source === "parent" ? "lane.parent" : "lane.route");
   if (hop.state === "measured" || hop.lqi === 0) return lqiText(hop.lqi, t);
   return unknownGlyph(hop.reason);
@@ -3473,7 +3473,7 @@ function pathParts(path, t, name) {
       : path.kind === "up" ? t("details.path_up")
         : t(path.assumed ? "details.path_down_assumed" : path.recorded ? "details.path_down_recorded" : "details.path_down");
   const steps = path.ids.length ? [{ name: name(path.ids[0]), rx: null, how: null },
-    ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue(hop, t), how: hop.how || null,
+    ...path.hops.map((hop) => ({ name: name(hop.hearer), rx: hopValue$1(hop, t), how: hop.how || null,
       noEntry: hop.noEntry || null, basis: hopBasis(hop, t, name) }))] : [];
   let tail = null;
   if (!path.complete) {
@@ -5749,40 +5749,9 @@ function readTables(network, answer) {
   for (const node of Array.isArray(answer && answer.nodes) ? answer.nodes : []) {
     const device = byNode.get(node && node.node_id);
     if (!device) continue;
-    const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
-    const holder = { id: device.id, role, available: node.available !== false && device.available !== false,
-      routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
-      times: { neighbours: interval(node.times && node.times.neighbor_table),
-        routes: interval(node.times && node.times.route_table) } };
-    if (Array.isArray(node.route_table)) {
-      holder.routes = new Map();
-      // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
-      // entry shaped like an own entry (NextHop 63, PathCost 0, no link) - an unreachable router looks the same.
-      const ownExt = extAddress(node.ext_address) || device.extAddress;
-      const shaped = (e) => e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false;
-      const candidates = node.route_table.filter((e) => e && shaped(e));
-      for (const e of node.route_table) {
-        const id = extAddress(e && e.extAddress);
-        const routerId = int(e && e.routerId);
-        if (!id || routerId === null) continue;
-        const own = role === "router" && (ownExt ? id === ownExt : candidates.length === 1 && candidates[0] === e);
-        if (own) { holder.routerId = routerId; continue; }
-        holder.routes.set(id, { routerId, nextHop: int(e.nextHop), pathCost: int(e.pathCost), lqiIn: int(e.LQIIn),
-          lqiOut: int(e.LQIOut), linked: e.linkEstablished === true });
-        if (e.allocated !== false) {
-          claim(routerId, id);
-          const known = holder.byRouterId.get(routerId);
-          holder.byRouterId.set(routerId, known === undefined || known === id ? id : null);
-        }
-      }
-    }
-    if (Array.isArray(node.neighbor_table)) {
-      holder.neighbours = new Map();
-      for (const n of node.neighbor_table) {
-        const id = extAddress(n && n.extAddress);
-        if (id) holder.neighbours.set(id, { lqi: int(n.lqi), rssi: entryRssi(n), child: n.isChild === true });
-      }
-    }
+    const holder = newHolder(node, device);
+    if (Array.isArray(node.route_table)) readRouteTable(holder, node, device, claim);
+    if (Array.isArray(node.neighbor_table)) holder.neighbours = neighbourMap(node.neighbor_table);
     holders.set(device.id, holder);
   }
   for (const h of holders.values()) claim(h.routerId, h.id);
@@ -5790,6 +5759,56 @@ function readTables(network, answer) {
   const seconds = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
   return { holders, idOfRouter, conflicts, readAt: seconds(answer && answer.read_at),
     observeMs: seconds(answer && answer.observe_seconds) };
+}
+
+/** A device's entry of readTables before its tables are read: role, availability, RLOC16, the tables' read times. */
+function newHolder(node, device) {
+  const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
+  return { id: device.id, role, available: node.available !== false && device.available !== false,
+    routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
+    times: { neighbours: interval(node.times && node.times.neighbor_table),
+      routes: interval(node.times && node.times.route_table) } };
+}
+
+/** Read the node's route table into the holder: its own entry gives its router ID, every other entry goes to
+ *  holder.routes (addRoute). */
+function readRouteTable(holder, node, device, claim) {
+  holder.routes = new Map();
+  // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
+  // entry shaped like an own entry (NextHop 63, PathCost 0, no link) - an unreachable router looks the same.
+  const ownExt = extAddress(node.ext_address) || device.extAddress;
+  const shaped = (e) => e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false;
+  const candidates = node.route_table.filter((e) => e && shaped(e));
+  for (const e of node.route_table) {
+    const id = extAddress(e && e.extAddress);
+    const routerId = int(e && e.routerId);
+    if (!id || routerId === null) continue;
+    const own = holder.role === "router" && (ownExt ? id === ownExt : candidates.length === 1 && candidates[0] === e);
+    if (own) { holder.routerId = routerId; continue; }
+    addRoute(holder, id, routerId, e, claim);
+  }
+}
+
+/** Store route entry `e` of device `id` in the holder; an allocated entry claims its router ID in the map of all
+ *  tables (claim) and in the holder's own map, null there where two of its entries claim one. */
+function addRoute(holder, id, routerId, e, claim) {
+  holder.routes.set(id, { routerId, nextHop: int(e.nextHop), pathCost: int(e.pathCost), lqiIn: int(e.LQIIn),
+    lqiOut: int(e.LQIOut), linked: e.linkEstablished === true });
+  if (e.allocated !== false) {
+    claim(routerId, id);
+    const known = holder.byRouterId.get(routerId);
+    holder.byRouterId.set(routerId, known === undefined || known === id ? id : null);
+  }
+}
+
+/** A neighbour table by device id: { lqi, rssi, child }. */
+function neighbourMap(table) {
+  const neighbours = new Map();
+  for (const n of table) {
+    const id = extAddress(n && n.extAddress);
+    if (id) neighbours.set(id, { lqi: int(n.lqi), rssi: entryRssi(n), child: n.isChild === true });
+  }
+  return neighbours;
 }
 
 /** A table's read interval from the answer ({ lo, hi } in epoch seconds) in ms: { lo (null: unknown), hi }, or null
@@ -5855,6 +5874,13 @@ function nextHop(tables, holder, dest) {
     const link = routerLinkCost(tables, holder, nh);
     if (nh !== holder && nh !== dest) via = { via: nh, cost: e.pathCost + link, link };
   }
+  return choose(dest, via, direct);
+}
+
+/** The choice of nextHop between the way `via` its entry's next hop ({ via, cost, link } or null) and the direct
+ *  link to `dest` (cost `direct`): the next hop only where it is usable and cheaper, the direct link where usable,
+ *  the unchosen usable one as the alternative. */
+function choose(dest, via, direct) {
   const directUsable = direct < MAX_COST;
   const viaUsable = via && via.cost < MAX_COST;
   if (viaUsable && (!directUsable || via.cost < direct)) {
@@ -5935,9 +5961,18 @@ function route(tables, network, id, br) {
   const there = { hops: [], complete: false, reason: null, at: id };
   out.there = there;
   if (!device || !tables.holders.size) return { ...out, there: { ...there, reason: "no_tables" }, back: null };
+  const isEnd = device.role === "end device";
+  wayThere(tables, network, out, isEnd);
+  wayBack(tables, network, out, isEnd);
+  return out;
+}
+
+/** The way there of route (fills out.there and out.parent): an end device to its parent first, then each router's
+ *  own decision; an offline device or an unknown parent stops it. */
+function wayThere(tables, network, out, isEnd) {
+  const { from: id, to: br, there } = out;
   const seen = new Set([id]);
   let start = id;
-  const isEnd = device.role === "end device";
   if (offline(tables, network, id)) Object.assign(there, { reason: "offline" });
   else if (isEnd) {
     const parent = parentOf(tables, network, id);
@@ -5952,7 +5987,12 @@ function route(tables, network, id, br) {
   if (!there.reason) Object.assign(there, routerWalk(tables, network, start, br, there.hops, seen));
   there.cost = there.complete ? sum(there.hops) : null;
   there.weakest = weakestHop$1(there.hops);
+}
 
+/** The way back of route (sets out.back): only after a complete way there; the border router's first hop
+ *  (firstHopBack), then the rest (restBack). */
+function wayBack(tables, network, out, isEnd) {
+  const { from: id, to: br, there } = out;
   const back = { hops: [], complete: false, reason: null, at: br };
   out.back = back;
   if (!there.complete || !there.hops.length) {
@@ -5960,30 +6000,41 @@ function route(tables, network, id, br) {
   } else {
     const last = there.hops[there.hops.length - 1];
     const target = isEnd ? out.parent.id : id;
-    // The border router's own choice is in its table, which the Matter cache does not hold (#12): its first hop back
-    // is the last hop there mirrored, at the same cost (link costs are symmetric in Thread). Only the choice and the
-    // cost are derived; what the receiver hears is measured where its table was read. Where its table is there, it
-    // decides like any router, and a table without a way stops the route (never mirrored).
-    const own = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
-    if (own && !own.next) Object.assign(back, { reason: own.reason, at: br });
-    else {
-      back.hops.push(own
-        ? hop(tables, br, own.next, own.link, { decided: own.kind, alternative: own.alternative })
-        : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
-    }
-    const reached = back.hops.length ? back.hops[0].to : null; // null: stopped at the border router
-    if (reached === id) Object.assign(back, { complete: true, at: id });
-    else if (reached) {
-      Object.assign(back, routerWalk(tables, network, reached, target, back.hops, new Set([br, reached])));
-      if (back.complete && isEnd) {
-        back.hops.push(hop(tables, target, id, childCost(tables, target, id), { decided: "child" }));
-        back.at = id;
-      }
-    }
+    firstHopBack(tables, out, target, last);
+    restBack(tables, network, out, target, isEnd);
   }
   back.cost = back.complete ? sum(back.hops) : null;
   back.weakest = weakestHop$1(back.hops);
-  return out;
+}
+
+/** The border router's first hop back to `target` (the device or its parent), from its own table or mirrored. */
+function firstHopBack(tables, out, target, last) {
+  const { to: br, back } = out;
+  // The border router's own choice is in its table, which the Matter cache does not hold (#12): its first hop back
+  // is the last hop there mirrored, at the same cost (link costs are symmetric in Thread). Only the choice and the
+  // cost are derived; what the receiver hears is measured where its table was read. Where its table is there, it
+  // decides like any router, and a table without a way stops the route (never mirrored).
+  const own = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
+  if (own && !own.next) Object.assign(back, { reason: own.reason, at: br });
+  else {
+    back.hops.push(own
+      ? hop(tables, br, own.next, own.link, { decided: own.kind, alternative: own.alternative })
+      : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
+  }
+}
+
+/** The way back after the first hop: each router's own decision to `target`, then a parent's hop to its child. */
+function restBack(tables, network, out, target, isEnd) {
+  const { from: id, to: br, back } = out;
+  const reached = back.hops.length ? back.hops[0].to : null; // null: stopped at the border router
+  if (reached === id) Object.assign(back, { complete: true, at: id });
+  else if (reached) {
+    Object.assign(back, routerWalk(tables, network, reached, target, back.hops, new Set([br, reached])));
+    if (back.complete && isEnd) {
+      back.hops.push(hop(tables, target, id, childCost(tables, target, id), { decided: "child" }));
+      back.at = id;
+    }
+  }
 }
 
 /** Cost of child -> parent as the child counts it, from what it receives of the parent: its route entry's LQI in
@@ -6346,19 +6397,25 @@ function routeHolders(tables, rows) {
   for (const row of rows) {
     for (const c of [row.there, row.back]) {
       if (!c) continue;
-      const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
-        .map((id) => [id, null]);
-      for (const [id, table] of found) {
-        const key = `${id}|${table}`;
-        if (out.has(key)) continue;
-        const h = tables.holders.get(id);
-        out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
-      }
+      addHolders(out, tables, row, c);
     }
   }
   const list = [...out.values()];
   for (const x of list) x.both = list.filter((y) => y.id === x.id && y.table).length > 1;
   return list;
+}
+
+/** Add the tables cell `c` of `row` comes from to `out` (by "id|table"), each once: its holder's table, else each
+ *  end of the hop that has no tables in the cache (table null). */
+function addHolders(out, tables, row, c) {
+  const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
+    .map((id) => [id, null]);
+  for (const [id, table] of found) {
+    const key = `${id}|${table}`;
+    if (out.has(key)) continue;
+    const h = tables.holders.get(id);
+    out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
+  }
 }
 
 /** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" ("before 15:09 yesterday") where
@@ -6445,20 +6502,52 @@ function routeCard(ctx, d, name) {
   if (!r) return null;
   const now = ctx.now ?? Date.now();
   const tables = network.routing.tables;
-  const reason = (code) => t(`route.reason.${code}`);
-  const value = (c) => {
-    if (!c || (c.lqi === null && c.rssi === null)) return "?";
-    const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
-    return `${rssi} · LQI ${c.lqi ?? "?"}`;
-  };
+  const rows = routeRows(tables, r, now);
+  const table = routeTable(rows, name, t);
+  const summary = routeSummary(r, t);
+  const lines = routeLines(r, name, t);
+  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
+  const wt = weakest(r.there, r.there.weakest);
+  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
+  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${hopValue(x)})` : "?");
+  const holders = routeHolders(tables, rows);
+  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
+  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
+  return card(t("details.route_title", { name: name(r.to) }),
+    summary ? h("p", { class: "muted small", text: summary }) : null,
+    ...lines.map((text) => h("p", { class: "muted small", text })),
+    table,
+    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
+    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
+    sourceLine(tables, holders, name, t, now),
+    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+}
+
+/** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null
+ *  where the way there is incomplete. */
+function routeSummary(r, t) {
+  const hopCount = r.there.hops.length;
+  return !r.there.complete ? null : r.there.cost === null ? t("details.route_unknown_cost")
+    : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
+}
+
+/** What a hop's receiver hears as one cell text: "−75 dBm · LQI 3", "– dBm" without RSSI, "?" without either. */
+function hopValue(c) {
+  if (!c || (c.lqi === null && c.rssi === null)) return "?";
+  const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
+  return `${rssi} · LQI ${c.lqi ?? "?"}`;
+}
+
+/** The route card's hop table (routeRows): number, hop, there and back with the weakest and old values marked, a
+ *  derived hop tagged and the source table below each value, and the cost; null without rows. */
+function routeTable(rows, name, t) {
   const sourceText = (c) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
     { name: name(c.holder) }) : "");
-  const rows = routeRows(tables, r, now);
   const td = (c, weak, derived) => h("td", { class: [weak ? "weak" : "", c && c.old ? "warn-text" : ""].filter(Boolean).join(" ") },
-    h("span", { class: "nowrap", text: value(c) }),
+    h("span", { class: "nowrap", text: hopValue(c) }),
     derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
     c && c.holder ? h("div", { class: "muted small", text: sourceText(c) }) : null);
-  const table = rows.length ? h("table", { class: "route-table" },
+  return rows.length ? h("table", { class: "route-table" },
     h("tr", {}, ...["#", t("details.route_head_hop"), t("details.route_head_there"), t("details.route_head_back"),
       t("details.route_head_cost")].map((text) => h("th", { text }))),
     ...rows.map((row) => h("tr", {},
@@ -6468,10 +6557,12 @@ function routeCard(ctx, d, name) {
       td(row.back, row.weakBack, row.backDerived),
       h("td", {}, typeof row.cost === "number" ? String(row.cost) : "?",
         row.child ? h("div", { class: "muted small", text: t("route.cost_child") }) : null)))) : null;
+}
+
+/** The route card's lines: the way there and back by name, and where and why a way stops. */
+function routeLines(r, name, t) {
+  const reason = (code) => t(`route.reason.${code}`);
   const way = (hops) => hops.length ? [hops[0].from, ...hops.map((x) => x.to)].map(name).join(" → ") : "";
-  const hopCount = r.there.hops.length;
-  const summary = !r.there.complete ? null : r.there.cost === null ? t("details.route_unknown_cost")
-    : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
   const lines = [];
   if (r.there.hops.length) lines.push(t("details.route_there", { list: way(r.there.hops) }));
   if (r.back && r.back.hops.length) lines.push(t("details.route_back", { list: way(r.back.hops) }));
@@ -6481,11 +6572,12 @@ function routeCard(ctx, d, name) {
   } else if (r.back && !r.back.complete && r.back.reason !== "there_incomplete") {
     lines.push(t("details.route_stops", { name: name(r.back.at), reason: reason(r.back.reason) }));
   }
-  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
-  const wt = weakest(r.there, r.there.weakest);
-  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
-  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${value(x)})` : "?");
-  const holders = routeHolders(tables, rows);
+  return lines;
+}
+
+/** The route card's source line: one span per table the values come from (routeHolders) with when the Matter server
+ *  read it, amber where it may be old, and a tooltip; null without tables. */
+function sourceLine(tables, holders, name, t, now) {
   const holderName = (x) => (x.both ? `${name(x.id)} (${t(`details.route_table_${x.table}`)})` : name(x.id));
   const minutes = Math.round((tables.observeMs ?? 600000) / 60000);
   const checked = tables.readAt === null ? "?" : t.when(tables.readAt);
@@ -6499,17 +6591,8 @@ function routeCard(ctx, d, name) {
     return h("span", { class: mayBeOld(x.times, now) ? "warn-text" : "", title: tip,
       text: `${holderName(x)} ${readText(x.times, now, t)}` });
   };
-  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
-  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
-  return card(t("details.route_title", { name: name(r.to) }),
-    summary ? h("p", { class: "muted small", text: summary }) : null,
-    ...lines.map((text) => h("p", { class: "muted small", text })),
-    table,
-    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
-    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
-    holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
-      ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null,
-    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+  return holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
+    ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null;
 }
 
 // SPDX-License-Identifier: MIT
@@ -6785,24 +6868,37 @@ function routeFocus(scene, i, r, view = {}) {
   };
   r.there.hops.forEach((x, k) => add(x, { number: k + 1, weak: k === r.there.weakest && markedWeak(x) }));
   if (r.back) r.back.hops.forEach((x, k) => add(x, { weak: k === r.back.weakest && markedWeak(x) }));
-  if (view.unusedRoutes) {
-    for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
-      const alt = x.alternative;
-      const s = at(x.from);
-      const h = alt && at(alt.via);
-      if (!alt || s === undefined || h === undefined || used.has(`${s}>${h}`)) continue;
-      used.add(`${s}>${h}`);
-      const lane = scene.laneByKey.get(`${s}>${h}`);
-      hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
-        stroke: "dashdot-muted", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
-        text: TEXTS$3["lane.unused_cost"].replace("{cost}", String(alt.cost)) });
-    }
-  }
+  if (view.unusedRoutes) addUnused(scene, r, at, used, hops);
   for (const lane of scene.lanes) {
     if (used.has(lane.key) || !lane.dir || lane.dir.state !== "measured") continue;
     hops.push({ s: lane.s, h: lane.h, dir: lane.dir, cls: "context", stroke: "solid", weight: "thin", rank: 0,
       assumed: false, predicted: false, muted: true, context: true, text: hopText$1(lane.dir) });
   }
+  const ends = routeEnds(r, i, at);
+  // separate: every value of the route readable (owner, board M38): the renderer keeps them apart from each other and
+  // from the hop numbers.
+  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null, separate: true };
+}
+
+/** routeFocus with view.unusedRoutes: each route hop's unused alternative, dashed with its cost (cls "unused"), once
+ *  per lane and never on a lane the route uses. */
+function addUnused(scene, r, at, used, hops) {
+  for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
+    const alt = x.alternative;
+    const s = at(x.from);
+    const h = alt && at(alt.via);
+    if (!alt || s === undefined || h === undefined || used.has(`${s}>${h}`)) continue;
+    used.add(`${s}>${h}`);
+    const lane = scene.laneByKey.get(`${s}>${h}`);
+    hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
+      stroke: "dashdot-muted", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
+      text: TEXTS$3["lane.unused_cost"].replace("{cost}", String(alt.cost)) });
+  }
+}
+
+/** The stem of a route that stops (routeFocus): from where the way there stops towards the border router, else from
+ *  where the way back stops towards the device i. */
+function routeEnds(r, i, at) {
   const ends = [];
   const goal = at(r.to);
   if (!r.there.complete && at(r.there.at) !== undefined && goal !== undefined) {
@@ -6810,9 +6906,7 @@ function routeFocus(scene, i, r, view = {}) {
   } else if (r.back && !r.back.complete && at(r.back.at) !== undefined) {
     ends.push({ at: at(r.back.at), toward: i, cls: "route" });
   }
-  // separate: every value of the route readable (owner, board M38): the renderer keeps them apart from each other and
-  // from the hop numbers.
-  return { hops, ends, glyphs: [], nodes: new Set(scene.nodes.map((n, k) => k)), band: null, separate: true };
+  return ends;
 }
 
 // SPDX-License-Identifier: MIT

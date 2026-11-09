@@ -84,19 +84,25 @@ export function routeHolders(tables, rows) {
   for (const row of rows) {
     for (const c of [row.there, row.back]) {
       if (!c) continue;
-      const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
-        .map((id) => [id, null]);
-      for (const [id, table] of found) {
-        const key = `${id}|${table}`;
-        if (out.has(key)) continue;
-        const h = tables.holders.get(id);
-        out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
-      }
+      addHolders(out, tables, row, c);
     }
   }
   const list = [...out.values()];
   for (const x of list) x.both = list.filter((y) => y.id === x.id && y.table).length > 1;
   return list;
+}
+
+/** Add the tables cell `c` of `row` comes from to `out` (by "id|table"), each once: its holder's table, else each
+ *  end of the hop that has no tables in the cache (table null). */
+function addHolders(out, tables, row, c) {
+  const found = c.holder ? [[c.holder, c.table]] : [row.from, row.to].filter((id) => !tables.holders.has(id))
+    .map((id) => [id, null]);
+  for (const [id, table] of found) {
+    const key = `${id}|${table}`;
+    if (out.has(key)) continue;
+    const h = tables.holders.get(id);
+    out.set(key, { id, table, times: h && table ? h.times[table] : null, both: false });
+  }
 }
 
 /** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" ("before 15:09 yesterday") where
@@ -183,20 +189,52 @@ function routeCard(ctx, d, name) {
   if (!r) return null;
   const now = ctx.now ?? Date.now();
   const tables = network.routing.tables;
-  const reason = (code) => t(`route.reason.${code}`);
-  const value = (c) => {
-    if (!c || (c.lqi === null && c.rssi === null)) return "?";
-    const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
-    return `${rssi} · LQI ${c.lqi ?? "?"}`;
-  };
+  const rows = routeRows(tables, r, now);
+  const table = routeTable(rows, name, t);
+  const summary = routeSummary(r, t);
+  const lines = routeLines(r, name, t);
+  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
+  const wt = weakest(r.there, r.there.weakest);
+  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
+  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${hopValue(x)})` : "?");
+  const holders = routeHolders(tables, rows);
+  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
+  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
+  return card(t("details.route_title", { name: name(r.to) }),
+    summary ? h("p", { class: "muted small", text: summary }) : null,
+    ...lines.map((text) => h("p", { class: "muted small", text })),
+    table,
+    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
+    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
+    sourceLine(tables, holders, name, t, now),
+    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+}
+
+/** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null
+ *  where the way there is incomplete. */
+function routeSummary(r, t) {
+  const hopCount = r.there.hops.length;
+  return !r.there.complete ? null : r.there.cost === null ? t("details.route_unknown_cost")
+    : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
+}
+
+/** What a hop's receiver hears as one cell text: "−75 dBm · LQI 3", "– dBm" without RSSI, "?" without either. */
+function hopValue(c) {
+  if (!c || (c.lqi === null && c.rssi === null)) return "?";
+  const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
+  return `${rssi} · LQI ${c.lqi ?? "?"}`;
+}
+
+/** The route card's hop table (routeRows): number, hop, there and back with the weakest and old values marked, a
+ *  derived hop tagged and the source table below each value, and the cost; null without rows. */
+function routeTable(rows, name, t) {
   const sourceText = (c) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
     { name: name(c.holder) }) : "");
-  const rows = routeRows(tables, r, now);
   const td = (c, weak, derived) => h("td", { class: [weak ? "weak" : "", c && c.old ? "warn-text" : ""].filter(Boolean).join(" ") },
-    h("span", { class: "nowrap", text: value(c) }),
+    h("span", { class: "nowrap", text: hopValue(c) }),
     derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
     c && c.holder ? h("div", { class: "muted small", text: sourceText(c) }) : null);
-  const table = rows.length ? h("table", { class: "route-table" },
+  return rows.length ? h("table", { class: "route-table" },
     h("tr", {}, ...["#", t("details.route_head_hop"), t("details.route_head_there"), t("details.route_head_back"),
       t("details.route_head_cost")].map((text) => h("th", { text }))),
     ...rows.map((row) => h("tr", {},
@@ -206,10 +244,12 @@ function routeCard(ctx, d, name) {
       td(row.back, row.weakBack, row.backDerived),
       h("td", {}, typeof row.cost === "number" ? String(row.cost) : "?",
         row.child ? h("div", { class: "muted small", text: t("route.cost_child") }) : null)))) : null;
+}
+
+/** The route card's lines: the way there and back by name, and where and why a way stops. */
+function routeLines(r, name, t) {
+  const reason = (code) => t(`route.reason.${code}`);
   const way = (hops) => hops.length ? [hops[0].from, ...hops.map((x) => x.to)].map(name).join(" → ") : "";
-  const hopCount = r.there.hops.length;
-  const summary = !r.there.complete ? null : r.there.cost === null ? t("details.route_unknown_cost")
-    : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
   const lines = [];
   if (r.there.hops.length) lines.push(t("details.route_there", { list: way(r.there.hops) }));
   if (r.back && r.back.hops.length) lines.push(t("details.route_back", { list: way(r.back.hops) }));
@@ -219,11 +259,12 @@ function routeCard(ctx, d, name) {
   } else if (r.back && !r.back.complete && r.back.reason !== "there_incomplete") {
     lines.push(t("details.route_stops", { name: name(r.back.at), reason: reason(r.back.reason) }));
   }
-  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
-  const wt = weakest(r.there, r.there.weakest);
-  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
-  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${value(x)})` : "?");
-  const holders = routeHolders(tables, rows);
+  return lines;
+}
+
+/** The route card's source line: one span per table the values come from (routeHolders) with when the Matter server
+ *  read it, amber where it may be old, and a tooltip; null without tables. */
+function sourceLine(tables, holders, name, t, now) {
   const holderName = (x) => (x.both ? `${name(x.id)} (${t(`details.route_table_${x.table}`)})` : name(x.id));
   const minutes = Math.round((tables.observeMs ?? 600000) / 60000);
   const checked = tables.readAt === null ? "?" : t.when(tables.readAt);
@@ -237,15 +278,6 @@ function routeCard(ctx, d, name) {
     return h("span", { class: mayBeOld(x.times, now) ? "warn-text" : "", title: tip,
       text: `${holderName(x)} ${readText(x.times, now, t)}` });
   };
-  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
-  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
-  return card(t("details.route_title", { name: name(r.to) }),
-    summary ? h("p", { class: "muted small", text: summary }) : null,
-    ...lines.map((text) => h("p", { class: "muted small", text })),
-    table,
-    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
-    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
-    holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
-      ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null,
-    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+  return holders.length ? h("p", { class: "small muted" }, t("details.route_source"),
+    ...holders.flatMap((x, k) => [k ? " · " : " ", holderSpan(x)])) : null;
 }
