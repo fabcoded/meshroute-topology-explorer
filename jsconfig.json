@@ -1,0 +1,16 @@
+{
+  "//": "Type check only (quality plan S8, report only): npx -p typescript@6.0.3 tsc -p jsconfig.json. Nothing is emitted or built.",
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["custom_components/meshroute_topology_explorer/frontend/**/*.js"],
+  "exclude": ["custom_components/meshroute_topology_explorer/frontend/dist"]
+}

@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: MIT
-# Quality report (plan S6/S6b, report only): per pull request a summary and a JSON artifact; weekly a trend line in the
+# Quality report (plan S6/S6b/S8/S9, report only: coverage, duplication, complexity, types, licences, spelling,
+# dead code): per pull request a summary and a JSON artifact; weekly a trend line in the
 # branch `quality` (quality.jsonl plus quality/index.md, never in main). Locally: python3 tools/quality.py.
 # Actions are pinned to commit SHAs like ci.yml; the measuring tools are pinned in requirements-dev.txt, package-lock.json
-# and tools/quality.py (jscpd). Ruff is pinned here to the version of .pre-commit-config.yaml.
+# requirements-quality.txt (pyright, typos, pip-licenses) and tools/quality.py (npx pins: jscpd, tsc, knip, licence
+# checker). Ruff is pinned here to the version of .pre-commit-config.yaml.
 name: quality
 on:
   pull_request:
@@ -27,7 +29,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: "22"
-      - run: python3 -m pip install -r requirements-dev.txt ruff==0.17.0
+      - run: python3 -m pip install -r requirements-dev.txt -r requirements-quality.txt ruff==0.17.0
       - run: npm ci --ignore-scripts
       - name: Measure against the PR base
         env:
@@ -54,7 +56,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: "22"
-      - run: python3 -m pip install -r requirements-dev.txt ruff==0.17.0
+      - run: python3 -m pip install -r requirements-dev.txt -r requirements-quality.txt ruff==0.17.0
       - run: npm ci --ignore-scripts
       - name: Measure main (timing check.py)
         run: |

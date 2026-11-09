@@ -51,7 +51,7 @@ stays calm, and raw values, tables and scans are one click away.
 
 ## Code
 
-- English in code, comments and docs. Plain ES modules (no TypeScript, no decorators). The integration uses only what
+- English in code, comments and docs. Plain ES modules (no TypeScript sources, no decorators; `tsc` only type-checks them, `jsconfig.json`, nothing is built). The integration uses only what
   Home Assistant ships; Python tools and unit tests (`tests/`) use the standard library only; the one exception is `tests_ha/`, which
   runs pytest against a real Home Assistant (owner decision 2026-11-06, quality plan L2) and is never part of `tests/`. Development linters, hooks and the bundler are
   pinned in `package-lock.json` and `.pre-commit-config.yaml` and never shipped.

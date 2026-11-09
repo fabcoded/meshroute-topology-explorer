@@ -133,7 +133,7 @@ Removal: delete the integration under Settings > Devices & services, then remove
 
 Bug reports with a capture of the network are the easiest to reproduce: what to include is in
 [CONTRIBUTING.md](CONTRIBUTING.md#bug-reports), the capture tool below. Contributions from people and AI agents are
-welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md). Behaviour: [docs/spec.md](docs/spec.md).
+welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md). Behaviour: [docs/spec.md](docs/spec.md). Tests and quality measures: [docs/quality.md](docs/quality.md).
 Security issues: [SECURITY.md](SECURITY.md).
 
 ### Capturing your network for a bug report

@@ -23,3 +23,12 @@ asyncio_mode = "auto"
 # HA 2026.11 aliases httpx to httpx2 on import and fails if httpx came first; respx's plugin imports httpx and
 # entry-point order varies by machine (CI failed, local passed). The tests do not use respx.
 addopts = "-p no:respx"
+
+# Type checking (quality plan S8, report only): pyright, basic mode, run by tools/quality.py. Home Assistant is not
+# installed in the quality environment, so its imports are unresolved by design and are not counted.
+[tool.pyright]
+include = ["custom_components", "tools"]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
+reportMissingImports = "none"
+reportMissingModuleSource = "none"
