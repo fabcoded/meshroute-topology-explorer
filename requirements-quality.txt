@@ -1,0 +1,4 @@
+# Quality measuring tools (tools/quality.py, quality.yml); development only, not in check.py.
+pyright==1.1.414
+typos==1.51.1
+pip-licenses==5.5.5

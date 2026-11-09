@@ -1,0 +1,14 @@
+// Dead code (quality plan S9, report only): npx knip@6.44.2, run by tools/quality.py.
+// Entries: the panel, the dev page script, the tools and the tests. The bundle and fixtures are generated or data.
+// Exports that only tests import still count as used (tests are entries); see docs/quality.md.
+{
+  "entry": [
+    "custom_components/meshroute_topology_explorer/frontend/panel.js",
+    "dev/panel-demo.js",
+    "tools/*.mjs",
+    "tests/**/*.{mjs,js}"
+  ],
+  "project": ["custom_components/meshroute_topology_explorer/frontend/**/*.js", "dev/**/*.js", "tools/**/*.mjs", "tests/**/*.mjs"],
+  "ignore": ["custom_components/meshroute_topology_explorer/frontend/dist/**", "tests/fixtures/**"],
+  "rules": {"dependencies": "off", "devDependencies": "off", "unlisted": "off", "binaries": "off"}
+}

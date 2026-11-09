@@ -36,6 +36,7 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 | `python3 -m pytest tests_ha` | L2, in its own environment: the integration inside a real Home Assistant test instance, plus a zigpy contract test. Setup below |
 | `npm test` | JavaScript: the regular suite (`tests/**/*.test.mjs`, concurrent), then the CPU budgets alone (`tests/**/*.budget.mjs`, concurrency 1) |
 | `node --test tests/<name>.test.mjs` | One JavaScript test file |
+| `typos` | Spelling over code, docs and UI text (`_typos.toml`); installed from `requirements-quality.txt`, run by `tools/quality.py` and CI, not by `check.py` |
 
 - `tools/guard.py` enforces the ground rules: allowed Home Assistant commands, no outside URLs or HTML sinks in
   shipped files, SPDX lines.
@@ -47,7 +48,7 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 - `python3 tools/screenshots.py` regenerates `docs/images/*.png` from the dev page (needs Pillow from `requirements-dev.txt` and a Chromium; `--chrome PATH` overrides the Playwright cache).
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.
 - Versions are locked in `package-lock.json` and `.pre-commit-config.yaml`; Dependabot proposes updates monthly.
-- Quality report: CI posts coverage, duplication and complexity per pull request (a gate on new code, report only for now) and a weekly trend in the branch `quality`. Locally: `python3 tools/quality.py --base origin/main` (needs `npm ci`, coverage.py and Ruff).
+- Quality report: CI posts coverage, duplication, complexity, type findings, licences, spelling and dead code per pull request (a gate on new code, report only for now) and a weekly trend in the branch `quality`; what each layer and measure covers: [docs/quality.md](docs/quality.md). Locally: `python3 tools/quality.py --base origin/main` (needs `npm ci`, coverage.py, Ruff and `pip install -r requirements-quality.txt`); `typos` alone checks spelling.
 - Hassfest and, once the repository is public, HACS validation run only in CI.
 
 ## Tests against a real Home Assistant (tests_ha)

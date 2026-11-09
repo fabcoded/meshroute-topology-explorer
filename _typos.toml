@@ -1,0 +1,28 @@
+# Spelling (quality plan S9, report only): typos over code, docs and UI text. Run: typos (config picked up from here).
+[files]
+extend-exclude = [
+  "tests/fixtures/**",
+  "captures/**",
+  "**/frontend/dist/**",
+  "package-lock.json",
+  "docs/images/**",
+  "**/vendor/**",
+  "NOTICE",
+  "LICENSE",
+]
+
+[default]
+# Hex ids, EUI-64 and IEEE addresses in tests and docs are not words.
+extend-ignore-re = ["\\b[0-9a-fA-F]{8,}\\b", "PNGs"]
+
+[default.extend-words]
+# `hass` is Home Assistant's own object name (hass.callWS), not a typo of "hash".
+hass = "hass"
+Hass = "Hass"
+# Field and domain names: `ba` is the reverse direction of a pair (ab/ba), `ot` OpenThread, `nd` neighbour data,
+# `vermillion` the common spelling of the Okabe-Ito colour.
+ba = "ba"
+nd = "nd"
+ot = "ot"
+OT = "OT"
+vermillion = "vermillion"
