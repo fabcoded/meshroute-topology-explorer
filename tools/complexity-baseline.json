@@ -83,9 +83,8 @@
    "quadtreeForce": 27
   },
   "custom_components/meshroute_topology_explorer/frontend/graph/renderer.js": {
-   "drawScene": 156,
-   "drawScene>label": 22,
-   "drawScene>value": 18
+   "drawScene": 134,
+   "drawScene>label": 22
   },
   "custom_components/meshroute_topology_explorer/frontend/graph/symbols.js": {
    "parsePath": 22

@@ -342,6 +342,57 @@ export function typeShown(k, typeZoom) {
 
 const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(",")}|${style.head}`;
 /** Weakest class first, then grouped by style, so the dash pattern changes once per group. */
+/** The lane style of a focus hop (drawScene): grey where the engine mutes it, wider where it is the weakest of its
+ *  way. */
+function focusLaneStyle(hop, state, theme, colored) {
+  const base = laneStyle(hop.stroke, hop.dir.rating, theme, { colored, state: hop.muted ? "unknown" : state,
+    weight: hop.weight });
+  return hop.weak ? { ...base, width: base.width + 1.5 } : base;
+}
+
+/** The value of a focus hop (drawScene): the engine's own text (hop.text), else the lane's value, which debug mode
+ *  follows with the hearer's name where it was measured. */
+function focusText(hop, state, engine, texts, debug, hearer) {
+  let text = hop.text ?? engine.laneValue(hop.dir, texts);
+  if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${hearer.label}`;
+  return text;
+}
+
+/** The outline of a focus hop's pill (drawScene): the scale's bad colour, twice as wide, where the hop is the weakest
+ *  of its way; else the lane's colour. */
+function focusPillLine(hop, style, theme) {
+  const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
+  return { color: weakColor || style.color, line: weakColor ? 2 : 1 };
+}
+
+/** Hop numbers sit near the sender's end, outside the lane (the value pill sits near the hearer's); drawScene draws
+ *  them after the values, so no pill covers them. Adds each number's box to the label obstacles and, a little
+ *  larger, to numberRects, which separate values keep clear of; returns the numbers' centres and texts. */
+function placeHopNumbers(numbers, obstacles, numberRects) {
+  const hopNumbers = [];
+  for (const { lane, n: number } of numbers) {
+    const d = Math.min(lane.len * 0.3, 28);
+    hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
+  }
+  for (const b of hopNumbers) {
+    obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
+    numberRects.push({ x: b.x - 8, y: b.y - 8, w: 16, h: 16 });
+  }
+  return hopNumbers;
+}
+
+/** Draw the hop numbers: the number in the background colour on an accent disc. */
+function drawHopNumbers(ctx, hopNumbers, theme) {
+  for (const b of hopNumbers) {
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 7, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = theme.background;
+    ctx.fillText(b.text, b.x, b.y + 0.5);
+  }
+}
+
 const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0);
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
@@ -562,31 +613,18 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const base = laneStyle(hop.stroke, dir.rating, theme, { colored, state: hop.muted ? "unknown" : state,
-        weight: hop.weight });
-      const style = hop.weak ? { ...base, width: base.width + 1.5 } : base;
+      const style = focusLaneStyle(hop, state, theme, colored);
       items.push({ lane, style, key: styleKey(style), rank: hop.rank });
       count(hop);
-      let text = hop.text ?? engine.laneValue(dir, texts);
-      if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${scene.nodes[h].label}`;
-      const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
+      const text = focusText(hop, state, engine, texts, debug, scene.nodes[h]);
       const t = addValue(lane, text, { path: !hop.context, context: Boolean(hop.context), alpha: 1,
-        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h], separate: Boolean(route.separate) });
+        ...focusPillLine(hop, style, theme), pair: [s, h], separate: Boolean(route.separate) });
       if (hop.number) numbers.push({ lane, n: hop.number });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
-    // Hop numbers sit near the sender's end, outside the lane (the value pill sits near the hearer's); drawn after the
-    // values, so no pill covers them.
-    for (const { lane, n: number } of numbers) {
-      const d = Math.min(lane.len * 0.3, 28);
-      hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
-    }
-    for (const b of hopNumbers) {
-      obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
-      numberRects.push({ x: b.x - 8, y: b.y - 8, w: 16, h: 16 });
-    }
+    hopNumbers.push(...placeHopNumbers(numbers, obstacles, numberRects));
     const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
@@ -720,6 +758,16 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     }
     return sum;
   };
+  // Last resort of separate values (value() below): still on another value or a hop number, so stack it against the
+  // other direction's pill of the same hop, above, below or beside it, which keeps the two readable as one pair.
+  const besidePartner = (t, consider) => {
+    const partner = valueRects.find((v) => v.t.pair && v.t.pair[0] === t.pair[1] && v.t.pair[1] === t.pair[0]);
+    if (!partner) return;
+    const p = partner.t;
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      if (consider(p.x + dx * (p.w / 2 + t.w / 2 + 5), p.y + dy * (p.h / 2 + t.h / 2 + 5))) break;
+    }
+  };
   const value = (t) => {
     let rect = null;
     // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
@@ -756,16 +804,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       t.y = y;
       break;
     }
-    // Last resort of separate values: still on another value or a hop number, so stack it against the other
-    // direction's pill of the same hop, above, below or beside it, which keeps the two readable as one pair.
-    const partner = t.path && t.separate && least >= 1000 && t.pair
-      ? valueRects.find((v) => v.t.pair && v.t.pair[0] === t.pair[1] && v.t.pair[1] === t.pair[0]) : null;
-    if (partner) {
-      const p = partner.t;
-      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-        if (consider(p.x + dx * (p.w / 2 + t.w / 2 + 5), p.y + dy * (p.h / 2 + t.h / 2 + 5))) break;
-      }
-    }
+    if (t.path && t.separate && least >= 1000 && t.pair) besidePartner(t, consider);
     if (!rect) return false;
     placed.add(rect);
     if (t.path) valueRects.push({ rect, t });
@@ -803,14 +842,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
-  for (const b of hopNumbers) {
-    ctx.fillStyle = theme.accent;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 7, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.fillStyle = theme.background;
-    ctx.fillText(b.text, b.x, b.y + 0.5);
-  }
+  drawHopNumbers(ctx, hopNumbers, theme);
   for (const e of ends) endText(e);
   // A device on the focus's paths is always labelled (Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
