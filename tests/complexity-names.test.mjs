@@ -6,7 +6,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Linter } from "eslint";
 import sonarjs from "eslint-plugin-sonarjs";
-import { names } from "../tools/complexity.mjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { collect, createEslint, names } from "../tools/complexity.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Names and sonarjs reports of `code` as { "line:column": name } and ["line:column"]; threshold 0 reports every
  *  function with any complexity. */
@@ -68,3 +72,22 @@ test("names do not depend on lines: moving code down keeps every name", () => {
   const b = Object.values(lint(`\n\n// moved\n${SAMPLE.replace("if (a) return 1;", "if (a) {\n    return 1;\n  }")}`).named);
   assert.deepEqual(b, a);
 });
+
+// Review rev-s10 F1: an inline directive hid a function from the ratchet. Inline configuration is off, so neither a
+// whole-file disable nor one aimed at sonarjs exempts a function above 15.
+const COMPLEX = `export function tangled(a, b, c) {
+  for (const x of a) { if (x) { for (const y of b) { if (y && c) { if (x > y) { while (c) { if (b || a) c--; } } } } } }
+}
+`;
+
+for (const [what, code] of [
+  ["a whole-file eslint-disable", `/* eslint-disable */\n${COMPLEX}`],
+  ["eslint-disable-next-line for sonarjs", `// eslint-disable-next-line sonarjs/cognitive-complexity\n${COMPLEX}`],
+  ["no directive", COMPLEX],
+]) {
+  test(`the ratchet scores a function above 15 with ${what}`, async () => {
+    const eslint = await createEslint();
+    const found = collect(await eslint.lintText(code, { filePath: path.join(ROOT, "tools/inline-config-probe.mjs") }));
+    assert.deepEqual(found.map(({ name, score }) => [name, score > 15]), [["tangled", true]]);
+  });
+}

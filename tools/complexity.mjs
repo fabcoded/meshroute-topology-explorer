@@ -95,16 +95,22 @@ export const names = {
   },
 };
 
-/** Lint the files (or the repository) and return [{ file, name, line, score }] sorted by file and line. A score
- *  without a name stops the run: the join must never drop a function silently. */
-export async function measure(files) {
+/** The ESLint of the ratchet: the quality config plus the naming rule. Inline configuration is off (review rev-s10
+ *  F1): an `eslint-disable` comment, whole-file or for sonarjs alone, must not exempt a function. */
+export async function createEslint() {
   const { ESLint } = await import("eslint");
-  const eslint = new ESLint({
+  return new ESLint({
     cwd: ROOT, overrideConfigFile: path.join(ROOT, "eslint.quality.config.mjs"), warnIgnored: false, cache: false,
+    allowInlineConfig: false,
     overrideConfig: { plugins: { complexity: { rules: { names } } }, rules: { "complexity/names": "warn" } },
   });
+}
+
+/** ESLint results as [{ file, name, line, score }] sorted by file and line. A score without a name stops the run: the
+ *  join must never drop a function silently. */
+export function collect(results) {
   const out = [];
-  for (const result of await eslint.lintFiles(files.length ? files : ["."])) {
+  for (const result of results) {
     const file = path.relative(ROOT, result.filePath).split(path.sep).join("/");
     const fatal = result.messages.find((m) => m.fatal);
     if (fatal) throw new Error(`${file}:${fatal.line}: ${fatal.message}`);
@@ -121,6 +127,11 @@ export async function measure(files) {
     }
   }
   return out.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line));
+}
+
+/** Lint the files (or the repository) and return what collect() makes of it. */
+export async function measure(files) {
+  return collect(await (await createEslint()).lintFiles(files.length ? files : ["."]));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

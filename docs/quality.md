@@ -50,7 +50,7 @@ tested directly.
   a function above 15 is not listed in `tools/complexity-baseline.json`, when a listed one rises, and when the list
   is stale (a listed function fell or is gone): `python3 tools/complexity.py --update` lowers and drops entries, never
   adds one. 15 means cognitive complexity for JavaScript (ESLint `sonarjs`) and McCabe complexity for Python (Ruff
-  C901; `noqa` does not exempt). Functions are keyed by file and qualified name (`Class.method`, `outer>inner`,
+  C901); neither `noqa` nor `eslint-disable` exempts a function. Functions are keyed by file and qualified name (`Class.method`, `outer>inner`,
   callbacks by their call, such as `test("title")`), so moved lines keep the key; a renamed function or file
   reads as new plus stale: rename its key in the same commit.
 - **Reports only, with a PASS or FAIL line on new code:** coverage of changed lines (at least 80 %, from 20 changed

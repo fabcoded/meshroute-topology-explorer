@@ -147,9 +147,13 @@ def duplication(tmp, changed):
 
 
 def eslint_complexity():
-    """Return (cognitive-complexity findings above 15, [(file, line)]) from the measurement-only ESLint config."""
-    out = tool_json(["node", "node_modules/eslint/bin/eslint.js", "-c", "eslint.quality.config.mjs", ".", "-f", "json"])
-    hits = [(str(Path(f["filePath"]).relative_to(ROOT)), m["line"]) for f in out for m in f["messages"]]
+    """Return (cognitive-complexity findings above 15, [(file, line)]) from the measurement-only ESLint config.
+    --no-inline-config: an eslint-disable comment must not hide a function (review rev-s10 F1); ESLint then warns about
+    such comments, which are not counted here."""
+    out = tool_json(["node", "node_modules/eslint/bin/eslint.js", "-c", "eslint.quality.config.mjs", "--no-inline-config",
+                     ".", "-f", "json"])
+    hits = [(str(Path(f["filePath"]).relative_to(ROOT)), m["line"]) for f in out for m in f["messages"]
+            if m.get("ruleId") == "sonarjs/cognitive-complexity"]
     return len(hits), hits
 
 
