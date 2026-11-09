@@ -8,4 +8,4 @@ home-assistant-frontend==20261028.4
 zigpy==2.4.1
 matter-python-client==1.5.5
 # The hassio manifest's pin: HA's Matter integration imports it (matter/__init__.py), pytest-homeassistant only has it as an extra.
-aiohasupervisor==0.8.1
+aiohasupervisor==0.10.0

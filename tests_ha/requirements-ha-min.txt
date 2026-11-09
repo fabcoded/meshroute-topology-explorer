@@ -4,6 +4,6 @@
 # matter manifests require.
 # Never install together with ../requirements-ha-latest.txt.
 pytest-homeassistant-custom-component==0.13.375
-home-assistant-frontend==20260930.5
-zigpy==2.3.0
-matter-python-client==1.4.0
+home-assistant-frontend==20261028.4
+zigpy==2.4.1
+matter-python-client==1.5.5
