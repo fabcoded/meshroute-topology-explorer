@@ -29,7 +29,8 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 
 | Command | Checks |
 |---|---|
-| `pre-commit run --all-files` | Ruff, ESLint, `tools/guard.py`, bundle freshness, JSON/YAML/TOML, merge markers, keys, large files |
+| `pre-commit run --all-files` | Ruff, ESLint, complexity ratchet, `tools/guard.py`, bundle freshness, JSON/YAML/TOML, merge markers, keys, large files |
+| `python3 tools/complexity.py [--update]` | No new function above complexity 15, no listed one rising (`tools/complexity-baseline.json`); `--update` after making a listed one simpler ([docs/quality.md](docs/quality.md#gates)) |
 | `npm run bundle` | Rebuilds `frontend/dist/panel.js`, the one file Home Assistant serves, from the sources (Rollup, `tools/bundle.mjs`); commit it with every frontend change |
 | `python3 -m unittest discover -s tests` | Python: integration setup, websocket API, zigpy routes, capture, guard |
 | `MESHROUTE_UPDATE_GOLDENS=1 python3 -m unittest discover -s tests` | Rewrites the golden files in `tests/fixtures/golden/` (Python output that the JavaScript tests read too); review the diff |
@@ -48,7 +49,7 @@ Chrome; skipped with one line if none is found; CI runs it in a separate job). S
 - `python3 tools/screenshots.py` regenerates `docs/images/*.png` from the dev page (needs Pillow from `requirements-dev.txt` and a Chromium; `--chrome PATH` overrides the Playwright cache).
 - `npm run lint` runs only the ESLint in `node_modules`; without it, it asks for `npm ci`.
 - Versions are locked in `package-lock.json` and `.pre-commit-config.yaml`; Dependabot proposes updates monthly.
-- Quality report: CI posts coverage, duplication, complexity, type findings, licences, spelling and dead code per pull request (a gate on new code, report only for now) and a weekly trend in the branch `quality`; what each layer and measure covers: [docs/quality.md](docs/quality.md). Locally: `python3 tools/quality.py --base origin/main` (needs `npm ci`, coverage.py, Ruff and `pip install -r requirements-quality.txt`); `typos` alone checks spelling.
+- Quality report: CI posts coverage, duplication, complexity, type findings, licences, spelling and dead code per pull request (a gate on new code; the complexity line blocks in `check.py`, the rest report only) and a weekly trend in the branch `quality`; what each layer and measure covers: [docs/quality.md](docs/quality.md). Locally: `python3 tools/quality.py --base origin/main` (needs `npm ci`, coverage.py, Ruff and `pip install -r requirements-quality.txt`); `typos` alone checks spelling.
 - Hassfest and, once the repository is public, HACS validation run only in CI.
 
 ## Tests against a real Home Assistant (tests_ha)

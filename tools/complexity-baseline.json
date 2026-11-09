@@ -1,0 +1,164 @@
+{
+ "about": "Functions above complexity 15 when the gate started blocking (2026-11-09). Scores may only fall; tools/complexity.py --update lowers and drops entries, new code never goes here.",
+ "js": {
+  "custom_components/meshroute_topology_explorer/frontend/engines/history-records.js": {
+   "decodeRecords": 69
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js": {
+   "fromMatter": 75
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/thread/kinds.js": {
+   "entitiesByDevice": 19
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/thread/quality.js": {
+   "nodeQualityFindings": 22
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/findings.js": {
+   "computeFindings": 55
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/from-zha.js": {
+   "applyCapacity": 23,
+   "indexRegistries": 21,
+   "normalize": 80
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/history.js": {
+   "liveContext": 19,
+   "prepare": 23,
+   "rebuildNetwork": 19
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/lanes.js": {
+   "classifyLanes": 17
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/node-paths.js": {
+   "nodePaths": 24
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/pairs.js": {
+   "computePairs": 16
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/paths.js": {
+   "tableWalk": 32
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ratings.js": {
+   "applyRatings": 26
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/scene.js": {
+   "scenePaths": 59,
+   "sceneRead": 16
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/source-routes.js": {
+   "zigpyRecords": 17
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/status.js": {
+   "sourceRoutePart": 21
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/theoretical.js": {
+   "lookups": 20,
+   "theoreticalPath": 56
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/attribute-read.js": {
+   "readAttributes": 25
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/cluster-dialog.js": {
+   "openClusterDialog": 16
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details-tab.js": {
+   "clusters": 21,
+   "communication": 32,
+   "entity": 27
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/details.js": {
+   "pathParts": 24
+  },
+  "custom_components/meshroute_topology_explorer/frontend/engines/zigbee/ui/entity-values.js": {
+   "knownValue": 16
+  },
+  "custom_components/meshroute_topology_explorer/frontend/graph/graph-view.js": {
+   "GraphView._onFrame": 18,
+   "GraphView._scales": 19
+  },
+  "custom_components/meshroute_topology_explorer/frontend/graph/layout.js": {
+   "Layout.step": 25
+  },
+  "custom_components/meshroute_topology_explorer/frontend/graph/quadtree.js": {
+   "quadtreeForce": 27
+  },
+  "custom_components/meshroute_topology_explorer/frontend/graph/renderer.js": {
+   "drawScene": 134,
+   "drawScene>label": 22
+  },
+  "custom_components/meshroute_topology_explorer/frontend/graph/symbols.js": {
+   "parsePath": 22
+  },
+  "custom_components/meshroute_topology_explorer/frontend/panel.js": {
+   "MeshrouteTopologyExplorer._renderTabs": 18
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/dom.js": {
+   "h": 22
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/findings-tab.js": {
+   "renderFindings": 23
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/history-lane.js": {
+   "chart": 32
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/history-route-view.js": {
+   "drawRoute": 52
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/history-route.js": {
+   "columnOrder": 31,
+   "routeAt": 17
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/history-timeline.js": {
+   "renderTimeline": 41
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/history-window.js": {
+   "openHistoryWindow>renderTab": 23
+  },
+  "custom_components/meshroute_topology_explorer/frontend/ui/view-tab.js": {
+   "renderView": 22
+  },
+  "dev/panel-demo.js": {
+   "callWS": 37,
+   "drive": 43,
+   "replay": 31
+  },
+  "tests/engine-leaks.test.mjs": {
+   "test(\"13: every text key of the Thread engine resolves without the Zigbee table\")": 30,
+   "withoutComments": 24
+  },
+  "tests/graph-contract.test.mjs": {
+   "test(\"no value covers the label of the selected device, its lanes and values stay\")": 35,
+   "test(\"on click and hover the selection's own tree decides each hop's class: computed where only a discovery takes it\")": 16
+  },
+  "tests/model-node-paths.test.mjs": {
+   "test(\"all paths on the sample: out to and in from every other available device, per kind complete or unknown\")": 17
+  },
+  "tests/model-path-history.test.mjs": {
+   "test(\"weakest hop only on routes of at least 2 hops, in walks and in spans\")": 33
+  },
+  "tests/panel-network.test.mjs": {
+   "fakeHass>callWS": 20
+  },
+  "tests/panel-status-raw.test.mjs": {
+   "test(\"every raw value of the sample has words\")": 23
+  },
+  "tests/synthetic-network.mjs": {
+   "syntheticNetwork": 19
+  },
+  "tools/history_synth.mjs": {
+   "between": 16,
+   "snapshotOfRaw": 31
+  }
+ },
+ "python": {
+  "tests/ha_stubs.py": {
+   "install": 16
+  },
+  "tools/guard.py": {
+   "check": 16
+  },
+  "tools/structure_compare.py": {
+   "tokenize": 34
+  }
+ }
+}

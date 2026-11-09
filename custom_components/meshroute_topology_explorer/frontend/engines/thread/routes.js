@@ -79,40 +79,9 @@ export function readTables(network, answer) {
   for (const node of Array.isArray(answer && answer.nodes) ? answer.nodes : []) {
     const device = byNode.get(node && node.node_id);
     if (!device) continue;
-    const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
-    const holder = { id: device.id, role, available: node.available !== false && device.available !== false,
-      routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
-      times: { neighbours: interval(node.times && node.times.neighbor_table),
-        routes: interval(node.times && node.times.route_table) } };
-    if (Array.isArray(node.route_table)) {
-      holder.routes = new Map();
-      // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
-      // entry shaped like an own entry (NextHop 63, PathCost 0, no link) - an unreachable router looks the same.
-      const ownExt = extAddress(node.ext_address) || device.extAddress;
-      const shaped = (e) => e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false;
-      const candidates = node.route_table.filter((e) => e && shaped(e));
-      for (const e of node.route_table) {
-        const id = extAddress(e && e.extAddress);
-        const routerId = int(e && e.routerId);
-        if (!id || routerId === null) continue;
-        const own = role === "router" && (ownExt ? id === ownExt : candidates.length === 1 && candidates[0] === e);
-        if (own) { holder.routerId = routerId; continue; }
-        holder.routes.set(id, { routerId, nextHop: int(e.nextHop), pathCost: int(e.pathCost), lqiIn: int(e.LQIIn),
-          lqiOut: int(e.LQIOut), linked: e.linkEstablished === true });
-        if (e.allocated !== false) {
-          claim(routerId, id);
-          const known = holder.byRouterId.get(routerId);
-          holder.byRouterId.set(routerId, known === undefined || known === id ? id : null);
-        }
-      }
-    }
-    if (Array.isArray(node.neighbor_table)) {
-      holder.neighbours = new Map();
-      for (const n of node.neighbor_table) {
-        const id = extAddress(n && n.extAddress);
-        if (id) holder.neighbours.set(id, { lqi: int(n.lqi), rssi: entryRssi(n), child: n.isChild === true });
-      }
-    }
+    const holder = newHolder(node, device);
+    if (Array.isArray(node.route_table)) readRouteTable(holder, node, device, claim);
+    if (Array.isArray(node.neighbor_table)) holder.neighbours = neighbourMap(node.neighbor_table);
     holders.set(device.id, holder);
   }
   for (const h of holders.values()) claim(h.routerId, h.id);
@@ -120,6 +89,56 @@ export function readTables(network, answer) {
   const seconds = (v) => (typeof v === "number" && Number.isFinite(v) ? v * 1000 : null);
   return { holders, idOfRouter, conflicts, readAt: seconds(answer && answer.read_at),
     observeMs: seconds(answer && answer.observe_seconds) };
+}
+
+/** A device's entry of readTables before its tables are read: role, availability, RLOC16, the tables' read times. */
+function newHolder(node, device) {
+  const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
+  return { id: device.id, role, available: node.available !== false && device.available !== false,
+    routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
+    times: { neighbours: interval(node.times && node.times.neighbor_table),
+      routes: interval(node.times && node.times.route_table) } };
+}
+
+/** Read the node's route table into the holder: its own entry gives its router ID, every other entry goes to
+ *  holder.routes (addRoute). */
+function readRouteTable(holder, node, device, claim) {
+  holder.routes = new Map();
+  // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
+  // entry shaped like an own entry (NextHop 63, PathCost 0, no link) - an unreachable router looks the same.
+  const ownExt = extAddress(node.ext_address) || device.extAddress;
+  const shaped = (e) => e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false;
+  const candidates = node.route_table.filter((e) => e && shaped(e));
+  for (const e of node.route_table) {
+    const id = extAddress(e && e.extAddress);
+    const routerId = int(e && e.routerId);
+    if (!id || routerId === null) continue;
+    const own = holder.role === "router" && (ownExt ? id === ownExt : candidates.length === 1 && candidates[0] === e);
+    if (own) { holder.routerId = routerId; continue; }
+    addRoute(holder, id, routerId, e, claim);
+  }
+}
+
+/** Store route entry `e` of device `id` in the holder; an allocated entry claims its router ID in the map of all
+ *  tables (claim) and in the holder's own map, null there where two of its entries claim one. */
+function addRoute(holder, id, routerId, e, claim) {
+  holder.routes.set(id, { routerId, nextHop: int(e.nextHop), pathCost: int(e.pathCost), lqiIn: int(e.LQIIn),
+    lqiOut: int(e.LQIOut), linked: e.linkEstablished === true });
+  if (e.allocated !== false) {
+    claim(routerId, id);
+    const known = holder.byRouterId.get(routerId);
+    holder.byRouterId.set(routerId, known === undefined || known === id ? id : null);
+  }
+}
+
+/** A neighbour table by device id: { lqi, rssi, child }. */
+function neighbourMap(table) {
+  const neighbours = new Map();
+  for (const n of table) {
+    const id = extAddress(n && n.extAddress);
+    if (id) neighbours.set(id, { lqi: int(n.lqi), rssi: entryRssi(n), child: n.isChild === true });
+  }
+  return neighbours;
 }
 
 /** A table's read interval from the answer ({ lo, hi } in epoch seconds) in ms: { lo (null: unknown), hi }, or null
@@ -185,6 +204,13 @@ export function nextHop(tables, holder, dest) {
     const link = routerLinkCost(tables, holder, nh);
     if (nh !== holder && nh !== dest) via = { via: nh, cost: e.pathCost + link, link };
   }
+  return choose(dest, via, direct);
+}
+
+/** The choice of nextHop between the way `via` its entry's next hop ({ via, cost, link } or null) and the direct
+ *  link to `dest` (cost `direct`): the next hop only where it is usable and cheaper, the direct link where usable,
+ *  the unchosen usable one as the alternative. */
+function choose(dest, via, direct) {
   const directUsable = direct < MAX_COST;
   const viaUsable = via && via.cost < MAX_COST;
   if (viaUsable && (!directUsable || via.cost < direct)) {
@@ -265,9 +291,18 @@ export function route(tables, network, id, br) {
   const there = { hops: [], complete: false, reason: null, at: id };
   out.there = there;
   if (!device || !tables.holders.size) return { ...out, there: { ...there, reason: "no_tables" }, back: null };
+  const isEnd = device.role === "end device";
+  wayThere(tables, network, out, isEnd);
+  wayBack(tables, network, out, isEnd);
+  return out;
+}
+
+/** The way there of route (fills out.there and out.parent): an end device to its parent first, then each router's
+ *  own decision; an offline device or an unknown parent stops it. */
+function wayThere(tables, network, out, isEnd) {
+  const { from: id, to: br, there } = out;
   const seen = new Set([id]);
   let start = id;
-  const isEnd = device.role === "end device";
   if (offline(tables, network, id)) Object.assign(there, { reason: "offline" });
   else if (isEnd) {
     const parent = parentOf(tables, network, id);
@@ -282,7 +317,12 @@ export function route(tables, network, id, br) {
   if (!there.reason) Object.assign(there, routerWalk(tables, network, start, br, there.hops, seen));
   there.cost = there.complete ? sum(there.hops) : null;
   there.weakest = weakestHop(there.hops);
+}
 
+/** The way back of route (sets out.back): only after a complete way there; the border router's first hop
+ *  (firstHopBack), then the rest (restBack). */
+function wayBack(tables, network, out, isEnd) {
+  const { from: id, to: br, there } = out;
   const back = { hops: [], complete: false, reason: null, at: br };
   out.back = back;
   if (!there.complete || !there.hops.length) {
@@ -290,30 +330,41 @@ export function route(tables, network, id, br) {
   } else {
     const last = there.hops[there.hops.length - 1];
     const target = isEnd ? out.parent.id : id;
-    // The border router's own choice is in its table, which the Matter cache does not hold (#12): its first hop back
-    // is the last hop there mirrored, at the same cost (link costs are symmetric in Thread). Only the choice and the
-    // cost are derived; what the receiver hears is measured where its table was read. Where its table is there, it
-    // decides like any router, and a table without a way stops the route (never mirrored).
-    const own = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
-    if (own && !own.next) Object.assign(back, { reason: own.reason, at: br });
-    else {
-      back.hops.push(own
-        ? hop(tables, br, own.next, own.link, { decided: own.kind, alternative: own.alternative })
-        : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
-    }
-    const reached = back.hops.length ? back.hops[0].to : null; // null: stopped at the border router
-    if (reached === id) Object.assign(back, { complete: true, at: id });
-    else if (reached) {
-      Object.assign(back, routerWalk(tables, network, reached, target, back.hops, new Set([br, reached])));
-      if (back.complete && isEnd) {
-        back.hops.push(hop(tables, target, id, childCost(tables, target, id), { decided: "child" }));
-        back.at = id;
-      }
-    }
+    firstHopBack(tables, out, target, last);
+    restBack(tables, network, out, target, isEnd);
   }
   back.cost = back.complete ? sum(back.hops) : null;
   back.weakest = weakestHop(back.hops);
-  return out;
+}
+
+/** The border router's first hop back to `target` (the device or its parent), from its own table or mirrored. */
+function firstHopBack(tables, out, target, last) {
+  const { to: br, back } = out;
+  // The border router's own choice is in its table, which the Matter cache does not hold (#12): its first hop back
+  // is the last hop there mirrored, at the same cost (link costs are symmetric in Thread). Only the choice and the
+  // cost are derived; what the receiver hears is measured where its table was read. Where its table is there, it
+  // decides like any router, and a table without a way stops the route (never mirrored).
+  const own = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
+  if (own && !own.next) Object.assign(back, { reason: own.reason, at: br });
+  else {
+    back.hops.push(own
+      ? hop(tables, br, own.next, own.link, { decided: own.kind, alternative: own.alternative })
+      : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
+  }
+}
+
+/** The way back after the first hop: each router's own decision to `target`, then a parent's hop to its child. */
+function restBack(tables, network, out, target, isEnd) {
+  const { from: id, to: br, back } = out;
+  const reached = back.hops.length ? back.hops[0].to : null; // null: stopped at the border router
+  if (reached === id) Object.assign(back, { complete: true, at: id });
+  else if (reached) {
+    Object.assign(back, routerWalk(tables, network, reached, target, back.hops, new Set([br, reached])));
+    if (back.complete && isEnd) {
+      back.hops.push(hop(tables, target, id, childCost(tables, target, id), { decided: "child" }));
+      back.at = id;
+    }
+  }
 }
 
 /** Cost of child -> parent as the child counts it, from what it receives of the parent: its route entry's LQI in
