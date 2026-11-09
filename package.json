@@ -16,5 +16,8 @@
     "eslint-plugin-sonarjs": "4.2.2",
     "globals": "17.14.0",
     "rollup": "4.67.5"
+  },
+  "overrides": {
+    "minimatch": "11.0.3"
   }
 }
