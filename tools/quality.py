@@ -26,7 +26,8 @@ TSC = "typescript@6.0.3"  # type check only (jsconfig.json, noEmit); an npx pin 
 KNIP = "knip@6.44.2"  # config: knip.jsonc
 LICENSES = "license-checker-rseidelsohn@5.0.1"
 # Licence allowlist (owner 2026-11-09, S9). SPDX ids after normalising; LGPL-3.0 only for dev tools, always flagged.
-ALLOWED = {"MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Apache-2.0", "Python-2.0", "0BSD"}
+# BlueOak-1.0.0 (minimatch 10+) and MIT-CMU (Pillow) are permissive, OSI-approved licences (owner 2026-11-09).
+ALLOWED = {"MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Apache-2.0", "Python-2.0", "0BSD", "BlueOak-1.0.0", "MIT-CMU"}
 FLAGGED = {"LGPL-3.0-only", "LGPL-3.0-or-later", "LGPL-3.0"}
 PIP_NAMES = {"MIT License": "MIT", "BSD License": "BSD-3-Clause", "Apache Software License": "Apache-2.0",
              "PSF-2.0": "Python-2.0", "Python Software Foundation License": "Python-2.0"}

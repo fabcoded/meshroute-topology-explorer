@@ -29,7 +29,7 @@ Targets are trends unless a gate says otherwise.
 | Duplication | jscpd, 100 tokens and 10 lines | at most 3 % |
 | Cognitive complexity | ESLint `sonarjs`, Ruff C901 | no function above 15; the number falls, never rises |
 | Type checking | pyright (basic mode, `pyproject.toml`) over `custom_components` and `tools`; `tsc` with `checkJs` and `noEmit` over the frontend (`jsconfig.json`; nothing is built or emitted) | the number falls, never rises |
-| Licences | `license-checker-rseidelsohn` (npm) and `pip-licenses`; allowed: MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, Python-2.0, 0BSD; LGPL-3.0 only in development tools and always flagged | no violation |
+| Licences | `license-checker-rseidelsohn` (npm) and `pip-licenses`; allowed: MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, Python-2.0, 0BSD, BlueOak-1.0.0, MIT-CMU; LGPL-3.0 only in development tools and always flagged | no violation |
 | Spelling | `typos` over code, docs and UI text (`_typos.toml`; fixtures, captures and the generated bundle are excluded) | no finding; project words go into the config with a reason |
 | Dead code | `knip` (`knip.jsonc`): unused files and exports in the frontend | the number falls, never rises |
 | Lint | Ruff, ESLint | no finding |
