@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: MIT
-"""Tests for the complexity ratchet in tools/complexity.py: its logic and Ruff's isolated run (skipped without Ruff on
-PATH).  python3 -m unittest discover -s tests"""
+"""Tests for the complexity ratchet in tools/complexity.py: its logic, main() on a temporary tree with the measuring
+patched, and Ruff's isolated run (skipped without Ruff on PATH).  python3 -m unittest discover -s tests"""
 
 import contextlib
+import io
+import os
 import shutil
 import sys
 import tempfile
@@ -121,6 +123,83 @@ class RenameHintTest(unittest.TestCase):
         stale = ("stale", Finding("js", "a.js", "C.m", 3, 12), 20)
         self.assertIsNone(complexity.rename_hint([stale], lambda f: True))
         self.assertIsNone(complexity.rename_hint([stale, ("new", js("x", 20, file="b.js"), None)], lambda f: True))
+
+
+class MainTest(unittest.TestCase):
+    """main() end to end on a temporary tree; the two measuring functions return self.found (review rev-s10 F7)."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        (self.root / "tools").mkdir()
+        for name in ("a.js", "t.py"):
+            (self.root / name).write_text("", encoding="utf-8")
+        self.found = []
+
+        def measured(lang):
+            return lambda files: [f for f in self.found if f.lang == lang and (files is None or f.file in files)]
+
+        for patch in (mock.patch.object(complexity, "ROOT", self.root),
+                      mock.patch.object(complexity, "BASELINE", self.root / complexity.BASELINE_NAME),
+                      mock.patch.object(complexity, "js_findings", measured("js")),
+                      mock.patch.object(complexity, "py_findings", measured("python")),
+                      mock.patch.dict(os.environ, {"MESHROUTE_COMPLEXITY_UPDATE": ""})):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def main(self, *argv, update=False):
+        """Run main(); return (exit code or the SystemExit message, printed text)."""
+        os.environ["MESHROUTE_COMPLEXITY_UPDATE"] = "1" if update else ""
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            try:
+                code = complexity.main(list(argv))
+            except SystemExit as stop:
+                code = stop.code
+        return code, out.getvalue()
+
+    def test_seed_writes_a_first_baseline_and_is_refused_over_one(self):
+        self.found = [js("big", 30), Finding("python", "t.py", "check", 3, 16)]
+        self.assertEqual(self.main("--seed")[0], 0)
+        self.assertEqual(complexity.load(), {"js": {"a.js": {"big": 30}}, "python": {"t.py": {"check": 16}}})
+        self.found.append(js("fresh", 40))
+        code, _ = self.main("--seed")
+        self.assertIn("exists; --seed only writes a first one", code)
+        self.assertEqual(self.main()[0], 1)  # fresh is new: the refused seed did not take it
+
+    def test_exit_codes_of_a_check(self):
+        self.found = [js("big", 30)]
+        self.main("--seed")
+        self.assertEqual(self.main(), (0, ""))
+        self.found = [js("big", 31)]
+        code, out = self.main("a.js")
+        self.assertEqual(code, 1)
+        self.assertIn("a.js:1 big: complexity 31, listed at 30", out)
+
+    def test_env_update_only_lowers_and_drops(self):
+        complexity.save({"js": {"a.js": {"big": 30, "C.m": 20, "gone": 18}}})
+        self.found = [js("big", 22), js("C.m", 25), js("fresh", 40)]
+        code, out = self.main(update=True)
+        self.assertEqual(complexity.load(), {"js": {"a.js": {"big": 22, "C.m": 20}}, "python": {}})
+        self.assertEqual(code, 1)  # C.m rose and fresh is new: the update fixes neither
+        self.assertIn("lists 2 functions (was 3)", out)
+
+    def test_update_without_a_baseline_is_refused(self):
+        self.found = [js("big", 30)]
+        code, _ = self.main(update=True)
+        self.assertIn("tools/complexity-baseline.json is missing", code)
+        self.assertFalse(complexity.BASELINE.exists())
+
+    def test_a_listed_file_that_is_gone_is_judged_in_a_commit_of_other_files(self):
+        complexity.save({"js": {"a.js": {"big": 30}, "old.js": {"C.m": 20}}})
+        self.found = [js("big", 30), js("C.m", 20, file="new.js")]
+        (self.root / "new.js").write_text("", encoding="utf-8")
+        code, out = self.main("new.js")  # git mv old.js new.js: the commit names only new.js
+        self.assertEqual(code, 1)
+        self.assertIn("new.js:1 C.m: complexity 20, above 15", out)
+        self.assertIn("old.js C.m: listed at 20, now not above 15 or gone (stale)", out)
+        self.assertIn("Renamed? New and stale entries in old.js", out)
 
 
 @unittest.skipUnless(shutil.which("ruff"), "Ruff not on PATH (the pre-commit hook installs it)")
