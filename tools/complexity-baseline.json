@@ -145,9 +145,6 @@
   "tests/synthetic-network.mjs": {
    "syntheticNetwork": 19
   },
-  "tests/thread-routes-fixture.mjs": {
-   "buildSample": 33
-  },
   "tools/history_synth.mjs": {
    "between": 16,
    "snapshotOfRaw": 31

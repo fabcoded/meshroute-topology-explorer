@@ -123,12 +123,22 @@ function buildSample({ fresh, readAt }) {
   };
   const nodes = [];
   const tables = [];
+  addRouters(nodes, tables, readAt, parentOf, childHeard);
+  addChildren(nodes, tables, readAt, parentOf, childHeard);
+  const connections = snapshotLinks(nodes, tables);
+  // Device registry entries for the Matter nodes, so the map shows the names.
+  const registry = Object.entries(KEYS).filter(([, v]) => v.node !== null)
+    .map(([k, v]) => ({ id: `routes-${k}`, name: v.name, name_by_user: null, manufacturer: "Example", model: k.startsWith("P")
+      ? "Plug" : k in CHILDREN ? "Sensor" : "Bulb", area_id: null, sw_version: null }));
+  return { topology: { collected_at: readAt * 1000, nodes, connections },
+    tables: { nodes: tables, read_at: readAt, observe_seconds: 600 }, registry };
+}
+
+/** The routers and border routers of buildSample: their snapshot nodes, and each router's tables (it hears the
+ *  routers HEARD names and its children). */
+function addRouters(nodes, tables, readAt, parentOf, childHeard) {
   for (const [k, r] of Object.entries(ROUTERS)) {
-    nodes.push({ id: r.node === null ? `br_${KEYS[k].ext}` : String(r.node), kind: r.br ? "border_router" : "matter",
-      network_type: "thread", node_id: r.node, role: r.leader ? "leader" : "router", available: r.br ? null : true,
-      ext_address: KEYS[k].ext, rloc16: null, ext_pan_id: "aabbccddeeff0099", network_name: "thread-net-99",
-      vendor_name: r.br ? "Example" : null, model_name: r.br ? "Border router" : null, last_seen: null,
-      ha_device_id: r.br ? null : `routes-${k}`, host_name: r.br ? r.name : null });
+    nodes.push(routerNode(k, r));
     if (r.br) continue;
     const heardHere = Object.entries(HEARD).filter(([key]) => key.endsWith(`>${k}`))
       .map(([key, v]) => neighbour(key.split(">")[0], v));
@@ -138,6 +148,19 @@ function buildSample({ fresh, readAt }) {
     tables.push({ node_id: r.node, available: true, routing_role: r.leader ? 6 : 5, ext_address: KEYS[k].ext.toLowerCase(),
       rloc16: null, neighbor_table: heardHere, route_table: routeTable(k), times: readBetween(readAt - 3 * 3600) });
   }
+}
+
+/** The snapshot node (matter/network_topology) of router or border router `k`. */
+function routerNode(k, r) {
+  return { id: r.node === null ? `br_${KEYS[k].ext}` : String(r.node), kind: r.br ? "border_router" : "matter",
+    network_type: "thread", node_id: r.node, role: r.leader ? "leader" : "router", available: r.br ? null : true,
+    ext_address: KEYS[k].ext, rloc16: null, ext_pan_id: "aabbccddeeff0099", network_name: "thread-net-99",
+    vendor_name: r.br ? "Example" : null, model_name: r.br ? "Border router" : null, last_seen: null,
+    ha_device_id: r.br ? null : `routes-${k}`, host_name: r.br ? r.name : null };
+}
+
+/** The sleepy end devices of buildSample: their snapshot nodes and tables (one linked route entry, the parent). */
+function addChildren(nodes, tables, readAt, parentOf, childHeard) {
   for (const [k, c] of Object.entries(CHILDREN)) {
     const p = parentOf(k);
     nodes.push({ id: String(c.node), kind: "matter", network_type: "thread", node_id: c.node, role: "sleepy_end_device",
@@ -153,7 +176,10 @@ function buildSample({ fresh, readAt }) {
       // The motion sensor's tables were there before Meshroute first looked (lower bound unknown), 21 h ago.
       times: k === "XS" ? readBetween(readAt - 21 * 3600, null) : readBetween(readAt - 3600) });
   }
-  // The snapshot's links, both directions, from the same neighbour tables (source hears target).
+}
+
+/** The snapshot's links, both directions, from the same neighbour tables (source hears target). */
+function snapshotLinks(nodes, tables) {
   const nodeOf = (k) => nodes.find((n) => n.ext_address === KEYS[k].ext).id;
   const connections = [];
   const seen = new Set();
@@ -171,12 +197,7 @@ function buildSample({ fresh, readAt }) {
         target_to_source: dir(rev), via_route_table: null, path_cost: null });
     }
   }
-  // Device registry entries for the Matter nodes, so the map shows the names.
-  const registry = Object.entries(KEYS).filter(([, v]) => v.node !== null)
-    .map(([k, v]) => ({ id: `routes-${k}`, name: v.name, name_by_user: null, manufacturer: "Example", model: k.startsWith("P")
-      ? "Plug" : k in CHILDREN ? "Sensor" : "Bulb", area_id: null, sw_version: null }));
-  return { topology: { collected_at: readAt * 1000, nodes, connections },
-    tables: { nodes: tables, read_at: readAt, observe_seconds: 600 }, registry };
+  return connections;
 }
 
 /** Device id (colon form) of a key, as the Thread engine keys devices. */
