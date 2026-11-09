@@ -24,7 +24,8 @@ from collections import namedtuple
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BASELINE = ROOT / "tools/complexity-baseline.json"
+BASELINE_NAME = "tools/complexity-baseline.json"
+BASELINE = ROOT / BASELINE_NAME
 LIMIT = 15
 JS = (".js", ".mjs", ".cjs")
 RUFF_SCORE = re.compile(r"^`(?P<name>[^`]+)` is too complex \((?P<score>\d+) > \d+\)$")
@@ -150,7 +151,7 @@ def message(kind, f, old):
     if kind == "new":
         return (f"{where} {f.name}: complexity {f.score}, above {LIMIT}\n    split it into named helpers until each is "
                 f"{LIMIT} or less; the baseline is not for new code (a pure rename of the function or its file: rename its "
-                f"key in {BASELINE.name} in the same commit)")
+                f"key in {BASELINE_NAME} in the same commit)")
     if kind == "rose":
         return (f"{where} {f.name}: complexity {f.score}, listed at {old}\n    a listed function may only fall: move "
                 f"the part you changed into a named helper")
@@ -158,10 +159,23 @@ def message(kind, f, old):
     return f"{where} {f.name}: listed at {old}, now {state} (stale)"
 
 
+def rename_hint(problems, exists):
+    """A hint where a function is new and a listed one stale in the same file, or listed in a file that is gone while
+    something is new: a rename of the function or the file needs its key renamed by hand; --update cannot do it."""
+    new = {f.file for kind, f, _ in problems if kind == "new"}
+    stale = {f.file for kind, f, _ in problems if kind == "stale"}
+    files = sorted((new & stale) | ({file for file in stale if not exists(file)} if new else set()))
+    if not files:
+        return None
+    return (f"Renamed? New and stale entries in {', '.join(files)}: if a function or its file was only renamed, rename "
+            f"its key in {BASELINE_NAME} in the same commit; --update would drop the old entry and leave the new one "
+            "failing.")
+
+
 def load():
     """The committed baseline as {lang: {file: {name: score}}}."""
     if not BASELINE.exists():
-        sys.exit(f"complexity: {BASELINE.name} is missing; restore it from git")
+        sys.exit(f"complexity: {BASELINE_NAME} is missing; restore it from git")
     data = json.loads(BASELINE.read_text(encoding="utf-8"))
     return {lang: data.get(lang, {}) for lang in ("js", "python")}
 
@@ -189,7 +203,7 @@ def main(argv):
     # deleting the file would let every new function in.
     seed = "--seed" in argv
     if seed and BASELINE.exists():
-        sys.exit(f"complexity: {BASELINE.name} exists; --seed only writes a first one")
+        sys.exit(f"complexity: {BASELINE_NAME} exists; --seed only writes a first one")
     update = "--update" in argv or os.environ.get("MESHROUTE_COMPLEXITY_UPDATE") == "1"
     before = load() if update else None
     listed = {file for files in load().values() for file in files} if not seed else set()
@@ -201,7 +215,7 @@ def main(argv):
     if seed or update:
         save(seeded(findings) if seed else updated(before, findings))
         was = "seeded" if seed else f"was {size(before)}"
-        print(f"complexity: {BASELINE.relative_to(ROOT).as_posix()} lists {size(load())} functions ({was})")
+        print(f"complexity: {BASELINE_NAME} lists {size(load())} functions ({was})")
     problems = compare(load(), findings, scope)
     if problems:
         print(f"complexity: {len(problems)} problem(s). Limit {LIMIT}: cognitive complexity for JavaScript (ESLint "
@@ -210,6 +224,9 @@ def main(argv):
             print("  " + message(*p))
         if any(kind == "stale" for kind, _, _ in problems):
             print(f"The baseline is stale: {UPDATE_HINT}, and commit it.")
+        hint = rename_hint(problems, lambda file: (ROOT / file).exists())
+        if hint:
+            print(hint)
         return 1
     return 0
 

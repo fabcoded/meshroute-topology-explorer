@@ -97,12 +97,30 @@ class MessageTest(unittest.TestCase):
     def test_messages_name_place_score_and_fix(self):
         new = complexity.message("new", js("route", 31, file="r.js", line=262), None)
         self.assertIn("r.js:262 route: complexity 31, above 15", new)
+        self.assertIn("rename its key in tools/complexity-baseline.json", new)
         self.assertIn("split it into named helpers", new)
         self.assertIn("not for new code", new)
         rose = complexity.message("rose", js("big", 31), 30)
         self.assertIn("listed at 30", rose)
         stale = complexity.message("stale", Finding("js", "a.js", "C.m", None, None), 20)
         self.assertEqual(stale, "a.js C.m: listed at 20, now not above 15 or gone (stale)")
+
+
+class RenameHintTest(unittest.TestCase):
+    def test_new_and_stale_in_one_file_or_a_gone_file_name_the_baseline_key(self):
+        new = ("new", js("C.renamed", 20), None)
+        stale = ("stale", Finding("js", "a.js", "C.m", None, None), 20)
+        hint = complexity.rename_hint([new, stale], lambda f: True)
+        self.assertIn("a.js", hint)
+        self.assertIn("rename its key in tools/complexity-baseline.json", hint)
+        # A file rename: stale entries in a file that is gone, the function new in another file.
+        moved = ("new", js("C.m", 20, file="b.js"), None)
+        self.assertIn("a.js", complexity.rename_hint([moved, stale], lambda f: f != "a.js"))
+
+    def test_no_hint_for_a_plain_drop_or_unrelated_files(self):
+        stale = ("stale", Finding("js", "a.js", "C.m", 3, 12), 20)
+        self.assertIsNone(complexity.rename_hint([stale], lambda f: True))
+        self.assertIsNone(complexity.rename_hint([stale, ("new", js("x", 20, file="b.js"), None)], lambda f: True))
 
 
 @unittest.skipUnless(shutil.which("ruff"), "Ruff not on PATH (the pre-commit hook installs it)")

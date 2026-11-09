@@ -26,9 +26,12 @@ function reportLoc(node, sourceCode) {
   return token ? token.loc : node.loc;
 }
 
+/** The source of a node without whitespace and comments (its tokens joined): reformatting is not a rename. */
+const tokenText = (node, sourceCode) => sourceCode.getTokens(node).map((t) => t.value).join("");
+
 /** A property or method key as written: `name`, `#private`, `"literal"`, or `[computed]`. */
 function keyName(p, sourceCode) {
-  if (p.computed) return `[${sourceCode.getText(p.key)}]`;
+  if (p.computed) return `[${tokenText(p.key, sourceCode)}]`;
   if (p.key.type === "PrivateIdentifier") return `#${p.key.name}`;
   return p.key.type === "Identifier" ? p.key.name : String(p.key.value);
 }
@@ -51,7 +54,7 @@ function ownName(node, sourceCode) {
     return (p.kind === "get" || p.kind === "set" ? `${p.kind} ` : "") + keyName(p, sourceCode);
   }
   if (p.type === "VariableDeclarator" && p.id.type === "Identifier") return p.id.name;
-  if (p.type === "AssignmentExpression") return sourceCode.getText(p.left);
+  if (p.type === "AssignmentExpression") return tokenText(p.left, sourceCode);
   if ((p.type === "CallExpression" || p.type === "NewExpression") && p.callee !== node) return callName(p);
   return p.type === "ExportDefaultDeclaration" ? "default" : "<anonymous>";
 }

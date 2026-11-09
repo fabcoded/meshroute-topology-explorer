@@ -73,6 +73,14 @@ test("names do not depend on lines: moving code down keeps every name", () => {
   assert.deepEqual(b, a);
 });
 
+test("an assignment target or computed key reformatted keeps its name (review rev-s10 F6)", () => {
+  const code = (target) => `${target} = () => { if (api) return 1; };\nconst o = { [ k . x ]() { if (o) return 1; } };`;
+  const a = Object.values(lint(code("api.later")).named);
+  assert.deepEqual(Object.values(lint(code("api\n  .later")).named), a);
+  assert.deepEqual(Object.values(lint(code("api . later /* moved */")).named), a);
+  assert.deepEqual(a, ["api.later", "[k.x]"]);
+});
+
 // Review rev-s10 F1: an inline directive hid a function from the ratchet. Inline configuration is off, so neither a
 // whole-file disable nor one aimed at sonarjs exempts a function above 15.
 const COMPLEX = `export function tangled(a, b, c) {
