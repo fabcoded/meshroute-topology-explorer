@@ -5,6 +5,7 @@
   python3 tools/complexity.py [FILE ...]   check these files (pre-commit passes the staged ones), or all of them
   python3 tools/complexity.py --update     lower or drop entries of tools/complexity-baseline.json, never add one
   MESHROUTE_COMPLEXITY_UPDATE=1 pre-commit run complexity --all-files      the same where Ruff is only in pre-commit
+  python3 tools/complexity.py --seed       write a first baseline; refused while one exists
 
 JavaScript: cognitive complexity from ESLint's sonarjs rule (tools/complexity.mjs). Python: McCabe complexity from
 Ruff C901 with --ignore-noqa, so a `noqa: C901` lets no new function in. Functions are keyed by file and qualified
@@ -30,7 +31,8 @@ RUFF_SCORE = re.compile(r"^`(?P<name>[^`]+)` is too complex \((?P<score>\d+) > \
 ABOUT = ("Functions above complexity 15 when the gate started blocking (2026-11-09). Scores may only fall; "
          "tools/complexity.py --update lowers and drops entries, new code never goes here.")
 UPDATE_HINT = ("python3 tools/complexity.py --update (needs Ruff on PATH) or "
-               "MESHROUTE_COMPLEXITY_UPDATE=1 pre-commit run complexity --all-files")
+               "MESHROUTE_COMPLEXITY_UPDATE=1 pre-commit run complexity --all-files; both only lower or drop entries, "
+               "never add or raise one")
 
 Finding = namedtuple("Finding", "lang file name line score")
 
@@ -132,7 +134,7 @@ def updated(baseline, findings):
 
 
 def seeded(findings):
-    """A first baseline from the current findings; only when none exists."""
+    """A first baseline from the current findings (--seed, only when none exists)."""
     out = {}
     for f in findings:
         out.setdefault(f.lang, {}).setdefault(f.file, {})[f.name] = f.score
@@ -156,7 +158,7 @@ def message(kind, f, old):
 def load():
     """The committed baseline as {lang: {file: {name: score}}}."""
     if not BASELINE.exists():
-        sys.exit(f"complexity: {BASELINE.name} is missing; restore it from git (--update seeds a new one)")
+        sys.exit(f"complexity: {BASELINE.name} is missing; restore it from git")
     data = json.loads(BASELINE.read_text(encoding="utf-8"))
     return {lang: data.get(lang, {}) for lang in ("js", "python")}
 
@@ -179,15 +181,20 @@ def scope_of(paths):
 
 
 def main(argv):
+    # Seeding is its own flag and refused while a baseline exists: an update with a deleted file must not seed, or
+    # deleting the file would let every new function in.
+    seed = "--seed" in argv
+    if seed and BASELINE.exists():
+        sys.exit(f"complexity: {BASELINE.name} exists; --seed only writes a first one")
     update = "--update" in argv or os.environ.get("MESHROUTE_COMPLEXITY_UPDATE") == "1"
-    scope = None if update else scope_of([a for a in argv if not a.startswith("--")])
+    before = load() if update else None
+    scope = None if update or seed else scope_of([a for a in argv if not a.startswith("--")])
     js = None if scope is None else sorted(p for p in scope if p.endswith(JS))
     py = None if scope is None else sorted(p for p in scope if p.endswith(".py"))
     findings = (js_findings(js) if js is None or js else []) + (py_findings(py) if py is None or py else [])
-    if update:
-        before = load() if BASELINE.exists() else None
-        save(updated(before, findings) if before is not None else seeded(findings))
-        was = "seeded" if before is None else f"was {size(before)}"
+    if seed or update:
+        save(seeded(findings) if seed else updated(before, findings))
+        was = "seeded" if seed else f"was {size(before)}"
         print(f"complexity: {BASELINE.relative_to(ROOT).as_posix()} lists {size(load())} functions ({was})")
     problems = compare(load(), findings, scope)
     if problems:
