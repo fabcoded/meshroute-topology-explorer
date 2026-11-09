@@ -149,8 +149,8 @@ def message(kind, f, old):
     if kind == "rose":
         return (f"{where} {f.name}: complexity {f.score}, listed at {old}\n    a listed function may only fall: move "
                 f"the part you changed into a named helper")
-    state = "gone or not above 15" if f.score is None else f"down to {f.score}"
-    return f"{where} {f.name}: listed at {old}, now {state}\n    the baseline is stale: {UPDATE_HINT}, and commit it"
+    state = f"not above {LIMIT} or gone" if f.score is None else f"down to {f.score}"
+    return f"{where} {f.name}: listed at {old}, now {state} (stale)"
 
 
 def load():
@@ -195,6 +195,8 @@ def main(argv):
               f"sonarjs), McCabe for Python (Ruff C901); docs/quality.md")
         for p in problems:
             print("  " + message(*p))
+        if any(kind == "stale" for kind, _, _ in problems):
+            print(f"The baseline is stale: {UPDATE_HINT}, and commit it.")
         return 1
     return 0
 

@@ -92,8 +92,7 @@ class MessageTest(unittest.TestCase):
         rose = complexity.message("rose", js("big", 31), 30)
         self.assertIn("listed at 30", rose)
         stale = complexity.message("stale", Finding("js", "a.js", "C.m", None, None), 20)
-        self.assertIn("a.js C.m: listed at 20, now gone or not above 15", stale)
-        self.assertIn("--update", stale)
+        self.assertEqual(stale, "a.js C.m: listed at 20, now not above 15 or gone (stale)")
 
 
 class PythonNamesTest(unittest.TestCase):
