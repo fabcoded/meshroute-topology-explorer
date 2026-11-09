@@ -1240,7 +1240,11 @@ function widthStep(rating) {
  *  the width. state "unknown" (a hop nothing proves) keeps the look's dash in grey at the weight's thinnest width.
  *  colored: "colour by reception" is on, so a rated solid, dash-dot or dashed lane takes its rating's colour
  *  (palette.js receptionColor); dash and width stay, so the look still reads without colour. Dash-dot in the lighter
- *  grey is never coloured (a computed hop never looks like a reported one). */
+ *  grey is never coloured (a computed hop never looks like a reported one).
+ *  @param {string|null} stroke
+ *  @param {number|null} rating
+ *  @param {object} theme
+ *  @param {{ colored?: boolean, state?: string, weight?: string }} [options] */
 function laneStyle(stroke, rating, theme, { colored = false, state = "measured", weight } = {}) {
   if (!stroke || stroke === "faint") {
     return { color: theme.muted, width: WIDTHS.faint[0], dash: [0.01, 3], cap: "round", head: false };
