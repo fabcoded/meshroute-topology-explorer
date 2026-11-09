@@ -7,7 +7,7 @@ How this project is tested and measured, what blocks a change and what only repo
 
 | Layer | Catches | Command |
 |---|---|---|
-| L0 lint and guard | Bug patterns, unsafe code, complexity, outside URLs, commands outside the allow-list, stale bundle | `pre-commit run --all-files` (Ruff, ESLint, `tools/guard.py`, `node tools/bundle.mjs --check`) |
+| L0 lint and guard | Bug patterns, unsafe code, complexity, outside URLs, commands outside the allow-list, stale bundle | `pre-commit run --all-files` (Ruff, ESLint, `tools/complexity.py`, `tools/guard.py`, `node tools/bundle.mjs --check`) |
 | L1 unit | Logic per function in Python and JavaScript, without devices; seeded random round trips (history files, routing walks) | `python3 -m unittest discover -s tests`, `npm test` |
 | L1.5 shared goldens | Python and JavaScript disagreeing on a format both touch: history answer, route reads, stored data, day files. Python writes `tests/fixtures/golden/`, both languages read it | part of L1; `MESHROUTE_UPDATE_GOLDENS=1 python3 -m unittest discover -s tests` rewrites them |
 | L2 real Home Assistant | Setup, options flow, websocket commands, panel registration, recorder timers and the zigpy topology contract on the minimum and the latest supported release | `python3 -m pytest tests_ha` in its own environment ([CONTRIBUTING.md](../CONTRIBUTING.md#tests-against-a-real-home-assistant-tests_ha)); CI runs both pins |
@@ -27,7 +27,7 @@ Targets are trends unless a gate says otherwise.
 |---|---|---|
 | Coverage per directory (adapters, engines, model, graph, ui, panel, Python) | `node --test` coverage, coverage.py | testable JavaScript (adapters, engines, model) and Python at least 85 %; graph, ui and panel are reported only, because the fake DOM cannot run the canvas code |
 | Duplication | jscpd, 100 tokens and 10 lines | at most 3 % |
-| Cognitive complexity | ESLint `sonarjs`, Ruff C901 | no function above 15; the number falls, never rises |
+| Complexity | ESLint `sonarjs` (cognitive) for JavaScript, Ruff C901 (McCabe) for Python | no function above 15; the number falls, never rises; blocking for new code (Gates) |
 | Type checking | pyright (basic mode, `pyproject.toml`) over `custom_components` and `tools`; `tsc` with `checkJs` and `noEmit` over the frontend (`jsconfig.json`; nothing is built or emitted) | the number falls, never rises |
 | Licences | `license-checker-rseidelsohn` (npm) and `pip-licenses`; allowed: MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, Python-2.0, 0BSD, BlueOak-1.0.0, MIT-CMU; LGPL-3.0 only in development tools and always flagged | no violation |
 | Spelling | `typos` over code, docs and UI text (`_typos.toml`; fixtures, captures and the generated bundle are excluded) | no finding; project words go into the config with a reason |
@@ -46,12 +46,19 @@ tested directly.
 ## Gates
 
 - **Blocks today:** the CI job `ci` (L0, L1, `check.py`, L2 on both Home Assistant pins, hassfest, HACS validation).
+- **Complexity ratchet** (L0, owner 2026-11-09): `tools/complexity.py`, pre-commit hook `complexity`. It fails when
+  a function above 15 is not listed in `tools/complexity-baseline.json`, when a listed one rises, and when the list
+  is stale (a listed function fell or is gone): `python3 tools/complexity.py --update` lowers and drops entries, never
+  adds one. 15 means cognitive complexity for JavaScript (ESLint `sonarjs`) and McCabe complexity for Python (Ruff
+  C901; `noqa` does not exempt). Functions are keyed by file and qualified name (`Class.method`, `outer>inner`,
+  callbacks by their call, such as `test("title")`), so moved lines keep the key; a rename reads as new plus stale:
+  rename the key in the same commit.
 - **Reports only, with a PASS or FAIL line on new code:** coverage of changed lines (at least 80 %, from 20 changed
-  lines), duplication on new code (at most 3 %), no new function above complexity 15, no new type finding on
-  changed lines, no new Ruff or ESLint finding. The summary of the CI job `quality` shows them per pull request.
+  lines), duplication on new code (at most 3 %), no new type finding on changed lines, no new Ruff or ESLint
+  finding; the complexity line repeats the blocking gate. The summary of the CI job `quality` shows them per pull
+  request.
 - **Reports only, no gate line:** licences, spelling, dead code, the browser smoke test.
-- **Planned:** the complexity gate becomes blocking for new code; the other gate lines follow when their weekly
-  values have been stable for a few weeks.
+- **Planned:** the other gate lines become blocking when their weekly values have been stable for a few weeks.
 
 ## Weekly report
 

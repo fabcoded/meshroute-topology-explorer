@@ -70,6 +70,14 @@ repos:
         language: system
         pass_filenames: false
         files: '(\.(js|mjs|cjs)$|^package(-lock)?\.json$)'
+      - id: complexity
+        name: No new function above complexity 15 (tools/complexity.py)
+        # Ratchet, owner 2026-11-09 (docs/quality.md "Gates"): above 15 only what tools/complexity-baseline.json lists,
+        # never rising. ESLint and sonarjs come from node_modules (node from the system), Ruff as pinned for the ruff hook.
+        entry: python tools/complexity.py
+        language: python
+        additional_dependencies: ['ruff==0.17.0']
+        files: '(\.(js|mjs|cjs|py)$|^tools/complexity-baseline\.json$|^eslint\.quality\.config\.mjs$|^package-lock\.json$)'
       - id: bundle-fresh
         name: Panel bundle matches its sources (npm run bundle)
         # frontend/dist/panel.js is what Home Assistant loads (issue #16); a stale copy would ship old code.

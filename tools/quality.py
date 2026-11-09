@@ -226,7 +226,8 @@ def gate(m, changed, cov, new_dup, cc_hits, type_hits):
     d = pct(new_dup, n_new) if new_dup is not None else None
     g["duplication on new code <= 3 % (>= 20 new lines)"] = ("n/a", f"{n_new} changed lines") if n_new < 20 or d is None else ("PASS" if d <= 3 else "FAIL", f"{d} %")
     new_cc = [(f, n) for f, n in cc_hits if n in changed.get(f, ())]
-    g["no new function above complexity 15"] = ("PASS" if not new_cc else "FAIL", f"{len(new_cc)} on changed lines")
+    # Blocking since 2026-11-09 in check.py (tools/complexity.py, baseline ratchet); this line repeats it per PR.
+    g["no new function above complexity 15 (blocks in check.py: tools/complexity.py)"] = ("PASS" if not new_cc else "FAIL", f"{len(new_cc)} on changed lines")
     new_ty = [(f, n) for f, n in type_hits if n in changed.get(f, ())]
     g["no new type findings on changed lines (pyright, tsc)"] = ("PASS" if not new_ty else "FAIL", f"{len(new_ty)} on changed lines")
     g["no new Ruff/ESLint findings"] = ("PASS" if m["lint_findings"] == 0 else "FAIL", f"{m['lint_findings']} findings")

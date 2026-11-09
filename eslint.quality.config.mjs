@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Measurement only, not a lint rule set: cognitive complexity per function for tools/quality.py.
-// Not used by pre-commit or npm run lint; see CONTRIBUTING.md "Quality report".
+// Measurement only, not a lint rule set: cognitive complexity per function for tools/quality.py and the complexity
+// ratchet (tools/complexity.mjs, pre-commit hook `complexity`); not used by npm run lint. See docs/quality.md.
 import sonarjs from "eslint-plugin-sonarjs";
 
 export default [
