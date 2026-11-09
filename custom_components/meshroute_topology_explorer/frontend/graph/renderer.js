@@ -356,7 +356,8 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
  *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
  *  predicted, places (spots the lane offered: 1 = only its middle) }] }), pills (every value pill drawn: { x, y, w, h
- *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5). */
+ *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5), labelBoxes (every label
+ *  line drawn: { x, y, w, h }, top left and size). */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -665,6 +666,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   // Label boxes of the focus devices (selected, hovered): no value may cover them. Values yield to them only.
   const protectedRects = [];
+  // Every label line placed so far (focus, anchors, then the rest): separate values keep clear of all of them.
+  const labelRects = [];
   // The focus's values as drawn ({ rect, t }), and those a label had to cover: they are drawn again on top.
   const valueRects = [];
   const covered = new Set();
@@ -691,6 +694,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     for (const b of spot) {
       const r = rectOf(b);
       placed.add(r);
+      labelRects.push(r);
       if (isFocus) { // a light plate keeps crossing lanes from cutting through the focus label
         protectedRects.push({ x: r.x - 1, y: r.y, w: r.w + 2, h: r.h });
         ctx.globalAlpha = PLATE_ALPHA;
@@ -725,10 +729,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // dropped.
     let least = Infinity;
     const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
-    // Separate values treat device symbols as hard as other values (rev11a): a pill on a symbol hides the device.
-    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects]
-      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000 : symbolArea(r))
-      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
+    // Separate values treat device symbols and labels as hard as other values (rev11a): a pill on a symbol or a
+    // name hides the device.
+    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects, ...labelRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000
+      : symbolArea(r) + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0));
     const consider = (x, y) => {
       const r = box(x, y);
       const area = cost(r);
@@ -842,6 +847,6 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
       drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;
-  return { pills: [...pills.values()], sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+  return { pills: [...pills.values()], labelBoxes: labelRects, sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }

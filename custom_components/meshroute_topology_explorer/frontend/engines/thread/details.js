@@ -99,7 +99,8 @@ export function routeHolders(tables, rows) {
   return list;
 }
 
-/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" where the lower bound is unknown:
+/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" ("before 15:09 yesterday") where
+ *  the lower bound is unknown:
  *  when the Matter server read a table, in the browser's local time. t: the panel's words (t.formatLocale). */
 export function readText(times, now, t) {
   const at = (ms) => new Date(ms);
@@ -107,7 +108,11 @@ export function readText(times, now, t) {
   const clock = (ms) => new Intl.DateTimeFormat(t.formatLocale, { hour: "2-digit", minute: "2-digit" }).format(at(ms));
   const day = (ms) => (sameDay(ms, now) ? "" : sameDay(ms, now - 86400000) ? `${t("details.route_yesterday")} `
     : `${new Intl.DateTimeFormat(t.formatLocale, { month: "numeric", day: "numeric" }).format(at(ms))} `);
-  if (times.lo === null) return t("details.route_read_before", { time: `${day(times.hi)}${clock(times.hi)}` });
+  // Time first, then the day: "read before 03:09 PM yesterday" (rev11a-b), never "before yesterday".
+  const after = (ms) => day(ms).trim();
+  if (times.lo === null) {
+    return t("details.route_read_before", { time: [clock(times.hi), after(times.hi)].filter(Boolean).join(" ") });
+  }
   const end = sameDay(times.lo, times.hi) ? clock(times.hi) : `${day(times.hi)}${clock(times.hi)}`;
   return t("details.route_read_between", { from: `${day(times.lo)}${clock(times.lo)}`, to: end });
 }

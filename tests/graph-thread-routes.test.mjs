@@ -32,8 +32,9 @@ const CASES = [["M38-shaped", threadRoutesSample(), [["XS", {}], ["P1", { unused
   ["owner-shaped", threadRoutesSample({ atelier: true }), [["KF", {}], ["LU", { unusedRoutes: true }]]]];
 
 for (const [name, sample, selections] of CASES) {
+  // "beside Details": the map's width with the left panel open at 1400 px (the dev page's xs shot, rev11a-b).
   for (const [densityName, density, width] of [["default", DENSITY.medium, 1400], ["dense", DENSITY.dense, 1400],
-    ["phone 412 px", DENSITY.medium, 412]]) {
+    ["phone 412 px", DENSITY.medium, 412], ["beside Details", DENSITY.medium, 1017]]) {
     for (const [key, engineView] of selections) {
       test(`#11 ${name}, ${densityName}, ${key}${engineView.unusedRoutes ? " with unused routes" : ""}: pills and hop numbers apart`, () => {
         const draw = drawn(sample, density, key, engineView, width);
@@ -48,6 +49,13 @@ for (const [name, sample, selections] of CASES) {
         for (let a = 0; a < pills.length; a++) {
           for (let b = a + 1; b < pills.length; b++) {
             assert.equal(overlap(pills[a], pills[b]), 0, `pills ${JSON.stringify(pills[a])} and ${JSON.stringify(pills[b])}`);
+          }
+        }
+        // No route or unused pill on a device's label (rev11a-b: "−66 dBm" covered "Bo" of "Border router B").
+        const ownKeys = new Set(own.map((v) => `${v.s}>${v.h}`));
+        for (const p of pills.filter((q) => ownKeys.has(`${q.pair[0]}>${q.pair[1]}`))) {
+          for (const b of draw.labelBoxes) {
+            assert.equal(overlap({ x: b.x + b.w / 2, y: b.y + b.h / 2, w: b.w, h: b.h }, p), 0, `a pill on a label: ${JSON.stringify(p)}`);
           }
         }
         // No pill on a device symbol (rev11a: symbols are as hard as other values).

@@ -199,12 +199,12 @@ export function nextHop(tables, holder, dest) {
 }
 
 /** The device of router ID `rid` as holder `h` names it: its own table first (its own ID, an entry with that ID), else
- *  the ID all tables agree on; null where neither names it unambiguously. */
+ *  the ID all tables agree on; null where neither names it unambiguously (two entries of its own table claiming it
+ *  are a conflict of all tables too). */
 function routerById(tables, h, rid) {
   if (h.routerId === rid) return h.id;
   const own = h.byRouterId.get(rid);
   if (own) return own;
-  if (own === null) return null; // two entries of its own table claim it
   return tables.conflicts.has(rid) ? null : tables.idOfRouter.get(rid) ?? null;
 }
 

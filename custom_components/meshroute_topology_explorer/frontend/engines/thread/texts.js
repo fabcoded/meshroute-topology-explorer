@@ -20,7 +20,7 @@ export const TEXTS = Object.freeze({
   "view.thread_routes": "Routes",
   "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",
   "view.thread_unused": "Unused routes",
-  "view.thread_unused_hint": "Also draw the alternatives a router on the route holds but does not use now, dashed, with their cost.",
+  "view.thread_unused_hint": "Also draw the alternatives a router on the route holds but does not use now, dash-dot in grey, with their cost.",
   "legend.link.parent": "Parent link: end device and its parent",
   "legend.link.neighbour": "Neighbour (measured, from the neighbour table)",
   "legend.link.route": "Route hop of the selected device, one line per direction: what the receiver hears, RSSI over LQI (0–3); circled numbers count the hops there.",

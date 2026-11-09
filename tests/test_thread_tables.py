@@ -99,7 +99,8 @@ class ThreadTablesTest(unittest.TestCase):
         self.comp = ha_stubs.load()
         self.tables = ha_stubs.load(".thread_tables")
         self.hass = ha_stubs.FakeHass(components={"matter"})
-        ha_stubs.run(self.comp.async_setup_entry(self.hass, ha_stubs.FakeEntry()))
+        self.entry = ha_stubs.FakeEntry()
+        ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
         self.nodes = [router()]
         self.client = types.SimpleNamespace(get_nodes=lambda: list(self.nodes))
         self.adapter = types.SimpleNamespace(matter_client=self.client)
@@ -244,6 +245,7 @@ class ThreadTablesTest(unittest.TestCase):
         self.assertEqual(self.tables.get_times(self.hass).last_check, 1000.0)
         entry_changed = self.rec.signals[-1]
         entry_changed("updated", types.SimpleNamespace(domain="zha", state="loaded"))
+        entry_changed("updated", types.SimpleNamespace(domain="matter", state="not_loaded"))  # unloading: nothing to see
         self.assertEqual(self.hass.tasks, [])
         entry_changed("updated", types.SimpleNamespace(domain="matter", state="loaded"))
         self.assertEqual(len(self.hass.tasks), 1)
@@ -251,6 +253,13 @@ class ThreadTablesTest(unittest.TestCase):
         self.now = 1600.0
         ha_stubs.run(observer[0][1](None))  # the 10-minute tick
         self.assertEqual(self.tables.get_times(self.hass).last_check, 1600.0)
+
+    def test_11_unloading_the_entry_stops_the_observer_and_writes_what_was_seen(self):
+        ha_stubs.run(self.hass.tasks.pop())  # the baseline
+        store = self.tables.get_times(self.hass)._store
+        self.entry.unload()
+        self.assertEqual(store.delay_calls[-1][1], 0)
+        self.assertIn(next(i for i in self.rec.intervals if i[0] == self.tables.OBSERVE_PERIOD), self.rec.cancelled_intervals)
 
     def test_11_reasons(self):
         self.hass.config.components.discard("matter")

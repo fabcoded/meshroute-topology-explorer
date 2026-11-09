@@ -203,7 +203,9 @@ class GuardTest(unittest.TestCase):
                      "set_default_fabric_label('x')", "update_node(14, '1')", "check_node_update(14)",
                      "upload_ota_file(b'')", "get_thread_diagnostics(14)", "node_diagnostics(14)", "get_diagnostics()",
                      "register_icd(14)", "unregister_icd(14)", "resync_icd(14)", "get_icd_state(14)",
-                     "camera_start_stream(14)", "subscribe([])", "subscribe_events(cb)", "start_listening()"):
+                     "camera_start_stream(14)", "subscribe([])", "subscribe_events(cb)", "start_listening()",
+                     "get_matter_fabrics(14)", "get_node_ip_addresses(14)", "enable_auto_subscription(14)",
+                     "disable_auto_subscription(14)", "connect()", "disconnect()"):
             denied[f"client_{call.split('(')[0]}"] = f"await client.{call}"
         for name, code in denied.items():
             with self.subTest(name):
@@ -212,7 +214,8 @@ class GuardTest(unittest.TestCase):
         # The route records themselves pass, and the rule is for shipped Python only (tests and tools may name them).
         allowed = ("app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
                    "app.topology.add_listener(listener)\nperiod = app.config.get('topology_scan_period')\n"
-                   "nodes = get_matter(hass).matter_client.get_nodes()\ncluster = nodes[0].get_cluster(0, 53)\n")
+                   "nodes = get_matter(hass).matter_client.get_nodes()\ncluster = nodes[0].get_cluster(0, 53)\n"
+                   "unsub = async_dispatcher_connect(hass, SIGNAL, changed)\n")
         root = self.tree({"custom_components/x/routes.py": py + allowed, "tests/fake.py": py + "app.state.network_info\n",
                           "custom_components/x/panel.js": SPDX + "// permit joining is a raw value name\n"})
         self.assertEqual(guard.check(root), [])

@@ -885,7 +885,7 @@ One place per thing; nothing appears twice.
   per hop what each receiver hears there and back and whose table it comes from, the cost as the sender counts it,
   the weakest hop of each direction below LQI 3 marked at the left edge, the derived hop's note, and one line
   "Source: Matter server's copy · <holder> read 09:50–10:00 · …" per table the values come from (the date where not
-  today: "read yesterday 22:10–08:05"; unknown lower bound: "read before 13:50"; the table's name where a holder gives
+  today: "read yesterday 22:10–08:05"; unknown lower bound: "read before 13:50", "read before 15:09 yesterday"; the table's name where a holder gives
   both), tooltip "Read by the Matter server between 09:50 and 10:00. The server does not report when it reads;
   Meshroute checks its copy every 10 minutes (last check 14:20)." or "Read at 13:50 or earlier; Meshroute had not seen
   this table before (age unknown). The server re-reads its tables about once a day."; values that may be older than

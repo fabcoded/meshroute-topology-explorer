@@ -312,3 +312,42 @@ test("#11 derived only where the border router's table is missing; its table dec
   const stopped = rebuild(empty).routing.routeTo(idOf("XS"), idOf("BRA"));
   assert.deepEqual([stopped.back.complete, stopped.back.reason, stopped.back.hops.length], [false, "no_entry", 0]);
 });
+
+// ---- re-review rev11a-b: the surviving mutants ----
+
+test("#11 two entries of the holder's own table claiming one router ID: the next hop is unknown", () => {
+  const sample = threadRoutesSample();
+  entryOf(tablesOf(sample, 21), 45).routerId = 10; // plug 1 names plug 3 as router 10 too (sofaoben's ID)
+  const n = rebuild(sample);
+  assert.equal(n.routing.tables.holders.get(idOf("P1")).byRouterId.get(10), null);
+  assert.deepEqual(nextHop(n.routing.tables, idOf("P1"), idOf("BRA")), { next: null, reason: "next_hop_unknown" });
+});
+
+test("#11 a goal that is offline stops the route there (Home Assistant's availability, no table of its own)", () => {
+  const sample = threadRoutesSample();
+  sample.topology.nodes.find((x) => x.host_name === "Border router A").available = false;
+  const r = rebuild(sample).routing.routeTo(idOf("LO"), idOf("BRA"));
+  assert.deepEqual([r.there.complete, r.there.reason, r.there.at], [false, "offline", idOf("BRA")]);
+});
+
+test("#11 a parent named by the RLOC16 costs the neighbour entry even where a route entry says otherwise", () => {
+  const sample = threadRoutesSample();
+  const xs = tablesOf(sample, 24);
+  xs.rloc16 = (50 << 10) | 3;
+  Object.assign(entryOf(xs, 50), { LQIIn: 3 }); // route entry: LQI 3 (cost 1); neighbour entry: LQI 2 (cost 2)
+  const r = rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA"));
+  assert.equal(r.parent.source, "rloc16");
+  assert.equal(r.there.hops[0].cost, 2);
+  // Found by its route table instead: the route entry's LQI in.
+  const plain = threadRoutesSample();
+  Object.assign(entryOf(tablesOf(plain, 24), 50), { LQIIn: 3 });
+  assert.equal(rebuild(plain).routing.routeTo(idOf("XS"), idOf("BRA")).there.hops[0].cost, 1);
+});
+
+test("#11 a read interval whose lower bound lies after its upper one has no lower bound", () => {
+  const sample = threadRoutesSample();
+  tablesOf(sample, 14).times = { neighbor_table: { lo: 2000, hi: 1000 }, route_table: { lo: 900, hi: 1000 } };
+  const lu = rebuild(sample).routing.tables.holders.get(idOf("LU"));
+  assert.deepEqual(lu.times.neighbours, { lo: null, hi: 1000000 });
+  assert.deepEqual(lu.times.routes, { lo: 900000, hi: 1000000 });
+});

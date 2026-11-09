@@ -193,6 +193,7 @@ test("#11 F5: read intervals in words, amber on the worst case at the 4 h bounda
   assert.equal(readText({ lo: at(8, 22, 10), hi: at(9, 8, 5) }, now, t), `read yesterday ${clock(at(8, 22, 10))}–${clock(at(9, 8, 5))}`);
   assert.match(readText({ lo: at(6, 9, 50), hi: at(6, 10, 0) }, now, t), /^read 11\/6 \S+( [AP]M)?–\S+/);
   assert.equal(readText({ lo: null, hi: at(9, 13, 50) }, now, t), `read before ${clock(at(9, 13, 50))}`);
+  assert.equal(readText({ lo: null, hi: at(8, 15, 9) }, now, t), `read before ${clock(at(8, 15, 9))} yesterday`);
   // Old by the lower bound: exactly 4 h is not yet old, a millisecond more is; unknown is always old.
   const lo = now - OLD_TABLE_MS;
   assert.equal(mayBeOld({ lo, hi: now - 60000 }, now), false);

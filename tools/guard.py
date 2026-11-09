@@ -75,6 +75,10 @@ PY_DENY = (
     "remove_matter_fabric(", "set_default_fabric_label(", "update_node(", "check_node_update(", "upload_ota_file(",
     "get_thread_diagnostics(", "node_diagnostics(", "get_diagnostics(", "register_icd(", "unregister_icd(",
     "resync_icd(", "get_icd_state(", "camera_", ".subscribe(", "subscribe_events(", "start_listening(",
+    # rev11a-b; the client's connect and disconnect only as method calls: a bare "connect(" is
+    # async_dispatcher_connect(, which the integration uses
+    "get_matter_fabrics(", "get_node_ip_addresses(", "enable_auto_subscription(", "disable_auto_subscription(",
+    ".connect(", ".disconnect(",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

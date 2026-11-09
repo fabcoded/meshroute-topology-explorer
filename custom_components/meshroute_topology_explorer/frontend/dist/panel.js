@@ -5869,12 +5869,12 @@ function nextHop(tables, holder, dest) {
 }
 
 /** The device of router ID `rid` as holder `h` names it: its own table first (its own ID, an entry with that ID), else
- *  the ID all tables agree on; null where neither names it unambiguously. */
+ *  the ID all tables agree on; null where neither names it unambiguously (two entries of its own table claiming it
+ *  are a conflict of all tables too). */
 function routerById(tables, h, rid) {
   if (h.routerId === rid) return h.id;
   const own = h.byRouterId.get(rid);
   if (own) return own;
-  if (own === null) return null; // two entries of its own table claim it
   return tables.conflicts.has(rid) ? null : tables.idOfRouter.get(rid) ?? null;
 }
 
@@ -6361,7 +6361,8 @@ function routeHolders(tables, rows) {
   return list;
 }
 
-/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" where the lower bound is unknown:
+/** "09:50–10:00", "yesterday 22:10–08:05", "11/7 09:50–10:00", or "before 13:50" ("before 15:09 yesterday") where
+ *  the lower bound is unknown:
  *  when the Matter server read a table, in the browser's local time. t: the panel's words (t.formatLocale). */
 function readText(times, now, t) {
   const at = (ms) => new Date(ms);
@@ -6369,7 +6370,11 @@ function readText(times, now, t) {
   const clock = (ms) => new Intl.DateTimeFormat(t.formatLocale, { hour: "2-digit", minute: "2-digit" }).format(at(ms));
   const day = (ms) => (sameDay(ms, now) ? "" : sameDay(ms, now - 86400000) ? `${t("details.route_yesterday")} `
     : `${new Intl.DateTimeFormat(t.formatLocale, { month: "numeric", day: "numeric" }).format(at(ms))} `);
-  if (times.lo === null) return t("details.route_read_before", { time: `${day(times.hi)}${clock(times.hi)}` });
+  // Time first, then the day: "read before 03:09 PM yesterday" (rev11a-b), never "before yesterday".
+  const after = (ms) => day(ms).trim();
+  if (times.lo === null) {
+    return t("details.route_read_before", { time: [clock(times.hi), after(times.hi)].filter(Boolean).join(" ") });
+  }
   const end = sameDay(times.lo, times.hi) ? clock(times.hi) : `${day(times.hi)}${clock(times.hi)}`;
   return t("details.route_read_between", { from: `${day(times.lo)}${clock(times.lo)}`, to: end });
 }
@@ -6577,7 +6582,7 @@ const TEXTS$3 = Object.freeze({
   "view.thread_routes": "Routes",
   "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",
   "view.thread_unused": "Unused routes",
-  "view.thread_unused_hint": "Also draw the alternatives a router on the route holds but does not use now, dashed, with their cost.",
+  "view.thread_unused_hint": "Also draw the alternatives a router on the route holds but does not use now, dash-dot in grey, with their cost.",
   "legend.link.parent": "Parent link: end device and its parent",
   "legend.link.neighbour": "Neighbour (measured, from the neighbour table)",
   "legend.link.route": "Route hop of the selected device, one line per direction: what the receiver hears, RSSI over LQI (0–3); circled numbers count the hops there.",
@@ -7710,7 +7715,8 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
  *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
  *  predicted, places (spots the lane offered: 1 = only its middle) }] }), pills (every value pill drawn: { x, y, w, h
- *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5). */
+ *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5), labelBoxes (every label
+ *  line drawn: { x, y, w, h }, top left and size). */
 function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -8019,6 +8025,8 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   // Label boxes of the focus devices (selected, hovered): no value may cover them. Values yield to them only.
   const protectedRects = [];
+  // Every label line placed so far (focus, anchors, then the rest): separate values keep clear of all of them.
+  const labelRects = [];
   // The focus's values as drawn ({ rect, t }), and those a label had to cover: they are drawn again on top.
   const valueRects = [];
   const covered = new Set();
@@ -8045,6 +8053,7 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     for (const b of spot) {
       const r = rectOf(b);
       placed.add(r);
+      labelRects.push(r);
       if (isFocus) { // a light plate keeps crossing lanes from cutting through the focus label
         protectedRects.push({ x: r.x - 1, y: r.y, w: r.w + 2, h: r.h });
         ctx.globalAlpha = PLATE_ALPHA;
@@ -8079,10 +8088,11 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     // dropped.
     let least = Infinity;
     const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
-    // Separate values treat device symbols as hard as other values (rev11a): a pill on a symbol hides the device.
-    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects]
-      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000 : symbolArea(r))
-      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0);
+    // Separate values treat device symbols and labels as hard as other values (rev11a): a pill on a symbol or a
+    // name hides the device.
+    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects, ...labelRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000
+      : symbolArea(r) + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0));
     const consider = (x, y) => {
       const r = box(x, y);
       const area = cost(r);
@@ -8196,7 +8206,7 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
       drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;
-  return { pills: [...pills.values()], sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+  return { pills: [...pills.values()], labelBoxes: labelRects, sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }
 
