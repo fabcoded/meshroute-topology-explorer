@@ -12,11 +12,11 @@ updates:
       interval: monthly
   # Also reads requirements-ha-latest.txt (L2 pins, quality plan S4): a new Home Assistant release arrives as a pull
   # request whose CI runs tests_ha. The minimum, tests_ha/requirements-ha-min.txt, is outside this directory and
-  # changes by hand. The three L2 pins move together.
+  # changes by hand. The five L2 pins move together.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: monthly
     groups:
       home-assistant-l2:
-        patterns: ["pytest-homeassistant", "home-assistant-frontend", "zigpy"]
+        patterns: ["pytest-homeassistant", "home-assistant-frontend", "zigpy", "matter-python-client", "aiohasupervisor"]

@@ -356,7 +356,8 @@ const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key 
  *  class as "none"), order (class of each lane in drawing order), symbols (devices drawn), size (symbol size on
  *  screen), paths (null, or for the focused device { hops, ends, values: [{ s, h, text, x, y, w, height, drawn, cls,
  *  predicted, places (spots the lane offered: 1 = only its middle) }] }), pills (every value pill drawn: { x, y, w, h
- *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5). */
+ *  (centre and size), pair: [sender index, hearer index] }, the click targets of spec 9.5), labelBoxes (every label
+ *  line drawn: { x, y, w, h }, top left and size). */
 export function drawScene(ctx, scene, pos, view, theme, measure) {
   const { cam, width, height, dpr } = view;
   const n = scene.nodes.length;
@@ -423,7 +424,11 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // (spec 9.3). Both kinds slide along their own lane for a free place; values of the focus's lanes (extra.path) are
   // never dropped (spec 7.1): they fall back to the middle whatever is there. See value() below.
   const addValue = (lane, text, extra) => {
-    const { w, h } = pillSize(measure(text));
+    // Two lines (Thread routes: RSSI over LQI) stack in a taller pill, as in the path history (ui/history-route.js).
+    const rows = String(text).split("\n");
+    const one = pillSize(Math.max(...rows.map((row) => measure(row))));
+    const w = one.w;
+    const h = rows.length > 1 ? one.h * 1.7 : one.h;
     let dists = pillDistances(lane, size, w, h);
     // Then every place along the lane clear of the arrowhead and the start, nearest the first choice first: a value
     // dodges a label or a symbol by sliding along its own lane.
@@ -436,7 +441,18 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
       if (!extra.path) return null;
       dists = [lane.len / 2]; // never dropped: the middle, overlap accepted
     }
-    const spots = dists.filter((d, i) => dists.findIndex((e) => Math.abs(e - d) < 1) === i).map((d) => pillCentre(lane, d));
+    let spots = dists.filter((d, i) => dists.findIndex((e) => Math.abs(e - d) < 1) === i).map((d) => pillCentre(lane, d));
+    // An engine that wants every focus value apart (focus.separate: Thread routes, board M38) also offers each place
+    // shifted to the lane's right, away from the other direction's lane, so the two pills of a short hop sit side by
+    // side; value() then keeps them clear of each other and of the hop numbers.
+    if (extra.separate) {
+      // On the lane or half a pill to its right at every place along it first; only then a full pill height out,
+      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a). The height is
+      // that of a two-line pill, so a one-line value ("unused · cost 4") can step clear of a two-line one.
+      const tall = Math.max(h, one.h * 1.7);
+      const shifted = (shifts) => spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
+      spots = [...shifted([0, tall / 2 + 4]), ...shifted([tall + 6, -(tall / 2 + 4), -(tall + 6)])];
+    }
     const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
     return t;
@@ -530,26 +546,47 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // longer hides the lane (a router between another and the coordinator read as the way up, 2026-11-02).
   const pathValues = [];
   const ends = [];
+  const hopNumbers = [];
+  const numberRects = []; // the hop numbers' boxes, which separate values keep clear of
   if (route) {
     ctx.globalAlpha = 1;
     const items = [];
     const hops = [...pathHops].sort((p, q) => p.rank - q.rank);
+    // An engine's hop may bring its own text (hop.text), be drawn in grey (muted), mark the weakest of a way (weak:
+    // wider, the pill outlined in the scale's bad colour), carry a hop number, or be context whose value may give way
+    // (context: placed like the debug overview's values, after everything else).
+    const numbers = [];
     for (const hop of hops) {
       const { s, h, dir } = hop;
       if (!segmentVisible(s, h)) continue;
       const lane = laneGeometry(sx[s], sy[s], sx[h], sy[h], size, size, offset);
       if (!lane) continue;
       const state = dir && (dir.state === "measured" || dir.state === "implied") ? dir.state : "unknown";
-      const style = laneStyle(hop.stroke, dir.rating, theme, { colored, state, weight: hop.weight });
+      const base = laneStyle(hop.stroke, dir.rating, theme, { colored, state: hop.muted ? "unknown" : state,
+        weight: hop.weight });
+      const style = hop.weak ? { ...base, width: base.width + 1.5 } : base;
       items.push({ lane, style, key: styleKey(style), rank: hop.rank });
       count(hop);
-      let text = engine.laneValue(dir, texts);
-      if (debug && state === "measured") text += ` \u2190 ${scene.nodes[h].label}`;
-      const t = addValue(lane, text, { path: true, alpha: 1, color: style.color, pair: [s, h] });
+      let text = hop.text ?? engine.laneValue(dir, texts);
+      if (debug && state === "measured" && hop.text === undefined) text += ` \u2190 ${scene.nodes[h].label}`;
+      const weakColor = hop.weak && theme.reception ? theme.reception[0] : null;
+      const t = addValue(lane, text, { path: !hop.context, context: Boolean(hop.context), alpha: 1,
+        color: weakColor || style.color, line: weakColor ? 2 : 1, pair: [s, h], separate: Boolean(route.separate) });
+      if (hop.number) numbers.push({ lane, n: hop.number });
       pathValues.push({ s, h, text, cls: hop.cls, predicted: Boolean(hop.predicted), rank: hop.rank, drawn: false,
         ref: t });
     }
     lanes += strokeLanes(ctx, items.sort(byRankAndStyle), true);
+    // Hop numbers sit near the sender's end, outside the lane (the value pill sits near the hearer's); drawn after the
+    // values, so no pill covers them.
+    for (const { lane, n: number } of numbers) {
+      const d = Math.min(lane.len * 0.3, 28);
+      hopNumbers.push({ x: lane.x0 + lane.ux * d + lane.nx * 11, y: lane.y0 + lane.uy * d + lane.ny * 11, text: String(number) });
+    }
+    for (const b of hopNumbers) {
+      obstacles.add({ x: b.x - 7, y: b.y - 7, w: 14, h: 14 });
+      numberRects.push({ x: b.x - 8, y: b.y - 8, w: 16, h: 16 });
+    }
     const firstGlyph = glyphs.length; // the overview's glyphs lie under the symbols, the focus's above
     if (selecting) for (const g of route.glyphs) if (segmentVisible(g.s, g.h)) glyphAt(g.s, g.h, g.dir, 1);
     ctx.setLineDash(STEM.dash);
@@ -629,6 +666,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   };
   // Label boxes of the focus devices (selected, hovered): no value may cover them. Values yield to them only.
   const protectedRects = [];
+  // Every label line placed so far (focus, anchors, then the rest): separate values keep clear of all of them.
+  const labelRects = [];
   // The focus's values as drawn ({ rect, t }), and those a label had to cover: they are drawn again on top.
   const valueRects = [];
   const covered = new Set();
@@ -655,6 +694,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     for (const b of spot) {
       const r = rectOf(b);
       placed.add(r);
+      labelRects.push(r);
       if (isFocus) { // a light plate keeps crossing lanes from cutting through the focus label
         protectedRects.push({ x: r.x - 1, y: r.y, w: r.w + 2, h: r.h });
         ctx.globalAlpha = PLATE_ALPHA;
@@ -683,26 +723,48 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   const value = (t) => {
     let rect = null;
     // The focus's values sit at their preferred place unless it covers a focus label or a symbol (then the next
-    // place on the lane, else the one covering least); they are never dropped. Only the debug overview's values need
-    // a free spot and may be dropped.
+    // place on the lane, else the one covering least); they are never dropped. With focus.separate a value placed
+    // earlier or a hop number weighs far more than a label or a symbol: no two values cover each other where any
+    // place is free, and so does a device symbol. Only the debug overview's values need a free spot and may be
+    // dropped.
     let least = Infinity;
+    const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
+    // Separate values treat device symbols and labels as hard as other values (rev11a): a pill on a symbol or a
+    // name hides the device.
+    const cost = (r) => (t.separate ? ([...valueRects.map((v) => v.rect), ...numberRects, ...labelRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r)) * 1000
+      : symbolArea(r) + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0));
+    const consider = (x, y) => {
+      const r = box(x, y);
+      const area = cost(r);
+      if (area >= least) return false;
+      least = area;
+      rect = r;
+      t.x = x;
+      t.y = y;
+      return area === 0;
+    };
     for (const [x, y] of t.spots) {
-      const r = { x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 };
       if (t.path) {
-        const area = protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
-        if (area >= least) continue;
-        least = area;
-        rect = r;
-        t.x = x;
-        t.y = y;
-        if (area === 0) break;
+        if (consider(x, y)) break;
         continue;
       }
+      const r = box(x, y);
       if (placed.hits(r)) continue;
       rect = r;
       t.x = x;
       t.y = y;
       break;
+    }
+    // Last resort of separate values: still on another value or a hop number, so stack it against the other
+    // direction's pill of the same hop, above, below or beside it, which keeps the two readable as one pair.
+    const partner = t.path && t.separate && least >= 1000 && t.pair
+      ? valueRects.find((v) => v.t.pair && v.t.pair[0] === t.pair[1] && v.t.pair[1] === t.pair[0]) : null;
+    if (partner) {
+      const p = partner.t;
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        if (consider(p.x + dx * (p.w / 2 + t.w / 2 + 5), p.y + dy * (p.h / 2 + t.h / 2 + 5))) break;
+      }
     }
     if (!rect) return false;
     placed.add(rect);
@@ -741,6 +803,14 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   // routes, then computed hops, then heard only): the drawing order puts the weakest first, the room for text goes to
   // the strongest; where there is no room the weaker gives way, and Details list it.
   for (const pv of [...pathValues].sort((p, q) => q.rank - p.rank)) if (pv.ref) pv.drawn = value(pv.ref);
+  for (const b of hopNumbers) {
+    ctx.fillStyle = theme.accent;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 7, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = theme.background;
+    ctx.fillText(b.text, b.x, b.y + 0.5);
+  }
   for (const e of ends) endText(e);
   // A device on the focus's paths is always labelled (Router 17 lost its label in a hub
   // position where lane values had taken every place): the values were placed first, so the block takes its first
@@ -755,7 +825,7 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     rest.sort((a, b) => rank(a) - rank(b) || a - b);
     for (const i of rest) label(i, false);
   }
-  for (const t of laneTexts) if (!t.path) value(t);
+  for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
   // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
   if (view.pairBadges && view.selected >= 0) {
@@ -773,10 +843,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     ctx.textBaseline = "bottom";
     haloText(ctx, `${Math.round(view.fps)} fps`, 8, height - 8, theme);
   }
-  const paths = route ? { hops: pathHops.length, ends: ends.length,
+  const paths = route ? { hops: pathHops.length, ends: ends.length, numbers: hopNumbers.map(({ x, y, text }) => ({ x, y, text })),
     values: pathValues.map(({ s, h, text, cls, predicted, ref, drawn: shownValue }) => ({ s, h, text, cls, predicted,
       x: ref ? ref.x : null, y: ref ? ref.y : null, w: ref ? ref.w + 4 : null, height: ref ? ref.h : null,
       drawn: shownValue, places: ref ? ref.spots.length : 0 })) } : null;
-  return { pills: [...pills.values()], sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
+  return { pills: [...pills.values()], labelBoxes: labelRects, sx, sy, lines: pairsDrawn.size, lanes, glyphs: glyphs.length, values, labels: shown, dropped, classes, order,
     symbols, size, paths };
 }

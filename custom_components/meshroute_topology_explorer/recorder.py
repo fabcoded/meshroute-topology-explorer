@@ -7,8 +7,8 @@ scan, not with the read. Never mid-scan: zigpy replaces the stored tables router
 waits for the scan task (`_scan_task`) to end, and a record due within MIN_GAP of the last one is postponed to
 last + MIN_GAP. Where no listener can be attached (internals changed, ZHA's scan off or ZHA not running) the Zigbee
 timer at ZHA's scan period (240 min without ZHA) records instead, dated with the read ("timer"). Thread has no events:
-its own timer runs every THREAD_PERIOD, independent of ZHA (owner 2026-11-08, #15), and a snapshot is dated with the
-Matter server's collection time. Every ZHA (re)load builds a new topology, so the listener is re-attached, and the
+its own timer runs every THREAD_PERIOD, independent of ZHA (owner 2026-11-08, #15), and a snapshot is dated with its
+`collected_at`: when the Matter server answered Meshroute's request, not when it read the tables (spec 3.2). Every ZHA (re)load builds a new topology, so the listener is re-attached, and the
 Zigbee timer set to ZHA's period, when ZHA's config entry changes and on each Zigbee tick. Problems are kept per source
 ("zha", "thread"), so one network's problem never shows in the other's history. Per Home Assistant run one
 HistoryFiles object and one status; a config entry reload only restarts the listener and timers. Read only: sources.py
@@ -43,6 +43,7 @@ from .const import (
 from .history import HistoryFiles
 from .options import get_options
 from .sources import collect, request_update, set_up_entries
+from .thread_tables import async_observe
 from .zha_scan import ScanSettings, attach, read_settings, scan_state, topology
 from .zigpy_routes import NotSupported
 
@@ -313,7 +314,9 @@ class Recording:
             self._failed(err, "zha")
 
     async def _tick_thread(self, _now: Any = None) -> None:
-        """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow."""
+        """Thread timer, every THREAD_PERIOD whatever ZHA does: Thread has no events to follow. It also refreshes the
+        Thread table fingerprints (thread_tables.py, in memory); harmless next to the table observer's own 10 minutes."""
+        await async_observe(self.hass)
         try:
             await self.history.record(self.keep, zigbee=False, thread=True)
         except Exception as err:  # noqa: BLE001 - a timer callback

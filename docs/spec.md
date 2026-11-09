@@ -129,17 +129,67 @@ The panel reads through Home Assistant's websocket API and requires an administr
     snapshot does not name is null.
   - Readings of an unavailable node are stale: kept for Details, not drawn. Wi-Fi nodes and links, and nodes outside
     the largest extended PAN id group, are ignored and counted.
-- No next hop per destination: no paths, stages, theoretical paths, playback or direction switch (4.6). The map draws
-  parent links solid (both directions) and measured neighbour lanes dashed; a click shows the device's own lanes with
-  values and the glyphs of its unread directions. Leader and border routers are always labelled; the fit contains
-  every device and label (7.1).
+- The map draws parent links solid (both directions) and measured neighbour lanes dashed; without routes a click shows
+  the device's own lanes with values and the glyphs of its unread directions. No Zigbee stages, theoretical paths,
+  playback or direction switch (4.6). Leader and border routers are always labelled; the fit contains every device and
+  label (7.1).
+- **Routes** (#11, `engines/thread/routes.js`): the integration's command `meshroute_topology_explorer/thread_tables`
+  (admin, `thread_tables.py`) reads Home Assistant's Matter client in memory, no refresh and no radio traffic
+  (`homeassistant/components/matter/helpers.py` `get_matter(hass).matter_client.get_nodes()`, matter-python-client 1.4.0
+  in Home Assistant 2026.10.4, 1.5.5 in 2026.11.0; contract test `tests_ha/test_matter_contract.py`). Per node with
+  ThreadNetworkDiagnostics: node id, availability, RoutingRole (0/53/1), NeighborTable (0/53/7), RouteTable (0/53/8),
+  ExtAddress (0/53/63), RLOC16 (0/53/64), from the parsed cluster objects (they follow the client's attribute_updated
+  events; the raw `node_data.attributes` do not); an attribute not reported is null, never an empty table; extended
+  addresses as 16 hex digits. Answer `{ nodes: [{ node_id, available, routing_role, neighbor_table, route_table,
+  ext_address, rloc16, times: { neighbor_table, route_table } }], read_at, observe_seconds }`, table entries with the client's field names; failures
+  `not_supported` with "reason: text" (`matter_not_loaded`, `no_client`, `internals_changed`, `error`), and the
+  Details say "Route tables not read".
+  - **Forwarding** as OpenThread decides it (`RouterTable::GetNextHopAndPathCost`, `router_table.cpp`): at a router the
+    direct link when its cost is not above the next hop's claimed cost (the entry's PathCost) plus the link cost to the
+    next hop (a tie stays direct: owner's network, direct 2 against 1 + 1), else via the next hop; 16 or more is no
+    route. The next hop's router ID is looked up in the holder's own table first, then where all tables agree; one
+    no table names stops the route (never the direct link). Link cost between routers from the lower of LQI in and out: 3 → 1, 2 → 2, 1 → 4, 0 unusable. On a child's
+    link to its parent each side counts what it receives: the child its route entry's LQI in, the parent its neighbour
+    entry's LQI (a parent found by the RLOC16 alone: the child's neighbour entry). A router's own entry is the router
+    itself and names its router ID: the entry with its own extended address (0/53/63, else the snapshot's), without
+    one the single entry with NextHop 63, PathCost 0 and no link. The unchosen usable option is an **unused route**.
+  - Routers are keyed by extended address; router IDs are mapped per read from the tables (two claims for one ID drop
+    it). An end device reaches the mesh through its parent: router ID = RLOC16 >> 10 where 0/53/64 is reported, else
+    the one entry of its own route table with LinkEstablished (its NextHop 0 and PathCost 0 are ignored: 0 is a valid
+    router ID), else the snapshot's parent above.
+  - **Route** of a device to a border router's router ID: the end device to its parent, then each router's own
+    decision; a missing table, a missing entry, an unknown next hop or a loop stops it and names where (unknown, never
+    guessed); so does an offline device (Home Assistant's or the Matter client's availability: "offline"). The way
+    back: the border router's table is not in the Matter cache, so its first hop is the last hop there mirrored,
+    marked **derived** ("Derived: which way the border router sends is mirrored from the way there; what <receiver>
+    hears is measured. The border router query (#12) reads the border router's own choice."); where its table is
+    there it decides, and a table without a way stops the route. Every further hop from the routers' own tables, the
+    parent delivering to its child. Path cost: the sum of the hops'
+    costs as each sender counts them. Default border router: the lowest complete path cost, else the first by name.
+  - Per hop what the receiver hears: its neighbour table (RSSI: the average, the last frame's for a sleepy child or
+    without an average: a sleepy child's average may not be maintained, −13 dBm next to a last −42 dBm on the owner's
+    network), else the sender's route entry's LQI out (no RSSI, "– dBm"). **Weakest hop** of a direction: the lowest
+    LQI, ties by the weaker RSSI (a hop without RSSI never wins a tie), then the first; marked red only below LQI 3
+    (owner 2026-11-09), Details name it either way.
+  - **Read time** (owner 2026-11-09, tiers C/D; the own query #12 and a listener come later): no `Age` field is a
+    data age (the route table's is 8 bit and wraps every 256 s, `router.cpp`), and the server reports no read time.
+    The integration observes the Matter client's copy every 10 minutes (its own timer from setup, whether or not the
+    history records; one observation as soon as Matter is loaded sets the baseline; no radio traffic; about 20 ms of
+    CPU for 60 nodes) and on every call, and keeps per node and per table (0/53/7, 0/53/8) a fingerprint (versioned
+    form): the neighbour table's frame counters change with every read the server makes. A changed fingerprint was
+    read in [lo, hi]: lo when the old one was last seen, hi now; lo null where unknown (first install, lost store, new
+    node); a changed fingerprint form keeps the old lo and sets hi to now; a clock step back below lo makes lo null.
+    Store `meshroute_topology_explorer.thread_tables` (kept across restarts, removed with the integration): written on
+    change; when each fingerprint was last seen only at Home Assistant's final write (a pending delayed save) or when
+    the entry unloads. Answer `times` per table `{ lo, hi }` (epoch seconds). A value is **old** on the worst case:
+    lo unknown or more than 4 hours ago; old values are amber.
 - `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
   `WebSocketControllerHandler.ts`, `NetworkTopologyService.ts`): the time the panel (or the recorder) took the
   snapshot, never the read time of the tables. The server re-reads neighbour and route tables about once a day
   (`ThreadDetailsPoller.ts`, daily poller since PR #943), on a new subscription and on an explicit refresh; some
   devices also report table changes themselves. When the server last read is not reported, and 24 h is no guaranteed
   upper bound.
-- Limits: the tables in the snapshot are what the Matter server last read, at an unknown time; the snapshot may list
+- Limits: the tables in the snapshot and the route tables are what the Matter server last read (about daily); the snapshot may list
   removed routers or miss end devices; border routers vanish when Thread diagnostics are off. No reconciliation with
   OTBR data (`otbr/*` returns keys, 3.4).
 - **[later]** `matter/subscribe_network_topology` (also 2026.9); `thread/discover_routers` and `thread/list_datasets`
@@ -163,7 +213,7 @@ The panel and the integration call only these commands; `tools/guard.py` enforce
 | `zha/devices` | devices and tables | v1 |
 | `zha/topology/update` | user-started scan | v1 |
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
-| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), reception history (10.2, read only) | v1 |
+| `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), the Matter cache's Thread tables (3.2, read only), reception history (10.2, read only) | v1 |
 | `matter/network_topology` with `refresh: false` | Thread topology, snapshot from the server's cache (3.2) | v1.1 preview |
 | `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
@@ -174,7 +224,9 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 `thread/get_dataset*`, `thread/set_*`, `matter/set_*`, `matter/commission*`, `matter/open_commissioning_window`,
 `zha/devices/permit`, other `zha/devices/clusters/*` commands, `zha/devices/bind`, `zha/devices/unbind`,
 `zha/groups/*`, `zha/configuration/*`, and ZHA services that write attributes, issue cluster commands or bind. The
-integration's Python reads from zigpy only IEEE address, network address and relays per device, and, for the reception
+integration's Python reads from zigpy only IEEE address, network address and relays per device, from the Matter client
+only its node list and each node's ThreadNetworkDiagnostics cluster (3.2; never a read, refresh, write or command
+through the client), and, for the reception
 history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config, reads the topology's scan task state and attaches a
 listener to its events (never a scan of its own: the one-time scan of 10.1 goes through ZHA's command handler); network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
@@ -232,16 +284,18 @@ others are "possibly stale". `PreviousChild` is ignored.
 | Capability | ZHA | Thread/Matter | Zigbee2MQTT |
 |---|---|---|---|
 | Radio readings per direction | yes (LQI) | yes (LQI, RSSI) | yes (LQI) |
-| Routes with next hop | yes | no | partly |
+| Routes with next hop | yes | yes (route tables of the Matter cache, 3.2) | partly |
 | Parents of end devices | yes | yes (the end device's own table) | yes |
-| Measurement time | no (observed, 6) | yes | per answer |
+| Measurement time | no (observed, 6) | no: read time not reported; an interval, observed every 10 minutes (3.2) | per answer |
 | User-started refresh | scan | refresh (not built; the panel reads the cache) | map request |
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
 | Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
 
 - What needs a missing capability (view, option, finding) is hidden, not greyed. Thread's View tab replaces
   "Communication paths", "Path display" (waits for the Thread reception model) and "Return paths without a table
-  entry" by one line: "Thread data names neighbours and parents, not routes; there are no path views." The scan
+  entry" by the group "Routes" with one option, "Unused routes" (stored, 11), and the note that a click shows the
+  route to the border router with the lowest path cost; without the route tables one line says they could not be
+  read. The scan
   appears only with `capabilities.scan`. Thread findings: offline, parent offline, parent unknown ("The topology lists
   no link between this end device and a router.").
 - One viewer engine per network type. Each network carries `engine` and `capabilities`, stamped by its source's
@@ -405,7 +459,8 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   carries min, mean and max rank per hop; its weakest hop is the one with the lowest mean.
 - **Lane series:** per direction `[t, lqi(, rssi)]`, `[t, null]` where a record lacks the entry; a window centred on a
   record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
-- **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
+- **Thread**: lane values per direction (LQI, RSSI), no walk; routes in the history and the window's Route tab
+  [later, #11].
 - **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
   a direct delivery; an address change since the record is not seen; a record that truly has no parents looks like an older one and falls back to the live parents.
 
@@ -428,7 +483,9 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   pairs; sample 3/5); "snapshot {time} ({age})" from the snapshot's `collected_at`, noted as built by the Matter
   server from its cache when the panel asked, with tables that can be many hours old and an unreported read time; in
   the menu's full line only, right after it, "Thread tables: age unknown" with the same note as tooltip (the compact
-  line keeps "snapshot {time}"); "no border router listed" when there is none. No banner, no "unchanged since".
+  line keeps "snapshot {time}"); with the route tables read the full line says "Table times: observed every 10 min"
+  instead; "no border router listed" when there is none. No banner, no "unchanged since"; each table's read interval
+  in a route's source line (3.2, 9.2).
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
   evidence rule (5.6). Below 90 % the map carries the banner "incomplete".
 - **Observations**: ZHA has no scan timestamp, and the integration cannot read ZHA's tables publicly. The panel keeps
@@ -597,7 +654,7 @@ fill.
   selecting elsewhere or Esc cancels; with reduced motion the path appears at once.
 - Selecting a router highlights its **subtree**, the devices whose known up path runs through it, with the count in
   Details ("7 devices route through this router").
-- Fill "relay load" becomes available. Thread networks offer parents and neighbours only and say so.
+- Fill "relay load" becomes available. Thread networks offer parents, neighbours and the selection's route (3.2).
 
 ### 7.3 Geo view [later]
 
@@ -742,8 +799,10 @@ One place per thing; nothing appears twice.
   - **Symbols**: one row per sign, drawn at 40 px by the map's own code on a device of the network with its picture
     (router frame with gaps and strokes; closed frame with a bed for a sleeping end device; crown "C" and plug for the
     coordinator; plug without arcs for a wired-only device, if any). **States**: offline, selected, pinned.
-  - Thread: parent link, neighbour (measured, from the neighbour table; no route data), the glyphs "–" and "?", and
-    "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
+  - Thread: parent link, neighbour (measured, from the neighbour table, dashed), route hop, derived hop (dash-dot),
+    weakest hop below LQI 3 (wider, pill outlined red), unused route (dash-dot, grey), other links while a route is
+    shown (solid, thin grey), the glyphs "–"
+    and "?", and "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
   - Longer explanations stay in this specification.
 - **Debug mode** (View tab, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and the
@@ -822,9 +881,28 @@ One place per thing; nothing appears twice.
   - "Manage in ZHA" (`/config/zha/device/<ieee>/clusters`) and "The map is read-only: writing, reporting and binding
     are done in ZHA's device management."
 - **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, role, "Thread leader" where it
-  applies), "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
+  applies), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list with
+  per hop what each receiver hears there and back and whose table it comes from, the cost as the sender counts it,
+  the weakest hop of each direction below LQI 3 marked at the left edge, the derived hop's note, and one line
+  "Source: Matter server's copy · <holder> read 09:50–10:00 · …" per table the values come from (the date where not
+  today: "read yesterday 22:10–08:05"; unknown lower bound: "read before 13:50", "read before 15:09 yesterday"; the table's name where a holder gives
+  both), tooltip "Read by the Matter server between 09:50 and 10:00. The server does not report when it reads;
+  Meshroute checks its copy every 10 minutes (last check 14:20)." or "Read at 13:50 or earlier; Meshroute had not seen
+  this table before (age unknown). The server re-reads its tables about once a day."; values that may be older than
+  4 hours in amber with the note "Values that may be older than 4 hours in amber: the route may have changed since.";
+  none for a border router),
+  "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
   parent first), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
   reported" where missing).
+- **Thread route on the map** (3.2, boards M38 and M40 A): selecting a device draws its route to the default border
+  router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
+  numbers on the way there, the weakest hop of each direction below LQI 3 wider with its pill outlined red, the
+  derived hop dash-dot; every other measured lane stays in grey with its value, and no device is dimmed. With
+  "Unused routes" on, each route hop's unused alternative is drawn dash-dot in grey with "unused · cost N". No value
+  covers another or a hop number (owner: every value readable): a pill that would moves half a pill height to the
+  right of its lane at any place along it, then at most one pill height and 6 px to the right or across to the left,
+  and as a last resort stacks against the other direction's pill of the same hop; grey values of other links give
+  way where there is no room (`tests/graph-thread-routes.test.mjs`, also at 412 px). A route that stops ends in a stem with "?". Hovering previews the device's own lanes; a border router shows its own lanes. No times on the map.
 - **Details on click** defaults to on for wide screens, off for narrow ones. It applies to clicks on the map and in
   Devices: it opens the left panel on Details (closed, on Devices, or following on Details), never takes Findings away
   and on narrow screens never pushes the right sheet away. Selecting from Findings or a device named in Details zooms
@@ -933,7 +1011,9 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   on narrow screens.
 - Websocket commands, each checking admin rights, validating input and rejecting payloads above 256 KiB:
   `meshroute_topology_explorer/settings/get` and `/settings/set`, `meshroute_topology_explorer/observations/get` and
-  `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store.
+  `/observations/set`. Data is per network, shared by all administrators, kept in a Home Assistant store. Read-only
+  commands without a network: `zigpy_routes` (3.1), `thread_tables` (3.2, with its own store of read intervals and a 10-minute observer),
+  `history/series`, `history/records`, `history/info` (10.2).
   - Requests carry `network` (1–64 characters of `A-Za-z0-9_.:-`; the network ids of 11) and, for `set`,
     `settings` or `observations` (a JSON object, at most 256 KiB compact UTF-8, replacing the stored one).
   - Results: `get` → `{settings: object|null}` or `{observations: object|null}` (null = never set); `set` → `{}`.
@@ -992,7 +1072,7 @@ The Zigbee timer runs at ZHA's period and is restarted when that changes: ZHA co
 or is gone (no running gateway: back to 240 min, zigpy's default; a running ZHA that names no period keeps the last); it reads Zigbee only where no listener can be attached (internals changed, said in Zigbee's problem), ZHA's
 scan is off or ZHA is not running (`timer`), dated with the read and guarded the same way. Thread has no events: its
 own timer reads only Thread every 4 hours, independent of ZHA (owner 2026-11-08, #15, until #12/#14 bring their own
-schedule), and a snapshot is dated with the Matter server's
+schedule), also observes the Thread tables (3.2, harmless next to their own observer), and a snapshot is dated with the Matter server's
 `collected_at`, which is the time of Meshroute's request (3.2); a Thread record therefore means what the Matter server
 held when Meshroute read it, and the rule "skipped when not newer than the last one" does not fire in practice (it
 still catches a clock step back). One Thread read follows 30 s after Home Assistant has started or
@@ -1050,6 +1130,7 @@ Keys:
 - Fill: `none`, `role` or `power` (else, including the former `reception`, `none`).
 - Details on click: `openDetailsOnSelect` (boolean, else by width).
 - Source route: `sourceRoute` `off`, `assume` or `zigpy` (else `assume`, 5.1).
+- Thread: `unusedRoutes` (boolean, "Unused routes", default false, 3.2).
 - Pinned positions; later geo positions and map background address (empty by default).
 
 The panel saves one second after the last change, when the page is hidden and on leaving, by read-merge-write: it

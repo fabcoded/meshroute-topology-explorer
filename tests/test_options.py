@@ -179,7 +179,7 @@ class SetupOptionsTest(Base):
     def test_sidebar_off_registers_no_panel_and_unload_removes_nothing(self):
         entry = self.setup({"sidebar": False})
         self.assertEqual(self.rec.panels, [])
-        self.assertEqual(len(self.rec.commands), 8)  # the commands stay: the panel URL is simply not there
+        self.assertEqual(len(self.rec.commands), 9)  # the commands stay: the panel URL is simply not there
         self.assertTrue(ha_stubs.run(self.comp.async_unload_entry(self.hass, entry)))
         self.assertEqual(self.rec.removed, [])
 

@@ -270,9 +270,10 @@ test("arrow values for Thread: RSSI in dBm, link quality only without RSSI; unkn
 
 test("legend for Thread lists what its map draws, nothing about stages", () => {
   const ids = legendEntries({ foreground: "#000", muted: "#888" }).map((e) => e.id);
-  assert.deepEqual(ids, ["parent", "neighbour", "not-listed", "no-table-thread", "rx-thread"]);
+  assert.deepEqual(ids, ["parent", "neighbour", "route", "route-derived", "route-weak", "unused", "context", "not-listed",
+    "no-table-thread", "rx-thread"]); // #11: the route rows
   const t = translator("en");
-  for (const id of ["parent", "neighbour", "not-listed", "no-table-thread"]) assert.notEqual(t(`legend.link.${id}`), `legend.link.${id}`);
+  for (const id of ids.slice(0, -1)) assert.notEqual(t(`legend.link.${id}`), `legend.link.${id}`);
 });
 
 test("details rows: the parent first, both directions per neighbour", () => {

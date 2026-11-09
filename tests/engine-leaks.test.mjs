@@ -243,10 +243,10 @@ test("7: the Thread focus is the device's own lanes: no band, no ends", async ()
 
 // A save writes the whole sanitized object (shell defaults included, tests/panel-settings.test.mjs); what matters
 // here is that the Zigbee keys under a Thread id come back and go out exactly as stored.
-test("8: Thread settings are untouched: stored Zigbee keys come back verbatim and are never rewritten", async () => {
+test("8: Thread settings: its one key (#11 unusedRoutes); stored Zigbee keys come back verbatim and are never rewritten", async () => {
     const { thread, threadNet } = await engines();
     const { SettingsClient } = await mod("ui/settings.js");
-    assert.deepEqual(thread.settings.keys, [], "Thread owns no settings keys");
+    assert.deepEqual(thread.settings.keys, ["unusedRoutes"], "Thread owns one settings key");
     const zigbeeKeys = { paths: "heard", sourceRoute: "bogus", heard: "yes", returnRoutes: 7, links: { up: true },
       nodeView: "all" };
     const stored = new Map([[threadNet.id, { ...zigbeeKeys, density: "medium" }]]);
@@ -264,6 +264,7 @@ test("8: Thread settings are untouched: stored Zigbee keys come back verbatim an
     const saved = stored.get(threadNet.id);
     for (const [key, value] of Object.entries(zigbeeKeys)) assert.deepEqual(saved[key], value, key);
     assert.equal(saved.density, "dense");
+    assert.equal(saved.unusedRoutes, false);
   });
 
 test("9: Thread findings use their own kinds only, even with link quality 1 on every link", async () => {

@@ -29,6 +29,7 @@ class FakeStore:
     def __init__(self, hass, version, key, *args, **kwargs):
         self.version, self.key = version, key
         self.delay_calls = []
+        self.saved = []
         self.removed = False
         FakeStore.instances.append(self)
 
@@ -39,6 +40,10 @@ class FakeStore:
 
     def async_delay_save(self, data_func, delay=0):
         self.delay_calls.append((data_func, delay))
+
+    async def async_save(self, data):
+        self.saved.append(data)
+        self.delay_calls.clear()  # like core: a save cancels the pending delayed one
 
     async def async_remove(self):
         self.removed = True
@@ -107,6 +112,7 @@ class FakeEntry:
 class FakeHass:
     def __init__(self, components=(), config_dir="/nonexistent"):
         self.data = {}
+        self.tasks = []
         # hass.config.components: the loaded integrations (zigpy_routes.py asks whether "zha" is among them).
         self.config = types.SimpleNamespace(components=set(components),
                                             path=lambda *parts: os.path.join(config_dir, *parts))
@@ -117,6 +123,11 @@ class FakeHass:
             list(self.zha_entries) if domain == "zha" else [],
             async_loaded_entries=lambda domain: [], async_reload=mock.AsyncMock())  # loaded first: none marked
         self.http = types.SimpleNamespace(async_register_static_paths=mock.AsyncMock())
+
+    def async_create_task(self, coro):
+        # Home Assistant schedules it on the loop; the tests run the recorded coroutines themselves.
+        self.tasks.append(coro)
+        return coro
 
     async def async_add_executor_job(self, func, *args):
         # Home Assistant runs func in a worker thread (core.py); the tests run it inline.
@@ -202,6 +213,7 @@ def install():  # noqa: C901 - existing; see plan-qualitaet S6
 
     mod("probatio", Schema=Schema, Required=Required)
     mod("homeassistant.config_entries", ConfigEntry=object, SIGNAL_CONFIG_ENTRY_CHANGED="config_entry_changed", ConfigFlow=ConfigFlow, ConfigFlowResult=dict,
+        ConfigEntryState=types.SimpleNamespace(LOADED="loaded", NOT_LOADED="not_loaded"),
         OptionsFlow=OptionsFlow, OptionsFlowWithReload=OptionsFlowWithReload)
     mod("homeassistant.data_entry_flow", section=lambda schema, options=None: ("section", schema, options))
     def callback(func):

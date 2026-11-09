@@ -36,7 +36,7 @@ class SetupTest(unittest.TestCase):
             "meshroute_topology_explorer/history/info", "meshroute_topology_explorer/history/records", "meshroute_topology_explorer/history/series",
             "meshroute_topology_explorer/observations/get", "meshroute_topology_explorer/observations/set",
             "meshroute_topology_explorer/settings/get", "meshroute_topology_explorer/settings/set",
-            "meshroute_topology_explorer/zigpy_routes"])
+            "meshroute_topology_explorer/thread_tables", "meshroute_topology_explorer/zigpy_routes"])
 
     def test_panel_and_static_path_details(self):
         ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
@@ -61,7 +61,7 @@ class SetupTest(unittest.TestCase):
         ha_stubs.run(self.comp.async_setup_entry(self.hass, self.entry))
         self.assertEqual(self.hass.http.async_register_static_paths.await_count, 1)
         self.assertEqual(len(self.rec.panels), 3)
-        self.assertEqual(len(self.rec.commands), 8)
+        self.assertEqual(len(self.rec.commands), 9)
 
     def test_reload_after_changed_panel_files_serves_a_new_path_once(self):
         """Ships a frontend update without a restart: new hash, new static path, panel under the new URL."""

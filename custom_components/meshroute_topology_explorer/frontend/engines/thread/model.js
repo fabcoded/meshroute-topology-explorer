@@ -6,6 +6,7 @@
 // address, no router-table counts, no capacity, relay load or rating); what the snapshot does not name is null.
 // Pure, no DOM. npm test
 import { THREAD_CAPABILITIES, THREAD_SOURCE, fromMatter } from "./from-matter.js";
+import { buildRouting } from "./routes.js";
 
 const ROUTER_ROLES = new Set(["router", "border router"]);
 
@@ -21,12 +22,16 @@ function unknownReason(hearer, r) {
 }
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
- *  registries (names, areas) and entities and states (the kind, kinds.js). Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
- *  extPanId, capabilities, collectedAt, devices, readings, staleReadings, routes (empty), links, pairs, status,
+ *  registries (names, areas) and entities and states (the kind, kinds.js), and the Thread tables of the Matter cache
+ *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed).
+ *  Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
+ *  extPanId, capabilities (routes: the tables answered), collectedAt, devices, readings, staleReadings, routes
+ *  (empty: Zigbee's routing entries), routing (routes.js buildRouting, or null), routingProblem, links, pairs, status,
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
  *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot). */
-export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, capabilities = THREAD_CAPABILITIES } = {}) {
+export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
+  tablesProblem = null, capabilities = THREAD_CAPABILITIES } = {}) {
   const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states });
   if (!mapped) return null;
   const { pan, devices, readings, stale, links, unresolved, collectedAt } = mapped;
@@ -61,7 +66,7 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, ent
   for (const d of devices) d.children.sort();
 
   const pairs = threadPairs(devices, readings, links);
-  return {
+  const network = {
     engine: "thread",
     source: THREAD_SOURCE,
     // Settings are kept per network (spec 11): the extended PAN id names a Thread network (spec 4.1).
@@ -73,7 +78,12 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, ent
     status: threadStatus(devices, pairs),
     findings: threadFindings(devices),
     unresolved,
+    routing: null,
+    routingProblem: tablesProblem,
   };
+  network.routing = buildRouting(network, tables);
+  if (network.routing) network.capabilities = { ...capabilities, routes: true };
+  return network;
 }
 
 

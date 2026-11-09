@@ -34,12 +34,19 @@ export function laneValue(dir, texts) {
   return threadValue(dir);
 }
 
-/** The link rows of the legend (spec 3.2): what a Thread map draws, parent links, measured neighbours, the glyphs a
- *  click shows, RX with an RSSI sample; no stage or option notes. */
+/** The link rows of the legend (spec 3.2): what a Thread map draws, parent links, measured neighbours, a selected
+ *  device's route (hop, derived hop, weakest hop, unused alternative, the other links in grey), the glyphs a click
+ *  shows, RX with an RSSI sample; no stage notes. */
 export function legendEntries(theme) {
+  const strong = laneStyle("solid", 1, theme, { weight: "strong" });
   return [
-    { id: "parent", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "strong" }) },
+    { id: "parent", kind: "lane", style: strong },
     { id: "neighbour", kind: "lane", style: laneStyle("dashed", 1, theme, { weight: "thin" }) },
+    { id: "route", kind: "lane", style: strong },
+    { id: "route-derived", kind: "lane", style: laneStyle("dashdot", 1, theme, { weight: "strong" }) },
+    { id: "route-weak", kind: "lane", style: { ...strong, width: strong.width + 1.5 } },
+    { id: "unused", kind: "lane", style: laneStyle("dashdot-muted", 1, theme, { weight: "regular" }) },
+    { id: "context", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "thin", state: "unknown" }) },
     { id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
     { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },
     { id: "rx-thread", kind: "rx", sample: "−75 dBm" },
