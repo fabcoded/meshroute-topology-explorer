@@ -10,13 +10,19 @@ updates:
     directory: /
     schedule:
       interval: monthly
-  # Also reads requirements-ha-latest.txt (L2 pins, quality plan S4): a new Home Assistant release arrives as a pull
-  # request whose CI runs tests_ha. The minimum, tests_ha/requirements-ha-min.txt, is outside this directory and
-  # changes by hand. The five L2 pins move together.
+  # Reads requirements-ha-latest.txt (L2 pins, quality plan S4). Only pytest-homeassistant triggers a pull request: a
+  # new Home Assistant release. The other four L2 pins must equal what that release ships (its manifests for
+  # frontend, zha -> zigpy, matter, hassio), but Dependabot would take the newest PyPI release, so they are ignored
+  # here and aligned by hand in that pull request's branch, with tests_ha. The minimum,
+  # tests_ha/requirements-ha-min.txt, changes by hand and is excluded.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: monthly
-    groups:
-      home-assistant-l2:
-        patterns: ["pytest-homeassistant", "home-assistant-frontend", "zigpy", "matter-python-client", "aiohasupervisor"]
+    exclude-paths:
+      - "tests_ha/**"
+    ignore:
+      - dependency-name: "home-assistant-frontend"
+      - dependency-name: "zigpy"
+      - dependency-name: "matter-python-client"
+      - dependency-name: "aiohasupervisor"
