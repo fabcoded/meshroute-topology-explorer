@@ -78,6 +78,11 @@ class ScopeTest(unittest.TestCase):
     def test_source_files_are_a_scope(self):
         self.assertEqual(complexity.scope_of(["a.js", "./t.py", "x/y.mjs"]), {"a.js", "t.py", "x/y.mjs"})
 
+    def test_listed_files_that_are_gone_are_always_judged(self):
+        # A commit that deletes or renames a.js never names it; its entries must still read as stale.
+        self.assertEqual(complexity.scope_of(["t.py"], missing={"a.js"}), {"t.py", "a.js"})
+        self.assertIsNone(complexity.scope_of([], missing={"a.js"}))
+
     def test_no_files_baseline_or_config_measures_everything(self):
         self.assertIsNone(complexity.scope_of([]))
         self.assertIsNone(complexity.scope_of(["a.js", "tools/complexity-baseline.json"]))

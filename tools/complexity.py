@@ -146,8 +146,8 @@ def message(kind, f, old):
     where = f"{f.file}:{f.line}" if f.line else f.file
     if kind == "new":
         return (f"{where} {f.name}: complexity {f.score}, above {LIMIT}\n    split it into named helpers until each is "
-                f"{LIMIT} or less; the baseline is not for new code (a pure rename: rename its key in "
-                f"{BASELINE.name} in the same commit)")
+                f"{LIMIT} or less; the baseline is not for new code (a pure rename of the function or its file: rename its "
+                f"key in {BASELINE.name} in the same commit)")
     if kind == "rose":
         return (f"{where} {f.name}: complexity {f.score}, listed at {old}\n    a listed function may only fall: move "
                 f"the part you changed into a named helper")
@@ -173,11 +173,12 @@ def size(baseline):
     return sum(len(entries) for files in baseline.values() for entries in files.values())
 
 
-def scope_of(paths):
-    """The files to measure, or None for all: a change to the baseline, the measuring config or no file named."""
+def scope_of(paths, missing=()):
+    """The files to judge, or None for all: a change to the baseline, the measuring config or no file named. Listed
+    files that no longer exist (`missing`) are always judged: a deleted or renamed file is never passed by name."""
     if not paths or any(not p.endswith((*JS, ".py")) for p in paths):
         return None
-    return {Path(p).as_posix() for p in paths}
+    return {Path(p).as_posix() for p in paths} | set(missing)
 
 
 def main(argv):
@@ -188,9 +189,11 @@ def main(argv):
         sys.exit(f"complexity: {BASELINE.name} exists; --seed only writes a first one")
     update = "--update" in argv or os.environ.get("MESHROUTE_COMPLEXITY_UPDATE") == "1"
     before = load() if update else None
-    scope = None if update or seed else scope_of([a for a in argv if not a.startswith("--")])
-    js = None if scope is None else sorted(p for p in scope if p.endswith(JS))
-    py = None if scope is None else sorted(p for p in scope if p.endswith(".py"))
+    listed = {file for files in load().values() for file in files} if not seed else set()
+    missing = {file for file in listed if not (ROOT / file).exists()}
+    scope = None if update or seed else scope_of([a for a in argv if not a.startswith("--")], missing)
+    js = None if scope is None else sorted(p for p in scope - missing if p.endswith(JS))
+    py = None if scope is None else sorted(p for p in scope - missing if p.endswith(".py"))
     findings = (js_findings(js) if js is None or js else []) + (py_findings(py) if py is None or py else [])
     if seed or update:
         save(seeded(findings) if seed else updated(before, findings))

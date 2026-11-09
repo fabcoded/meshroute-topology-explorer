@@ -51,8 +51,8 @@ tested directly.
   is stale (a listed function fell or is gone): `python3 tools/complexity.py --update` lowers and drops entries, never
   adds one. 15 means cognitive complexity for JavaScript (ESLint `sonarjs`) and McCabe complexity for Python (Ruff
   C901; `noqa` does not exempt). Functions are keyed by file and qualified name (`Class.method`, `outer>inner`,
-  callbacks by their call, such as `test("title")`), so moved lines keep the key; a rename reads as new plus stale:
-  rename the key in the same commit.
+  callbacks by their call, such as `test("title")`), so moved lines keep the key; a renamed function or file
+  reads as new plus stale: rename its key in the same commit.
 - **Reports only, with a PASS or FAIL line on new code:** coverage of changed lines (at least 80 %, from 20 changed
   lines), duplication on new code (at most 3 %), no new type finding on changed lines, no new Ruff or ESLint
   finding; the complexity line repeats the blocking gate. The summary of the CI job `quality` shows them per pull
