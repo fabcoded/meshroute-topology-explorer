@@ -82,9 +82,12 @@ def py_names(source):
 
 
 def py_findings(files):
-    """Python functions above 15 in `files` (None: the repository) from Ruff C901, noqa ignored."""
-    cmd = [*ruff_command(), "check", "--select", "C901", "--ignore-noqa", "--no-cache", "--output-format", "json",
-           "--config", f"lint.mccabe.max-complexity = {LIMIT}", *(files or ["."])]
+    """Python functions above 15 in `files` (None: the repository) from Ruff C901, noqa ignored. --isolated: the
+    project's Ruff settings (per-file-ignores, excludes) must not exempt a file or make commit and CI disagree
+    (review rev-s10 F2)."""
+    cmd = [*ruff_command(), "check", "--isolated", "--target-version", "py314", "--select", "C901", "--ignore-noqa",
+           "--no-cache", "--output-format", "json", "--config", f"lint.mccabe.max-complexity = {LIMIT}",
+           *(files or ["."])]
     out = []
     for m in json.loads(run(cmd).stdout):
         file = Path(m["filename"]).resolve().relative_to(ROOT).as_posix()

@@ -1,9 +1,14 @@
 # SPDX-License-Identifier: MIT
-"""Tests for the complexity ratchet's logic in tools/complexity.py (no ESLint, no Ruff).  python3 -m unittest discover -s tests"""
+"""Tests for the complexity ratchet in tools/complexity.py: its logic and Ruff's isolated run (skipped without Ruff on
+PATH).  python3 -m unittest discover -s tests"""
 
+import contextlib
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import complexity
@@ -98,6 +103,26 @@ class MessageTest(unittest.TestCase):
         self.assertIn("listed at 30", rose)
         stale = complexity.message("stale", Finding("js", "a.js", "C.m", None, None), 20)
         self.assertEqual(stale, "a.js C.m: listed at 20, now not above 15 or gone (stale)")
+
+
+@unittest.skipUnless(shutil.which("ruff"), "Ruff not on PATH (the pre-commit hook installs it)")
+class RuffIsolatedTest(unittest.TestCase):
+    def test_project_settings_exempt_no_python_file(self):
+        # Review rev-s10 F2: per-file-ignores exempted a file, extend-exclude made commit and CI modes disagree.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        busy = "def busy(x):\n" + "".join(f"    if x == {i}:\n        return {i}\n" for i in range(16)) + "    return -1\n"
+        for name in ("ignored.py", "excluded.py"):
+            (root / name).write_text(busy, encoding="utf-8")
+        (root / "pyproject.toml").write_text('[tool.ruff]\nextend-exclude = ["excluded.py"]\n'
+                                             '[tool.ruff.lint.per-file-ignores]\n"ignored.py" = ["C901"]\n', encoding="utf-8")
+        with mock.patch.object(complexity, "ROOT", root), contextlib.chdir(root):
+            everything = complexity.py_findings(None)
+            named = complexity.py_findings(["excluded.py"])
+        self.assertEqual(sorted((f.file, f.name, f.score) for f in everything),
+                         [("excluded.py", "busy", 17), ("ignored.py", "busy", 17)])
+        self.assertEqual([(f.file, f.score) for f in named], [("excluded.py", 17)])
 
 
 class PythonNamesTest(unittest.TestCase):
