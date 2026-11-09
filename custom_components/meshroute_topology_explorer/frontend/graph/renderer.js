@@ -341,7 +341,7 @@ export function typeShown(k, typeZoom) {
 }
 
 const styleKey = (style) => `${style.color}|${style.width}|${style.dash.join(",")}|${style.head}`;
-/** Weakest class first, then grouped by style, so the dash pattern changes once per group. */
+
 /** The lane style of a focus hop (drawScene): grey where the engine mutes it, wider where it is the weakest of its
  *  way. */
 function focusLaneStyle(hop, state, theme, colored) {
@@ -393,6 +393,7 @@ function drawHopNumbers(ctx, hopNumbers, theme) {
   }
 }
 
+/** Weakest class first, then grouped by style, so the dash pattern changes once per group. */
 const byRankAndStyle = (p, q) => p.rank - q.rank || (p.key < q.key ? -1 : p.key > q.key ? 1 : 0);
 
 /** Draw one frame. view: { cam, width, height, dpr, labelZoom, debug, selected, hovered (node indices or -1),
