@@ -6,6 +6,7 @@ import process from "node:process";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major !== 22 || minor < 13) {
-  process.stderr.write(`Use Node.js 22.13 or newer in the 22.x series (package.json engines); found v${process.versions.node}.\n`);
+  const found = process.versions.node;
+  process.stderr.write(`Use Node.js 22.13 or newer in the 22.x series (package.json engines); found v${found}.\n`);
   process.exit(2);
 }

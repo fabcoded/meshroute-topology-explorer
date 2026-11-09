@@ -87,7 +87,8 @@ export const names = {
       "ClassExpression:exit": leave,
     };
     for (const type of FUNCTIONS) {
-      visitors[type] = (node) => context.report({ loc: reportLoc(node, sourceCode), message: enter(ownName(node, sourceCode), false) });
+      visitors[type] = (node) => context.report({ loc: reportLoc(node, sourceCode),
+        message: enter(ownName(node, sourceCode), false) });
       visitors[`${type}:exit`] = leave;
     }
     return visitors;
@@ -107,12 +108,14 @@ export async function measure(files) {
     const file = path.relative(ROOT, result.filePath).split(path.sep).join("/");
     const fatal = result.messages.find((m) => m.fatal);
     if (fatal) throw new Error(`${file}:${fatal.line}: ${fatal.message}`);
-    const at = new Map(result.messages.filter((m) => m.ruleId === "complexity/names").map((m) => [`${m.line}:${m.column}`, m.message]));
+    const at = new Map(result.messages.filter((m) => m.ruleId === "complexity/names")
+      .map((m) => [`${m.line}:${m.column}`, m.message]));
     for (const m of result.messages.filter((x) => x.ruleId === "sonarjs/cognitive-complexity")) {
       const name = at.get(`${m.line}:${m.column}`);
       const score = SCORE.exec(m.message);
       if (!name || !score) {
-        throw new Error(`${file}:${m.line}:${m.column}: cannot name or score "${m.message}"; did eslint-plugin-sonarjs change where or how it reports?`);
+        throw new Error(`${file}:${m.line}:${m.column}: cannot name or score "${m.message}"; did `
+          + "eslint-plugin-sonarjs change where or how it reports?");
       }
       out.push({ file, name, line: m.line, score: Number(score[1]) });
     }
