@@ -68,6 +68,13 @@ PY_DENY = (
     "read_attribute", "refresh_attribute", "write_attribute", "send_device_command", "interview_node",
     "get_network_topology", "ping_node", "remove_node", "commission", "subscribe_attribute", "set_thread_dataset",
     "set_wifi_credentials",
+    # and its other calls that send, change the fabric or return credentials (matter-python-client 1.4.0 and 1.5.5,
+    # client.py; rev11a). `.read(` (1.5.5) is left out: it would hit every file read; `.subscribe(` is kept.
+    "send_command(", "send_command_no_wait(", "send_batched_device_commands(", "send_webrtc_provider_command(",
+    "get_all_credentials(", "set_thread_operational_dataset(", "remove_thread_dataset(", "remove_wifi_credentials(",
+    "remove_matter_fabric(", "set_default_fabric_label(", "update_node(", "check_node_update(", "upload_ota_file(",
+    "get_thread_diagnostics(", "node_diagnostics(", "get_diagnostics(", "register_icd(", "unregister_icd(",
+    "resync_icd(", "get_icd_state(", "camera_", ".subscribe(", "subscribe_events(", "start_listening(",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

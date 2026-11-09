@@ -210,7 +210,7 @@ test("Thread pair: pills stacked RSSI over LQI, no route bands, no weakest hop",
   await flush();
   click(button(w.el, "7 d"));
   await flush();
-  assert.match(text(w.el), /Thread has no routing table/);
+  assert.match(text(w.el), /Thread routes are not recorded in the history yet \(#11\)/);
   assert.equal(find(w.el, (e) => e.tag === "svg" && cls(e) === "hist-timeline").length, 0, "no bands");
   click(button(w.el, "Route"));
   await flush();

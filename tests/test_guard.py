@@ -196,6 +196,15 @@ class GuardTest(unittest.TestCase):
             "matter_command": "await client.send_device_command(14, 1, cmd)",
             "matter_interview": "await client.interview_node(14)",
         }
+        # rev11a: every further call of the Matter client that sends, changes the fabric or returns credentials.
+        for call in ("send_command('x')", "send_command_no_wait('x')", "send_batched_device_commands([])",
+                     "send_webrtc_provider_command(1)", "get_all_credentials()", "set_thread_operational_dataset('x')",
+                     "remove_thread_dataset()", "remove_wifi_credentials()", "remove_matter_fabric(1, 2)",
+                     "set_default_fabric_label('x')", "update_node(14, '1')", "check_node_update(14)",
+                     "upload_ota_file(b'')", "get_thread_diagnostics(14)", "node_diagnostics(14)", "get_diagnostics()",
+                     "register_icd(14)", "unregister_icd(14)", "resync_icd(14)", "get_icd_state(14)",
+                     "camera_start_stream(14)", "subscribe([])", "subscribe_events(cb)", "start_listening()"):
+            denied[f"client_{call.split('(')[0]}"] = f"await client.{call}"
         for name, code in denied.items():
             with self.subTest(name):
                 root = self.tree({f"custom_components/x/{name}.py": py + code + "\n"})

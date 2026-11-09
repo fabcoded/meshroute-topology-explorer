@@ -66,8 +66,9 @@ export const COST = {
 const lq = (a, b) => LINKS[`${a}|${b}`] ?? LINKS[`${b}|${a}`] ?? null;
 const rloc = (k) => ROUTERS[k].rid << 10;
 
-/** Route table of router h as the Matter cache holds it (field names of the Matter client). */
-function routeTable(h) {
+/** Route table of router h as the Matter cache holds it (field names of the Matter client); also for a border
+ *  router, whose table the tests add where they need it. */
+export function routeTable(h) {
   return R.map((d) => {
     const e = { extAddress: KEYS[d].ext, rloc16: rloc(d), routerId: ROUTERS[d].rid, age: 200, allocated: true };
     if (d === h) return { ...e, nextHop: 63, pathCost: 0, LQIIn: 0, LQIOut: 0, linkEstablished: false };

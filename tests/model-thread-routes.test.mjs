@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { buildThreadNetwork } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js";
 import { linkCost, nextHop, parentOf, readTables, weakestHop, MAX_COST }
   from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/routes.js";
-import { idOf, threadRoutesSample } from "./thread-routes-fixture.mjs";
+import { idOf, routeTable, threadRoutesSample } from "./thread-routes-fixture.mjs";
 
 const build = (options = {}) => {
   const { topology, tables } = threadRoutesSample(options);
@@ -177,4 +177,137 @@ test("#11 no Age field is read: changing every age changes no route", () => {
   const b = net.routing.routeTo(idOf("XS"), idOf("BRA"));
   assert.deepEqual(a.there.hops, b.there.hops);
   assert.deepEqual(readTables(n, tables).holders.get(idOf("LU")).unchangedSince, (1767268800 - 3 * 3600) * 1000);
+});
+
+// ---- review rev11a: next hops from the holder's own table, cost edges, own entries, parents, offline, BR tables ----
+
+const tablesOf = (sample, nodeId) => sample.tables.nodes.find((x) => x.node_id === nodeId);
+const entryOf = (table, rid) => table.route_table.find((e) => e.routerId === rid);
+const rebuild = (sample) => buildThreadNetwork(sample.topology, { tables: sample.tables });
+
+test("#11 a next hop is resolved in the holder's own table; a global conflict never turns it into the direct link", () => {
+  const sample = threadRoutesSample();
+  // Plug 2 mislabels plug 3 as router 10 (sofaoben's ID): the tables disagree on 10.
+  entryOf(tablesOf(sample, 22), 45).routerId = 10;
+  const n = rebuild(sample);
+  assert.equal(n.routing.tables.conflicts.has(10), true);
+  const step = nextHop(n.routing.tables, idOf("P1"), idOf("BRA"));
+  assert.deepEqual([step.next, step.kind, step.cost], [idOf("LO"), "next hop", 2]); // plug 1's own table names 10
+  // A next hop no table names: unknown, never the direct link (cost 4 would be usable).
+  const unknown = threadRoutesSample();
+  entryOf(tablesOf(unknown, 21), 60).nextHop = 33;
+  const u = rebuild(unknown);
+  assert.deepEqual(nextHop(u.routing.tables, idOf("P1"), idOf("BRA")), { next: null, reason: "next_hop_unknown" });
+  assert.equal(u.routing.routeTo(idOf("P1"), idOf("BRA")).there.reason, "next_hop_unknown");
+});
+
+test("#11 an asymmetric link costs by its weaker direction: sofaunten (in 3, out 1) goes via sofaoben", () => {
+  const sample = threadRoutesSample();
+  Object.assign(entryOf(tablesOf(sample, 14), 60), { LQIIn: 3, LQIOut: 1 });
+  const step = nextHop(rebuild(sample).routing.tables, idOf("LU"), idOf("BRA"));
+  assert.deepEqual([step.next, step.cost], [idOf("LO"), 2]);
+  assert.deepEqual(step.alternative, { via: idOf("BRA"), cost: 4, kind: "direct" });
+});
+
+test("#11 a way costing exactly 16 is no route", () => {
+  const sample = threadRoutesSample();
+  entryOf(tablesOf(sample, 22), 60).pathCost = 14; // plug 2: via plug 1, 14 + link 2 = 16
+  assert.deepEqual(nextHop(rebuild(sample).routing.tables, idOf("P2"), idOf("BRA")), { next: null, reason: "no_route" });
+  entryOf(tablesOf(sample, 22), 60).pathCost = 13; // 15 still is one
+  assert.equal(nextHop(rebuild(sample).routing.tables, idOf("P2"), idOf("BRA")).next, idOf("P1"));
+});
+
+test("#11 an entry without an established link is no link, whatever stale link quality it keeps", () => {
+  const sample = threadRoutesSample();
+  Object.assign(entryOf(tablesOf(sample, 22), 60), { LQIIn: 3, LQIOut: 3 }); // plug 2 -> border router A: not linked
+  assert.equal(nextHop(rebuild(sample).routing.tables, idOf("P2"), idOf("BRA")).next, idOf("P1"));
+  // Its next hop's entry unlinked too: no usable way at all.
+  Object.assign(entryOf(tablesOf(sample, 22), 40), { linkEstablished: false });
+  assert.equal(nextHop(rebuild(sample).routing.tables, idOf("P2"), idOf("BRA")).reason, "no_route");
+});
+
+test("#11 several linked entries in an end device's table name no parent", () => {
+  const sample = threadRoutesSample();
+  Object.assign(entryOf(tablesOf(sample, 24), 40), { linkEstablished: true, LQIIn: 3, LQIOut: 3 });
+  const n = rebuild(sample);
+  assert.equal(parentOf(n.routing.tables, n, idOf("XS")), null);
+  assert.equal(n.routing.routeTo(idOf("XS"), idOf("BRA")).there.reason, "parent_unknown");
+});
+
+test("#11 the own entry: by the node's extended address; the shape alone only when single", () => {
+  const sample = threadRoutesSample();
+  // An unreachable router looks like an own entry (NextHop 63, PathCost 0, no link); it comes last in the table.
+  tablesOf(sample, 14).route_table.push({ extAddress: "AABBCCDD000000F0", rloc16: 0xD400, routerId: 53, nextHop: 63,
+    pathCost: 0, LQIIn: 0, LQIOut: 0, age: 0, allocated: true, linkEstablished: false });
+  const n = rebuild(sample);
+  assert.equal(n.routing.tables.holders.get(idOf("LU")).routerId, 28);
+  // Without any extended address of its own: one shaped entry is its own, two are ambiguous.
+  const network = { devices: [{ id: "thread:14", nodeId: 14, extAddress: null, available: true }] };
+  const shaped = (rid, ext) => ({ extAddress: ext, routerId: rid, nextHop: 63, pathCost: 0, linkEstablished: false });
+  const one = readTables(network, { nodes: [{ node_id: 14, routing_role: 6, ext_address: null,
+    route_table: [shaped(28, "AABBCCDD00000001")] }] });
+  assert.equal(one.holders.get("thread:14").routerId, 28);
+  const two = readTables(network, { nodes: [{ node_id: 14, routing_role: 6, ext_address: null,
+    route_table: [shaped(28, "AABBCCDD00000001"), shaped(53, "AABBCCDD000000F0")] }] });
+  assert.equal(two.holders.get("thread:14").routerId, null);
+  // The node's own 0/53/63 decides even where the snapshot has no extended address.
+  const reported = readTables(network, { nodes: [{ node_id: 14, routing_role: 6, ext_address: "aabbccdd00000001",
+    route_table: [shaped(53, "AABBCCDD000000F0"), shaped(28, "AABBCCDD00000001")] }] });
+  assert.equal(reported.holders.get("thread:14").routerId, 28);
+});
+
+test("#11 the RLOC16 names a parent only with a child ID, and only by a router ID the tables agree on", () => {
+  const sample = threadRoutesSample();
+  tablesOf(sample, 24).rloc16 = 40 << 10; // child ID 0: a router's RLOC16, no parent in it
+  let n = rebuild(sample);
+  assert.deepEqual(parentOf(n.routing.tables, n, idOf("XS")), { id: idOf("P2"), source: "route table" });
+  const conflict = threadRoutesSample();
+  tablesOf(conflict, 24).rloc16 = (40 << 10) | 3;
+  entryOf(tablesOf(conflict, 22), 45).routerId = 40; // router 40 contested
+  n = rebuild(conflict);
+  assert.deepEqual(parentOf(n.routing.tables, n, idOf("XS")), { id: idOf("P2"), source: "route table" });
+});
+
+test("#11 a parent named only by the RLOC16 costs what the child's neighbour table says", () => {
+  const sample = threadRoutesSample();
+  const xs = tablesOf(sample, 24);
+  xs.rloc16 = (50 << 10) | 3;
+  for (const e of xs.route_table) e.linkEstablished = false;
+  const r = rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA"));
+  assert.deepEqual(r.parent, { id: idOf("P2"), source: "rloc16" });
+  assert.equal(r.there.hops[0].cost, 2); // the sensor hears plug 2 at LQI 2
+});
+
+test("#11 a route through an offline router stops there, by either availability", () => {
+  for (const mark of ["snapshot", "matter"]) {
+    const sample = threadRoutesSample();
+    if (mark === "snapshot") sample.topology.nodes.find((x) => x.node_id === 21).available = false;
+    else tablesOf(sample, 21).available = false;
+    const r = rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA"));
+    assert.deepEqual([r.there.complete, r.there.reason, r.there.at], [false, "offline", idOf("P1")], mark);
+    assert.equal(r.back.reason, "there_incomplete");
+  }
+  const sample = threadRoutesSample();
+  tablesOf(sample, 24).available = false; // the device itself
+  assert.equal(rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA")).there.reason, "offline");
+});
+
+test("#11 derived only where the border router's table is missing; its table decides, or stops the way back", () => {
+  const withTable = () => {
+    const sample = threadRoutesSample();
+    sample.topology.nodes.find((x) => x.id.startsWith("br_") && x.host_name === "Border router A").node_id = 99;
+    sample.tables.nodes.push({ node_id: 99, available: true, routing_role: 5, ext_address: idOf("BRA").replace(/:/g, ""),
+      rloc16: null, neighbor_table: [], route_table: routeTable("BRA"), unchanged_since: 1767268800 });
+    return sample;
+  };
+  const sample = withTable();
+  const r = rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA"));
+  assert.deepEqual(ids(r.back.hops), path("BRA", "LO", "P1", "P2", "XS"));
+  assert.equal(r.back.hops[0].derived, false);
+  assert.equal(r.back.hops[0].decided, "next hop"); // its own table: plug 2 via sofaoben (3 + link 1 = 4)
+  const empty = withTable();
+  const br = empty.tables.nodes.find((x) => x.node_id === 99);
+  br.route_table = br.route_table.filter((e) => e.routerId !== 50); // no entry for plug 2
+  const stopped = rebuild(empty).routing.routeTo(idOf("XS"), idOf("BRA"));
+  assert.deepEqual([stopped.back.complete, stopped.back.reason, stopped.back.hops.length], [false, "no_entry", 0]);
 });

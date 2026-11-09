@@ -45,7 +45,7 @@ export function legendEntries(theme) {
     { id: "route", kind: "lane", style: strong },
     { id: "route-derived", kind: "lane", style: laneStyle("dashdot", 1, theme, { weight: "strong" }) },
     { id: "route-weak", kind: "lane", style: { ...strong, width: strong.width + 1.5 } },
-    { id: "unused", kind: "lane", style: laneStyle("dashed", 1, theme, { weight: "regular", state: "unknown" }) },
+    { id: "unused", kind: "lane", style: laneStyle("dashdot-muted", 1, theme, { weight: "regular" }) },
     { id: "context", kind: "lane", style: laneStyle("solid", 1, theme, { weight: "thin", state: "unknown" }) },
     { id: "not-listed", kind: "glyph", text: "–", color: theme.muted },
     { id: "no-table-thread", kind: "glyph", text: "?", color: theme.muted },

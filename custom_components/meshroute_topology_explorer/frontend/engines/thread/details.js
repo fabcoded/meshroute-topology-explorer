@@ -10,6 +10,7 @@ import { findingText } from "./findings.js";
 import { roleText } from "../../ui/format.js";
 import { historyButton } from "../../ui/history-links.js";
 import { unknownGlyph } from "../unknown-reason.js";
+import { markedWeak } from "./routes.js";
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 export function threadReception(dir) {
@@ -42,7 +43,8 @@ export const OLD_TABLE_MS = 4 * 3600 * 1000;
 /** The rows of a route's hop list (spec 3.2 "Routes"): one per hop there, with the reverse hop back beside it; a hop
  *  back that does not reverse one there gets a row of its own (back only). Per cell { lqi, rssi, holder (whose
  *  table it comes from: the receiver's neighbours, else the sender's LQI out), source, old (that table is older than
- *  OLD_TABLE_MS by what Meshroute observed), derived }; the cost as the sender counts it. Pure. */
+ *  OLD_TABLE_MS by what Meshroute observed), derived }; the cost as the sender counts it; weakThere / weakBack mark
+ *  the weakest hop of a direction below LQI 3 (routes.js markedWeak). Pure. */
 export function routeRows(tables, r, now) {
   const cell = (x) => {
     if (!x) return null;
@@ -57,11 +59,12 @@ export function routeRows(tables, r, now) {
     const b = j >= 0 ? back[j] : null;
     if (j >= 0) back[j] = null;
     return { n: k + 1, from: x.from, to: x.to, there: cell(x), back: cell(b), cost: x.cost, backDerived: Boolean(b && b.derived),
-      child: x.decided === "parent", weakThere: k === r.there.weakest, weakBack: Boolean(b && r.back.hops.indexOf(b) === r.back.weakest) };
+      child: x.decided === "parent", weakThere: k === r.there.weakest && markedWeak(x),
+      weakBack: Boolean(b && r.back.hops.indexOf(b) === r.back.weakest && markedWeak(b)) };
   });
   back.forEach((b, j) => {
     if (b) rows.push({ n: null, from: b.to, to: b.from, there: null, back: cell(b), cost: b.cost, backDerived: b.derived,
-      child: false, weakThere: false, weakBack: j === r.back.weakest });
+      child: false, weakThere: false, weakBack: j === r.back.weakest && markedWeak(b) });
   });
   return rows;
 }
@@ -194,13 +197,13 @@ function routeCard(ctx, d, name) {
   const holderText = (x) => (!x.table ? t("details.route_holder_unknown", { name: name(x.id) })
     : t("details.route_holder", { name: name(x.id), time: x.since === null ? "?" : t.when(x.since) }));
   const old = holders.some((x) => typeof x.since === "number" && now - x.since > OLD_TABLE_MS);
-  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].some((x) => x.derived);
+  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
   return card(t("details.route_title", { name: name(r.to) }),
     summary ? h("p", { class: "muted small", text: summary }) : null,
     ...lines.map((text) => h("p", { class: "muted small", text })),
     table,
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
-    derived ? h("p", { class: "muted small", text: `${t("details.route_derived")}: ${t("details.route_derived_note")}` }) : null,
+    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
     holders.length ? h("p", { class: `small${old ? " warn-text" : " muted"}`, title: t("details.route_source_note"),
       text: t("details.route_source", { holders: holders.map(holderText).join(" · ") }) }) : null,
     old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);

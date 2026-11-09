@@ -18,7 +18,7 @@ import { idOf, threadRoutesSample } from "./thread-routes-fixture.mjs";
 installFakeDom();
 const thread = ENGINES.thread;
 const sample = threadRoutesSample();
-const net = buildThreadNetwork(sample.topology, { tables: sample.tables });
+const net = buildThreadNetwork(sample.topology, { tables: sample.tables, deviceRegistry: sample.registry });
 const scene = buildScene(net, (s) => s.length * 6);
 thread.scene.classify(scene);
 const at = (k) => scene.index.get(idOf(k));
@@ -52,7 +52,7 @@ test("#11 selecting a device draws its route there and back, numbered, weakest m
   assert.equal(focus.hops.some((x) => x.cls === "unused"), false, "unused routes are off by default");
 });
 
-test("#11 the View option 'unused routes' adds the alternatives dashed with their cost", () => {
+test("#11 the View option 'unused routes' adds the alternatives dash-dot in grey with their cost", () => {
   const i = at("P1");
   const off = thread.scene.focus(scene, i, { selected: i });
   const on = thread.scene.focus(scene, i, { selected: i, unusedRoutes: true });
@@ -60,7 +60,7 @@ test("#11 the View option 'unused routes' adds the alternatives dashed with thei
   const unused = on.hops.filter((x) => x.cls === "unused");
   const direct = unused.find((x) => `${x.s}>${x.h}` === key("P1", "BRA"));
   assert.ok(direct, "plug 1's direct link to border router A, unused while via sofaoben costs 2");
-  assert.deepEqual([direct.stroke, direct.text], ["dashed", "unused · cost 4"]);
+  assert.deepEqual([direct.stroke, direct.text], ["dashdot-muted", "unused · cost 4"]);
   // The route itself reads first: its lanes keep their class.
   assert.ok(on.hops.some((x) => x.cls === "route" && `${x.s}>${x.h}` === key("P1", "LO")));
 });
@@ -117,7 +117,7 @@ test("#11 Details: the route card with its hop list, source line and derived not
   assert.match(text, /2 hops · path cost 2/);
   assert.match(text, /Source: Matter server's copy · /);
   assert.match(text, /unchanged since/);
-  assert.match(text, /Exact values for this hop only with the border router query \(#12\)/);
+  assert.match(text, /Derived: which way the border router sends is mirrored from the way there; what sofaoben hears is measured\. The border router query \(#12\) reads the border router's own choice\./);
   assert.doesNotMatch(text, /details\.|route\.reason|route\.source/);
   const source = container.find((el) => el.tag === "p" && /^Source:/.test(el.textContent))[0];
   assert.equal(source.title || source.attrs.title, t("details.route_source_note"));
@@ -149,4 +149,33 @@ test("#11 the adapter reads thread_tables after the topology and keeps its failu
   const failed = await readThread(hass("matter_not_loaded: Matter is not loaded"));
   assert.equal(failed.network.routing, null);
   assert.match(failed.network.routingProblem, /matter_not_loaded/);
+});
+
+test("#11 the weakest hop is marked only below LQI 3; Details still name it", () => {
+  // Plug 1 -> sofaoben -> border router A: every hop LQI 3, no red mark on the map or in the hop list.
+  const i = at("P1");
+  const focus = thread.scene.focus(scene, i, { selected: i });
+  assert.equal(focus.hops.some((x) => x.weak), false);
+  const r = net.routing.routeTo(idOf("P1"), idOf("BRA"));
+  assert.notEqual(r.there.weakest, null);
+  const rows = routeRows(net.routing.tables, r, sample.tables.read_at * 1000);
+  assert.equal(rows.some((x) => x.weakThere || x.weakBack), false);
+  const container = new FakeEl("div");
+  thread.details(container, { network: net, t: translator("en"), id: idOf("P1"), onSelect() {}, onFindings() {},
+    now: sample.tables.read_at * 1000 });
+  assert.match(container.textContent, /Weakest there: Plug 1 → sofaoben/);
+  assert.equal(container.find((el) => el.tag === "td" && /\bweak\b/.test(el.className || "")).length, 0);
+  // The motion sensor's route (LQI 2 on its first hop) keeps the mark.
+  const xs = thread.scene.focus(scene, at("XS"), { selected: at("XS") });
+  assert.ok(xs.hops.some((x) => x.weak));
+});
+
+test("#11 Details say where an offline device stops the route", () => {
+  const s = threadRoutesSample();
+  s.tables.nodes.find((x) => x.node_id === 22).available = false; // plug 2, the sensor's parent, offline for Matter
+  const n = buildThreadNetwork(s.topology, { tables: s.tables, deviceRegistry: s.registry });
+  assert.equal(n.routing.defaultRoute(idOf("XS")).there.reason, "offline");
+  const c2 = new FakeEl("div");
+  thread.details(c2, { network: n, t: translator("en"), id: idOf("XS"), onSelect() {}, onFindings() {} });
+  assert.match(c2.textContent, /The route stops at Plug 2: offline/);
 });

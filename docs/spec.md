@@ -147,24 +147,30 @@ The panel reads through Home Assistant's websocket API and requires an administr
   - **Forwarding** as OpenThread decides it (`RouterTable::GetNextHopAndPathCost`, `router_table.cpp`): at a router the
     direct link when its cost is not above the next hop's claimed cost (the entry's PathCost) plus the link cost to the
     next hop (a tie stays direct: owner's network, direct 2 against 1 + 1), else via the next hop; 16 or more is no
-    route. Link cost between routers from the lower of LQI in and out: 3 → 1, 2 → 2, 1 → 4, 0 unusable. On a child's
+    route. The next hop's router ID is looked up in the holder's own table first, then where all tables agree; one
+    no table names stops the route (never the direct link). Link cost between routers from the lower of LQI in and out: 3 → 1, 2 → 2, 1 → 4, 0 unusable. On a child's
     link to its parent each side counts what it receives: the child its route entry's LQI in, the parent its neighbour
-    entry's LQI. A router's own entry (NextHop 63, PathCost 0, link not established) is the router itself and names
-    its router ID. The unchosen usable option is an **unused route**.
+    entry's LQI (a parent found by the RLOC16 alone: the child's neighbour entry). A router's own entry is the router
+    itself and names its router ID: the entry with its own extended address (0/53/63, else the snapshot's), without
+    one the single entry with NextHop 63, PathCost 0 and no link. The unchosen usable option is an **unused route**.
   - Routers are keyed by extended address; router IDs are mapped per read from the tables (two claims for one ID drop
     it). An end device reaches the mesh through its parent: router ID = RLOC16 >> 10 where 0/53/64 is reported, else
     the one entry of its own route table with LinkEstablished (its NextHop 0 and PathCost 0 are ignored: 0 is a valid
     router ID), else the snapshot's parent above.
   - **Route** of a device to a border router's router ID: the end device to its parent, then each router's own
     decision; a missing table, a missing entry, an unknown next hop or a loop stops it and names where (unknown, never
-    guessed). The way back: the border router's table is not in the Matter cache, so its first hop is the last hop
-    there mirrored, marked **derived** ("Exact values for this hop only with the border router query (#12)"); every
-    further hop from the routers' own tables, the parent delivering to its child. Path cost: the sum of the hops'
+    guessed); so does an offline device (Home Assistant's or the Matter client's availability: "offline"). The way
+    back: the border router's table is not in the Matter cache, so its first hop is the last hop there mirrored,
+    marked **derived** ("Derived: which way the border router sends is mirrored from the way there; what <receiver>
+    hears is measured. The border router query (#12) reads the border router's own choice."); where its table is
+    there it decides, and a table without a way stops the route. Every further hop from the routers' own tables, the
+    parent delivering to its child. Path cost: the sum of the hops'
     costs as each sender counts them. Default border router: the lowest complete path cost, else the first by name.
   - Per hop what the receiver hears: its neighbour table (RSSI: the average, the last frame's for a sleepy child or
     without an average: a sleepy child's average may not be maintained, −13 dBm next to a last −42 dBm on the owner's
     network), else the sender's route entry's LQI out (no RSSI, "– dBm"). **Weakest hop** of a direction: the lowest
-    LQI, ties by the weaker RSSI (a hop without RSSI never wins a tie), then the first.
+    LQI, ties by the weaker RSSI (a hop without RSSI never wins a tie), then the first; marked red only below LQI 3
+    (owner 2026-11-09), Details name it either way.
   - **Age**: no `Age` field is a data age (the route table's is 8 bit and wraps every 256 s, `router.cpp`). Per node
     the integration keeps a fingerprint of both tables and when it first saw it (own store
     `meshroute_topology_explorer.thread_tables`, kept across restarts, removed with the integration), refreshed on
@@ -274,7 +280,7 @@ others are "possibly stale". `PreviousChild` is ignored.
 | Radio readings per direction | yes (LQI) | yes (LQI, RSSI) | yes (LQI) |
 | Routes with next hop | yes | yes (route tables of the Matter cache, 3.2) | partly |
 | Parents of end devices | yes | yes (the end device's own table) | yes |
-| Measurement time | no (observed, 6) | yes | per answer |
+| Measurement time | no (observed, 6) | no: read time not reported; tables observed unchanged since (3.2) | per answer |
 | User-started refresh | scan | refresh (not built; the panel reads the cache) | map request |
 | Reading scale | LQI 0–255 | link quality 0–3 and RSSI dBm | LQI |
 | Ratings, "weak reception", "very low reading" | yes | no (Zigbee LQI scale) | yes |
@@ -447,7 +453,8 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   carries min, mean and max rank per hop; its weakest hop is the one with the lowest mean.
 - **Lane series:** per direction `[t, lqi(, rssi)]`, `[t, null]` where a record lacks the entry; a window centred on a
   record (+-48 h) or the last 48 h; the first record with the entry tells when the lane appears.
-- **Thread** has no routing table in the Matter topology: lane values per direction (LQI, RSSI), no walk.
+- **Thread**: lane values per direction (LQI, RSSI), no walk; routes in the history and the window's Route tab
+  [later, #11].
 - **Limits:** the recorder leaves out entries without a readable LQI, so such a neighbour does not count as listed for
   a direct delivery; an address change since the record is not seen; a record that truly has no parents looks like an older one and falls back to the live parents.
 
@@ -785,8 +792,9 @@ One place per thing; nothing appears twice.
   - **Symbols**: one row per sign, drawn at 40 px by the map's own code on a device of the network with its picture
     (router frame with gaps and strokes; closed frame with a bed for a sleeping end device; crown "C" and plug for the
     coordinator; plug without arcs for a wired-only device, if any). **States**: offline, selected, pinned.
-  - Thread: parent link, neighbour (measured, from the neighbour table), route hop, derived hop (dash-dot), weakest
-    hop (wider, pill outlined red), unused route (dashed), other links while a route is shown (grey), the glyphs "–"
+  - Thread: parent link, neighbour (measured, from the neighbour table, dashed), route hop, derived hop (dash-dot),
+    weakest hop below LQI 3 (wider, pill outlined red), unused route (dash-dot, grey), other links while a route is
+    shown (solid, thin grey), the glyphs "–"
     and "?", and "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
   - Longer explanations stay in this specification.
 - **Debug mode** (View tab, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
@@ -876,11 +884,13 @@ One place per thing; nothing appears twice.
   reported" where missing).
 - **Thread route on the map** (3.2, boards M38 and M40 A): selecting a device draws its route to the default border
   router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
-  numbers on the way there, the weakest hop of each direction wider with its pill outlined red, the derived hop
-  dash-dot; every other measured lane stays in grey with its value, and no device is dimmed. With "Unused routes" on,
-  each route hop's unused alternative is drawn dashed with "unused · cost N". No value covers another or a hop
-  number (owner: every value readable): a pill that would moves to the right of its lane, then along it, then across
-  to the left (`tests/graph-thread-routes.test.mjs`). A route that stops ends in a stem with "?". Hovering previews the device's own lanes; a border router shows its own lanes. No times on the map.
+  numbers on the way there, the weakest hop of each direction below LQI 3 wider with its pill outlined red, the
+  derived hop dash-dot; every other measured lane stays in grey with its value, and no device is dimmed. With
+  "Unused routes" on, each route hop's unused alternative is drawn dash-dot in grey with "unused · cost N". No value
+  covers another or a hop number (owner: every value readable): a pill that would moves half a pill height to the
+  right of its lane at any place along it, then at most one pill height and 6 px to the right or across to the left,
+  and as a last resort stacks against the other direction's pill of the same hop; grey values of other links give
+  way where there is no room (`tests/graph-thread-routes.test.mjs`, also at 412 px). A route that stops ends in a stem with "?". Hovering previews the device's own lanes; a border router shows its own lanes. No times on the map.
 - **Details on click** defaults to on for wide screens, off for narrow ones. It applies to clicks on the map and in
   Devices: it opens the left panel on Details (closed, on Devices, or following on Details), never takes Findings away
   and on narrow screens never pushes the right sheet away. Selecting from Findings or a device named in Details zooms

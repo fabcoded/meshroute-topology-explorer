@@ -3,12 +3,14 @@
 // ("parent", the end device's lane to its parent above the parent's lane back) and measured neighbours dashed
 // ("neighbour"); debug mode every lane. A click on a device with a route (routes.js, from the Matter cache's tables)
 // shows its route to the default border router there and back, each hop with what its receiver hears (RSSI over
-// LQI), hop numbers on the way there, the weakest hop per direction marked, a derived hop dash-dot; every other lane
+// LQI), hop numbers on the way there, the weakest hop per direction marked below LQI 3, a derived hop dash-dot; every other lane
 // stays in grey with its value (board M40 A), and the View option "unused routes" adds the alternatives the routers
-// hold but do not use, dashed. Without a route a click shows the device's own lanes with their values and the glyph
+// hold but do not use, dash-dot in grey. Without a route a click shows the device's own lanes with their values and the glyph
 // of each own direction without a reading. The shared renderer (graph/renderer.js) strokes the looks.
 // Pure. npm test
 import { classifyLanes } from "./lanes.js";
+import { markedWeak } from "./routes.js";
+import { TEXTS } from "./texts.js";
 
 /** Counters of the drawn lanes per class (graph/renderer.js drawScene stats). */
 export const CLASSES = Object.freeze(["neighbour", "parent", "route", "context", "unused"]);
@@ -130,8 +132,8 @@ export function routeFocus(scene, i, r, view = {}) {
     hops.push({ s, h, dir, cls: "route", stroke: x.derived ? "dashdot" : "solid", weight: "strong", rank: 5,
       assumed: x.derived, predicted: false, text: hopText(x), ...extra });
   };
-  r.there.hops.forEach((x, k) => add(x, { number: k + 1, weak: k === r.there.weakest }));
-  if (r.back) r.back.hops.forEach((x, k) => add(x, { weak: k === r.back.weakest }));
+  r.there.hops.forEach((x, k) => add(x, { number: k + 1, weak: k === r.there.weakest && markedWeak(x) }));
+  if (r.back) r.back.hops.forEach((x, k) => add(x, { weak: k === r.back.weakest && markedWeak(x) }));
   if (view.unusedRoutes) {
     for (const x of [...r.there.hops, ...(r.back ? r.back.hops : [])]) {
       const alt = x.alternative;
@@ -141,8 +143,8 @@ export function routeFocus(scene, i, r, view = {}) {
       used.add(`${s}>${h}`);
       const lane = scene.laneByKey.get(`${s}>${h}`);
       hops.push({ s, h, dir: lane ? lane.dir : { state: "unknown", rating: null, reason: null }, cls: "unused",
-        stroke: "dashed", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
-        text: `unused · cost ${alt.cost}` });
+        stroke: "dashdot-muted", weight: "regular", rank: 2, assumed: false, predicted: false, muted: true,
+        text: TEXTS["lane.unused_cost"].replace("{cost}", String(alt.cost)) });
     }
   }
   for (const lane of scene.lanes) {

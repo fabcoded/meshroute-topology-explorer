@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- **Thread routes** (#11): selecting a Thread device draws its route to the border router with the lowest path cost,
+- **Thread routes, part one** (#11 part a: routes on the map and in Details; recording them in the history and the
+  window's Route tab follow): selecting a Thread device draws its route to the border router with the lowest path cost,
   there and back, as Thread forwards it, computed from the route and neighbour tables Home Assistant's Matter client
   holds (no refresh, no radio traffic): two numbers per hop (RSSI over LQI), hop numbers, the weakest hop marked, the
-  border router's first hop back derived (dash-dot; its own table needs the border router query, #12); the other
+  border router's first hop back derived (dash-dot; its own choice needs the border router query, #12), a route
+  through an offline device stopped there; the other
   links stay grey with their values. Details get the hop list with both directions, path cost and the source line
   with since when Meshroute saw each table unchanged, amber over 4 hours. The View option "Unused routes" adds the
   alternatives routers hold but do not use. New read-only command `meshroute_topology_explorer/thread_tables`; the

@@ -67,8 +67,8 @@ the integration therefore keeps a record of every link's reception, the routing 
   - **Direct link:** both directions of one link between two neighbours over time. A click on a reception pill in
     the Route view opens it.
 - **48 h sparklines** in Details show how each neighbour's reception moved.
-- **Thread has no walked routes:** the Matter topology holds no routing table, so Thread shows the direct link and its
-  neighbours per record, not a route.
+- **Thread in the window:** Thread routes are shown on the map and in Details, but not recorded in the history yet
+  [later, #11]: the window shows the direct link and its neighbours per record.
 
 ![Timeline of Router 23 and the coordinator over 7 days: the route there changes twice (via Router 32, then over four hops, then three), the route back once, with the rank of the weakest hop below each route.](docs/images/history-timeline.png)
 
@@ -171,7 +171,7 @@ network type, one adapter per data source, and a shared shell that knows neither
 |---|---|
 | `engines/index.js` | The registry: `engineFor(network)` finds a network's engine and never falls back to one. |
 | `engines/zigbee/` | Zigbee semantics: ZHA schema mapping (`from-zha.js`, with ZHA's capability set), model, paths and theoretical paths, findings, lane classes and the three path views (`lanes.js`, `scene.js`), options, settings keys, status line, texts, Details (`ui/`). |
-| `engines/thread/` | Thread read through Matter: Matter mapping (`from-matter.js`), parents, pairs, status and findings (`model.js`), parent and neighbour lanes (`lanes.js`, `scene.js`), status, Details, texts; `quality.js` (reception model, under review, not wired). |
+| `engines/thread/` | Thread read through Matter: Matter mapping (`from-matter.js`), parents, pairs, status and findings (`model.js`), routes from the Matter cache's route tables (`routes.js`), parent, neighbour and route lanes (`lanes.js`, `scene.js`), status, Details, texts; `quality.js` (reception model, under review, not wired). |
 | `adapters/` | Data sources: `zha.js` (scan, observations, fingerprints) and `matter.js`, each with its texts; `index.js` lists them for the shell. |
 | `graph/` | Shared drawing: layout (springs from the engine's quality), camera, gestures, symbols, palette, labels, lane geometry and stroke looks, the renderer of the engine's scene. |
 | `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status pill, shared texts (`i18n.js`). |

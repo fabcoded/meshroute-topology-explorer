@@ -445,9 +445,10 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // shifted to the lane's right, away from the other direction's lane, so the two pills of a short hop sit side by
     // side; value() then keeps them clear of each other and of the hop numbers.
     if (extra.separate) {
-      // To the right first; where that side is taken, across the other lane to the left.
-      const shifts = [0, h / 2 + 4, h + 6, 1.5 * h + 8, 2 * h + 10, -(h + 6), -(1.5 * h + 8)];
-      spots = spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
+      // On the lane or half a pill to its right at every place along it first; only then a full pill height out,
+      // to the right or across the other lane to the left (at most one pill height and 6 px, rev11a).
+      const shifted = (shifts) => spots.flatMap(([x, y]) => shifts.map((d) => [x + lane.nx * d, y + lane.ny * d]));
+      spots = [...shifted([0, h / 2 + 4]), ...shifted([h + 6, -(h / 2 + 4), -(h + 6)])];
     }
     const t = { text, x: spots[0][0], y: spots[0][1], w, h, spots, ...extra };
     laneTexts.push(t);
@@ -720,25 +721,41 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
     // earlier or a hop number weighs far more than a label or a symbol: no two values cover each other where any
     // place is free. Only the debug overview's values need a free spot and may be dropped.
     let least = Infinity;
+    const box = (x, y) => ({ x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 });
+    const cost = (r) => (t.separate ? [...valueRects.map((v) => v.rect), ...numberRects]
+      .reduce((sum, q) => sum + overlapArea(r, q), 0) * 1000 : 0)
+      + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
+    const consider = (x, y) => {
+      const r = box(x, y);
+      const area = cost(r);
+      if (area >= least) return false;
+      least = area;
+      rect = r;
+      t.x = x;
+      t.y = y;
+      return area === 0;
+    };
     for (const [x, y] of t.spots) {
-      const r = { x: x - t.w / 2 - 2, y: y - t.h / 2 - 2, w: t.w + 4, h: t.h + 4 };
       if (t.path) {
-        const apart = t.separate ? [...valueRects.map((v) => v.rect), ...numberRects]
-          .reduce((sum, q) => sum + overlapArea(r, q), 0) * 1000 : 0;
-        const area = apart + protectedRects.reduce((sum, q) => sum + overlapArea(r, q), 0) + symbolArea(r);
-        if (area >= least) continue;
-        least = area;
-        rect = r;
-        t.x = x;
-        t.y = y;
-        if (area === 0) break;
+        if (consider(x, y)) break;
         continue;
       }
+      const r = box(x, y);
       if (placed.hits(r)) continue;
       rect = r;
       t.x = x;
       t.y = y;
       break;
+    }
+    // Last resort of separate values: still on another value or a hop number, so stack it against the other
+    // direction's pill of the same hop, above, below or beside it, which keeps the two readable as one pair.
+    const partner = t.path && t.separate && least >= 1000 && t.pair
+      ? valueRects.find((v) => v.t.pair && v.t.pair[0] === t.pair[1] && v.t.pair[1] === t.pair[0]) : null;
+    if (partner) {
+      const p = partner.t;
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        if (consider(p.x + dx * (p.w / 2 + t.w / 2 + 5), p.y + dy * (p.h / 2 + t.h / 2 + 5))) break;
+      }
     }
     if (!rect) return false;
     placed.add(rect);

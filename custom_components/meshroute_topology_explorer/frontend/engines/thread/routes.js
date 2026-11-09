@@ -12,13 +12,25 @@
 // - At a router: the direct link when its cost is not above the next hop's claimed cost (the entry's PathCost) plus
 //   the link cost to the next hop, else via the next hop; nothing usable (16, OpenThread's maximum route cost, or
 //   more) is no route. The unchosen one is an unused alternative.
-// - A router's own entry (NextHop 63, PathCost 0, link not established) is the router itself and names its router ID.
+// - A router's own entry is the router itself and names its router ID: the entry with the router's own extended
+//   address (0/53/63 of the answer, else the snapshot's); without one, the single entry with NextHop 63, PathCost 0
+//   and no link.
+// - A next hop is the router ID in the holder's own table first, the IDs all tables agree on second; a next hop no
+//   table names stops the route (it is never replaced by the direct link).
+// - A route stops at a device that is offline (Home Assistant's or the Matter client's availability): its table is
+//   stale and it forwards nothing.
 // - An end device reaches the mesh through its parent: router ID = RLOC16 >> 10 where it reports 0/53/64, else the
 //   one entry of its own route table with LinkEstablished (its NextHop 0 and PathCost 0 are ignored: 0 is a valid
 //   router ID).
 // - Routers are keyed by extended address; router IDs are reassigned, so they are mapped per read.
 // - No `Age` field is used as the age of a value: the route table's wraps every 256 s.
 import { extAddress } from "./from-matter.js";
+
+/** The weakest hop is marked (red) only below this link quality (owner 2026-11-09, rev11a): with every hop at LQI 3
+ *  nothing is weak; Details still name the weakest hop. */
+export const WEAK_BELOW = 3;
+/** Whether hop `x`, the weakest of its way, gets the mark. */
+export const markedWeak = (x) => Boolean(x) && typeof x.lqi === "number" && x.lqi < WEAK_BELOW;
 
 /** OpenThread's maximum route cost: a cost this high or higher is no route. */
 export const MAX_COST = 16;
@@ -47,10 +59,11 @@ function entryRssi(n) {
   return average ?? last;
 }
 
-/** The tables of the answer per device id: { id, role ("router" | "end device" | null), routerId, routes (by device
- *  id: { routerId, nextHop, pathCost, lqiIn, lqiOut, linked }), neighbours (by device id: { lqi, rssi, child }),
- *  rloc16, unchangedSince (ms or null) }, plus the router ID map and its conflicts. Devices are matched by Matter node
- *  id, table entries by extended address. */
+/** The tables of the answer per device id: { id, role ("router" | "end device" | null), available, routerId, routes
+ *  (by device id: { routerId, nextHop, pathCost, lqiIn, lqiOut, linked }), byRouterId (router ID -> device id within
+ *  this table, null where two entries claim one), neighbours (by device id: { lqi, rssi, child }), rloc16,
+ *  unchangedSince (ms or null) }, plus the router ID map of all tables and its conflicts. Devices are matched by
+ *  Matter node id, table entries by extended address. */
 export function readTables(network, answer) {
   const byNode = new Map(network.devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
   const holders = new Map();
@@ -65,20 +78,29 @@ export function readTables(network, answer) {
     const device = byNode.get(node && node.node_id);
     if (!device) continue;
     const role = routerRole(node.routing_role) ? "router" : endRole(node.routing_role) ? "end device" : null;
-    const holder = { id: device.id, role, routerId: null, routes: null, neighbours: null, rloc16: int(node.rloc16),
+    const holder = { id: device.id, role, available: node.available !== false && device.available !== false,
+      routerId: null, routes: null, byRouterId: new Map(), neighbours: null, rloc16: int(node.rloc16),
       unchangedSince: typeof node.unchanged_since === "number" ? node.unchanged_since * 1000 : null };
     if (Array.isArray(node.route_table)) {
       holder.routes = new Map();
+      // Its own extended address: what the node reports (0/53/63), else the snapshot's; without either the single
+      // entry shaped like an own entry (NextHop 63, PathCost 0, no link) - an unreachable router looks the same.
+      const ownExt = extAddress(node.ext_address) || device.extAddress;
+      const shaped = (e) => e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false;
+      const candidates = node.route_table.filter((e) => e && shaped(e));
       for (const e of node.route_table) {
         const id = extAddress(e && e.extAddress);
         const routerId = int(e && e.routerId);
         if (!id || routerId === null) continue;
-        const own = role === "router" && e.nextHop === NO_HOP && e.pathCost === 0 && e.linkEstablished === false
-          && (id === device.id || device.extAddress === null);
+        const own = role === "router" && (ownExt ? id === ownExt : candidates.length === 1 && candidates[0] === e);
         if (own) { holder.routerId = routerId; continue; }
         holder.routes.set(id, { routerId, nextHop: int(e.nextHop), pathCost: int(e.pathCost), lqiIn: int(e.LQIIn),
           lqiOut: int(e.LQIOut), linked: e.linkEstablished === true });
-        if (e.allocated !== false) claim(routerId, id);
+        if (e.allocated !== false) {
+          claim(routerId, id);
+          const known = holder.byRouterId.get(routerId);
+          holder.byRouterId.set(routerId, known === undefined || known === id ? id : null);
+        }
       }
     }
     if (Array.isArray(node.neighbor_table)) {
@@ -104,6 +126,7 @@ export function parentOf(tables, network, id) {
     return { id: tables.idOfRouter.get(h.rloc16 >> 10), source: "rloc16" };
   }
   if (h && h.routes) {
+    // Several linked entries: no single parent (unknown, never the first of them).
     const linked = [...h.routes].filter(([, e]) => e.linked).map(([pid]) => pid);
     return linked.length === 1 ? { id: linked[0], source: "route table" } : null;
   }
@@ -139,16 +162,17 @@ export function nextHop(tables, holder, dest) {
   if (!h || !h.routes) return { next: null, reason: "table_missing" };
   const e = h.routes.get(dest);
   if (!e) return { next: null, reason: "no_entry" };
-  const direct = e.linked ? routerLinkCost(tables, holder, dest) : MAX_COST;
+  const direct = routerLinkCost(tables, holder, dest); // MAX_COST without a link
   let via = null;
   if (e.nextHop !== null && e.nextHop < NO_HOP && e.pathCost !== null) {
-    const nh = tables.conflicts.has(e.nextHop) ? null : tables.idOfRouter.get(e.nextHop) ?? null;
-    const link = nh ? routerLinkCost(tables, holder, nh) : MAX_COST;
-    if (nh && nh !== holder && nh !== dest) via = { via: nh, cost: e.pathCost + link, link };
-    else if (!nh) via = { via: null, cost: null }; // a next hop no table names
+    const nh = routerById(tables, h, e.nextHop);
+    // A next hop no table names: whether it beats the direct link is unknown, so the decision is unknown too.
+    if (!nh) return { next: null, reason: "next_hop_unknown" };
+    const link = routerLinkCost(tables, holder, nh);
+    if (nh !== holder && nh !== dest) via = { via: nh, cost: e.pathCost + link, link };
   }
   const directUsable = direct < MAX_COST;
-  const viaUsable = via && via.via && via.cost < MAX_COST;
+  const viaUsable = via && via.cost < MAX_COST;
   if (viaUsable && (!directUsable || via.cost < direct)) {
     return { next: via.via, cost: via.cost, link: via.link, kind: "next hop",
       alternative: directUsable ? { via: dest, cost: direct, kind: "direct" } : null };
@@ -157,7 +181,25 @@ export function nextHop(tables, holder, dest) {
     return { next: dest, cost: direct, link: direct, kind: "direct",
       alternative: viaUsable ? { via: via.via, cost: via.cost, kind: "next hop" } : null };
   }
-  return { next: null, reason: via && !via.via ? "next_hop_unknown" : "no_route" };
+  return { next: null, reason: "no_route" };
+}
+
+/** The device of router ID `rid` as holder `h` names it: its own table first (its own ID, an entry with that ID), else
+ *  the ID all tables agree on; null where neither names it unambiguously. */
+function routerById(tables, h, rid) {
+  if (h.routerId === rid) return h.id;
+  const own = h.byRouterId.get(rid);
+  if (own) return own;
+  if (own === null) return null; // two entries of its own table claim it
+  return tables.conflicts.has(rid) ? null : tables.idOfRouter.get(rid) ?? null;
+}
+
+/** Whether device `id` is offline: Home Assistant's availability (snapshot) or the Matter client's (tables). */
+function offline(tables, network, id) {
+  const h = tables.holders.get(id);
+  if (h && h.available === false) return true;
+  const d = network.devices.find((x) => x.id === id);
+  return Boolean(d && d.available === false);
 }
 
 /** One hop sender -> receiver with what the receiver hears, its cost as the sender counts it, and its marks. */
@@ -165,10 +207,12 @@ function hop(tables, from, to, cost, extra = {}) {
   return { from, to, cost, ...heard(tables, from, to), derived: false, decided: "table", alternative: null, ...extra };
 }
 
-/** Walk from router `start` to router `goal` by each router's own decision; returns { hops, complete, reason, at }. */
-function routerWalk(tables, start, goal, hops, seen) {
+/** Walk from router `start` to router `goal` by each router's own decision; returns { hops, complete, reason, at }.
+ *  An offline router stops it there ("offline"), the goal included. */
+function routerWalk(tables, network, start, goal, hops, seen) {
   let at = start;
   while (at !== goal) {
+    if (offline(tables, network, at)) return { complete: false, reason: "offline", at };
     if (hops.length >= MAX_HOPS) return { complete: false, reason: "loop", at };
     const step = nextHop(tables, at, goal);
     if (!step.next) return { complete: false, reason: step.reason, at };
@@ -177,6 +221,7 @@ function routerWalk(tables, start, goal, hops, seen) {
     seen.add(step.next);
     at = step.next;
   }
+  if (offline(tables, network, at)) return { complete: false, reason: "offline", at };
   return { complete: true, reason: null, at };
 }
 
@@ -209,19 +254,18 @@ export function route(tables, network, id, br) {
   const seen = new Set([id]);
   let start = id;
   const isEnd = device.role === "end device";
-  if (isEnd) {
+  if (offline(tables, network, id)) Object.assign(there, { reason: "offline" });
+  else if (isEnd) {
     const parent = parentOf(tables, network, id);
     out.parent = parent;
     if (!parent) Object.assign(there, { reason: "parent_unknown" });
     else {
-      const own = tables.holders.get(id)?.routes?.get(parent.id);
-      there.hops.push(hop(tables, id, parent.id, own && own.lqiIn !== null ? linkCost(own.lqiIn) : null,
-        { decided: "parent" }));
+      there.hops.push(hop(tables, id, parent.id, childToParentCost(tables, id, parent), { decided: "parent" }));
       seen.add(parent.id);
       start = parent.id;
     }
   }
-  if (!there.reason) Object.assign(there, routerWalk(tables, start, br, there.hops, seen));
+  if (!there.reason) Object.assign(there, routerWalk(tables, network, start, br, there.hops, seen));
   there.cost = there.complete ? sum(there.hops) : null;
   there.weakest = weakestHop(there.hops);
 
@@ -234,15 +278,19 @@ export function route(tables, network, id, br) {
     const target = isEnd ? out.parent.id : id;
     // The border router's own choice is in its table, which the Matter cache does not hold (#12): its first hop back
     // is the last hop there mirrored, at the same cost (link costs are symmetric in Thread). Only the choice and the
-    // cost are derived; what the receiver hears is measured where its table was read.
-    const step = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
-    back.hops.push(step && step.next
-      ? hop(tables, br, step.next, step.link, { decided: step.kind, alternative: step.alternative })
-      : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
-    const reached = back.hops[0].to;
-    if (reached === id) Object.assign(back, { complete: true, at: id });
+    // cost are derived; what the receiver hears is measured where its table was read. Where its table is there, it
+    // decides like any router, and a table without a way stops the route (never mirrored).
+    const own = tables.holders.get(br)?.routes ? nextHop(tables, br, target) : null;
+    if (own && !own.next) Object.assign(back, { reason: own.reason, at: br });
     else {
-      Object.assign(back, routerWalk(tables, reached, target, back.hops, new Set([br, reached])));
+      back.hops.push(own
+        ? hop(tables, br, own.next, own.link, { decided: own.kind, alternative: own.alternative })
+        : hop(tables, br, last.from, last.cost, { derived: true, decided: "mirrored" }));
+    }
+    const reached = back.hops.length ? back.hops[0].to : null; // null: stopped at the border router
+    if (reached === id) Object.assign(back, { complete: true, at: id });
+    else if (reached) {
+      Object.assign(back, routerWalk(tables, network, reached, target, back.hops, new Set([br, reached])));
       if (back.complete && isEnd) {
         back.hops.push(hop(tables, target, id, childCost(tables, target, id), { decided: "child" }));
         back.at = id;
@@ -252,6 +300,19 @@ export function route(tables, network, id, br) {
   back.cost = back.complete ? sum(back.hops) : null;
   back.weakest = weakestHop(back.hops);
   return out;
+}
+
+/** Cost of child -> parent as the child counts it, from what it receives of the parent: its route entry's LQI in
+ *  where the parent came from its route table, its neighbour entry's LQI where only the RLOC16 named the parent (the
+ *  route entry may be missing); the other one where the first is missing; null unknown. */
+function childToParentCost(tables, child, parent) {
+  const h = tables.holders.get(child);
+  const entry = h?.routes?.get(parent.id);
+  const fromRoute = entry && entry.linked && entry.lqiIn !== null ? entry.lqiIn : null;
+  const n = h?.neighbours?.get(parent.id);
+  const fromNeighbour = n && n.lqi !== null ? n.lqi : null;
+  const lq = parent.source === "rloc16" ? fromNeighbour ?? fromRoute : fromRoute ?? fromNeighbour;
+  return lq === null ? null : linkCost(lq);
 }
 
 /** Cost of parent -> child as the parent counts it: its neighbour entry's link quality of the child; null unknown. */
