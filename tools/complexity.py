@@ -89,8 +89,8 @@ def py_findings(files):
     for m in json.loads(run(cmd).stdout):
         file = Path(m["filename"]).resolve().relative_to(ROOT).as_posix()
         hit = RUFF_SCORE.match(m["message"])
-        name = hit and py_names((ROOT / file).read_text(encoding="utf-8")).get((m["location"]["row"], hit["name"]))
-        if not name:
+        name = py_names((ROOT / file).read_text(encoding="utf-8")).get((m["location"]["row"], hit["name"])) if hit else None
+        if hit is None or not name:
             sys.exit(f"complexity: cannot name or score {file}:{m['location']['row']}: {m['message']}")
         out.append(Finding("python", file, name, m["location"]["row"], int(hit["score"])))
     return out
