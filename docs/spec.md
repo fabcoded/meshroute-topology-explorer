@@ -229,8 +229,9 @@ The panel reads through Home Assistant's websocket API and requires an administr
     without it, with no message; a lost connection fails the read like any other.
   - `tools/capture.py --matter` records both answers with the same bounds (the events as `before_result` and
     `after_result`); `tools/anonymize_capture.py` maps their extended addresses, extended PAN ids and network names
-    as the topology's, in any case, replaces instance names and drops addresses, server names, border agent ids,
-    dataset ids, PAN ids and dataset times.
+    as the topology's, in any case (an address of any other form gets its own replacement), replaces instance names
+    and drops addresses, server names, border agent ids, dataset ids, PAN ids, dataset times, sources and channels,
+    other event types and non-text values in those fields.
 - Limits: the tables in the snapshot and the route tables are what the Matter server last read (about daily); the snapshot may list
   removed routers or miss end devices; border routers vanish when Thread diagnostics are off. No reconciliation with
   OTBR data (`otbr/*` returns keys, 3.4).
@@ -1001,7 +1002,8 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 5.8 and 10.2; boards M35, M36. Administrators only (the commands are admin only).
 
 - **Entry:** with a device selected, every other device (except one the engine calls historyless: Thread, a border
-  router only Home Assistant's Thread integration lists, 3.2) shows a small grey badge at its top right, a question mark drawn
+  router only Home Assistant's Thread integration lists, 3.2; with such a device selected, none, as every pair window
+  would be empty) shows a small grey badge at its top right, a question mark drawn
   as a route (hops between nodes; the hovered one dark). Hover: "Path history with {selected}" and, for Zigbee, "there 4
   hops · back 3 hops" (the live network's walks, selected to other and back). A click opens the window for the pair and
   leaves the selection. Thread: no hop counts.

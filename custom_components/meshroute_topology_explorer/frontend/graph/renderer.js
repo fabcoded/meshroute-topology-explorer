@@ -863,8 +863,8 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
   // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E),
-  // except a historyless one (buildScene).
-  if (view.pairBadges && view.selected >= 0) {
+  // except a historyless one (buildScene); with a historyless one selected, none does (every pair window is empty).
+  if (view.pairBadges && view.selected >= 0 && !scene.nodes[view.selected].historyless) {
     ctx.globalAlpha = 1;
     for (let i = 0; i < n; i++) {
       if (i === view.selected || !onScreen(i) || scene.nodes[i].historyless) continue;

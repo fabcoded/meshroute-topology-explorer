@@ -47,9 +47,10 @@ JOURNEYS = [
     # #15: without ZHA the Thread map loads, the View tab has no Zigbee controls, the pill menu lists no networks
     ("Thread only: map, View, pill menu", "nozha=1&matter=1&right=view&steps=wait:100;click:%23mte-pill",
      [r"menu open", r"source thread", r"networks 0;", r"zigbee-inputs 0;", r"right view"]),
-    # #20: Home Assistant's Thread integration answers (dev page fake); the unheard border router adds no lane
-    ("Thread border routers: the subscription runs, 3 lanes", "network=thread&matter=borderrouters&steps=wait:300",
-     [r"source thread", r"drawn 3 lanes"]),
+    # #20: Home Assistant's Thread integration answers (dev page fake): the snapshot's 3 nodes and the unheard border
+    # router make 4 devices; it adds no lane
+    ("Thread border routers: 4 devices, 3 lanes", "network=thread&matter=borderrouters&steps=wait:300",
+     [r"source thread; devices 4;", r"drawn 3 lanes"]),
 ]
 # #4: a phone window with a system bar; the dev page pads the panel's container as Home Assistant does
 INSET_JOURNEYS = [

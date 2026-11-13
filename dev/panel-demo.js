@@ -582,6 +582,9 @@ const edges = () => {
   return `pill ${bottom(root.querySelector(".status-pill-button"))} fit ${bottom(root.querySelector(".zoom:not(.spread) .icon-button:last-child"))} window ${innerHeight}`;
 };
 
+/** The shown network's source and device count (#20: the unheard border router counts), or "-". */
+const network = () => (el._network ? `source ${el._network.source}; devices ${el._network.devices.length}` : "source -; devices -");
+
 async function replay() {
   const list = q.get("steps");
   if (!list) return;
@@ -611,7 +614,7 @@ async function replay() {
       + `paths ${el._settings && el._settings.settings.paths}; view ${el._view && el._view.paths}; `
       + `history ${(root.querySelector(".htab.on") || {}).textContent || "closed"}; `
       + `card ${root.querySelector(".pair-card") ? "open" : "closed"}; menu ${root.querySelector("#mte-pill-menu") ? "open" : "closed"}; `
-      + `source ${el._network ? el._network.source : "-"}; networks ${root.querySelectorAll('[role="menuitemradio"]').length}; `
+      + `${network()}; networks ${root.querySelectorAll('[role="menuitemradio"]').length}; `
       + `zigbee-inputs ${[...root.querySelectorAll("input")].filter((n) => /-(paths|sourceRoute|heard|pathMode|color-)/.test(`${n.name} ${n.id}`)).length}; `
       + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
       + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `

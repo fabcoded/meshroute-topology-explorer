@@ -216,6 +216,10 @@ test("#20 no pair badge on an unheard border router; the others keep theirs", ()
   assert.equal(view.scene.nodes[index(ATTIC)].historyless, true);
   assert.equal(view._badgeAt(...badge(ATTIC)), -1);
   assert.equal(view._badgeAt(...badge(END)), index(END));
+  // Review S1: with the unheard border router selected, every pair window would be empty: no badge at all.
+  view.select(ATTIC);
+  assert.equal(view._badgeAt(...badge(END)), -1);
+  assert.equal(view._badgeAt(...badge(GARAGE)), -1);
 });
 
 test("#20 Details: the unheard border router says no neighbour table lists it; the preferred one is marked", () => {

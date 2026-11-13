@@ -120,7 +120,7 @@
   "dev/panel-demo.js": {
    "callWS": 35,
    "drive": 43,
-   "replay": 31
+   "replay": 29
   },
   "tests/engine-leaks.test.mjs": {
    "test(\"13: every text key of the Thread engine resolves without the Zigbee table\")": 30,

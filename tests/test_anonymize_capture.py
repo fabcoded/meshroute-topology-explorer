@@ -213,6 +213,7 @@ DATASET = {"channel": 15, "created": "2025-03-04T05:06:07+00:00", "dataset_id": 
            "extended_pan_id": "02000000000000ee", "network_name": "home-thread-x", "pan_id": "4f2a", "preferred": True,
            "preferred_border_agent_id": "fedcba9876543210fedcba9876543210", "preferred_extended_address": EXT_C,
            "source": "OpenThread Border Router"}
+DATASET_KEPT = ("extended_pan_id", "network_name", "preferred", "preferred_extended_address")  # no source, no channel
 BR_CAPTURE = {"responses": {**THREAD_CAPTURE["responses"],
     "thread/list_datasets": {"datasets": [DATASET, {**DATASET, "dataset_id": "01JX3Q6Z9ZXCVBNMLKJHGFDSA",
                                                     "extended_pan_id": "02000000000000ff", "network_name": "neighbours-net",
@@ -260,6 +261,31 @@ class AnonymizeBorderRoutersTest(unittest.TestCase):
         self.assertEqual(self.events["after_result"][2], {"type": "router_removed",
                                                          "key": self.events["after_result"][2]["key"]})
         self.assertTrue(self.events["after_result"][2]["key"].startswith("aabbccdd"))
+
+    def test_malformed_values_and_free_text_do_not_survive(self):
+        # Review S2/S3: addresses in other forms, non-text names, a free-text event type, a dataset's source.
+        odd = {**UNHEARD, "instance_name": 4711, "network_name": ["Garden net"], "extended_address": "1234567890ab"}
+        capture = {"responses": {**BR_CAPTURE["responses"],
+            "thread/list_datasets": {"datasets": [{**DATASET, "source": "Someone's phone", "channel": 25,
+                                                   "preferred_extended_address": "1234567890AB"},
+                                                  {**DATASET, "preferred_extended_address": "02-00-00-00-00-00-00-e7"}]},
+            "thread/discover_routers": {"before_result": [{"type": "router_discovered", "key": "1234567890ab", "data": odd}],
+                                        "after_result": [{"type": "Somebody's router seen", "key": EXT_D},
+                                                         {"type": "router_removed", "key": "02-00-00-00-00-00-00-E7"}]}}}
+        out = anon.anonymize(capture)["responses"]
+        text = json.dumps(out).lower()
+        for original in ("1234567890ab", "02-00-00-00-00-00-00-e7", "4711", "garden net", "someone", "somebody", EXT_D):
+            self.assertNotIn(original.lower(), text, original)
+        self.assertEqual([sorted(d) for d in out["thread/list_datasets"]["datasets"]], [sorted(DATASET_KEPT)] * 2)
+        events = out["thread/discover_routers"]
+        self.assertEqual([e["type"] for e in events["after_result"]], ["router_removed"])
+        data = events["before_result"][0]["data"]
+        self.assertNotIn("instance_name", data)
+        self.assertNotIn("network_name", data)
+        self.assertEqual(data["extended_address"], events["before_result"][0]["key"], "one original, one replacement")
+        datasets = out["thread/list_datasets"]["datasets"]
+        self.assertEqual(datasets[0]["preferred_extended_address"].lower(), data["extended_address"], "in any case")
+        self.assertEqual(datasets[1]["preferred_extended_address"].lower(), events["after_result"][0]["key"].lower())
 
     def test_names_are_replaced_and_models_kept(self):
         names = [e["data"]["instance_name"] for e in self.events["before_result"] + self.events["after_result"][:2]]

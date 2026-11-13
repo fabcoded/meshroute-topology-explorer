@@ -12,7 +12,8 @@ neighbour tables, extended PAN ids and hex form; Thread extended addresses as ba
 such as "br_<address>"), user-given device names, area ids and names, entity ids, registry and config-entry ids, Thread
 network names, border-router host names and mDNS instance names, consistently between the topology and the Thread
 integration's answers in any case; entity names, IP addresses, mDNS server names, border agent ids, dataset ids, PAN
-ids and dataset times are dropped; registry entries that are neither ZHA devices
+ids, dataset times, sources and channels are dropped, and so are other Thread integration events and non-text values
+in its replaced fields; registry entries that are neither ZHA devices
 nor Matter nodes of the topology are left out, and a Matter node's registry name becomes "Matter node <id>"; times
 are shifted so the newest is 2026-01-01T12:00:00 (ZHA) and the topology's collection time lands there too (Thread),
 gaps kept. Kept for testing: device types, vendors, models, NWK addresses and RLOC16, LQI and RSSI, relationships,
@@ -82,7 +83,7 @@ SCHEMAS = {
     },
     # Home Assistant's Thread integration (#20; homeassistant/components/thread/websocket_api.py, discovery.py, 2026.11.0).
     "thread/list_datasets": {"datasets": ("list", {k: None for k in (
-        "channel", "extended_pan_id", "network_name", "preferred", "preferred_extended_address", "source")})},
+        "extended_pan_id", "network_name", "preferred", "preferred_extended_address")})},
     "thread/discover_routers": {part: ("list", {"type": None, "key": None, "data": {k: None for k in (
         "instance_name", "brand", "extended_address", "extended_pan_id", "model_name", "network_name", "thread_version",
         "unconfigured", "vendor_name")}}) for part in ("before_result", "after_result")},
@@ -213,18 +214,40 @@ def _thread_mapping(responses: dict, mapping: dict) -> None:  # noqa: PLR0912 - 
     _integration_mapping(responses, mapping)
 
 
-def _integration_mapping(responses: dict, mapping: dict) -> None:
-    """Replacements for the Thread integration's answers (#20), matching the topology's in any case (the integration
-    writes lower-case hex, the topology upper case) and new ones where it has none: extended addresses, extended PAN
-    ids, network names and mDNS instance names."""
+INTEGRATION_EVENTS = ("router_discovered", "router_removed")
+INTEGRATION_TEXT = ("key", "extended_address", "preferred_extended_address", "extended_pan_id", "network_name",
+                    "instance_name")
+
+
+def _integration_parts(responses: dict) -> tuple[list, list]:
+    """The Thread integration's events and the dicts inside them and the datasets (#20), as (events, entries)."""
     datasets = (responses.get("thread/list_datasets") or {}).get("datasets") or []
     events = [e for part in (responses.get("thread/discover_routers") or {}).values() for e in part]
-    entries = [e["data"] for e in events if isinstance(e.get("data"), dict)] + datasets
+    return events, [e["data"] for e in events if isinstance(e.get("data"), dict)] + datasets
+
+
+def _clean_integration(responses: dict) -> None:
+    """Keep only the two event types, and only text or null in the fields that are replaced (#20): a free-text type or
+    a number in a name field would pass the replacement unseen."""
+    parts = responses.get("thread/discover_routers") or {}
+    for part, items in parts.items():
+        parts[part] = [e for e in items if e.get("type") in INTEGRATION_EVENTS]
+    events, entries = _integration_parts(responses)
+    for x in events + entries:
+        for key in [k for k in INTEGRATION_TEXT if x.get(k) is not None and not isinstance(x.get(k), str)]:
+            del x[key]
+
+
+def _integration_mapping(responses: dict, mapping: dict) -> None:
+    """Replacements for the Thread integration's answers (#20), matching the topology's in any case (the integration
+    writes lower-case hex, the topology upper case) and new ones where it has none: extended addresses (any text,
+    whatever its form), extended PAN ids, network names and mDNS instance names."""
+    events, entries = _integration_parts(responses)
     known = {k.lower() for k in mapping}
     used = {v.lower() for v in mapping.values()}
     for value in [e.get("key") for e in events] + [x.get(k) for x in entries
                                                     for k in ("extended_address", "preferred_extended_address")]:
-        if isinstance(value, str) and THREAD_EXT.match(value) and value.lower() not in known:
+        if isinstance(value, str) and value and value.lower() not in known:
             fake = _fresh(used, "aabbccdd{:08x}")
             mapping[value.lower()], mapping[value.upper()] = fake, fake.upper()
             known.add(value.lower())
@@ -293,6 +316,7 @@ def shift_times(responses: dict) -> dict:
 def anonymize(capture: dict) -> dict:
     """Return an anonymized copy of the capture; raises ValueError if any replaced value survives."""
     responses = allow_list(capture["responses"])
+    _clean_integration(responses)
     zha_ids = {d.get("device_reg_id") for d in responses.get("zha/devices", [])}
     matter_ids = {n.get("ha_device_id") for n in _topology(responses).get("nodes", []) if isinstance(n, dict)}
     # Only ZHA devices and the topology's Matter nodes stay in the registry (name_by_user and everything not

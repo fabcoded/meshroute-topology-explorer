@@ -18,8 +18,9 @@
   Thread integration knows (`thread/list_datasets` without keys, and `thread/discover_routers` for 150 ms after its
   result; the whole read ends within 500 ms, beside the Matter reads). No Thread radio traffic; Home Assistant sends
   an mDNS query on the local network while the subscription runs. A border router no Matter device's neighbour table
-  lists with a live link is drawn without lanes and Details say so; border routers are named by their mDNS instance
-  name; Details mark Home Assistant's preferred border router and show no route card on a border router. The status
+  lists with a live link is drawn without lanes and Details say so; a Thread device the Matter server lists as
+  unknown and Home Assistant lists as a border router is shown and counted as a border router; border routers are
+  named by their mDNS instance name; Details mark Home Assistant's preferred border router and show no route card on a border router. The status
   pill says "1 of 2 border routers" in amber when the Matter topology lacks one. Duplicate names, with or without the
   Thread integration: a border router now carries the end of its extended address, never its RLOC16, and two devices
   whose suffixes are equal too carry the whole extended address. Otherwise, without the Thread integration, nothing
