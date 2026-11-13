@@ -227,6 +227,10 @@ The panel reads through Home Assistant's websocket API and requires an administr
     in Details (9.2).
   - A command that fails or does not end within the bound (no Thread integration, not an admin) leaves the map as
     without it, with no message; a lost connection fails the read like any other.
+  - `tools/capture.py --matter` records both answers with the same bounds (the events as `before_result` and
+    `after_result`); `tools/anonymize_capture.py` maps their extended addresses, extended PAN ids and network names
+    as the topology's, in any case, replaces instance names and drops addresses, server names, border agent ids,
+    dataset ids, PAN ids and dataset times.
 - Limits: the tables in the snapshot and the route tables are what the Matter server last read (about daily); the snapshot may list
   removed routers or miss end devices; border routers vanish when Thread diagnostics are off. No reconciliation with
   OTBR data (`otbr/*` returns keys, 3.4).

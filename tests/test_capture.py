@@ -95,7 +95,7 @@ class CaptureTest(unittest.TestCase):
         with FakeServer(responses=responses) as server:
             code, out, err = self.run_tool(server, "--matter")
         self.assertEqual(code, 0, err)
-        self.assertEqual(server.messages[-1], {"id": 5, "type": "matter/network_topology", "refresh": False})
+        self.assertEqual(server.messages[4], {"id": 5, "type": "matter/network_topology", "refresh": False})
         self.assertNotIn(True, [m.get("refresh") for m in server.messages])
         text = self.out.read_text(encoding="utf-8")
         self.assertNotIn("02124b00", text.lower())
@@ -103,6 +103,42 @@ class CaptureTest(unittest.TestCase):
         data = json.loads(text)
         self.assertEqual(len(data["responses"]["matter/network_topology"]["nodes"]), 5)
         self.assertIn("5 Thread nodes", out)
+
+    def test_matter_without_thread_integration_keeps_the_capture(self):
+        # #20: the fake knows neither Thread integration command (unknown_command): both are left out, nothing fails.
+        responses = make_responses()
+        responses["matter/network_topology"] = json.loads((ROOT / "tests" / "fixtures" / "matter-sample.json").read_text(
+            encoding="utf-8").replace("aabbccdd", "02124b00").replace("AABBCCDD", "02124B00").replace(
+            "thread-net-01", "my-home-net"))["responses"]["matter/network_topology"]
+        with FakeServer(responses=responses) as server:
+            code, _, err = self.run_tool(server, "--matter")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(server.commands[-2:], ["thread/list_datasets", "thread/discover_routers"])
+        data = json.loads(self.out.read_text(encoding="utf-8"))["responses"]
+        self.assertNotIn("thread/list_datasets", data)
+        self.assertNotIn("thread/discover_routers", data)
+
+    def test_matter_border_routers_captured_and_anonymized(self):
+        # #20: the datasets and the subscription's events before and after its result, anonymized with the topology.
+        fixture = json.loads((ROOT / "tests" / "fixtures" / "thread-border-routers.json").read_text(encoding="utf-8").replace(
+            "aabbccdd", "02124b00").replace("AABBCCDD", "02124B00").replace("Border router attic", "Cellar OTBR"))["responses"]
+        responses = {**make_responses(), **fixture}
+        with FakeServer(responses=responses) as server:
+            code, _, err = self.run_tool(server, "--matter")
+        self.assertEqual(code, 0, err)
+        self.assertEqual((capture.DISCOVERY_S, capture.BORDER_ROUTERS_S), (0.15, 0.5), "the panel's bounds")
+        self.assertEqual(server.commands[-2:], ["thread/list_datasets", "thread/discover_routers"])
+        self.assertNotIn("unsubscribe_events", server.commands, "the subscription ends with the connection")
+        text = self.out.read_text(encoding="utf-8")
+        for original in ("02124b00", "Cellar OTBR", "2001:db8", ".local", "border_agent_id", "dataset_id"):
+            self.assertNotIn(original.lower(), text.lower(), original)
+        data = json.loads(text)["responses"]
+        events = data["thread/discover_routers"]
+        self.assertEqual([len(events["before_result"]), len(events["after_result"])], [1, 4])
+        self.assertEqual(events["after_result"][-1]["type"], "router_removed")
+        self.assertTrue(data["thread/list_datasets"]["datasets"][0]["preferred"])
+        keys = {n["ext_address"].lower() for n in data["matter/network_topology"]["nodes"]}
+        self.assertIn(events["after_result"][0]["key"], keys, "the heard border router keeps its snapshot address")
 
     def test_without_matter_flag_no_topology_is_asked(self):
         with FakeServer() as server:

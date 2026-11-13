@@ -9,7 +9,10 @@ or is typed at a prompt without echo; there is no --token option on purpose, bec
 shell history and in the process list. The token is never printed and never written to the file.
 Read only: the tool sends exactly the four commands in COMMANDS (spec 3.4) and nothing else, not even a topology
 scan. --matter adds the Thread topology (spec 3.2): `matter/network_topology` with refresh false, the Matter server's
-cached snapshot (refresh true would read every node's tables over the radio and is never sent). It talks only to the URL you give. By default the result goes through tools/anonymize_capture.py before it is
+cached snapshot (refresh true would read every node's tables over the radio and is never sent), and the border routers
+of Home Assistant's Thread integration as the panel reads them (#20): `thread/list_datasets` (no keys) and the events
+of `thread/discover_routers` (Home Assistant sends an mDNS query on the local network meanwhile), each left out where
+Home Assistant refuses it. It talks only to the URL you give. By default the result goes through tools/anonymize_capture.py before it is
 written; --raw skips that and writes real addresses and names: do not share such a file.
 Exit codes: 0 ok, 1 usage or bad input, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout,
 6 anonymizer refused. Tests: tests/test_capture.py. Format: tools/anonymize_capture.py.
@@ -21,6 +24,7 @@ import getpass
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -33,6 +37,10 @@ VERSION = "1"
 COMMANDS = ("config/area_registry/list", "config/device_registry/list", "config_entries/get", "zha/devices")
 # Spec 3.2: the cached snapshot only (Home Assistant 2026.9 or newer). Never refresh true: that is radio traffic.
 MATTER_COMMAND = "matter/network_topology"
+# #20, the panel's bounds (adapters/matter.js): events for 0.15 s after the subscription's result, all of it within
+# 0.5 s. The subscription ends with the connection.
+DATASETS, ROUTERS = "thread/list_datasets", "thread/discover_routers"
+DISCOVERY_S, BORDER_ROUTERS_S = 0.15, 0.5
 EXIT = {"usage": 1, "connect": 2, "auth": 3, "command": 4, "timeout": 5, "anonymizer": 6}
 
 
@@ -120,8 +128,38 @@ def _converse(ws: WebSocket, token: str, timeout: float, matter: bool = False) -
                     else "is the ZHA integration set up and the token's user an administrator?")
             raise CaptureError("command", f"Home Assistant refused {command} (error code {code}); {hint}")
         answers[command] = msg.get("result")
+    if matter:
+        answers.update(_border_routers(ws, len(requests) + 1))
     version = reply.get("ha_version")
     return (version if isinstance(version, str) else ""), answers
+
+
+def _border_routers(ws: WebSocket, first: int) -> dict:
+    """The Thread integration's answers (#20): the datasets, and the subscription's events before and after its result
+    as {"before_result": [...], "after_result": [...]}; what is refused or not done in time is left out."""
+    ids = {first: DATASETS, first + 1: ROUTERS}
+    for msg_id, command in ids.items():
+        ws.send_text(json.dumps({"id": msg_id, "type": command}))
+    answers, events, confirmed = {}, {"before_result": [], "after_result": []}, False
+    waits = dict.fromkeys(ids.values(), time.monotonic() + BORDER_ROUTERS_S)  # until when each answer is awaited
+    while waits and (left := max(waits.values()) - time.monotonic()) > 0:
+        try:
+            msg = _message(ws, left)
+        except WebSocketTimeout:
+            break
+        command = ids.get(msg.get("id"))
+        if command in waits and msg.get("type") == "event":
+            events["after_result" if confirmed else "before_result"].append(msg.get("event"))
+        elif command in waits and msg.get("type") == "result":
+            if command == ROUTERS and msg.get("success"):
+                confirmed, waits[ROUTERS] = True, min(waits[ROUTERS], time.monotonic() + DISCOVERY_S)
+            else:
+                waits.pop(command)
+                answers.update({DATASETS: msg.get("result")} if msg.get("success") else {})
+        waits = {k: v for k, v in waits.items() if v > time.monotonic()}
+    if confirmed:
+        answers[ROUTERS] = events
+    return answers
 
 
 def build_capture(ha_version: str, answers: dict) -> dict:
