@@ -223,6 +223,17 @@ class FakeConnection extends EventTarget {
       console.log("scan started");
     }
   }
+
+  /** thread/discover_routers (#20) with matter=borderrouters: the fixture's events before the result, the rest 20 ms
+   *  after it; any other sample answers like a Home Assistant without the Thread integration. */
+  async subscribeMessage(callback, message) {
+    const events = matterResponses && matterResponses[message.type];
+    if (!connected) throw lost().error;
+    if (!events) throw { code: "unknown_command", message: "Unknown command." };
+    for (const e of events.before_result) callback(e);
+    setTimeout(() => { for (const e of events.after_result) callback(e); }, 20);
+    return async () => console.log("unsubscribed", message.type);
+  }
 }
 const connection = new FakeConnection();
 let scanStartedAt = null;
@@ -264,7 +275,9 @@ const routesSample = matterMode === "routes" ? (await import("../tests/thread-ro
 const matterResponses = captureTopology ? fixture.responses
   : routesSample ? { "matter/network_topology": routesSample.topology, "config/device_registry/list": routesSample.registry,
     "meshroute_topology_explorer/thread_tables": routesSample.tables }
-    : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses : null;
+    : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses
+      : matterMode === "borderrouters" ? (await (await fetch("../tests/fixtures/thread-border-routers.json")).json()).responses
+        : null;
 let devices = responses["zha/devices"];
 const variant = q.get("variant");
 if (variant) devices = withoutTables(devices, removedTables(devices)[variant] || []);
@@ -329,6 +342,12 @@ if (q.get("network") === "thread" || captureTopology) store.settings.set("panel"
 let connected = !flag("downfirst");
 const lost = () => ({ type: "result", success: false, error: { code: 3, message: "Connection lost" } });
 
+/** The Matter sample's answer to `msg`, or `error` thrown where the sample has none. */
+function sampleAnswer(msg, error) {
+  if (!matterResponses || !matterResponses[msg.type]) throw error;
+  return matterResponses[msg.type];
+}
+
 async function callWS(msg) {
   await sleep(40);
   if (!connected) throw lost();
@@ -348,8 +367,8 @@ async function callWS(msg) {
       if (!matterResponses) throw unknown;
       return matterResponses["matter/network_topology"];
     case "meshroute_topology_explorer/thread_tables":
-      if (!matterResponses || !matterResponses[msg.type]) throw { code: "not_supported", message: "dev page: this sample has no Thread tables" };
-      return matterResponses[msg.type];
+      return sampleAnswer(msg, { code: "not_supported", message: "dev page: this sample has no Thread tables" });
+    case "thread/list_datasets": return sampleAnswer(msg, unknown);
     case "zha/devices":
       if (flag("error")) throw { code: "home_assistant_error", message: "ZHA did not answer" };
       return flag("empty") ? [] : currentDevices();
