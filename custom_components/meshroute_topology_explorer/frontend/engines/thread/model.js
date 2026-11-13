@@ -23,16 +23,18 @@ function unknownReason(hearer, r) {
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
  *  registries (names, areas) and entities and states (the kind, kinds.js), and the Thread tables of the Matter cache
- *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed).
+ *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed),
+ *  and the answers of Home Assistant's Thread integration (`haThread`, from-matter.js haBorderRouters, #20).
  *  Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
  *  extPanId, capabilities (routes: the tables answered), collectedAt, devices, readings, staleReadings, routes
  *  (empty: Zigbee's routing entries), routing (routes.js buildRouting, or null), routingProblem, links, pairs, status,
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
- *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot). */
+ *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
+ *  inTopology: false for a border router only the Thread integration lists, preferred). */
 export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
-  tablesProblem = null, capabilities = THREAD_CAPABILITIES } = {}) {
-  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states });
+  tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
+  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
   if (!mapped) return null;
   const { pan, devices, readings, stale, links, unresolved, collectedAt } = mapped;
 
@@ -110,13 +112,16 @@ export function threadPairs(devices, readings, links) {
 }
 
 /** Status line numbers (spec 6) of a Thread network: links (pairs), links measured in both directions, border routers
- *  listed. No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
+ *  in the snapshot, and border routers known (those plus the ones only Home Assistant's Thread integration lists,
+ *  #20). No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
 export function threadStatus(devices, pairs) {
   const both = pairs.filter((p) => p.ab.state === "measured" && p.ba.state === "measured").length;
+  const borderRouters = devices.filter((d) => d.role === "border router");
   return {
     links: pairs.length,
     linksBoth: both,
-    borderRouters: devices.filter((d) => d.role === "border router").length,
+    borderRouters: borderRouters.filter((d) => d.inTopology !== false).length,
+    borderRoutersKnown: borderRouters.length,
   };
 }
 

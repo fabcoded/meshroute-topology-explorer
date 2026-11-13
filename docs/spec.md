@@ -112,8 +112,9 @@ The panel reads through Home Assistant's websocket API and requires an administr
   - Key: the extended address; without one, `thread:<node>`, whose pins are dropped (pins use EUI-64 keys only).
   - Roles: `leader` and `router` are routers (the leader with crown "L", 8); `reed`, `end_device`,
     `sleepy_end_device` end devices; kind `border_router` the role "border router" (wired, picture hub); else unknown.
-  - Name: device registry through `ha_device_id`, else the border router's `host_name` or model, else "Matter node
-    <id>". Availability `null` (border routers, found by mDNS) is drawn as available, and Details say so.
+  - Name: device registry through `ha_device_id`, else a border router's mDNS instance name (Home Assistant's Thread
+    integration, below), its `host_name` or model, else "Matter node <id>". Availability `null` (border routers, found
+    by mDNS) is drawn as available, and Details say so.
   - Readings: link quality 0–3 and RSSI in dBm. Strength `none` (seen dead) and `unknown` are not measured and never
     drawn as a dead link; RSSI 127 is no value; link quality 0 with a valid RSSI is a measured low reading.
   - Parent: the router the end device's own table lists (a Thread child holds only its parent); if it reported
@@ -165,7 +166,8 @@ The panel reads through Home Assistant's websocket API and requires an administr
     hears is measured. The border router query (#12) reads the border router's own choice."); where its table is
     there it decides, and a table without a way stops the route. Every further hop from the routers' own tables, the
     parent delivering to its child. Path cost: the sum of the hops'
-    costs as each sender counts them. Default border router: the lowest complete path cost, else the first by name.
+    costs as each sender counts them. Default border router: the lowest complete path cost, else the first by name;
+    only border routers in the snapshot are destinations (Border routers, below).
   - Per hop what the receiver hears: its neighbour table (RSSI: the average, the last frame's for a sleepy child or
     without an average: a sleepy child's average may not be maintained, −13 dBm next to a last −42 dBm on the owner's
     network), else the sender's route entry's LQI out (no RSSI, "– dBm"). **Weakest hop** of a direction: the lowest
@@ -189,11 +191,37 @@ The panel reads through Home Assistant's websocket API and requires an administr
   (`ThreadDetailsPoller.ts`, daily poller since PR #943), on a new subscription and on an explicit refresh; some
   devices also report table changes themselves. When the server last read is not reported, and 24 h is no guaranteed
   upper bound.
+- **Border routers** (#20): the Matter server lists a border router only where a commissioned Matter node's cached
+  neighbour table names it with a live link (matterjs-server main 0bf72c3, `NetworkTopologyService.ts` `#build`), so a
+  new or unheard one is missing and two of one model share a name. Home Assistant's Thread integration adds its view
+  (Home Assistant 2026.11.0, `homeassistant/components/thread/websocket_api.py`, `discovery.py`; both commands admin
+  only, `tests/thread-border-routers.test.mjs` on a synthetic fixture):
+  - `thread/list_datasets` (no keys; `otbr/*` and `thread/get_dataset*` stay forbidden, 3.4): per dataset
+    `extended_pan_id`, `preferred` and `preferred_extended_address`; nothing else is used.
+  - `thread/discover_routers`, a subscription: events `router_discovered` (`key` the extended address, `data`) and
+    `router_removed` (`key`); of `data` only `extended_address`, `extended_pan_id`, `instance_name`, `vendor_name` and
+    `model_name` are used, never `addresses` or `server`. Events come from Home Assistant's mDNS cache, before or with
+    the result (owner's network 2026-11-13, Home Assistant 2026.11, 5 runs: 3 ms after subscribing, once 87 ms). The
+    panel waits at most 500 ms for the result, collects for 500 ms after it, then unsubscribes: the list is Home
+    Assistant's mDNS view at load time; a later event changes nothing. Read beside the Matter commands; no Thread
+    radio traffic.
+  - Matched by extended address within the snapshot's extended PAN id, compared in one case (Home Assistant writes
+    lower case, the snapshot upper case); a router or dataset of another extended PAN id is ignored. Without a Thread
+    node in the snapshot there is no network, as before.
+  - A border router in both: the instance name names it (after the device registry). One only Home Assistant lists:
+    added as a border router without links, drawn without lanes; Details say "Not in the Matter server's topology: no
+    Matter device's neighbour table names it." Its availability is unknown (drawn as available, never offline), it is
+    never rated, it is no route destination (Routes; its tables are in no cache) and never the History button's default
+    partner (9.5). No reliable mapping to a registry device or config entry exists otherwise: registry connections carry
+    no Thread address, and the OTBR entry's data needs `otbr/*`.
+  - The border router named by `preferred_extended_address` of the preferred dataset of this extended PAN id is marked
+    in Details (9.2).
+  - A command that fails or gives no result within 500 ms (no Thread integration, not an admin) leaves the map as
+    without it, with no message; a lost connection fails the read like any other.
 - Limits: the tables in the snapshot and the route tables are what the Matter server last read (about daily); the snapshot may list
   removed routers or miss end devices; border routers vanish when Thread diagnostics are off. No reconciliation with
   OTBR data (`otbr/*` returns keys, 3.4).
-- **[later]** `matter/subscribe_network_topology` (also 2026.9); `thread/discover_routers` and `thread/list_datasets`
-  label border routers and mark the preferred one; networks grouped by extended PAN id.
+- **[later]** `matter/subscribe_network_topology` (also 2026.9); networks grouped by extended PAN id.
 
 ### 3.3 Zigbee2MQTT [later]
 
@@ -215,7 +243,8 @@ The panel and the integration call only these commands; `tools/guard.py` enforce
 | `zha/devices/clusters/attributes/value` | user-started read of one attribute, once per button press (9.2) | v1 |
 | `meshroute_topology_explorer/*` | own settings and observations (10), zigpy's route records (3.1, read only), the Matter cache's Thread tables (3.2, read only), reception history (10.2, read only) | v1 |
 | `matter/network_topology` with `refresh: false` | Thread topology, snapshot from the server's cache (3.2) | v1.1 preview |
-| `matter/subscribe_network_topology`, `thread/discover_routers`, `thread/list_datasets` | Thread | later |
+| `thread/list_datasets`, `thread/discover_routers` (subscription, ended 500 ms after its result) | Thread border routers and the preferred one (3.2): Home Assistant's datasets without keys and its mDNS view, no radio traffic | v1.1 preview |
+| `matter/subscribe_network_topology` | Thread | later |
 | `mqtt/subscribe`, service `mqtt.publish` to `<base>/bridge/request/networkmap` only | Zigbee2MQTT | later |
 
 Entity states and area names come from the `hass` object Home Assistant hands every panel (`hass.states`,
@@ -473,8 +502,9 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   draws no assumed or recorded return path, and "Names and areas not read". Findings name devices missing from every
   table. ZHA's own 4-hourly table reads are explained by an info button beside "Read data again" (9.1).
 - **The dot** (11 px, last in the pill): green = every available router's table read (Thread: every linked pair measured
-  both ways, a border router listed, snapshot younger than 4 hours); amber = anything else (a table missing, a one-way
-  link, no border router, a snapshot of 4 hours and older); red = connection to Home Assistant lost (a message
+  both ways, every known border router in the snapshot and at least one, snapshot younger than 4 hours); amber =
+  anything else (a table missing, a one-way link, no border router or fewer than known, a snapshot of 4 hours and
+  older); red = connection to Home Assistant lost (a message
   replaces the map only when no network is left, 9.4). Colour is never the only signal: the second line says
   the same and takes a matching text tone in amber and red. ZHA gives no scan time and "unchanged since" can be days
   old on a quiet network, so ZHA's age plays no part; 4 hours is ZHA's default scan interval, reused for Thread, where
@@ -484,7 +514,11 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   server from its cache when the panel asked, with tables that can be many hours old and an unreported read time; in
   the menu's full line only, right after it, "Thread tables: age unknown" with the same note as tooltip (the compact
   line keeps "snapshot {time}"); with the route tables read the full line says "Table times: observed every 10 min"
-  instead; "no border router listed" when there is none. No banner, no "unchanged since"; each table's read interval
+  instead; "no border router listed" when there is none; "{n} of {m} border routers" (#20) when the snapshot holds n
+  and Home Assistant's Thread integration knows more (m: the snapshot's and its list together, 3.2), tooltip "Home
+  Assistant's Thread integration lists border routers of this network that the Matter server's topology lacks; the
+  topology lists a border router only where a Matter device's neighbour table names it.". No banner, no "unchanged
+  since"; each table's read interval
   in a route's source line (3.2, 9.2).
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
   evidence rule (5.6). Below 90 % the map carries the banner "incomplete".
@@ -700,7 +734,9 @@ user-supplied image or map tiles from a user-configured address.
   below (user's name, else model; on), and the original Home Assistant name (the integration's registry name) in a
   smaller grey line below, only where it differs (off). The type line shows only from the working scale (9.3) up.
   - Labels are text, never HTML. A name keeps the part that distinguishes it from similar names (cut shared
-    beginnings at word starts, keep the end); identical readable names get the network address appended.
+    beginnings at word starts, keep the end); identical readable names get the network address appended (Thread: the
+    RLOC16, for a border router or without one the end of the extended address, and the whole extended address where
+    that end is shared too, #20).
     At the dense setting a name is cut to fit 128 px (about 20 characters); at medium, wide and custom only a name
     longer than 28 characters is cut, by the same rules, so those labels may overlap more; labels follow a density change.
   - Below a scale measured on screen (devices half a label width from their nearest neighbour, so a spread map is
@@ -881,7 +917,10 @@ One place per thing; nothing appears twice.
   - "Manage in ZHA" (`/config/zha/device/<ieee>/clusters`) and "The map is read-only: writing, reporting and binding
     are done in ZHA's device management."
 - **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, role, "Thread leader" where it
-  applies), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list with
+  applies; a border router only Home Assistant's Thread integration lists: "Not in the Matter server's topology: no
+  Matter device's neighbour table names it. Known from Home Assistant's Thread integration (mDNS)."; the preferred
+  border router of the preferred dataset: "Home Assistant's preferred border router of its preferred Thread
+  network.", 3.2), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list with
   per hop what each receiver hears there and back and whose table it comes from, the cost as the sender counts it,
   the weakest hop of each direction below LQI 3 marked at the left edge, the derived hop's note, and one line
   "Source: Matter server's copy · <holder> read 09:50–10:00 · …" per table the values come from (the date where not
@@ -969,8 +1008,9 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   live input is what the panel already holds (`network.live`).
 - **Partner menu:** the second name in the header is a menu: the coordinator (Thread: the border routers) first, then
   the first device's neighbours by reception (strongest first), and a search over all devices. A change keeps tab and
-  range. The History button's partner: the coordinator, Thread the border router with the strongest link; for the
-  coordinator or a border router itself its strongest neighbour by reception.
+  range. The History button's partner: the coordinator, Thread the border router with the strongest link, never one
+  only Home Assistant's Thread integration lists (3.2, #20; the menu still lists it); for the coordinator or a border
+  router itself its strongest neighbour by reception.
 - **Timeline** (Zigbee): per direction a band of route spans ("via X, Y", "direct"; a walk that stopped is a dashed gap
   with its reason) and under it the rank of the weakest hop at its receiver over time (0 to 100 %), a point per record, the
   weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest; a route of one hop has none.

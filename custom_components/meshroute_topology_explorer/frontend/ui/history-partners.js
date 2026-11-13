@@ -31,7 +31,9 @@ export function anchorsFor(network, id, role) {
 }
 
 /** The partner of the History button (owner 2026-11-05): the coordinator / the strongest border router; for an anchor
- *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). */
+ *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). An anchor
+ *  the network marks as not in its topology (inTopology false: Thread, a border router only Home Assistant's Thread
+ *  integration lists, #20) is never the default; the partner menu still lists it. */
 export function defaultPartner(network, id, role) {
   const self = network.devices.find((d) => d.id === id);
   if (!self) return null;
@@ -39,8 +41,8 @@ export function defaultPartner(network, id, role) {
     const n = neighboursByReception(network, id);
     return n.length ? n[0].id : null;
   }
-  const a = anchorsFor(network, id, role);
-  return a.length ? a[0] : null;
+  const inTopology = new Set(network.devices.filter((d) => d.inTopology !== false).map((d) => d.id));
+  return anchorsFor(network, id, role).find((x) => inTopology.has(x)) ?? null;
 }
 
 /** The partner menu of the window header (owner 2026-11-05): the anchors first, then the neighbours of `id` by

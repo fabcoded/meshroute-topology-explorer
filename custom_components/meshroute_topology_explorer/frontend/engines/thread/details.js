@@ -143,6 +143,9 @@ export function renderThreadDetails(container, ctx) {
     historyButton(ctx, d.id)), h("p", { class: "muted", text: line }));
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.thread_stale") }));
   if (!d.availabilityKnown) head.append(h("p", { class: "muted small", text: t("details.thread_availability_unknown") }));
+  // #20: a border router only Home Assistant's Thread integration lists, and the preferred one.
+  if (d.inTopology === false) head.append(h("p", { class: "muted small", text: t("details.thread_br_unheard") }));
+  if (d.preferred) head.append(h("p", { class: "muted small", text: t("details.thread_br_preferred") }));
   container.append(head);
   const route = routeCard(ctx, d, name);
   if (route) container.append(route);

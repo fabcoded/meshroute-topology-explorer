@@ -5,8 +5,9 @@
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
  *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
  *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
- *  router listed" when the snapshot names none. `collected_at` is the time of the request, not the read time of the
- *  Thread tables, which the snapshot does not report; the note says so. */
+ *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20).
+ *  `collected_at` is the time of the request, not the read time of the Thread tables, which the snapshot does not
+ *  report; the note says so. */
 export function threadParts(network, { collected = null, compact = false } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];
@@ -23,6 +24,9 @@ export function threadParts(network, { collected = null, compact = false } = {})
     } else if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
   }
   if (!s.borderRouters) parts.push(["status.thread_no_br", {}]);
+  else if (s.borderRouters < s.borderRoutersKnown) {
+    parts.push(["status.thread_br_count", { n: s.borderRouters, m: s.borderRoutersKnown }, "status.thread_br_count_note"]);
+  }
   return parts;
 }
 
@@ -31,12 +35,13 @@ export function threadParts(network, { collected = null, compact = false } = {})
  *  reused so both networks follow one rule. */
 export const OLD_AFTER_MS = 4 * 3600 * 1000;
 
-/** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, a border router is listed and the
- *  panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
+/** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, every known border router is in the
+ *  snapshot (at least one) and the panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
 export function healthLevel(network, now = Date.now()) {
   const s = network.status;
   const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
-  return s.linksBoth < s.links || !s.borderRouters || age >= OLD_AFTER_MS ? "warn" : "ok";
+  const missing = !s.borderRouters || s.borderRouters < s.borderRoutersKnown;
+  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS ? "warn" : "ok";
 }
 
 /** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:

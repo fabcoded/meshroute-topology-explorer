@@ -14,6 +14,13 @@
   adds the alternatives routers hold but do not use. New read-only command
   `meshroute_topology_explorer/thread_tables`; the integration checks the Matter client's copy every 10 minutes, in
   memory and without radio traffic. Needs a restart of Home Assistant.
+- **Every Thread border router, with its own name** (#20): the panel also reads the border routers Home Assistant's
+  Thread integration knows (`thread/list_datasets` without keys, `thread/discover_routers` for 500 ms after its
+  result: Home Assistant's mDNS view, no radio traffic). A border router no Matter device's neighbour table names is
+  drawn without lanes and Details say so; border routers are named by their mDNS instance name, and two of one model
+  get the end of their extended address; Details mark Home Assistant's preferred border router. The status pill says
+  "1 of 2 border routers" in amber when the Matter topology lacks one. Without the Thread integration nothing changes.
+  Frontend only.
 
 ## 0.2.1 – 2026-11-08
 

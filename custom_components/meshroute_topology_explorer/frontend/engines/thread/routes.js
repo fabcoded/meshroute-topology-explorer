@@ -388,12 +388,15 @@ function childCost(tables, parent, child) {
 
 /** Routing of a Thread network, or null without tables: { tables, borderRouters (ids), defaultRoute(id) (the route to
  *  the border router with the lowest complete path cost, else to the first border router by label; null for a
- *  border router or without one), routeTo(id, br) }. Routes are computed on demand and cached. */
+ *  border router or without one), routeTo(id, br) }. Routes are computed on demand and cached. A border router only
+ *  Home Assistant's Thread integration lists (inTopology false, #20) is no destination and has no route (owner
+ *  2026-11-13): the routes stay those to the snapshot's border routers. */
 export function buildRouting(network, answer) {
   if (!answer || !Array.isArray(answer.nodes)) return null;
   const tables = readTables(network, answer);
   const label = (id) => (network.devices.find((d) => d.id === id) || { label: id }).label;
-  const borderRouters = network.devices.filter((d) => d.role === "border router").map((d) => d.id)
+  const anyBorderRouter = network.devices.filter((d) => d.role === "border router");
+  const borderRouters = anyBorderRouter.filter((d) => d.inTopology !== false).map((d) => d.id)
     .sort((a, b) => label(a).localeCompare(label(b), undefined, { numeric: true }) || (a < b ? -1 : 1));
   const cache = new Map();
   const routeTo = (id, br) => {
@@ -402,7 +405,7 @@ export function buildRouting(network, answer) {
     return cache.get(key);
   };
   const defaultRoute = (id) => {
-    if (!borderRouters.length || borderRouters.includes(id)) return null;
+    if (!borderRouters.length || anyBorderRouter.some((d) => d.id === id)) return null;
     const all = borderRouters.map((br) => routeTo(id, br));
     const complete = all.filter((r) => r.there.complete && r.there.cost !== null).sort((a, b) => a.there.cost - b.there.cost);
     return complete[0] || all[0];
