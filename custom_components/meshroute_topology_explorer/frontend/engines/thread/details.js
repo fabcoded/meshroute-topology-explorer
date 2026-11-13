@@ -178,10 +178,11 @@ export function renderThreadDetails(container, ctx) {
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
  *  each receiver hears and the table it comes from, the cost as each sender counts it, the weakest hop per
  *  direction, a derived hop's note, and one line with the source and since when Meshroute saw each table unchanged
- *  (amber over 4 hours). Null for a border router and where the network has no border router; without the Matter
- *  cache's tables the reason they could not be read. */
+ *  (amber over 4 hours). Null for a border router (also without the tables, #20) and where the network has no border
+ *  router; without the Matter cache's tables the reason they could not be read. */
 function routeCard(ctx, d, name) {
   const { network, t } = ctx;
+  if (d.role === "border router") return null;
   if (!network.routing) {
     return network.routingProblem
       ? card(t("details.route_title", { name: t("role.border router") }),

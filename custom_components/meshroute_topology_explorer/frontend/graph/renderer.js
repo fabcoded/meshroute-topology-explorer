@@ -109,6 +109,8 @@ export function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH, la
       available: d.available !== false,
       rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
       power: powerCategory(d.powerSource),
+      // No pair badge where the engine says the history holds nothing of the device (its history caps, #20).
+      historyless: Boolean(engine && engine.history.historyless(d)),
     };
   });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
@@ -860,11 +862,12 @@ export function drawScene(ctx, scene, pos, view, theme, measure) {
   }
   for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
-  // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
+  // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E),
+  // except a historyless one (buildScene).
   if (view.pairBadges && view.selected >= 0) {
     ctx.globalAlpha = 1;
     for (let i = 0; i < n; i++) {
-      if (i === view.selected || !onScreen(i)) continue;
+      if (i === view.selected || !onScreen(i) || scene.nodes[i].historyless) continue;
       const [bx, by] = badgeCentre(sx[i], sy[i], size);
       drawBadge(ctx, bx, by, theme, i === view.badgeHover);
     }

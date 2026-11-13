@@ -5,7 +5,7 @@
    "decodeRecords": 69
   },
   "custom_components/meshroute_topology_explorer/frontend/engines/thread/from-matter.js": {
-   "fromMatter": 61
+   "fromMatter": 54
   },
   "custom_components/meshroute_topology_explorer/frontend/engines/thread/kinds.js": {
    "entitiesByDevice": 19
