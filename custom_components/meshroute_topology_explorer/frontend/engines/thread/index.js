@@ -74,7 +74,10 @@ export const thread = Object.freeze({
   /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
   history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false,
     /** The role of the devices the History button pairs a device with (a border router joins the mesh to the home network). */
-    anchorRole: "border router" }),
+    anchorRole: "border router",
+    /** A border router only Home Assistant's Thread integration lists (#20) has no reading the history records: never
+     *  the History button's default partner, no pair badge on the map. */
+    historyless: (device) => device.inTopology === false }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings key: unusedRoutes. */

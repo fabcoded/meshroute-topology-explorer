@@ -20,7 +20,10 @@ export function historyButton(ctx, id) {
 }
 
 /** The partner of a path line's own device: see defaultPartner. */
-export const partnerOf = (ctx, id) => defaultPartner(ctx.network, id, historyCaps(ctx.network).anchorRole);
+export const partnerOf = (ctx, id) => {
+  const caps = historyCaps(ctx.network);
+  return defaultPartner(ctx.network, id, caps.anchorRole, caps.historyless);
+};
 
 /** A "history ↗" link for the pair a, b (a path line's ends); null without a window to open or without a partner. */
 export function historyLink(ctx, a, b) {

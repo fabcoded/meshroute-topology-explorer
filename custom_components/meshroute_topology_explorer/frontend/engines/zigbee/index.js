@@ -67,7 +67,9 @@ export const zigbee = Object.freeze({
     /** End devices keep no neighbour table: what they hear is in no record. */
     keepsNoTable: (device) => device.role === "end device",
     /** The role of the devices the History button pairs a device with. */
-    anchorRole: "coordinator" }),
+    anchorRole: "coordinator",
+    /** Every Zigbee device can be in a record: none is historyless. */
+    historyless: () => false }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell

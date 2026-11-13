@@ -21,7 +21,9 @@
        capture=<name>  a real capture from captures/<name>.json (git-ignored, never committed) instead of the sample
                        (a Matter capture, {"responses": {"matter/network_topology": ...}}, shows its Thread network; ZHA from the sample)
        matter=1        the Matter integration loaded, Thread from tests/fixtures/matter-sample.json (the status pill's menu
-                       gets the network switch);  matter=notsupported  its topology answers not_supported
+                       gets the network switch);  matter=notsupported  its topology answers not_supported;
+                       matter=borderrouters  tests/fixtures/thread-border-routers.json with Home Assistant's Thread
+                       integration: two border routers, one not in the Matter topology (#20)
        network=thread  start on the Thread network (as a stored choice; implies matter=1)
        fill=role|power, density=dense|medium|spread|custom, factor=<0.6-8> (custom), open=on|off ("Details on click"), paths=coordinator|table|all,
        heard=1 (the checkbox "additional heard neighbours", drawn under paths=table only),

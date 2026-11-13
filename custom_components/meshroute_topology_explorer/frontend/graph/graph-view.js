@@ -618,14 +618,15 @@ export class GraphView extends EventTarget {
     return hitTest(this.scene, sx, sy, this.cam.k, x, y);
   }
 
-  /** The device whose entry badge is under (x, y), else -1; badges exist only with a selection (renderer.js BADGE). */
+  /** The device whose entry badge is under (x, y), else -1; badges exist only with a selection that is not
+   *  historyless (renderer.js BADGE). */
   _badgeAt(x, y) {
-    if (!this.pairBadges || this.selected < 0 || !this.scene) return -1;
+    if (!this.pairBadges || this.selected < 0 || !this.scene || this.scene.nodes[this.selected].historyless) return -1;
     const size = symbolSize(this.cam.k);
     let best = -1;
     let bestD = BADGE.hit;
     for (let i = 0; i < this.scene.nodes.length; i++) {
-      if (i === this.selected) continue;
+      if (i === this.selected || this.scene.nodes[i].historyless) continue; // no badge drawn there (renderer.js)
       const [sx, sy] = this._screenOf(i);
       const [bx, by] = badgeCentre(sx, sy, size);
       const d = Math.hypot(bx - x, by - y);

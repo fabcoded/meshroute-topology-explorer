@@ -31,16 +31,17 @@ export function anchorsFor(network, id, role) {
 }
 
 /** The partner of the History button (owner 2026-11-05): the coordinator / the strongest border router; for an anchor
- *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). */
-export function defaultPartner(network, id, role) {
+ *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). An anchor
+ *  the engine calls historyless (its history caps, #20) is never the default; the partner menu still lists it. */
+export function defaultPartner(network, id, role, historyless = () => false) {
   const self = network.devices.find((d) => d.id === id);
   if (!self) return null;
   if (self.role === role) {
     const n = neighboursByReception(network, id);
     return n.length ? n[0].id : null;
   }
-  const a = anchorsFor(network, id, role);
-  return a.length ? a[0] : null;
+  const byId = new Map(network.devices.map((d) => [d.id, d]));
+  return anchorsFor(network, id, role).find((x) => !historyless(byId.get(x))) ?? null;
 }
 
 /** The partner menu of the window header (owner 2026-11-05): the anchors first, then the neighbours of `id` by

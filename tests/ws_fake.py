@@ -170,6 +170,15 @@ class FakeServer:
             err = {"code": "unknown_command", "message": "Unknown command."}
             conn.sendall(frame(1, json.dumps({"id": mid, "type": "result", "success": False, "error": err}).encode()))
             return
+        reply = self.responses[command]
+        if command == "thread/discover_routers" and isinstance(reply, dict):  # a subscription (#20): events around its result
+            send = lambda m: conn.sendall(frame(1, json.dumps({"id": mid, **m}).encode()))  # noqa: E731
+            for event in reply["before_result"]:
+                send({"type": "event", "event": event})
+            send({"type": "result", "success": True, "result": None})
+            for event in reply["after_result"]:
+                send({"type": "event", "event": event})
+            return
         if "stall" in self.behavior and command == "zha/devices":
             threading.Event().wait(5)
             return

@@ -2975,16 +2975,17 @@ function anchorsFor(network, id, role) {
 }
 
 /** The partner of the History button (owner 2026-11-05): the coordinator / the strongest border router; for an anchor
- *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). */
-function defaultPartner(network, id, role) {
+ *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). An anchor
+ *  the engine calls historyless (its history caps, #20) is never the default; the partner menu still lists it. */
+function defaultPartner(network, id, role, historyless = () => false) {
   const self = network.devices.find((d) => d.id === id);
   if (!self) return null;
   if (self.role === role) {
     const n = neighboursByReception(network, id);
     return n.length ? n[0].id : null;
   }
-  const a = anchorsFor(network, id, role);
-  return a.length ? a[0] : null;
+  const byId = new Map(network.devices.map((d) => [d.id, d]));
+  return anchorsFor(network, id, role).find((x) => !historyless(byId.get(x))) ?? null;
 }
 
 /** The partner menu of the window header (owner 2026-11-05): the anchors first, then the neighbours of `id` by
@@ -3021,7 +3022,10 @@ function historyButton(ctx, id) {
 }
 
 /** The partner of a path line's own device: see defaultPartner. */
-const partnerOf = (ctx, id) => defaultPartner(ctx.network, id, historyCaps(ctx.network).anchorRole);
+const partnerOf = (ctx, id) => {
+  const caps = historyCaps(ctx.network);
+  return defaultPartner(ctx.network, id, caps.anchorRole, caps.historyless);
+};
 
 /** A "history ↗" link for the pair a, b (a path line's ends); null without a window to open or without a partner. */
 function historyLink(ctx, a, b) {
@@ -5417,7 +5421,9 @@ const zigbee = Object.freeze({
     /** End devices keep no neighbour table: what they hear is in no record. */
     keepsNoTable: (device) => device.role === "end device",
     /** The role of the devices the History button pairs a device with. */
-    anchorRole: "coordinator" }),
+    anchorRole: "coordinator",
+    /** Every Zigbee device can be in a record: none is historyless. */
+    historyless: () => false }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS$4,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
@@ -5476,8 +5482,9 @@ function threadKind(entities) {
 // SPDX-License-Identifier: MIT
 // The Matter side of the Thread engine (spec 3.2, 4.6): maps the answer of `matter/network_topology` (Home Assistant
 // 2026.9 or newer, read with refresh false: a snapshot built from the server's cache, no radio traffic) onto devices, readings
-// and links, and holds the capability set of a Thread network read through Matter. The engine's model (model.js)
-// derives parents, pairs, status and findings from it. Pure, no DOM.
+// and links, and holds the capability set of a Thread network read through Matter. The border routers Home Assistant's
+// Thread integration lists name the snapshot's border routers and add those it lacks (#20). The engine's model
+// (model.js) derives parents, pairs, status and findings from it. Pure, no DOM.
 // npm test
 //
 // What the snapshot gives and what it does not (capability set, spec 4.6): readings per direction (Thread link
@@ -5579,11 +5586,73 @@ function largestNetwork(nodes) {
   return [...count.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([p]) => p)[0] || null;
 }
 
+/** The border routers Home Assistant's Thread integration knows in network `pan` (spec 3.2 "Border routers", #20):
+ *  { routers: extended address -> { name, vendor, model } (instance_name, vendor_name, model_name of
+ *  thread/discover_routers, Home Assistant 2026.11.0 thread/discovery.py ThreadRouterDiscoveryData), preferred: the
+ *  preferred_extended_address of the preferred dataset (thread/list_datasets), or null }. Only entries whose
+ *  extended_pan_id is `pan`: the integration writes hex in lower case (bytes.hex()), the snapshot in upper case.
+ *  haThread: { datasets (the answer of thread/list_datasets), routers (the discovered routers' data) }, each null where
+ *  its command failed; null without the integration. */
+function haBorderRouters(haThread, pan) {
+  const routers = new Map();
+  const inPan = (x) => Boolean(pan && x && typeof x.extended_pan_id === "string" && x.extended_pan_id.toLowerCase() === pan);
+  for (const r of Array.isArray(haThread && haThread.routers) ? haThread.routers : []) {
+    const address = inPan(r) ? extAddress(r.extended_address) : null;
+    if (address) routers.set(address, { name: text(r.instance_name), vendor: text(r.vendor_name), model: text(r.model_name) });
+  }
+  const answer = haThread && haThread.datasets;
+  const datasets = answer && Array.isArray(answer.datasets) ? answer.datasets : [];
+  const chosen = datasets.find((d) => inPan(d) && d.preferred === true);
+  return { routers, preferred: chosen ? extAddress(chosen.preferred_extended_address) : null };
+}
+
+/** The role of node `n` at `address`: { kind, mapped (its ROLE_MAP entry or null), role, isBorderRouter, known (Home
+ *  Assistant's data of it, haBorderRouters, or null), preferred }. Home Assistant's list names and counts only the
+ *  snapshot's border routers and its unidentified Thread nodes (kind thread_unknown), and such a node it lists
+ *  becomes a border router: the Matter server's own registry can miss a router Home Assistant found (#20). A
+ *  commissioned Matter node (kind matter) keeps its own name and role. */
+function nodeRole(n, address, ha) {
+  const kind = text(n.kind);
+  const known = ((kind === "border_router" || kind === "thread_unknown") && ha.routers.get(address)) || null;
+  const isBorderRouter = kind === "border_router" || known !== null;
+  const mapped = ROLE_MAP[text(n.role) && text(n.role).toLowerCase()] || null;
+  return { kind, mapped, known, isBorderRouter, role: isBorderRouter ? "border router" : mapped ? mapped.role : "unknown",
+    preferred: isBorderRouter && address !== null && address === ha.preferred };
+}
+
+/** The names of node `n`: { label, labelKind, haName, vendor, model }. Label (spec 3.2 "Name"): the user's or Home
+ *  Assistant's name (device registry through ha_device_id), else a border router's mDNS instance name (`known`, from
+ *  haBorderRouters), its host_name, the model, else a generic name. Vendor and model: the snapshot's, else the
+ *  registry's, else the Thread integration's. No reliable way maps a border router to a registry device or config
+ *  entry otherwise: registry connections carry no Thread address, and the OTBR entry's data needs the OTBR commands,
+ *  which return keys (spec 3.4). */
+function names(n, entry, { known, isBorderRouter, kind }, id) {
+  const userName = text(entry && entry.name_by_user);
+  const haName = text(entry && entry.name);
+  const vendor = text(n.vendor_name) || text(entry && entry.manufacturer) || known?.vendor || null;
+  const model = text(n.model_name) || text(entry && entry.model) || known?.model || null;
+  const fallback = isBorderRouter ? "Border router"
+    : kind === "matter" && int$1(n.node_id) !== null ? `Matter node ${n.node_id}` : `Thread device ${id.slice(-5)}`;
+  const label = userName || haName || known?.name || text(n.host_name) || model || fallback;
+  return { label, labelKind: userName ? "user" : haName ? "ha" : "model", haName, vendor, model };
+}
+
+/** Make labels unique (spec 8): the RLOC16 of a device that has one, the end of the key (the extended address) for a
+ *  border router (#20: two of the same model) or a device without RLOC16; where that tail is shared too, the whole
+ *  key. */
+function distinctLabels(devices) {
+  const tail = (d) => (d.role !== "border router" && d.rloc16 !== null ? formatNwk(d.rloc16) : d.id.slice(-5));
+  const base = new Map(devices.map((d) => [d, d.label]));
+  disambiguateLabels(devices, (d) => (devices.some((o) => o !== d && base.get(o) === base.get(d) && tail(o) === tail(d))
+    ? d.id : tail(d)));
+}
+
 /** The snapshot mapped for the Thread engine's model: the Thread nodes of the largest network (by extended PAN id) as
  *  devices (labels made distinct), the readings of available reporters, the stale ones of unavailable reporters, the
  *  links and what could not be resolved, the extended PAN id and the snapshot time. tableRead marks a device whose
- *  neighbour table came with the snapshot. Null when the answer holds no Thread node. */
-function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states } = {}) {
+ *  neighbour table came with the snapshot. haThread: the answers of Home Assistant's Thread integration
+ *  (haBorderRouters), or null. Null when the answer holds no Thread node. */
+function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread = null } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};
   const all = (Array.isArray(raw.nodes) ? raw.nodes : []).filter((n) => n && typeof n === "object");
   const unresolved = { neighbours: 0, routes: 0, duplicates: 0, ignored: 0 };
@@ -5598,31 +5667,31 @@ function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states }
   const entitiesOf = entitiesByDevice(entities, states); // empty without hass.entities: every kind stays unknown
   const areas = new Map();
   for (const a of Array.isArray(areaRegistry) ? areaRegistry : []) if (a && a.area_id) areas.set(a.area_id, text(a.name));
+  const ha = haBorderRouters(haThread, pan);
+  // The Matter server lists a border router only where a Matter node's neighbour table names it with a live link
+  // (matterjs-server main 0bf72c3, NetworkTopologyService.ts #build): one Home Assistant knows whose extended address
+  // no snapshot node has, of any kind, becomes a node without connections, drawn without lanes and never a route's
+  // destination (#20).
+  const listed = new Set(nodes.map((n) => extAddress(n.ext_address)));
+  const unheard = [...ha.routers.keys()].filter((a) => !listed.has(a)).map((a) => ({ id: `ha:${a}`,
+    kind: "border_router", network_type: "thread", ext_address: a, ext_pan_id: pan, available: null }));
 
   const devices = [];
   const byNode = new Map(); // snapshot node id -> device
-  for (const n of nodes) {
+  for (const n of [...nodes, ...unheard]) {
     const nodeKey = n.id === undefined || n.id === null ? null : String(n.id);
     if (nodeKey === null || byNode.has(nodeKey)) { unresolved.duplicates += 1; continue; }
     const address = extAddress(n.ext_address);
     const id = address || `thread:${nodeKey}`;
     if (devices.some((d) => d.id === id)) { unresolved.duplicates += 1; continue; }
-    const kind = text(n.kind);
-    const isBorderRouter = kind === "border_router";
-    const mapped = ROLE_MAP[text(n.role) && text(n.role).toLowerCase()] || null;
-    const role = isBorderRouter ? "border router" : mapped ? mapped.role : "unknown";
+    const nodeAs = nodeRole(n, address, ha);
+    const { kind, mapped, role, isBorderRouter } = nodeAs;
     const entry = registry.get(n.ha_device_id) || null;
     const areaId = (entry && entry.area_id) || null;
-    const vendor = text(n.vendor_name) || text(entry && entry.manufacturer);
-    const model = text(n.model_name) || text(entry && entry.model);
-    const userName = text(entry && entry.name_by_user);
-    const haName = text(entry && entry.name);
-    const label = userName || haName || text(n.host_name) || model
-      || (isBorderRouter ? "Border router" : kind === "matter" && int$1(n.node_id) !== null ? `Matter node ${n.node_id}`
-        : `Thread device ${id.slice(-5)}`);
+    const { label, labelKind, haName, vendor, model } = names(n, entry, nodeAs, id);
     const device = {
       id, registryId: (entry && entry.id) || null, role,
-      label, labelKind: userName ? "user" : haName ? "ha" : "model", name: haName || label, haName,
+      label, labelKind, name: haName || label, haName,
       area: (areaId && areas.get(areaId)) || null, areaId, firmware: text(entry && entry.sw_version), entities: [],
       vendor, model,
       // The snapshot names no power source; a border router is a mains device by nature (spec 8: wired).
@@ -5641,11 +5710,14 @@ function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states }
       nodeKey, nodeId: int$1(n.node_id), extAddress: address, rloc16: int$1(n.rloc16), extPanId: text(n.ext_pan_id),
       threadRole: text(n.role), leader: Boolean(mapped && mapped.leader),
       reed: Boolean(mapped && mapped.reed), matter: kind === "matter",
+      // #20: false for a border router only Home Assistant's Thread integration lists; preferred: the preferred
+      // border router of Home Assistant's preferred dataset.
+      inTopology: !unheard.includes(n), preferred: nodeAs.preferred,
     };
     devices.push(device);
     byNode.set(nodeKey, device);
   }
-  disambiguateLabels(devices, (d) => (d.rloc16 !== null ? formatNwk(d.rloc16) : d.id.slice(-5)));
+  distinctLabels(devices);
 
   const readings = [];
   const stale = [];
@@ -6062,12 +6134,15 @@ function childCost(tables, parent, child) {
 
 /** Routing of a Thread network, or null without tables: { tables, borderRouters (ids), defaultRoute(id) (the route to
  *  the border router with the lowest complete path cost, else to the first border router by label; null for a
- *  border router or without one), routeTo(id, br) }. Routes are computed on demand and cached. */
+ *  border router or without one), routeTo(id, br) }. Routes are computed on demand and cached. A border router only
+ *  Home Assistant's Thread integration lists (inTopology false, #20) is no destination and has no route (owner
+ *  2026-11-13): the routes stay those to the snapshot's border routers. */
 function buildRouting(network, answer) {
   if (!answer || !Array.isArray(answer.nodes)) return null;
   const tables = readTables(network, answer);
   const label = (id) => (network.devices.find((d) => d.id === id) || { label: id }).label;
-  const borderRouters = network.devices.filter((d) => d.role === "border router").map((d) => d.id)
+  const anyBorderRouter = network.devices.filter((d) => d.role === "border router");
+  const borderRouters = anyBorderRouter.filter((d) => d.inTopology !== false).map((d) => d.id)
     .sort((a, b) => label(a).localeCompare(label(b), undefined, { numeric: true }) || (a < b ? -1 : 1));
   const cache = new Map();
   const routeTo = (id, br) => {
@@ -6076,7 +6151,7 @@ function buildRouting(network, answer) {
     return cache.get(key);
   };
   const defaultRoute = (id) => {
-    if (!borderRouters.length || borderRouters.includes(id)) return null;
+    if (!borderRouters.length || anyBorderRouter.some((d) => d.id === id)) return null;
     const all = borderRouters.map((br) => routeTo(id, br));
     const complete = all.filter((r) => r.there.complete && r.there.cost !== null).sort((a, b) => a.there.cost - b.there.cost);
     return complete[0] || all[0];
@@ -6107,16 +6182,18 @@ function unknownReason(hearer, r) {
 
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
  *  registries (names, areas) and entities and states (the kind, kinds.js), and the Thread tables of the Matter cache
- *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed).
+ *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed),
+ *  and the answers of Home Assistant's Thread integration (`haThread`, from-matter.js haBorderRouters, #20).
  *  Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
  *  extPanId, capabilities (routes: the tables answered), collectedAt, devices, readings, staleReadings, routes
  *  (empty: Zigbee's routing entries), routing (routes.js buildRouting, or null), routingProblem, links, pairs, status,
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
- *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot). */
+ *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
+ *  inTopology: false for a border router only the Thread integration lists, preferred). */
 function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
-  tablesProblem = null, capabilities = THREAD_CAPABILITIES } = {}) {
-  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states });
+  tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
+  const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
   if (!mapped) return null;
   const { pan, devices, readings, stale, links, unresolved, collectedAt } = mapped;
 
@@ -6194,13 +6271,16 @@ function threadPairs(devices, readings, links) {
 }
 
 /** Status line numbers (spec 6) of a Thread network: links (pairs), links measured in both directions, border routers
- *  listed. No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
+ *  in the snapshot, and border routers known (those plus the ones only Home Assistant's Thread integration lists,
+ *  #20). No "router tables x/y" and no completeness: every Matter node's table comes with the snapshot. */
 function threadStatus(devices, pairs) {
   const both = pairs.filter((p) => p.ab.state === "measured" && p.ba.state === "measured").length;
+  const borderRouters = devices.filter((d) => d.role === "border router");
   return {
     links: pairs.length,
     linksBoth: both,
-    borderRouters: devices.filter((d) => d.role === "border router").length,
+    borderRouters: borderRouters.filter((d) => d.inTopology !== false).length,
+    borderRoutersKnown: borderRouters.length,
   };
 }
 
@@ -6460,6 +6540,9 @@ function renderThreadDetails(container, ctx) {
     historyButton(ctx, d.id)), h("p", { class: "muted", text: line }));
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.thread_stale") }));
   if (!d.availabilityKnown) head.append(h("p", { class: "muted small", text: t("details.thread_availability_unknown") }));
+  // #20: a border router only Home Assistant's Thread integration lists, and the preferred one.
+  if (d.inTopology === false) head.append(h("p", { class: "muted small", text: t("details.thread_br_unheard") }));
+  if (d.preferred) head.append(h("p", { class: "muted small", text: t("details.thread_br_preferred") }));
   container.append(head);
   const route = routeCard(ctx, d, name);
   if (route) container.append(route);
@@ -6492,10 +6575,11 @@ function renderThreadDetails(container, ctx) {
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
  *  each receiver hears and the table it comes from, the cost as each sender counts it, the weakest hop per
  *  direction, a derived hop's note, and one line with the source and since when Meshroute saw each table unchanged
- *  (amber over 4 hours). Null for a border router and where the network has no border router; without the Matter
- *  cache's tables the reason they could not be read. */
+ *  (amber over 4 hours). Null for a border router (also without the tables, #20) and where the network has no border
+ *  router; without the Matter cache's tables the reason they could not be read. */
 function routeCard(ctx, d, name) {
   const { network, t } = ctx;
+  if (d.role === "border router") return null;
   if (!network.routing) {
     return network.routingProblem
       ? card(t("details.route_title", { name: t("role.border router") }),
@@ -6606,8 +6690,9 @@ function sourceLine(tables, holders, name, t, now) {
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
  *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
  *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
- *  router listed" when the snapshot names none. `collected_at` is the time of the request, not the read time of the
- *  Thread tables, which the snapshot does not report; the note says so. */
+ *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20).
+ *  `collected_at` is the time of the request, not the read time of the Thread tables, which the snapshot does not
+ *  report; the note says so. */
 function threadParts(network, { collected = null, compact = false } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];
@@ -6624,6 +6709,9 @@ function threadParts(network, { collected = null, compact = false } = {}) {
     } else if (!compact) parts.push(["status.thread_tables_age", {}, "status.thread_read_note"]);
   }
   if (!s.borderRouters) parts.push(["status.thread_no_br", {}]);
+  else if (s.borderRouters < s.borderRoutersKnown) {
+    parts.push(["status.thread_br_count", { n: s.borderRouters, m: s.borderRoutersKnown }, "status.thread_br_count_note"]);
+  }
   return parts;
 }
 
@@ -6632,12 +6720,13 @@ function threadParts(network, { collected = null, compact = false } = {}) {
  *  reused so both networks follow one rule. */
 const OLD_AFTER_MS = 4 * 3600 * 1000;
 
-/** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, a border router is listed and the
- *  panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
+/** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, every known border router is in the
+ *  snapshot (at least one) and the panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
 function healthLevel(network, now = Date.now()) {
   const s = network.status;
   const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
-  return s.linksBoth < s.links || !s.borderRouters || age >= OLD_AFTER_MS ? "warn" : "ok";
+  const missing = !s.borderRouters || s.borderRouters < s.borderRoutersKnown;
+  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS ? "warn" : "ok";
 }
 
 /** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:
@@ -6665,6 +6754,10 @@ const TEXTS$3 = Object.freeze({
   "status.thread_read_note": "Built by the Matter server from its cache when the panel asked; no radio traffic. The Thread tables in it can be many hours old (the server reads them about once a day and when it reconnects to a device), and their read time is not reported.",
   "status.thread_tables_age": "Thread tables: age unknown",
   "status.thread_no_br": "no border router listed",
+  "status.thread_br_count": "{n} of {m} border routers",
+  "status.thread_br_count_note": "Home Assistant's Thread integration lists border routers of this network that the Matter server's topology lacks; the topology lists a border router only where a Matter device's neighbour table lists it with a live link.",
+  "details.thread_br_unheard": "Not in the Matter server's topology: no Matter device's neighbour table lists it with a live link.",
+  "details.thread_br_preferred": "Home Assistant's preferred border router of its preferred Thread network.",
   "view.thread_paths_note": "The route tables of the Matter server's copy could not be read: only neighbours and parents are shown.",
   "view.thread_routes": "Routes",
   "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",
@@ -6995,7 +7088,10 @@ const thread = Object.freeze({
   /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
   history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false,
     /** The role of the devices the History button pairs a device with (a border router joins the mesh to the home network). */
-    anchorRole: "border router" }),
+    anchorRole: "border router",
+    /** A border router only Home Assistant's Thread integration lists (#20) has no reading the history records: never
+     *  the History button's default partner, no pair badge on the map. */
+    historyless: (device) => device.inTopology === false }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS$3,
   /** Its own settings key: unusedRoutes. */
@@ -7428,7 +7524,8 @@ function createHistoryCache() {
 // Pure, no DOM. npm test
 
 /** What the path history window needs to know of a network type: { walks (a routing table, so routes are walked),
- *  lqiMax (top of the LQI axis), keepsNoTable(device) (what it hears is in no record), entryText(entry) (the pill text of a lane value where there is no walk) }. */
+ *  lqiMax (top of the LQI axis), keepsNoTable(device) (what it hears is in no record), entryText(entry) (the pill text of a lane value where there is no walk),
+ *  anchorRole, historyless(device) (no default History partner, no pair badge) }. */
 const historyCaps = (network) => engineFor(network).history;
 
 /** The path history of a network over one recorded range (spec 5.8): createHistory with the network's engine and, for
@@ -7566,6 +7663,8 @@ function buildScene(network, measure, maxLabelWidth = MAX_LABEL_WIDTH, labelChar
       available: d.available !== false,
       rating: num(d.rating) === null ? null : Math.max(0, Math.min(1, d.rating)),
       power: powerCategory(d.powerSource),
+      // No pair badge where the engine says the history holds nothing of the device (its history caps, #20).
+      historyless: Boolean(engine && engine.history.historyless(d)),
     };
   });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
@@ -8317,11 +8416,12 @@ function drawScene(ctx, scene, pos, view, theme, measure) {
   }
   for (const t of laneTexts) if (!t.path && !t.context) value(t);
 
-  // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E).
-  if (view.pairBadges && view.selected >= 0) {
+  // The entry badges of the path history: with a selection, every other device offers its pair window (board M36 E),
+  // except a historyless one (buildScene); with a historyless one selected, none does (every pair window is empty).
+  if (view.pairBadges && view.selected >= 0 && !scene.nodes[view.selected].historyless) {
     ctx.globalAlpha = 1;
     for (let i = 0; i < n; i++) {
-      if (i === view.selected || !onScreen(i)) continue;
+      if (i === view.selected || !onScreen(i) || scene.nodes[i].historyless) continue;
       const [bx, by] = badgeCentre(sx[i], sy[i], size);
       drawBadge(ctx, bx, by, theme, i === view.badgeHover);
     }
@@ -9105,14 +9205,15 @@ class GraphView extends EventTarget {
     return hitTest(this.scene, sx, sy, this.cam.k, x, y);
   }
 
-  /** The device whose entry badge is under (x, y), else -1; badges exist only with a selection (renderer.js BADGE). */
+  /** The device whose entry badge is under (x, y), else -1; badges exist only with a selection that is not
+   *  historyless (renderer.js BADGE). */
   _badgeAt(x, y) {
-    if (!this.pairBadges || this.selected < 0 || !this.scene) return -1;
+    if (!this.pairBadges || this.selected < 0 || !this.scene || this.scene.nodes[this.selected].historyless) return -1;
     const size = symbolSize(this.cam.k);
     let best = -1;
     let bestD = BADGE.hit;
     for (let i = 0; i < this.scene.nodes.length; i++) {
-      if (i === this.selected) continue;
+      if (i === this.selected || this.scene.nodes[i].historyless) continue; // no badge drawn there (renderer.js)
       const [sx, sy] = this._screenOf(i);
       const [bx, by] = badgeCentre(sx, sy, size);
       const d = Math.hypot(bx - x, by - y);
@@ -9936,18 +10037,73 @@ const TEXTS$1 = Object.freeze({
 });
 
 // SPDX-License-Identifier: MIT
-// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration and hands the
-// topology to the Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache.
-// No DOM. npm test
+// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, and the border
+// routers its Thread integration knows (#20), and hands both to the Thread engine (engines/index.js), which builds the
+// model. Read only: a snapshot built from the server's cache. No DOM. npm test
+
+/** How long the panel collects thread/discover_routers events after the subscription's result (owner decision
+ *  2026-11-13: events come before or with the result, measured on Home Assistant 2026.11, 5 runs, at 3 ms and in the
+ *  worst case 87 ms after subscribing). */
+const DISCOVERY_MS = 150;
+/** The whole border-router read ends at most this long after it started, whatever is still pending (owner decision
+ *  2026-11-13): it runs beside the Matter reads of every load and must add as little as possible to them. */
+const BORDER_ROUTERS_MS = 500;
+const REAL_TIMERS = Object.freeze({ setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t) });
+
+/** End a subscription; a failed unsubscribe means the connection is gone, and the subscription with it. */
+const stop = (unsubscribe) => Promise.resolve(unsubscribe()).catch(() => null);
+
+/** The routers thread/discover_routers reports (spec 3.2 "Border routers", #20): subscribes, keeps router_discovered
+ *  and router_removed by key (events may arrive before the result), and DISCOVERY_MS after the result unsubscribes and
+ *  returns the routers' data; whether or not the caller still waits. found and onResult let the caller see what came
+ *  so far. Rejects where the subscription is refused. */
+async function discoverRouters(hass, timers, found, onResult) {
+  const onEvent = (e) => {
+    if (e && e.type === "router_discovered" && typeof e.key === "string") found.set(e.key, e.data);
+    else if (e && e.type === "router_removed") found.delete(e.key);
+  };
+  const unsubscribe = await hass.connection.subscribeMessage(onEvent, { type: "thread/discover_routers" },
+    { resubscribe: false });
+  onResult();
+  await new Promise((resolve) => { timers.setTimeout(resolve, DISCOVERY_MS); });
+  stop(unsubscribe);
+  return [...found.values()];
+}
+
+/** The border routers Home Assistant's Thread integration knows, read only (spec 3.2 "Border routers", #20): the
+ *  answer of thread/list_datasets (no keys) and discoverRouters (Home Assistant's mDNS view; while it runs Home
+ *  Assistant sends an mDNS query on the local network, no Thread radio traffic), each on its own, both bounded by
+ *  BORDER_ROUTERS_MS from the start. Returns { datasets, routers }, each null where its command failed or did not end
+ *  in time (no Thread integration, not an admin; routers: what came so far where the result did): the map is then
+ *  built as without them, without a message. Never rejects: a lost connection comes back as { lost }.
+ *  timers: { setTimeout, clearTimeout }. */
+async function readBorderRouters(hass, timers) {
+  const found = new Map();
+  let confirmed = false;
+  let timer = null;
+  const limit = new Promise((resolve) => { timer = timers.setTimeout(() => resolve({ late: true }), BORDER_ROUTERS_MS); });
+  const bounded = (promise) => Promise.race([promise.then((value) => ({ value }), (error) => ({ error })), limit]);
+  const [datasets, routers] = await Promise.all([
+    bounded((async () => hass.callWS({ type: "thread/list_datasets" }))()),
+    bounded(discoverRouters(hass, timers, found, () => { confirmed = true; })),
+  ]);
+  timers.clearTimeout(timer);
+  const lost = [datasets, routers].find((r) => r.error && isConnectionLost(r.error));
+  if (lost) return { lost: lost.error };
+  return { datasets: datasets.value ?? null,
+    routers: routers.value ?? (routers.late && confirmed ? [...found.values()] : null) };
+}
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
- *  sent from here), then the route tables of the same cache through the integration (thread_tables).
+ *  sent from here), then the route tables of the same cache through the integration (thread_tables); beside them the
+ *  border routers of Home Assistant's Thread integration (readBorderRouters). options.timers: { setTimeout,
+ *  clearTimeout }.
  *  Returns { status: "ok" | "not_set_up" | "not_running" | "not_supported" | "empty" | "error", network?, message?
  *  (not_running: the entry's state) }; a lost
  *  connection is thrown to the caller. A Matter server too old for the command answers not_supported, Home Assistant
  *  before 2026.9 unknown_command (below the minimum 2026.10, spec 3.2): both are "not_supported". */
-async function readThread(hass, registries = {}) {
+async function readThread(hass, registries = {}, { timers = REAL_TIMERS } = {}) {
   let entries;
   try {
     entries = await hass.callWS({ type: "config_entries/get", domain: "matter" });
@@ -9958,6 +10114,7 @@ async function readThread(hass, registries = {}) {
   const entry = entryState(entries, "matter");
   if (entry.status === "not_set_up") return { status: "not_set_up" };
   if (entry.status === "not_running") return { status: "not_running", message: entry.state };
+  const borderRouters = readBorderRouters(hass, timers); // never rejects; ends its subscription itself
   let topology;
   try {
     topology = await hass.callWS({ type: "matter/network_topology", refresh: false });
@@ -9977,7 +10134,9 @@ async function readThread(hass, registries = {}) {
     if (isConnectionLost(err)) throw err;
     tablesProblem = errorText(err);
   }
-  const network = ENGINES.thread.build(topology, { ...registries, tables, tablesProblem });
+  const haThread = await borderRouters;
+  if (haThread.lost) throw haThread.lost;
+  const network = ENGINES.thread.build(topology, { ...registries, tables, tablesProblem, haThread });
   return network ? { status: "ok", network } : { status: "empty" };
 }
 

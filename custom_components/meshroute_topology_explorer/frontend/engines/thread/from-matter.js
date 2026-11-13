@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // The Matter side of the Thread engine (spec 3.2, 4.6): maps the answer of `matter/network_topology` (Home Assistant
 // 2026.9 or newer, read with refresh false: a snapshot built from the server's cache, no radio traffic) onto devices, readings
-// and links, and holds the capability set of a Thread network read through Matter. The engine's model (model.js)
-// derives parents, pairs, status and findings from it. Pure, no DOM.
+// and links, and holds the capability set of a Thread network read through Matter. The border routers Home Assistant's
+// Thread integration lists name the snapshot's border routers and add those it lacks (#20). The engine's model
+// (model.js) derives parents, pairs, status and findings from it. Pure, no DOM.
 // npm test
 //
 // What the snapshot gives and what it does not (capability set, spec 4.6): readings per direction (Thread link
@@ -106,11 +107,73 @@ function largestNetwork(nodes) {
   return [...count.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([p]) => p)[0] || null;
 }
 
+/** The border routers Home Assistant's Thread integration knows in network `pan` (spec 3.2 "Border routers", #20):
+ *  { routers: extended address -> { name, vendor, model } (instance_name, vendor_name, model_name of
+ *  thread/discover_routers, Home Assistant 2026.11.0 thread/discovery.py ThreadRouterDiscoveryData), preferred: the
+ *  preferred_extended_address of the preferred dataset (thread/list_datasets), or null }. Only entries whose
+ *  extended_pan_id is `pan`: the integration writes hex in lower case (bytes.hex()), the snapshot in upper case.
+ *  haThread: { datasets (the answer of thread/list_datasets), routers (the discovered routers' data) }, each null where
+ *  its command failed; null without the integration. */
+function haBorderRouters(haThread, pan) {
+  const routers = new Map();
+  const inPan = (x) => Boolean(pan && x && typeof x.extended_pan_id === "string" && x.extended_pan_id.toLowerCase() === pan);
+  for (const r of Array.isArray(haThread && haThread.routers) ? haThread.routers : []) {
+    const address = inPan(r) ? extAddress(r.extended_address) : null;
+    if (address) routers.set(address, { name: text(r.instance_name), vendor: text(r.vendor_name), model: text(r.model_name) });
+  }
+  const answer = haThread && haThread.datasets;
+  const datasets = answer && Array.isArray(answer.datasets) ? answer.datasets : [];
+  const chosen = datasets.find((d) => inPan(d) && d.preferred === true);
+  return { routers, preferred: chosen ? extAddress(chosen.preferred_extended_address) : null };
+}
+
+/** The role of node `n` at `address`: { kind, mapped (its ROLE_MAP entry or null), role, isBorderRouter, known (Home
+ *  Assistant's data of it, haBorderRouters, or null), preferred }. Home Assistant's list names and counts only the
+ *  snapshot's border routers and its unidentified Thread nodes (kind thread_unknown), and such a node it lists
+ *  becomes a border router: the Matter server's own registry can miss a router Home Assistant found (#20). A
+ *  commissioned Matter node (kind matter) keeps its own name and role. */
+function nodeRole(n, address, ha) {
+  const kind = text(n.kind);
+  const known = ((kind === "border_router" || kind === "thread_unknown") && ha.routers.get(address)) || null;
+  const isBorderRouter = kind === "border_router" || known !== null;
+  const mapped = ROLE_MAP[text(n.role) && text(n.role).toLowerCase()] || null;
+  return { kind, mapped, known, isBorderRouter, role: isBorderRouter ? "border router" : mapped ? mapped.role : "unknown",
+    preferred: isBorderRouter && address !== null && address === ha.preferred };
+}
+
+/** The names of node `n`: { label, labelKind, haName, vendor, model }. Label (spec 3.2 "Name"): the user's or Home
+ *  Assistant's name (device registry through ha_device_id), else a border router's mDNS instance name (`known`, from
+ *  haBorderRouters), its host_name, the model, else a generic name. Vendor and model: the snapshot's, else the
+ *  registry's, else the Thread integration's. No reliable way maps a border router to a registry device or config
+ *  entry otherwise: registry connections carry no Thread address, and the OTBR entry's data needs the OTBR commands,
+ *  which return keys (spec 3.4). */
+function names(n, entry, { known, isBorderRouter, kind }, id) {
+  const userName = text(entry && entry.name_by_user);
+  const haName = text(entry && entry.name);
+  const vendor = text(n.vendor_name) || text(entry && entry.manufacturer) || known?.vendor || null;
+  const model = text(n.model_name) || text(entry && entry.model) || known?.model || null;
+  const fallback = isBorderRouter ? "Border router"
+    : kind === "matter" && int(n.node_id) !== null ? `Matter node ${n.node_id}` : `Thread device ${id.slice(-5)}`;
+  const label = userName || haName || known?.name || text(n.host_name) || model || fallback;
+  return { label, labelKind: userName ? "user" : haName ? "ha" : "model", haName, vendor, model };
+}
+
+/** Make labels unique (spec 8): the RLOC16 of a device that has one, the end of the key (the extended address) for a
+ *  border router (#20: two of the same model) or a device without RLOC16; where that tail is shared too, the whole
+ *  key. */
+function distinctLabels(devices) {
+  const tail = (d) => (d.role !== "border router" && d.rloc16 !== null ? formatNwk(d.rloc16) : d.id.slice(-5));
+  const base = new Map(devices.map((d) => [d, d.label]));
+  disambiguateLabels(devices, (d) => (devices.some((o) => o !== d && base.get(o) === base.get(d) && tail(o) === tail(d))
+    ? d.id : tail(d)));
+}
+
 /** The snapshot mapped for the Thread engine's model: the Thread nodes of the largest network (by extended PAN id) as
  *  devices (labels made distinct), the readings of available reporters, the stale ones of unavailable reporters, the
  *  links and what could not be resolved, the extended PAN id and the snapshot time. tableRead marks a device whose
- *  neighbour table came with the snapshot. Null when the answer holds no Thread node. */
-export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states } = {}) {
+ *  neighbour table came with the snapshot. haThread: the answers of Home Assistant's Thread integration
+ *  (haBorderRouters), or null. Null when the answer holds no Thread node. */
+export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread = null } = {}) {
   const raw = topology && typeof topology === "object" ? topology : {};
   const all = (Array.isArray(raw.nodes) ? raw.nodes : []).filter((n) => n && typeof n === "object");
   const unresolved = { neighbours: 0, routes: 0, duplicates: 0, ignored: 0 };
@@ -125,31 +188,31 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, s
   const entitiesOf = entitiesByDevice(entities, states); // empty without hass.entities: every kind stays unknown
   const areas = new Map();
   for (const a of Array.isArray(areaRegistry) ? areaRegistry : []) if (a && a.area_id) areas.set(a.area_id, text(a.name));
+  const ha = haBorderRouters(haThread, pan);
+  // The Matter server lists a border router only where a Matter node's neighbour table names it with a live link
+  // (matterjs-server main 0bf72c3, NetworkTopologyService.ts #build): one Home Assistant knows whose extended address
+  // no snapshot node has, of any kind, becomes a node without connections, drawn without lanes and never a route's
+  // destination (#20).
+  const listed = new Set(nodes.map((n) => extAddress(n.ext_address)));
+  const unheard = [...ha.routers.keys()].filter((a) => !listed.has(a)).map((a) => ({ id: `ha:${a}`,
+    kind: "border_router", network_type: "thread", ext_address: a, ext_pan_id: pan, available: null }));
 
   const devices = [];
   const byNode = new Map(); // snapshot node id -> device
-  for (const n of nodes) {
+  for (const n of [...nodes, ...unheard]) {
     const nodeKey = n.id === undefined || n.id === null ? null : String(n.id);
     if (nodeKey === null || byNode.has(nodeKey)) { unresolved.duplicates += 1; continue; }
     const address = extAddress(n.ext_address);
     const id = address || `thread:${nodeKey}`;
     if (devices.some((d) => d.id === id)) { unresolved.duplicates += 1; continue; }
-    const kind = text(n.kind);
-    const isBorderRouter = kind === "border_router";
-    const mapped = ROLE_MAP[text(n.role) && text(n.role).toLowerCase()] || null;
-    const role = isBorderRouter ? "border router" : mapped ? mapped.role : "unknown";
+    const nodeAs = nodeRole(n, address, ha);
+    const { kind, mapped, role, isBorderRouter } = nodeAs;
     const entry = registry.get(n.ha_device_id) || null;
     const areaId = (entry && entry.area_id) || null;
-    const vendor = text(n.vendor_name) || text(entry && entry.manufacturer);
-    const model = text(n.model_name) || text(entry && entry.model);
-    const userName = text(entry && entry.name_by_user);
-    const haName = text(entry && entry.name);
-    const label = userName || haName || text(n.host_name) || model
-      || (isBorderRouter ? "Border router" : kind === "matter" && int(n.node_id) !== null ? `Matter node ${n.node_id}`
-        : `Thread device ${id.slice(-5)}`);
+    const { label, labelKind, haName, vendor, model } = names(n, entry, nodeAs, id);
     const device = {
       id, registryId: (entry && entry.id) || null, role,
-      label, labelKind: userName ? "user" : haName ? "ha" : "model", name: haName || label, haName,
+      label, labelKind, name: haName || label, haName,
       area: (areaId && areas.get(areaId)) || null, areaId, firmware: text(entry && entry.sw_version), entities: [],
       vendor, model,
       // The snapshot names no power source; a border router is a mains device by nature (spec 8: wired).
@@ -168,11 +231,14 @@ export function fromMatter(topology, { deviceRegistry, areaRegistry, entities, s
       nodeKey, nodeId: int(n.node_id), extAddress: address, rloc16: int(n.rloc16), extPanId: text(n.ext_pan_id),
       threadRole: text(n.role), leader: Boolean(mapped && mapped.leader),
       reed: Boolean(mapped && mapped.reed), matter: kind === "matter",
+      // #20: false for a border router only Home Assistant's Thread integration lists; preferred: the preferred
+      // border router of Home Assistant's preferred dataset.
+      inTopology: !unheard.includes(n), preferred: nodeAs.preferred,
     };
     devices.push(device);
     byNode.set(nodeKey, device);
   }
-  disambiguateLabels(devices, (d) => (d.rloc16 !== null ? formatNwk(d.rloc16) : d.id.slice(-5)));
+  distinctLabels(devices);
 
   const readings = [];
   const stale = [];
