@@ -6190,7 +6190,8 @@ function unknownReason(hearer, r) {
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
  *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
- *  inTopology: false for a border router only the Thread integration lists, preferred). */
+ *  inTopology: false for a border router only the Thread integration lists, preferred, partitionRead: partitionsRead,
+ *  #21). */
 function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
   tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
   const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
@@ -6243,10 +6244,32 @@ function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, 
     routingProblem: tablesProblem,
   };
   network.routing = buildRouting(network, tables);
+  partitionsRead(devices, tables);
   if (network.routing) network.capabilities = { ...capabilities, routes: true };
   return network;
 }
 
+
+/** A partition id as Matter reports it (0/53/9, a nullable uint32), else null. */
+const partitionId = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffffff ? v : null);
+/** A router ID (LeaderRouterId 0/53/13): 0 to 62, else null. */
+const routerId = (v) => (Number.isInteger(v) && v >= 0 && v <= 62 ? v : null);
+
+/** Set each device's partitionRead (#21): { partition, leaderRouterId } as the device itself last reported them
+ *  (thread_tables answer, 0/53/9 and 0/53/13; leaderRouterId null where not reported or invalid), matched by Matter
+ *  node id; null where no valid partition id was read, and always for a border router. Shown in Details only: the
+ *  Matter server's copy holds values of unknown and differing read times, so nothing is derived from them (spec 3.2
+ *  "Partitions"). */
+function partitionsRead(devices, tables) {
+  const byNode = new Map(devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
+  for (const d of devices) d.partitionRead = null;
+  for (const n of Array.isArray(tables && tables.nodes) ? tables.nodes : []) {
+    const d = byNode.get(n && n.node_id);
+    const partition = n ? partitionId(n.partition_id) : null;
+    if (!d || d.role === "border router" || partition === null) continue;
+    d.partitionRead = { partition, leaderRouterId: routerId(n.leader_router_id) };
+  }
+}
 
 /** Evidence per direction for every linked pair (spec 4.3), the shape of the Zigbee engine's pairs: { a, b, ab, ba }, ab = "a
  *  hears b". measured: a reading; implied: a parent link without a reading at that end; else unknown with a reason. */
@@ -6406,7 +6429,8 @@ function findingText(f, t, name) {
 // of the three sub-tabs one stack of cards: the head (name, type · role · vendor model, the state), the route to the
 // default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
 // the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
-// receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
+// receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id,
+// the partition id and leader router ID as last read, #21).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
@@ -6569,7 +6593,11 @@ function renderThreadDetails(container, ctx) {
     h("li", { text: t("details.thread_role", { role: d.threadRole || "?" }) }),
     h("li", { text: t("details.thread_ext", { value: d.extAddress || "?" }) }),
     h("li", { text: t("details.thread_rloc", { value: hex(d.rloc16) }) }),
-    d.nodeId !== null ? h("li", { text: t("details.thread_node", { value: String(d.nodeId) }) }) : null)));
+    d.nodeId !== null ? h("li", { text: t("details.thread_node", { value: String(d.nodeId) }) }) : null,
+    // #21: the device's own values, shown raw; nothing is derived from them (spec 3.2 "Partitions").
+    d.partitionRead ? h("li", { text: t(d.partitionRead.leaderRouterId === null ? "details.thread_partition_read"
+      : "details.thread_partition_read_leader", { partition: d.partitionRead.partition, leader: d.partitionRead.leaderRouterId }) })
+      : null)));
 }
 
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
@@ -6829,6 +6857,8 @@ const TEXTS$3 = Object.freeze({
   "details.thread_availability_unknown": "Availability not reported (border routers are found by mDNS, not by Matter).",
   "details.thread_leader": "Thread leader",
   "details.thread_unknown": "not reported",
+  "details.thread_partition_read": "Thread partition as last read: {partition}. The read time is not reported.",
+  "details.thread_partition_read_leader": "Thread partition as last read: {partition}, leader router ID {leader}. The read time is not reported.",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
 });
 

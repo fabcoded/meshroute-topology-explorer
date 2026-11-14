@@ -31,7 +31,8 @@ function unknownReason(hearer, r) {
  *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
  *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
  *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
- *  inTopology: false for a border router only the Thread integration lists, preferred). */
+ *  inTopology: false for a border router only the Thread integration lists, preferred, partitionRead: partitionsRead,
+ *  #21). */
 export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
   tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
   const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
@@ -84,10 +85,32 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, ent
     routingProblem: tablesProblem,
   };
   network.routing = buildRouting(network, tables);
+  partitionsRead(devices, tables);
   if (network.routing) network.capabilities = { ...capabilities, routes: true };
   return network;
 }
 
+
+/** A partition id as Matter reports it (0/53/9, a nullable uint32), else null. */
+const partitionId = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffffff ? v : null);
+/** A router ID (LeaderRouterId 0/53/13): 0 to 62, else null. */
+const routerId = (v) => (Number.isInteger(v) && v >= 0 && v <= 62 ? v : null);
+
+/** Set each device's partitionRead (#21): { partition, leaderRouterId } as the device itself last reported them
+ *  (thread_tables answer, 0/53/9 and 0/53/13; leaderRouterId null where not reported or invalid), matched by Matter
+ *  node id; null where no valid partition id was read, and always for a border router. Shown in Details only: the
+ *  Matter server's copy holds values of unknown and differing read times, so nothing is derived from them (spec 3.2
+ *  "Partitions"). */
+function partitionsRead(devices, tables) {
+  const byNode = new Map(devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
+  for (const d of devices) d.partitionRead = null;
+  for (const n of Array.isArray(tables && tables.nodes) ? tables.nodes : []) {
+    const d = byNode.get(n && n.node_id);
+    const partition = n ? partitionId(n.partition_id) : null;
+    if (!d || d.role === "border router" || partition === null) continue;
+    d.partitionRead = { partition, leaderRouterId: routerId(n.leader_router_id) };
+  }
+}
 
 /** Evidence per direction for every linked pair (spec 4.3), the shape of the Zigbee engine's pairs: { a, b, ab, ba }, ab = "a
  *  hears b". measured: a reading; implied: a parent link without a reading at that end; else unknown with a reason. */

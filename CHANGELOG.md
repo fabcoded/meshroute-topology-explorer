@@ -25,6 +25,11 @@
   Thread integration: a border router now carries the end of its extended address, never its RLOC16, and two devices
   whose suffixes are equal too carry the whole extended address. Otherwise, without the Thread integration, nothing
   changes. Frontend only.
+- **Thread partition as last read** (part of #21): Details of a Thread device show the partition id and leader
+  router ID it last reported, as the Matter server's copy holds them, with the note that their read time is not
+  reported; nothing where none was read, nothing on a border router. Nothing is derived from them: on a healthy
+  network the copy can hold several partition ids of different read times. `meshroute_topology_explorer/thread_tables`
+  also returns PartitionId (0/53/9) and LeaderRouterId (0/53/13) per node. Needs a restart of Home Assistant.
 
 ## 0.2.1 – 2026-11-08
 

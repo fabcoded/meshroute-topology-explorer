@@ -2,8 +2,8 @@
 """Thread tables from Home Assistant's Matter client: websocket command meshroute_topology_explorer/thread_tables.
 
 Spec 3.2 ("Routes") and 3.4. Read only and in memory: per Thread node of the Matter client's cache its role
-(ThreadNetworkDiagnostics 0/53/1), neighbour table (0/53/7), route table (0/53/8), extended address (0/53/63) and
-RLOC16 (0/53/64), as the Matter server last read them. Nothing is refreshed, nothing goes to the radio; the panel's
+(ThreadNetworkDiagnostics 0/53/1), neighbour table (0/53/7), route table (0/53/8), partition id (0/53/9), leader
+router id (0/53/13), extended address (0/53/63) and RLOC16 (0/53/64), as the Matter server last read them. Nothing is refreshed, nothing goes to the radio; the panel's
 Thread engine computes the routes (frontend/engines/thread/routes.js).
 
 Where the data lives (Home Assistant 2026.10.4 with matter-python-client 1.4.0, 2026.11.0 with 1.5.5):
@@ -57,10 +57,14 @@ REASON_INTERNALS_CHANGED = "internals_changed"
 REASON_ERROR = "error"
 
 CLUSTER = 53  # ThreadNetworkDiagnostics, on the root endpoint 0
-ATTRIBUTES = {"routing_role": 1, "neighbor_table": 7, "route_table": 8, "ext_address": 63, "rloc16": 64}
+# Partition id and leader router id (#21): Nullable uint in both pinned versions (chip/clusters/cluster_defs/
+# ThreadNetworkDiagnostics.py, attribute ids 0x09 and 0x0D, default NullValue), so a null reading stays null.
+ATTRIBUTES = {"routing_role": 1, "neighbor_table": 7, "route_table": 8, "partition_id": 9, "leader_router_id": 13,
+              "ext_address": 63, "rloc16": 64}
 # The client's attribute names on the cluster object (chip.clusters ThreadNetworkDiagnostics, both pinned versions).
 LABELS = {"routing_role": "routingRole", "neighbor_table": "neighborTable", "route_table": "routeTable",
-          "ext_address": "extAddress", "rloc16": "rloc16"}
+          "partition_id": "partitionId", "leader_router_id": "leaderRouterId", "ext_address": "extAddress",
+          "rloc16": "rloc16"}
 TIMES_STORE_KEY = f"{DOMAIN}.thread_tables"
 TIMES_STORE_VERSION = 1
 _TIMES_KEY = f"{DOMAIN}_thread_times"
@@ -151,7 +155,8 @@ def _node(node: Any) -> dict[str, Any] | None:
 
 def read_tables(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Every Thread node of the Matter client's cache: {node_id, available, routing_role, neighbor_table,
-    route_table, ext_address, rloc16}; a value the node did not report is None. Raises NotSupported."""
+    route_table, partition_id, leader_router_id, ext_address, rloc16}; a value the node did not report is None.
+    Raises NotSupported."""
     nodes = _client(hass).get_nodes()
     if not isinstance(nodes, (list, tuple)):
         raise NotSupported(REASON_INTERNALS_CHANGED, "get_nodes did not return a list")

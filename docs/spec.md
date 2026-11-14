@@ -139,10 +139,13 @@ The panel reads through Home Assistant's websocket API and requires an administr
   (`homeassistant/components/matter/helpers.py` `get_matter(hass).matter_client.get_nodes()`, matter-python-client 1.4.0
   in Home Assistant 2026.10.4, 1.5.5 in 2026.11.0; contract test `tests_ha/test_matter_contract.py`). Per node with
   ThreadNetworkDiagnostics: node id, availability, RoutingRole (0/53/1), NeighborTable (0/53/7), RouteTable (0/53/8),
-  ExtAddress (0/53/63), RLOC16 (0/53/64), from the parsed cluster objects (they follow the client's attribute_updated
-  events; the raw `node_data.attributes` do not); an attribute not reported is null, never an empty table; extended
-  addresses as 16 hex digits. Answer `{ nodes: [{ node_id, available, routing_role, neighbor_table, route_table,
-  ext_address, rloc16, times: { neighbor_table, route_table } }], read_at, observe_seconds }`, table entries with the client's field names; failures
+  PartitionId (0/53/9) and LeaderRouterId (0/53/13) (#21; both nullable uint in both client versions,
+  `chip/clusters/cluster_defs/ThreadNetworkDiagnostics.py`, attribute ids 0x09 and 0x0D), ExtAddress (0/53/63), RLOC16
+  (0/53/64), from the parsed cluster objects (they follow the client's attribute_updated events; the raw
+  `node_data.attributes` do not); an attribute not reported, or reported as null, is null, never an empty table;
+  extended addresses as 16 hex digits. Answer `{ nodes: [{ node_id, available, routing_role, neighbor_table,
+  route_table, partition_id, leader_router_id, ext_address, rloc16, times: { neighbor_table, route_table } }], read_at,
+  observe_seconds }`, table entries with the client's field names; failures
   `not_supported` with "reason: text" (`matter_not_loaded`, `no_client`, `internals_changed`, `error`), and the
   Details say "Route tables not read".
   - **Forwarding** as OpenThread decides it (`RouterTable::GetNextHopAndPathCost`, `router_table.cpp`): at a router the
@@ -185,6 +188,21 @@ The panel reads through Home Assistant's websocket API and requires an administr
     change; when each fingerprint was last seen only at Home Assistant's final write (a pending delayed save) or when
     the entry unloads. Answer `times` per table `{ lo, hi }` (epoch seconds). A value is **old** on the worst case:
     lo unknown or more than 4 hours ago; old values are amber.
+- **Partitions** (#21, owner 2026-11-13: show only, do not judge): Details show a Thread device's own PartitionId and
+  LeaderRouterId as last read (9.2), raw and in decimal; nothing where no valid partition id (0 to 2³²−1) was read,
+  and nothing on a border router. The leader router ID (0 to 62, else left out) is a number, never mapped to a device.
+  - Nothing is derived from them: no partition count, status, router ID map or route. The Matter server's copy holds
+    values of unknown and differing read times side by side: on the owner's healthy network, one partition, the cache
+    held three partition ids on 2026-11-13, two of them from sleepy end devices.
+  - Router IDs are assigned per partition ("Each partition logically operates as a distinct Thread network with its
+    own Leader, Router ID assignments, and network data", openthread.io Thread primer, "Node roles and types",
+    Partitions), so in a split network the routes above, whose router IDs are mapped over all tables, can be wrong or
+    stop. Known limit until fresh data per router (#12).
+  - Assumption: LeaderRouterId is the router ID of the leader of the node's partition. Matter Core 1.3 § 11.14.6.14
+    words it "the 8-bit LeaderRouterId the Node shall attempt to utilize upon becoming a router or leader"; attributes
+    0x09 to 0x0D follow OpenThread's leader data (`otLeaderData`: partition id, weighting, data versions, "Leader Router
+    ID"; Silicon Labs OpenThread API reference 2.4.7), and `otThreadGetLeaderRouterId` returns "The Leader's Router ID"
+    (openthread.io API reference, Thread General).
 - `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
   `WebSocketControllerHandler.ts`, `NetworkTopologyService.ts`): the time the panel (or the recorder) took the
   snapshot, never the read time of the tables. The server re-reads neighbour and route tables about once a day
@@ -945,7 +963,9 @@ One place per thing; nothing appears twice.
   none for a border router, also where the route tables could not be read, #20),
   "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
   parent first), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
-  reported" where missing).
+  reported" where missing; where the device reported a valid partition id, not on a border router, "Thread partition
+  as last read: 111111111, leader router ID 60. The read time is not reported.", without the leader part where it
+  was not reported, 3.2 "Partitions", #21).
 - **Thread route on the map** (3.2, boards M38 and M40 A): selecting a device draws its route to the default border
   router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
   numbers on the way there, the weakest hop of each direction below LQI 3 wider with its pill outlined red, the

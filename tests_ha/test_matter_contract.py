@@ -39,11 +39,13 @@ def node(node_id, attributes):
         "interview_version": 6, "available": True, "attributes": attributes}))
 
 
-async def test_11_thread_tables_from_the_real_client_model(hass, hass_ws_client, entry):
+async def test_11_21_thread_tables_from_the_real_client_model(hass, hass_ws_client, entry):
     leader = node(14, {"0/53/1": 6, "0/53/63": EXT, "0/53/7": [neighbour(EXT + 4, 0xF000, 2, -86, -88, False)],
                        "0/53/8": [route(EXT, 0x7000, 28, 63, 0, 0, 0, False),
-                                  route(EXT + 4, 0xF000, 60, 10, 1, 2, 2, True)]})
-    sensor = node(16, {"0/53/1": 2, "0/53/8": [route(EXT, 0x7000, 28, 0, 0, 3, 2, True)]})
+                                  route(EXT + 4, 0xF000, 60, 10, 1, 2, 2, True)],
+                       "0/53/9": 0x89ABCDEF, "0/53/13": 28})
+    # #21: a partition id reported as null and no leader router id at all: both null.
+    sensor = node(16, {"0/53/1": 2, "0/53/8": [route(EXT, 0x7000, 28, 0, 0, 3, 2, True)], "0/53/9": None})
     wifi = node(20, {"0/49/65532": 1})  # a Wi-Fi node: no ThreadNetworkDiagnostics, left out
     client = MatterClient("ws://matter-server.invalid/ws", None)  # never connected
     client._nodes = {n.node_id: n for n in (leader, sensor, wifi)}  # what start_listening fills from the node list
@@ -69,16 +71,20 @@ async def test_11_thread_tables_from_the_real_client_model(hass, hass_ws_client,
     assert (heard["extAddress"], heard["lqi"], heard["averageRssi"], heard["lastRssi"], heard["isChild"]) == \
         ("aabbccdd00000005", 2, -86, -88, False)
     assert by_id[16]["neighbor_table"] is None  # not reported: null, not the cluster's default []
+    assert (first["partition_id"], first["leader_router_id"]) == (0x89ABCDEF, 28)  # 0/53/9 and 0/53/13 (#21)
+    assert (by_id[16]["partition_id"], by_id[16]["leader_router_id"]) == (None, None)
     first_read = first["times"]["neighbor_table"]
     assert first_read["lo"] is None and isinstance(first_read["hi"], float)  # first sight: read then or earlier
     assert answer["result"]["observe_seconds"] == 600
 
     # An attribute_updated event as the client applies it: the parsed cluster changes, node_data.attributes does not.
     leader.update_attribute("0/53/7", [neighbour(EXT + 4, 0xF000, 3, None, -70, False)])
+    leader.update_attribute("0/53/9", 0x01234567)  # a new partition (#21): the parsed cluster follows
     assert leader.node_data.attributes["0/53/7"][0]["5"] == 2
     await ws.send_json_auto_id({"type": f"{DOMAIN}/thread_tables"})
     updated = {n["node_id"]: n for n in (await ws.receive_json())["result"]["nodes"]}[14]
     assert (updated["neighbor_table"][0]["lqi"], updated["neighbor_table"][0]["averageRssi"]) == (3, None)
+    assert (updated["partition_id"], updated["leader_router_id"]) == (0x01234567, 28)
     # The neighbour table changed: read between its last sight and now; the route table did not.
     assert updated["times"]["neighbor_table"]["lo"] >= first_read["hi"]
     assert updated["times"]["route_table"] == first["times"]["route_table"]

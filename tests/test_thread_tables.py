@@ -3,7 +3,8 @@
 Home Assistant's Matter helper and the client's nodes (the real client model: tests_ha/test_matter_contract.py).
 
 Cases: Matter missing, without a loaded entry, with changed internals; attributes not reported stay null (never an
-empty table); extended addresses as 16 hex digits; nodes without Thread are left out; the read interval per table
+empty table); partition id and leader router id (#21) where reported, null where not, null or of another type;
+extended addresses as 16 hex digits; nodes without Thread are left out; the read interval per table
 (F5 tier C/D: unknown lower bound at first sight, last sight to now on a change, restarts, a changed fingerprint form,
 a clock jump, writes only on change) and the 10-minute observer; read only. python3 -m unittest discover -s tests
 """
@@ -48,11 +49,16 @@ class Neighbour:
     isChild: bool = False
 
 
+class NullValue:
+    """Stands for chip.clusters.Types.NullValue, the default of a Nullable attribute (partitionId, leaderRouterId)."""
+
+
 class Cluster:
     """The client's cluster object: every attribute has a default, reported or not (routeTable defaults to [])."""
 
     def __init__(self, **values):
         self.routingRole, self.neighborTable, self.routeTable, self.extAddress, self.rloc16 = None, [], [], None, None
+        self.partitionId = self.leaderRouterId = NullValue()
         self.__dict__.update(values)
 
 
@@ -148,6 +154,25 @@ class ThreadTablesTest(unittest.TestCase):
         nodes = self.answer()["nodes"]
         self.assertEqual([n["node_id"] for n in nodes], [14])
         self.assertEqual(nodes[0]["rloc16"], 0x7000)
+
+    def test_21_partition_id_and_leader_router_id_where_reported(self):
+        node = router(partitionId=0x89ABCDEF, leaderRouterId=28)
+        node.endpoints[0].reported.update({"0/53/9", "0/53/13"})
+        self.nodes = [node]
+        answer = self.answer()["nodes"][0]
+        self.assertEqual((answer["partition_id"], answer["leader_router_id"]), (0x89ABCDEF, 28))
+
+    def test_21_partition_id_and_leader_router_id_not_reported_or_null_are_null(self):
+        # Set on the object but not reported: the default is no value. Reported as null: NullValue, no value either.
+        unreported = router(partitionId=0x89ABCDEF, leaderRouterId=28)
+        null = router(node_id=16)
+        null.endpoints[0].reported.update({"0/53/9", "0/53/13"})
+        wrong = router(node_id=17, partitionId="0x89ABCDEF", leaderRouterId=2.5)
+        wrong.endpoints[0].reported.update({"0/53/9", "0/53/13"})
+        self.nodes = [unreported, null, wrong]
+        nodes = {n["node_id"]: n for n in self.answer()["nodes"]}
+        for node_id in (14, 16, 17):
+            self.assertEqual((nodes[node_id]["partition_id"], nodes[node_id]["leader_router_id"]), (None, None), node_id)
 
     def times(self, table="neighbor_table"):
         return self.answer()["nodes"][0]["times"][table]

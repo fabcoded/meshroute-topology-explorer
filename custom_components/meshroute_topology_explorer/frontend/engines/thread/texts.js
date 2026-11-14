@@ -91,5 +91,7 @@ export const TEXTS = Object.freeze({
   "details.thread_availability_unknown": "Availability not reported (border routers are found by mDNS, not by Matter).",
   "details.thread_leader": "Thread leader",
   "details.thread_unknown": "not reported",
+  "details.thread_partition_read": "Thread partition as last read: {partition}. The read time is not reported.",
+  "details.thread_partition_read_leader": "Thread partition as last read: {partition}, leader router ID {leader}. The read time is not reported.",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
 });

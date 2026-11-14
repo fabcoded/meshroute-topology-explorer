@@ -3,7 +3,8 @@
 // of the three sub-tabs one stack of cards: the head (name, type · role · vendor model, the state), the route to the
 // default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
 // the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
-// receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id).
+// receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id,
+// the partition id and leader router ID as last read, #21).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
 import { h } from "../../ui/dom.js";
 import { findingText } from "./findings.js";
@@ -172,7 +173,11 @@ export function renderThreadDetails(container, ctx) {
     h("li", { text: t("details.thread_role", { role: d.threadRole || "?" }) }),
     h("li", { text: t("details.thread_ext", { value: d.extAddress || "?" }) }),
     h("li", { text: t("details.thread_rloc", { value: hex(d.rloc16) }) }),
-    d.nodeId !== null ? h("li", { text: t("details.thread_node", { value: String(d.nodeId) }) }) : null)));
+    d.nodeId !== null ? h("li", { text: t("details.thread_node", { value: String(d.nodeId) }) }) : null,
+    // #21: the device's own values, shown raw; nothing is derived from them (spec 3.2 "Partitions").
+    d.partitionRead ? h("li", { text: t(d.partitionRead.leaderRouterId === null ? "details.thread_partition_read"
+      : "details.thread_partition_read_leader", { partition: d.partitionRead.partition, leader: d.partitionRead.leaderRouterId }) })
+      : null)));
 }
 
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
