@@ -77,6 +77,9 @@ test("#21 different partitions: the pill part, its note with the oldest age, the
     + "is off and its last advertisement still stands in Home Assistant's mDNS cache. The oldest advertisement used "
     + "was received 11 min ago.");
   assert.ok(keys(n, { compact: true }).includes("status.thread_partitions"), "in the pill's second line too");
+  assert.ok(!keys(n, { compact: true }).includes("status.thread_partitions_note"), "the note: tooltip and menu only");
+  // The menu shows the note as a line of its own (a tooltip does not show on touch screens).
+  assert.deepEqual(statusLine(n, { now }).parts.slice(-1), [["status.thread_partitions_note", { minutes: 11 }]]);
   assert.ok(!keys(n).includes("route.partitions_note"), "no route tables read: no routes line in the menu");
   // The dot: amber for this part alone (the rest made clean as in #20's test), as without it otherwise.
   const clean = { ...n, status: { ...n.status, linksBoth: n.status.links, borderRoutersKnown: n.status.borderRouters } };
@@ -208,7 +211,7 @@ test("#21 route card and pill menu carry one line while different partitions are
   assert.ok(!card(split, "BRA").includes(ROUTES_NOTE), "no route card on a border router");
   assert.equal(t("route.partitions_note"), ROUTES_NOTE);
   const full = statusLine(split, { now }).parts.map(([key]) => key);
-  assert.deepEqual(full.slice(-2), ["status.thread_partitions", "route.partitions_note"]);
+  assert.deepEqual(full.slice(-3), ["status.thread_partitions", "status.thread_partitions_note", "route.partitions_note"]);
   assert.ok(!keys(split, { compact: true }).includes("route.partitions_note"), "the menu only, not the pill's line");
   assert.ok(!keys(same).includes("route.partitions_note"));
   // Routes are neither stopped nor recomputed.

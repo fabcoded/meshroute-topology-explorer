@@ -32,17 +32,18 @@ export function threadParts(network, { collected = null, compact = false, now = 
 
 /** "Border routers advertise {n} partitions" where they advertise different ones (#21, advertised.js), with a note
  *  naming both readings (a split network, or a border router that is off and whose last advertisement still stands)
- *  and the age of the oldest advertisement used, in whole minutes at `now`; in the full line, with the route tables
- *  read, that routes may no longer hold. No part otherwise, never "not split": equal ids do not show a whole
- *  network (a part without a border router advertises nothing). */
+ *  and the age of the oldest advertisement used, in whole minutes at `now`: its tooltip, and in the full line (the
+ *  menu) a line of its own, as a tooltip does not show on touch screens; then, with the route tables read, that
+ *  routes may no longer hold. No part otherwise, never "not split": equal ids do not show a whole network (a part
+ *  without a border router advertises nothing). */
 function partitionParts(network, compact, now) {
   const advertised = network.advertisedPartitions;
   if (!advertised) return [];
   const minutes = Math.floor((now - advertised.oldestAt) / 60000);
-  const part = ["status.thread_partitions", { n: advertised.count, minutes },
-    minutes < 1 ? "status.thread_partitions_note_now" : "status.thread_partitions_note"];
+  const note = minutes < 1 ? "status.thread_partitions_note_now" : "status.thread_partitions_note";
+  const part = ["status.thread_partitions", { n: advertised.count, minutes }, note];
   if (compact) return [part];
-  return network.routing ? [part, ["route.partitions_note", {}]] : [part];
+  return [part, [note, { minutes }], ...(network.routing ? [["route.partitions_note", {}]] : [])];
 }
 
 /** Older than this the panel's snapshot counts as old for the pill's dot (the age of the snapshot, not of the Thread

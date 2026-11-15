@@ -602,7 +602,8 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   routers advertise {n} partitions" (#21, 3.2 "Partitions") where they advertise different ones, tooltip "Either the
   network is split into parts without radio contact, or a border router is off and its last advertisement still
   stands in Home Assistant's mDNS cache. The oldest advertisement used was received {minutes} min ago." ("less than a
-  minute ago" below one), and in the menu with the route tables read the route card's line (9.2). No banner, no
+  minute ago" below one); in the menu that note also as a line of its own (a tooltip does not show on touch
+  screens), then, with the route tables read, the route card's line (9.2). No banner, no
   "unchanged since"; each table's read interval
   in a route's source line (3.2, 9.2).
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
