@@ -18,6 +18,7 @@ const { buildThreadNetwork } = await import(`${F}engines/thread/model.js`);
 const { statusLine } = await import(`${F}engines/thread/status.js`);
 const { ENGINES } = await import(`${F}engines/index.js`);
 const { translator } = await import(`${F}ui/i18n.js`);
+const { Slideout } = await import(`${F}ui/slideout.js`);
 const { idOf, threadRoutesSample } = await import("./thread-routes-fixture.mjs");
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/thread-border-routers.json", import.meta.url), "utf8")).responses;
@@ -45,11 +46,17 @@ function haThread(agents, { loft = false, readAt = READ_AT } = {}) {
 const build = (agents, options) => buildThreadNetwork(topology, { haThread: haThread(agents, options) });
 const dev = (n, id) => n.devices.find((d) => d.id === id);
 const keys = (n, extras = {}) => statusLine(n, { now, ...extras }).parts.map(([key]) => key);
-/** The text of the Details tab of device `id`. */
+/** The text of the Details tab of device `id`, drawn with the tables panel's shell (#25). */
 function details(network, id) {
   const container = new FakeEl("div");
-  ENGINES.thread.details(container, { network, t, id, onSelect() {}, onFindings() {}, now });
+  ENGINES.thread.details(container, { network, t, id, onSelect() {}, onFindings() {}, now, slideout: new Slideout() });
   return container.textContent;
+}
+/** The texts of the tables panel's "About these values" for device `id` (#25), or null without a panel. */
+function about(network, id) {
+  const slideout = new Slideout();
+  ENGINES.thread.details(new FakeEl("div"), { network, t, id, onSelect() {}, onFindings() {}, now, slideout });
+  return slideout.offered ? slideout.offered.info : null;
 }
 const EXPLAINED = "A partition is a part of the Thread network whose routers reach each other.";
 const ROUTES_NOTE = "Border routers advertise different partitions; if the network is split, routes from the Matter "
@@ -61,9 +68,12 @@ test("#21 two border routers advertising one partition: no statement, the dot as
   assert.equal(n.advertisedPartitions, null);
   assert.deepEqual(statusLine(n, { now }), statusLine(without, { now }), "pill parts, note and dot unchanged");
   // Received 30 s + 60 s before now: 1 min; 600 s + 60 s: 11 min.
+  // The garage router has a neighbour: what a partition is stands in the tables panel (#25); the attic one has none.
   const garage = details(n, GARAGE);
-  assert.ok(garage.includes(`Thread partition 111111111, as advertised 1 min ago.${EXPLAINED}`), garage);
-  assert.ok(details(n, ATTIC).includes("Thread partition 111111111, as advertised 11 min ago."));
+  assert.ok(garage.includes("Thread partition 111111111, as advertised 1 min ago.") && !garage.includes(EXPLAINED), garage);
+  assert.ok(about(n, GARAGE).includes(EXPLAINED));
+  assert.ok(details(n, ATTIC).includes(`Thread partition 111111111, as advertised 11 min ago.${EXPLAINED}`));
+  assert.equal(about(n, ATTIC), null);
   for (const id of [GARAGE, ATTIC]) assert.doesNotMatch(details(n, id), /Also advertised by|No other border router|split/);
 });
 
@@ -88,7 +98,8 @@ test("#21 different partitions: the pill part, its note with the oldest age, the
   assert.match(note(build([agent(GARAGE, 1, 0), agent(ATTIC, 2, 0)], { readAt: now / 1000 - 59 })), /advertisements just now\.$/);
   assert.match(note(build([agent(GARAGE, 1, 30), agent(ATTIC, 2, 7200)])), /advertisements 2 h ago\.$/);
   const garage = details(n, GARAGE);
-  assert.ok(garage.includes(`Thread partition 111111111, as advertised 1 min ago.${EXPLAINED}No other border router on this map advertises it.`), garage);
+  assert.ok(garage.includes("Thread partition 111111111, as advertised 1 min ago.No other border router on this map advertises it."), garage);
+  assert.ok(about(n, GARAGE).includes(EXPLAINED));
   assert.ok(details(n, ATTIC).includes("Thread partition 222222222, as advertised 11 min ago."));
   assert.doesNotMatch(garage + details(n, ATTIC), /Network split|not split|details\.|status\./);
 });

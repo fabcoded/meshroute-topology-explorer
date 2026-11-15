@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-- **Route card without the wide table:** the hops of a Thread device's route are a list with one block per hop (names, cost, then a "there" and a "back" line with value and source), so long device names wrap inside the card instead of crossing its border (#22). Frontend only.
+- **Tables beside Thread Details:** a "Tables" button in a Thread device's Details opens a panel to the right of the
+  drawer with the neighbours and the route as full tables (the five-column hop table with sources, marks and the
+  source line), and the explanations of the values in a collapsible "About these values"; an "i" at a card opens it
+  there. The drawer's cards get shorter ("Some values may be older than 4 hours."); a device without neighbours or a
+  route keeps every note in the drawer. Beside the drawer up to 600 px wide; where the width beside it (the free width
+  minus 16 px) is under 473 px and on a phone, a sheet over the full width; tables that do not fit scroll sideways.
+  Closes with ×, Esc (first, before the drawer or the map), the button again, another device or tab (#25). The Direct
+  link card now opens above the panels. Frontend only.
+- **History to gateway:** the Details button is called "History to gateway", names its partner in its tooltip, and
+  shows only where it means one connection: Zigbee the coordinator (not on the coordinator), Thread the border router
+  of a complete route, else the only border router (not on a border router) (#24). Frontend only.
+- **Route card without the wide table:** the hops of a Thread device's route are a list with one block per hop (names, cost, then a "there" and a "back" line with value and source), so long device names wrap inside the card instead of crossing its border; the card's other lines and the neighbours' names break a name that does not fit, so long names no longer make the Details scroll sideways (#22). Frontend only.
 - **Wider status menu:** the menu above the status pill is 500 px wide instead of 300 px, so its notes wrap far less; its width follows the map, not the viewport, so it fits beside Home Assistant's sidebar and the side panels, and stays at least 300 px (#23). Frontend only.
 - **Thread routes, part one** (#11 part a: routes on the map and in Details; recording them in the history and the
   window's Route tab follow): selecting a Thread device draws its route to the border router with the lowest path cost,

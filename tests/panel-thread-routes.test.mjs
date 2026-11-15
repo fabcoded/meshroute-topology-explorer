@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Thread routes on screen (#11, boards M38 and M40 A): the map's route focus (two numbers per hop, hop numbers, the
 // weakest hop, a derived hop dash-dot, other lanes grey with values, unused alternatives only with the View option),
-// the Details hop list with source and age (amber over 4 hours), the View option, the adapter's read of
-// thread_tables. Fixture: tests/thread-routes-fixture.mjs. Run: npm test
+// the Details hop list with source and age (amber over 4 hours; source line and notes in the tables panel, #25), the
+// View option, the adapter's read of thread_tables. Fixture: tests/thread-routes-fixture.mjs. Run: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { installFakeDom, FakeEl } from "./dom-fake.mjs";
@@ -13,6 +13,7 @@ import { hopText } from "../custom_components/meshroute_topology_explorer/fronte
 import { OLD_TABLE_MS, mayBeOld, readText, routeHolders, routeRows } from "../custom_components/meshroute_topology_explorer/frontend/engines/thread/details.js";
 import { readThread } from "../custom_components/meshroute_topology_explorer/frontend/adapters/matter.js";
 import { translator } from "../custom_components/meshroute_topology_explorer/frontend/ui/i18n.js";
+import { Slideout } from "../custom_components/meshroute_topology_explorer/frontend/ui/slideout.js";
 import { idOf, threadRoutesSample } from "./thread-routes-fixture.mjs";
 
 installFakeDom();
@@ -23,6 +24,15 @@ const scene = buildScene(net, (s) => s.length * 6);
 thread.scene.classify(scene);
 const at = (k) => scene.index.get(idOf(k));
 const key = (a, b) => `${at(a)}>${at(b)}`;
+/** The Details of device `id` as the panel draws them, with the tables panel's shell (#25): { container (the
+ *  drawer), info (the texts of "About these values"), route (the panel's route section, or undefined) }. */
+function detailsWithTables(network, id, extra = {}) {
+  const container = new FakeEl("div");
+  const slideout = new Slideout();
+  thread.details(container, { network, t: translator("en"), id, onSelect() {}, onFindings() {}, slideout, ...extra });
+  const offer = slideout.offered;
+  return { container, info: offer ? offer.info : [], route: offer ? offer.sections.find((x) => /^Route to/.test(x.textContent)) : undefined };
+}
 
 test("#11 hop text: RSSI over LQI, '– dBm' where no RSSI was read", () => {
   assert.equal(hopText({ rssi: -88, lqi: 2 }), "−88 dBm\nLQI 2");
@@ -110,19 +120,19 @@ test("#11 hop list: both directions, table of each value, amber over 4 hours, ho
   assert.equal(OLD_TABLE_MS, 4 * 3600 * 1000);
 });
 
-test("#11 Details: the route card with its hop list, source line and derived note; every text resolves", () => {
+test("#11 #25 Details: the route card with its hop list; source line and derived note in the tables panel; every text resolves", () => {
   const t = translator("en");
-  const container = new FakeEl("div");
-  thread.details(container, { network: net, t, id: idOf("P1"), onSelect() {}, onFindings() {},
-    now: sample.tables.read_at * 1000 });
+  const { container, info, route } = detailsWithTables(net, idOf("P1"), { now: sample.tables.read_at * 1000 });
   const text = container.textContent;
   assert.match(text, /Route to Border router A/);
   assert.match(text, /2 hops · path cost 2/);
-  assert.match(text, /Source: Matter server's copy · /);
-  assert.match(text, /sofaoben \(neighbour table\) read [^·–]+–[^·]+ · Plug 1 read /);
-  assert.match(text, /Derived: which way the border router sends is mirrored from the way there; what sofaoben hears is measured\. The border router query \(#12\) reads the border router's own choice\./);
-  assert.doesNotMatch(text, /details\.|route\.reason|route\.source/);
-  const source = container.find((el) => el.tag === "p" && /^Source:/.test(el.textContent))[0];
+  assert.equal(container.find((el) => el.tag === "ol").length, 1, "the hop list");
+  assert.match(route.textContent, /Source: Matter server's copy · /);
+  assert.match(route.textContent, /sofaoben \(neighbour table\) read [^·–]+–[^·]+ · Plug 1 read /);
+  assert.doesNotMatch(text, /Source: |Derived: /, "the drawer leaves them to the panel");
+  assert.ok(info.includes("Derived: which way the border router sends is mirrored from the way there; what sofaoben hears is measured. The border router query (#12) reads the border router's own choice."));
+  assert.doesNotMatch(text + route.textContent + info.join(""), /details\.|route\.reason|route\.source/);
+  const source = route.find((el) => el.tag === "p" && /^Source:/.test(el.textContent))[0];
   assert.equal(source.find((el) => el.tag === "span" && el.title).length, 3, "one tooltip per table");
   // Without the tables: the reason, no route.
   const plain = buildThreadNetwork(sample.topology, { tablesProblem: "not_supported: matter_not_loaded: Matter is not loaded" });
@@ -206,17 +216,17 @@ test("#11 F5: read intervals in words, amber on the worst case at the 4 h bounda
   assert.equal(mayBeOld(read, now + 11 * 60000), true);
 });
 
-test("#11 F5: the source line's tooltips say interval (C) or upper bound only (D); the pill menu says the period", () => {
+test("#11 #25 F5: the source line's tooltips say interval (C) or upper bound only (D); the pill menu says the period", () => {
   const t = translator("en");
   const now = sample.tables.read_at * 1000;
-  const container = new FakeEl("div");
-  thread.details(container, { network: net, t, id: idOf("XS"), onSelect() {}, onFindings() {}, now });
-  const spans = container.find((el) => el.tag === "span" && el.title);
+  const { container, info, route } = detailsWithTables(net, idOf("XS"), { now });
+  const spans = route.find((el) => el.tag === "span" && el.title);
   const tip = (name) => spans.find((el) => el.textContent.startsWith(name)).title;
   assert.match(tip("Plug 2"), /^Read by the Matter server between .+ and .+\. The server does not report when it reads; Meshroute checks its copy every 10 minutes \(last check .+\)\.$/);
   assert.match(tip("Motion sensor"), /^Read at .+ or earlier; Meshroute had not seen this table before \(age unknown\)\. The server re-reads its tables about once a day\.$/);
-  assert.match(container.textContent, /Motion sensor read before /);
-  assert.match(container.textContent, /Values that may be older than 4 hours in amber: the route may have changed since\./);
+  assert.match(route.textContent, /Motion sensor read before /);
+  assert.ok(info.includes("Values that may be older than 4 hours in amber: the route may have changed since."));
+  assert.match(container.textContent, /Some values may be older than 4 hours\./, "the drawer's short note");
   assert.equal(spans.find((el) => el.textContent.startsWith("Motion sensor")).className, "warn-text");
   assert.equal(spans.find((el) => el.textContent.startsWith("Plug 2")).className, "");
   const parts = thread.status(net, { collected: { time: "12:00", age: "now" } }).parts.map(([key, params]) => t(key, params));

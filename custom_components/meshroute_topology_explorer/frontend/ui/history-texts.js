@@ -73,7 +73,7 @@ export const HISTORY_TEXTS = Object.freeze({
   "history.card_rank": "rank {pct} %",
   "history.card_direct": "Direct link history ⇄",
   "history.card_route": "Route history",
-  "history.button": "History",
+  "history.gateway_button": "History to gateway",
   "history.path_link": "history ↗",
   "history.partner": "Change the partner",
   "history.partner_search": "Search a device …",

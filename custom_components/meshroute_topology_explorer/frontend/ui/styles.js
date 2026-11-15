@@ -178,6 +178,11 @@ p { margin: 4px 0; }
   border-radius: 12px; background: var(--mte-card); }
 .card .card-title, .card-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--mte-muted); }
 .card p { margin: 0; }
+/* #22: a device name longer than the card is wide breaks inside the word, in a card's lines and in the names of a
+   plain list, instead of widening the Details; only words that do not fit break. The link rule is limited to plain
+   lists: the reading rows shorten their link names with an ellipsis, and a max-width there would narrow them. */
+.card p, .card ul.plain { overflow-wrap: anywhere; }
+.card ul.plain button.link { max-width: 100%; text-align: left; }
 .card details > summary { margin-top: 0; }
 .card-details > summary.card-title { min-height: 24px; }
 .card-details { display: flex; flex-direction: column; gap: 6px; }
@@ -262,8 +267,44 @@ th { color: var(--mte-muted); font-weight: 500; }
 .route-hops .hop-line { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); padding-left: 6px; margin-top: 2px;
   overflow-wrap: anywhere; }
 .route-hops .hop-line.weak { box-shadow: inset 3px 0 0 var(--mte-error); }
-.route-hops .nowrap { white-space: nowrap; }
+.route-hops .nowrap, .slideout-table .nowrap { white-space: nowrap; }
 .scroll { overflow-x: auto; }
+/* The tables panel beside the Details (#25, board M42 V4), placed by geometry.js slideoutGeometry: side by side under
+   the left panel (z 9, so it slides out from beneath it), or a sheet over the full width above both panels. Its
+   tables scroll sideways in their own box; names and sources wrap, values do not. */
+.slideout { position: absolute; z-index: 9; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 16px 16px; overflow: hidden; background: var(--mte-card); color: var(--mte-fg);
+  border-radius: 0 12px 12px 0; box-shadow: var(--mte-shadow); animation: slideout-in 150ms ease-out; }
+.slideout[hidden] { display: none; }
+.slideout[data-mode="sheet"] { z-index: 11; border-radius: 0 0 12px 12px; animation-name: slideout-down; }
+.slideout-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.slideout-title { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.slideout p { margin: 0; }
+/* A vertical scrollbar takes its width from the tables only where the body scrolls; geometry.js SLIDEOUT_FRAME
+   allows for it. */
+.slideout-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow: auto; }
+.slideout-info { border: 1px solid var(--mte-divider); border-radius: 10px; padding: 0 12px 8px; }
+.slideout-info > summary { margin-top: 0; min-height: 36px; }
+/* Inside: the body's own scroll box would cut an outer outline. */
+.slideout-info > summary:focus-visible, .slideout .scroll:focus-visible { outline-offset: -2px; }
+.slideout-info p { margin: 4px 0 0; }
+.slideout-section { display: flex; flex-direction: column; gap: 6px; }
+.slideout-section .card-title { font-size: 14px; color: var(--mte-fg); }
+.slideout-table { font-size: 13px; border-collapse: collapse; width: 100%; }
+.slideout-table th, .slideout-table td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--mte-divider); }
+.slideout-table thead th { font-weight: 600; color: var(--mte-muted); }
+.slideout-table tbody th { font-weight: 400; color: var(--mte-fg); }
+.slideout-table tbody th, .slideout-table .source { overflow-wrap: anywhere; }
+.slideout-table td.weak { box-shadow: inset 3px 0 0 var(--mte-error); padding-left: 8px; }
+.hop-table .hop-names { min-width: 9em; }
+.title-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.tables-button { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px 0 10px; font-size: 13px; }
+.tables-button[aria-expanded="true"] { background: color-mix(in srgb, var(--mte-fg) 12%, transparent); }
+.card-head .info-button { margin: -6px -8px -6px 0; }
+@keyframes slideout-in { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes slideout-down { from { transform: translateY(-100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slideout { animation: none; } }
 .raw-table { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 details > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 4px; font-weight: 600;
   margin-top: 12px; list-style-position: inside; }
@@ -467,7 +508,7 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
   border-radius: 8px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px;
   pointer-events: none; white-space: nowrap; }
 .badge-tip small { color: var(--mte-muted); }
-.pair-card { position: absolute; z-index: 8; box-sizing: border-box; width: 260px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px;
+.pair-card { position: absolute; z-index: 12; box-sizing: border-box; width: 260px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px;
   padding: 8px 10px; border-radius: 10px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px; outline: none; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card-close { border: none; background: none; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
@@ -476,7 +517,7 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
 .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .card-actions .button { min-height: 28px; padding: 0 10px; font-size: 12px; }
 @media (max-width: 600px) { .pair-card { left: 8px !important; right: 8px; top: auto !important; bottom: 72px; width: auto; max-width: none; } }
-.details-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.details-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .history-button { min-height: 28px; padding: 0 10px; font-size: 13px; }
 .history-link { font-size: 12px; white-space: nowrap; }
 .hist-partner { max-width: 100%; border: none; background: none; padding: 0 4px; margin: 0 -4px; font: inherit; color: inherit; cursor: pointer;

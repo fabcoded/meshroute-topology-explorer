@@ -2,8 +2,8 @@
 // Where the two panels sit and how much of the map they cover (spec 9.1):
 // the left panel (Devices, Findings, Details) and the right panel (View, Legend) are side panels on wide screens and
 // bottom sheets on narrow ones, collapsed to one line or expanded. The covered part goes to GraphView.setInsets(),
-// which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go.
-// Pure functions, no DOM. Tested in Node: npm test
+// which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go,
+// and the tables panel beside the Details (#25). Pure functions, no DOM. Tested in Node: npm test
 
 /** The panel is "wide" from this width on (CSS pixels of the panel, not the window: Home Assistant's sidebar takes
  *  its share). A side panel of 320 px then still leaves 400 px of map. Own choice. */
@@ -80,4 +80,30 @@ export function floatingLayout({ width, height, insets = {}, left = { width: 0, 
     band: between ? { top: g, left: betweenLeft, right: betweenRight, maxHeight: height - ins.bottom - 2 * g }
       : { top: below, left: edgeLeft, right: edgeRight, maxHeight: height - ins.bottom - below - g },
   };
+}
+
+/** The tables panel beside the Details (#25, owner 2026-11-15): about 600 px wide, a 16 px gap to whatever is right of
+ *  it (the map's edge or the right panel) and at the map's bottom. */
+export const SLIDEOUT_WIDTH = 600;
+export const SLIDEOUT_GAP = 16;
+/** The panel's own width around its content: 2 × 16 px padding and room for a vertical scrollbar of its body, which
+ *  appears where the body scrolls (a long route, About these values expanded): allowed at 17 px, the classic scrollbar
+ *  of Windows (15 px in Chromium on Linux, measured; overlay scrollbars take none). */
+export const SLIDEOUT_FRAME = 32 + 17;
+
+/** Where the tables panel goes in a map of width × height, measured from the map's own box (never the window). mode:
+ *  the left panel's ("side" or "sheet"); left: its width (side); right, bottom: the insets of the open panels; head:
+ *  the left panel's tab head height (side); need: the width the offered content needs without scrolling sideways
+ *  (the engine's). Side by side: right of the left panel, below its tab head, as wide as SLIDEOUT_WIDTH and the free
+ *  width less SLIDEOUT_GAP allow. Where that is under need + SLIDEOUT_FRAME, or on a phone, a sheet over the full
+ *  width: below the tab head (side) or from the top (phone), down to the sheet or the map's bottom.
+ *  { mode: "side" | "sheet", left, width, top, maxHeight } in CSS pixels. */
+export function slideoutGeometry({ width, height, mode, need, left = 0, right = 0, bottom = 0, head = 0 }) {
+  const free = width - left - right - SLIDEOUT_GAP;
+  if (mode === "side" && free >= need + SLIDEOUT_FRAME) {
+    return { mode: "side", left, width: Math.min(SLIDEOUT_WIDTH, free), top: head,
+      maxHeight: Math.max(0, height - head - SLIDEOUT_GAP) };
+  }
+  const top = mode === "side" ? head : 0;
+  return { mode: "sheet", left: 0, width, top, maxHeight: Math.max(0, height - top - bottom) };
 }

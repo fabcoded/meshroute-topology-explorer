@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Who a device's history window is opened with (spec 9.2, 9.5): the anchors (the role the engine names in its history
-// caps, `anchorRole`: Zigbee the coordinator, Thread the border routers) and the neighbours by reception. Pure, no DOM. Runs in Node and the browser. npm test
+// The partner menu of the path history window (spec 9.5): the anchors (the role the engine names in its history caps,
+// `anchorRole`: Zigbee the coordinator, Thread the border routers) and the neighbours by reception. The History
+// button's partner is the engine's (history caps `gateway`, #24). Pure, no DOM. Runs in Node and the browser. npm test
 
 /** How well a direction was received: a number to compare (the link quality, the signal strength as tie-break), or -1
  *  where it has no reading. Zigbee (0 to 255) and Thread (0 to 3) are never mixed: one network at a time. */
@@ -28,20 +29,6 @@ export function anchorsFor(network, id, role) {
   return network.devices.filter((d) => d.id !== id && d.role === role)
     .sort((x, y) => (score.get(y.id) ?? -2) - (score.get(x.id) ?? -2) || x.label.localeCompare(y.label, undefined, { numeric: true }))
     .map((d) => d.id);
-}
-
-/** The partner of the History button (owner 2026-11-05): the coordinator / the strongest border router; for an anchor
- *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). An anchor
- *  the engine calls historyless (its history caps, #20) is never the default; the partner menu still lists it. */
-export function defaultPartner(network, id, role, historyless = () => false) {
-  const self = network.devices.find((d) => d.id === id);
-  if (!self) return null;
-  if (self.role === role) {
-    const n = neighboursByReception(network, id);
-    return n.length ? n[0].id : null;
-  }
-  const byId = new Map(network.devices.map((d) => [d.id, d]));
-  return anchorsFor(network, id, role).find((x) => !historyless(byId.get(x))) ?? null;
 }
 
 /** The partner menu of the window header (owner 2026-11-05): the anchors first, then the neighbours of `id` by

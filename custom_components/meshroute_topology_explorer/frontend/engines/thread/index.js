@@ -11,7 +11,7 @@ import { findingText } from "./findings.js";
 import { statusLine } from "./status.js";
 import * as threadScene from "./scene.js";
 import { TEXTS } from "./texts.js";
-import { entryText } from "./history.js";
+import { entryText, gatewayPartner, historyless } from "./history.js";
 
 /** The kinds Thread raises (spec 4.6), in the Findings tab's order. */
 const THREAD_FINDING_KINDS = Object.freeze(["offline", "parent offline", "parent unknown"]);
@@ -73,11 +73,13 @@ export const thread = Object.freeze({
     anchors: threadScene.anchors, labelRank: threadScene.labelRank, fit: threadScene.FIT }),
   /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
   history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false,
-    /** The role of the devices the History button pairs a device with (a border router joins the mesh to the home network). */
+    /** The role of the partner menu's first entries (a border router joins the mesh to the home network). */
     anchorRole: "border router",
     /** A border router only Home Assistant's Thread integration lists (#20) has no reading the history records: never
-     *  the History button's default partner, no pair badge on the map. */
-    historyless: (device) => device.inTopology === false }),
+     *  the History button's partner, no pair badge on the map. */
+    historyless,
+    /** The History button's partner (#24): the border router of a complete route, else the only border router. */
+    gateway: gatewayPartner }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings key: unusedRoutes. */

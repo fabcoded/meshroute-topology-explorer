@@ -82,19 +82,22 @@ test("#22 the weakest mark sits on the line of its direction, old values are amb
   assert.equal(values.length, 6);
 });
 
-test("#22 the route card has no table, and says once what each value means", async () => {
+test("#22 #25 the route card has no table; what each value means is said once, in the tables panel", async () => {
   const F = "../custom_components/meshroute_topology_explorer/frontend/";
   const { buildThreadNetwork } = await import(`${F}engines/thread/model.js`);
   const { ENGINES } = await import(`${F}engines/index.js`);
+  const { Slideout } = await import(`${F}ui/slideout.js`);
   const { idOf, threadRoutesSample } = await import("./thread-routes-fixture.mjs");
   const sample = threadRoutesSample();
   const net = buildThreadNetwork(sample.topology, { tables: sample.tables, deviceRegistry: sample.registry });
   const container = new FakeEl("div");
+  const slideout = new Slideout();
   ENGINES.thread.details(container, { network: net, t, id: idOf("XS"), onSelect() {}, onFindings() {},
-    now: sample.tables.read_at * 1000 });
+    now: sample.tables.read_at * 1000, slideout });
   assert.equal(container.find((el) => ["table", "tr", "td", "th"].includes(el.tag)).length, 0);
   assert.equal(container.find((el) => el.tag === "ol" && hasClass(el, "route-hops")).length, 1);
-  assert.equal(container.find((el) => el.tag === "p" && el.textContent === "Per hop: what the receiver hears.").length, 1);
+  assert.equal(container.find((el) => el.textContent === "Per hop: what the receiver hears.").length, 0);
+  assert.equal(slideout.offered.info.filter((x) => x === "Per hop: what the receiver hears.").length, 1);
   assert.equal(container.find((el) => el.tag === "li" && hasClass(el, "hop-line")).length, 0);
   assert.equal(container.find((el) => hasClass(el, "hop-line")).length >= 4, true);
   // The motion sensor's first hop has LQI 2 in both directions (−83 there, −80 back), the others LQI 3: the weakest

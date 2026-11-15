@@ -2911,6 +2911,8 @@ const ICONS = {
   close: [["path", { d: "M6 6l12 12M18 6L6 18" }]],
   up: [["path", { d: "M6 15l6-6 6 6" }]],
   down: [["path", { d: "M6 9l6 6 6-6" }]],
+  // A bar with an arrow pointing out of it to the right: opens a panel beside the drawer (own drawing).
+  expand: [["path", { d: "M5 5v14M5 12h14M14 7l5 5-5 5" }]],
   // A gear: the settings (spec 9.1, own drawing).
   settings: [["circle", { cx: 12, cy: 12, r: 3.5 }], ["path", { d: "M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" }]],
   link: [["path", { d: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" }]],
@@ -2943,8 +2945,9 @@ function iconButton(name, label, onClick, cls = "icon-button") {
 }
 
 // SPDX-License-Identifier: MIT
-// Who a device's history window is opened with (spec 9.2, 9.5): the anchors (the role the engine names in its history
-// caps, `anchorRole`: Zigbee the coordinator, Thread the border routers) and the neighbours by reception. Pure, no DOM. Runs in Node and the browser. npm test
+// The partner menu of the path history window (spec 9.5): the anchors (the role the engine names in its history caps,
+// `anchorRole`: Zigbee the coordinator, Thread the border routers) and the neighbours by reception. The History
+// button's partner is the engine's (history caps `gateway`, #24). Pure, no DOM. Runs in Node and the browser. npm test
 
 /** How well a direction was received: a number to compare (the link quality, the signal strength as tie-break), or -1
  *  where it has no reading. Zigbee (0 to 255) and Thread (0 to 3) are never mixed: one network at a time. */
@@ -2974,20 +2977,6 @@ function anchorsFor(network, id, role) {
     .map((d) => d.id);
 }
 
-/** The partner of the History button (owner 2026-11-05): the coordinator / the strongest border router; for an anchor
- *  itself its strongest neighbour by reception. null where there is none (nothing to open a window with). An anchor
- *  the engine calls historyless (its history caps, #20) is never the default; the partner menu still lists it. */
-function defaultPartner(network, id, role, historyless = () => false) {
-  const self = network.devices.find((d) => d.id === id);
-  if (!self) return null;
-  if (self.role === role) {
-    const n = neighboursByReception(network, id);
-    return n.length ? n[0].id : null;
-  }
-  const byId = new Map(network.devices.map((d) => [d.id, d]));
-  return anchorsFor(network, id, role).find((x) => !historyless(byId.get(x))) ?? null;
-}
-
 /** The partner menu of the window header (owner 2026-11-05): the anchors first, then the neighbours of `id` by
  *  reception, then (query given) a search over every device by name. Without a query the list is anchors plus the
  *  `limit` strongest neighbours. Returns [{ id, group: "anchor" | "neighbour" | "device" }] without `id` itself. */
@@ -3004,28 +2993,33 @@ function partnerChoices(network, id, role, query = "", limit = 12) {
 }
 
 // SPDX-License-Identifier: MIT
-// The entries to the path history window from Details (spec 9.2, 9.5): the "History" button next to the device name and
-// the small "history ↗" link on a path line. Both open the regular pair window; they exist for administrators only
-// (ctx.history.open is null otherwise) and where a partner exists. Runs in the browser.
+// The entries to the path history window from Details (spec 9.2, 9.5): the "History to gateway" button next to the device
+// name and the small "history ↗" link on a path line. Both open the regular pair window; they exist for administrators
+// only (ctx.history.open is null otherwise) and where a partner exists. Runs in the browser.
 
 const nameOf = (network, id) => (network.devices.find((d) => d.id === id) || {}).label || id;
 
-/** The "History" button for device `id`, or null: the window with the coordinator / strongest border router, or for
- *  one of those itself with its strongest neighbour (history-partners.js defaultPartner). ctx: the Details context. */
+/** The "History to gateway" button for device `id` (#24), or null where the engine names no partner (its history
+ *  caps' gateway: Zigbee the coordinator, Thread the border router of a complete route or the only one). The tooltip
+ *  names the partner; the accessible name keeps the visible label in front (WCAG 2.5.3). ctx: the Details context. */
 function historyButton(ctx, id) {
   const open = ctx.history && ctx.history.open;
-  const partner = open ? partnerOf(ctx, id) : null;
+  const partner = open ? historyCaps(ctx.network).gateway(ctx.network, id) : null;
   if (!partner) return null;
-  const title = ctx.t("history.pill_title", { a: nameOf(ctx.network, id), b: nameOf(ctx.network, partner) });
-  return h("button", { type: "button", class: "button history-button", title, text: ctx.t("history.button"),
+  const text = ctx.t("history.gateway_button");
+  const title = ctx.t("history.badge_title", { name: nameOf(ctx.network, partner) });
+  return h("button", { type: "button", class: "button history-button", title, "aria-label": `${text}: ${title}`, text,
     on: { click: (e) => open(id, partner, e.currentTarget) } });
 }
 
-/** The partner of a path line's own device: see defaultPartner. */
-const partnerOf = (ctx, id) => {
+/** The other end of a path line that names none (Zigbee's up and down paths): the first anchor of the partner menu
+ *  that has a history (anchorsFor: the coordinator; of several the best linked), as before #24, which decided the
+ *  button only. A coordinator has no up or down path, so the anchor case of the old button rule never applies here. */
+function partnerOf(ctx, id) {
   const caps = historyCaps(ctx.network);
-  return defaultPartner(ctx.network, id, caps.anchorRole, caps.historyless);
-};
+  const byId = new Map(ctx.network.devices.map((d) => [d.id, d]));
+  return anchorsFor(ctx.network, id, caps.anchorRole).find((x) => !caps.historyless(byId.get(x))) ?? null;
+}
 
 /** A "history ↗" link for the pair a, b (a path line's ends); null without a window to open or without a partner. */
 function historyLink(ctx, a, b) {
@@ -4392,7 +4386,7 @@ async function readAttributes(ctx) {
 // stays read-only: writing, reporting and binding are left to ZHA's own device page, which the dialog links.
 // Runs in the browser.
 
-let uid$4 = 0;
+let uid$5 = 0;
 
 const FOCUSABLE$1 = "button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
@@ -4402,7 +4396,7 @@ const FOCUSABLE$1 = "button:not([disabled]), a[href], input:not([disabled]), [ta
  *  no "Manage" link) }. Returns { el, refresh() (entity states changed), close(), read() (as the button) }. */
 function openClusterDialog(ctx) {
   const { t, device, cluster, direction } = ctx;
-  const id = `mte-cluster-${++uid$4}`;
+  const id = `mte-cluster-${++uid$5}`;
   const known = clusterAttributes(cluster);
   const readable = readableAttributes(cluster, direction);
   const results = new Map(); // attribute id -> read result
@@ -5420,10 +5414,17 @@ const zigbee = Object.freeze({
   history: Object.freeze({ walks: true, lqiMax: 255, entryText: null,
     /** End devices keep no neighbour table: what they hear is in no record. */
     keepsNoTable: (device) => device.role === "end device",
-    /** The role of the devices the History button pairs a device with. */
+    /** The role of the partner menu's first entry. */
     anchorRole: "coordinator",
     /** Every Zigbee device can be in a record: none is historyless. */
-    historyless: () => false }),
+    historyless: () => false,
+    /** The History button's partner (#24): the coordinator, for every device but the coordinator itself; none where
+     *  the network does not hold exactly one. */
+    gateway: (network, id) => {
+      const coordinators = network.devices.filter((d) => d.role === "coordinator");
+      const known = network.devices.some((d) => d.id === id);
+      return known && coordinators.length === 1 && coordinators[0].id !== id ? coordinators[0].id : null;
+    } }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS$4,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell
@@ -6491,8 +6492,11 @@ function ageParts(time, now = Date.now()) {
 // default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
 // the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
 // receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id,
-// the partition id and leader router ID as last read; a border router's advertised partition, #21).
-// Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
+// the partition id and leader router ID as last read; a border router's advertised partition, #21). What the tables
+// panel beside the Details shows (#25: neighbours and route as tables, the explanations under "About these values")
+// is offered from here to the panel's shell (ui/slideout.js); where none can be offered the cards keep every
+// explanation. Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and
+// tested in Node.
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 function threadReception(dir) {
@@ -6605,10 +6609,15 @@ function readText(times, now, t) {
   return t("details.route_read_between", { from: `${day(times.lo)}${clock(times.lo)}`, to: end });
 }
 
-const card = (title, ...children) => h("section", { class: "card" }, title ? h("h3", { class: "card-title", text: title }) : null,
-  ...children);
+const card = (title, ...children) => h("section", { class: "card" },
+  typeof title === "string" ? h("h3", { class: "card-title", text: title }) : title, ...children);
 
-/** Fill `container` for a Thread device. ctx: the Details context of panel.js (network, t, id, onSelect, onFindings). */
+/** A card's title with the "i" that opens the tables panel on "About these values" (#25), or the plain title. */
+const cardTitle = (title, info) => (info ? h("div", { class: "card-head" }, h("h3", { class: "card-title", text: title }), info)
+  : title);
+
+/** Fill `container` for a Thread device. ctx: the Details context of panel.js (network, t, id, onSelect, onFindings,
+ *  slideout: the shell of the tables panel, #25; absent where there is none). */
 function renderThreadDetails(container, ctx) {
   const { network, t } = ctx;
   container.replaceChildren();
@@ -6621,25 +6630,22 @@ function renderThreadDetails(container, ctx) {
   const product = [d.vendor, d.model].filter(Boolean).join(" ");
   const role = d.leader ? `${roleText(d.role, t)} (${t("details.thread_leader")})` : roleText(d.role, t);
   const line = [role, product].filter(Boolean).join(" · ");
+  const rows = threadNeighbourRows(network, d.id);
+  const route = routeModel(ctx, d);
+  const offer = tablesOffer(ctx, d, name, route, rows);
+  const openers = offer ? offer.openers : {};
   const head = h("div", { class: "details-head" }, h("div", { class: "details-title" }, h("h2", { class: "device-name", text: d.label }),
-    historyButton(ctx, d.id)), h("p", { class: "muted", text: line }));
+    h("div", { class: "title-buttons" }, historyButton(ctx, d.id), openers.tables)), h("p", { class: "muted", text: line }));
   if (!d.available) head.append(h("p", { class: "warn-text", text: t("details.thread_stale") }));
   if (!d.availabilityKnown) head.append(h("p", { class: "muted small", text: t("details.thread_availability_unknown") }));
   // #20: a border router only Home Assistant's Thread integration lists, and the preferred one.
   if (d.inTopology === false) head.append(h("p", { class: "muted small", text: t("details.thread_br_unheard") }));
   if (d.preferred) head.append(h("p", { class: "muted small", text: t("details.thread_br_preferred") }));
   container.append(head);
-  const route = routeCard(ctx, d, name);
-  if (route) container.append(route);
+  const routeBox = routeCard(ctx, d, name, route, openers.route);
+  if (routeBox) container.append(routeBox);
 
-  const link = (id) => h("button", { type: "button", class: "link", text: name(id), on: { click: () => ctx.onSelect(id) } });
-  const rows = threadNeighbourRows(network, d.id);
-  const list = rows.length ? h("ul", { class: "plain" }, rows.map((r) => h("li", {},
-    h("div", {}, link(r.id), r.parent ? ` · ${t("lane.parent")}` : r.child ? ` · ${t("role.end device")}` : ""),
-    h("div", { class: "muted small", text: t("details.thread_hears", { name: name(r.id), value: threadReception(r.hears) }) }),
-    h("div", { class: "muted small", text: t("details.thread_heard_by", { name: name(r.id), value: threadReception(r.heardBy) }) }))))
-    : h("p", { class: "muted", text: t("details.thread_none") });
-  container.append(card(t("details.thread_title"), h("p", { class: "muted small", text: t("details.thread_note") }), list));
+  container.append(neighboursCard(ctx, name, rows, openers.neighbours));
 
   const findings = (network.findings || []).filter((f) => f.device === d.id);
   if (findings.length) {
@@ -6650,7 +6656,7 @@ function renderThreadDetails(container, ctx) {
   }
 
   const hex = (n) => (typeof n === "number" ? `0x${n.toString(16).toUpperCase().padStart(4, "0")}` : t("details.thread_unknown"));
-  container.append(card(t("details.tab_entity"), h("ul", { class: "plain" },
+  container.append(card(cardTitle(t("details.tab_entity"), openers.facts), h("ul", { class: "plain" },
     h("li", { text: t("details.thread_role", { role: d.threadRole || "?" }) }),
     h("li", { text: t("details.thread_ext", { value: d.extAddress || "?" }) }),
     h("li", { text: t("details.thread_rloc", { value: hex(d.rloc16) }) }),
@@ -6659,11 +6665,30 @@ function renderThreadDetails(container, ctx) {
     d.partitionRead ? h("li", { text: t(d.partitionRead.leaderRouterId === null ? "details.thread_partition_read"
       : "details.thread_partition_read_leader", { partition: d.partitionRead.partition, leader: d.partitionRead.leaderRouterId }) })
       : null,
-    advertisedItem(ctx, d, name))));
+    advertisedItem(ctx, d, name, !openers.facts))));
+  if (offer) ctx.slideout.offer(offer);
 }
 
-/** A border router's advertised partition (#21, spec 9.2), or null without one. */
-function advertisedItem(ctx, d, name) {
+/** The neighbours card: both directions per neighbour, the parent first (threadNeighbourRows); a name selects that
+ *  device. `info`: the "i" of the tables panel (#25), which then holds the note on where the values come from. */
+function neighboursCard(ctx, name, rows, info) {
+  const { t } = ctx;
+  const link = (id) => h("button", { type: "button", class: "link", text: name(id), on: { click: () => ctx.onSelect(id) } });
+  const list = rows.length ? h("ul", { class: "plain" }, rows.map((r) => h("li", {},
+    h("div", {}, link(r.id), neighbourMark(r, t)),
+    h("div", { class: "muted small", text: t("details.thread_hears", { name: name(r.id), value: threadReception(r.hears) }) }),
+    h("div", { class: "muted small", text: t("details.thread_heard_by", { name: name(r.id), value: threadReception(r.heardBy) }) }))))
+    : h("p", { class: "muted", text: t("details.thread_none") });
+  return card(cardTitle(t("details.thread_title"), info), info ? null : h("p", { class: "muted small", text: t("details.thread_note") }),
+    list);
+}
+
+/** " · Parent" or " · End device" after a neighbour's name, or "". */
+const neighbourMark = (r, t) => (r.parent ? ` · ${t("lane.parent")}` : r.child ? ` · ${t("role.end device")}` : "");
+
+/** A border router's advertised partition (#21, spec 9.2), or null without one; `explained`: with the sentence on
+ *  what a partition is (false where it moved to the tables panel, #25). */
+function advertisedItem(ctx, d, name, explained) {
   const { network, t } = ctx;
   if (!d.advertised) return null;
   const { partition, at } = d.advertised;
@@ -6672,50 +6697,150 @@ function advertisedItem(ctx, d, name) {
   const others = network.advertisedPartitions ? sharingPartition(network, d) : null;
   const shared = !others ? null : others.length ? t("details.thread_partition_shared", { names: t.list(others.map(name)) })
     : t("details.thread_partition_alone");
-  return h("li", {}, h("div", { text: line }), h("div", { class: "muted small", text: t("details.thread_partition_explained") }),
+  return h("li", {}, h("div", { text: line }),
+    explained ? h("div", { class: "muted small", text: t("details.thread_partition_explained") }) : null,
     shared ? h("div", { text: shared }) : null);
 }
 
-/** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
- *  each receiver hears and the table it comes from, the cost as each sender counts it, the weakest hop per
- *  direction, a derived hop's note, and one line with the source and since when Meshroute saw each table unchanged
- *  (amber over 4 hours). Null for a border router (also without the tables, #20) and where the network has no border
- *  router; without the Matter cache's tables the reason they could not be read. */
-function routeCard(ctx, d, name) {
-  const { network, t } = ctx;
-  if (d.role === "border router") return null;
-  if (!network.routing) {
-    return network.routingProblem
-      ? card(t("details.route_title", { name: t("role.border router") }),
-        h("p", { class: "muted small", text: t("details.route_problem", { message: network.routingProblem }) }))
-      : null;
-  }
-  const r = network.routing.defaultRoute(d.id);
+/** The device's route to the default border router with what the route card and the tables panel show of it: { r,
+ *  rows (routeRows), tables, holders (routeHolders), now, old (a value may be older than 4 hours), derived (a
+ *  derived hop or null) }. Null for a border router (also without the tables, #20), without the Matter cache's route
+ *  tables, and where the network has no border router. */
+function routeModel(ctx, d) {
+  const { network } = ctx;
+  const r = d.role !== "border router" && network.routing ? network.routing.defaultRoute(d.id) : null;
   if (!r) return null;
   const now = ctx.now ?? Date.now();
   const tables = network.routing.tables;
   const rows = routeRows(tables, r, now);
+  const holders = routeHolders(tables, rows);
+  return { r, rows, tables, holders, now, old: holders.some((x) => x.table && mayBeOld(x.times, now)),
+    derived: [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived) || null };
+}
+
+/** The route card (board M38 section 2, #22): the route to the default border router, its hops there and back with
+ *  what each receiver hears and the table it comes from, the cost as each sender counts it, the weakest hop per
+ *  direction, a derived hop's note, the source line with when the Matter server read each table, and amber values
+ *  with the note on them; without the Matter cache's tables the reason they could not be read; null for a border
+ *  router or without a route. `info`: the "i" of the tables panel (#25): then what each value means, the derived note
+ *  and the source line are in the panel, and the note on amber values is the short one. */
+function routeCard(ctx, d, name, route, info) {
+  const { network, t } = ctx;
+  if (!route) {
+    return d.role !== "border router" && !network.routing && network.routingProblem
+      ? card(t("details.route_title", { name: t("role.border router") }),
+        h("p", { class: "muted small", text: t("details.route_problem", { message: network.routingProblem }) }))
+      : null;
+  }
+  const { r, rows } = route;
   const hops = routeList(rows, name, t);
   const summary = routeSummary(r, t);
-  const lines = routeLines(r, name, t);
-  const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
-  const wt = weakest(r.there, r.there.weakest);
-  const wb = r.back ? weakest(r.back, r.back.weakest) : null;
-  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${hopValue(x)})` : "?");
-  const holders = routeHolders(tables, rows);
-  const old = holders.some((x) => x.table && mayBeOld(x.times, now));
-  const derived = [...r.there.hops, ...(r.back ? r.back.hops : [])].find((x) => x.derived);
-  return card(t("details.route_title", { name: name(r.to) }),
+  const weakest = weakestText(r, name, t);
+  const here = !info; // the explanations stay in the card
+  return card(cardTitle(t("details.route_title", { name: name(r.to) }), info),
     summary ? h("p", { class: "muted small", text: summary }) : null,
-    ...lines.map((text) => h("p", { class: "muted small", text })),
-    hops ? h("p", { class: "muted small", text: t("details.route_hint") }) : null,
+    ...routeLines(r, name, t).map((text) => h("p", { class: "muted small", text })),
+    here && hops ? h("p", { class: "muted small", text: t("details.route_hint") }) : null,
     hops,
-    wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
-    derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
-    sourceLine(tables, holders, name, t, now),
-    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null,
+    weakest ? h("p", { class: "muted small", text: weakest }) : null,
+    here && route.derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(route.derived.to) }) }) : null,
+    here ? sourceLine(route, name, t) : null,
+    route.old ? h("p", { class: "small warn-text", text: t(here ? "details.route_old" : "details.route_old_short") }) : null,
     network.advertisedPartitions ? h("p", { class: "muted small", text: t("route.partitions_note") }) : null); // #21
 }
+
+/** The route card's line about the weakest hop of each direction ("Weakest there …; back …"), or null without one. */
+function weakestText(r, name, t) {
+  const pick = (way, k) => (k === null || k === undefined ? null : way.hops[k]);
+  const wt = pick(r.there, r.there.weakest);
+  const wb = r.back ? pick(r.back, r.back.weakest) : null;
+  const hopName = (x) => (x ? `${name(x.from)} → ${name(x.to)} (${hopValue(x)})` : "?");
+  return wt || wb ? t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) : null;
+}
+
+/** The width the tables panel's widest table, the five-column hop table, needs without scrolling sideways: its
+ *  min-content width at 13 px (names and sources wrap, values do not), 424 px in headless Chromium on the dev page's
+ *  routes sample with and without long names (2026-11-15). The shell adds its padding and scrollbar gutter. */
+const TABLES_MIN_WIDTH = 424;
+
+/** What the tables panel shows for device `d` (#25, owner 2026-11-15), as an offer to its shell (ui/slideout.js), or
+ *  null where none can be offered: no shell, or neither neighbours nor a route with hops; the cards then keep every
+ *  explanation. Sections: "Neighbours" (a table) and "Route to …" (summary or where it stops, the source line, the
+ *  hop table, the weakest hops). "About these values" holds the explanations that apply, in this order: the
+ *  neighbours' note, what a hop's values are, the derived hop's note, the amber note, what a partition is. Openers:
+ *  the "Tables" button and an "i" for each card whose explanation moved there. */
+function tablesOffer(ctx, d, name, route, rows) {
+  const { t, slideout } = ctx;
+  const hops = route ? route.rows : [];
+  if (!slideout || (!rows.length && !hops.length)) return null;
+  const key = d.id;
+  const about = t("details.tables_about");
+  // Stable ids: a redraw of the Details finds a focused button again (panel.js keepFocus).
+  const info = (which) => h("button", { type: "button", id: `mte-tables-info-${which}`, class: "info-button",
+    "aria-label": about, title: about, on: { click: () => slideout.showInfo(key, which) } },
+  h("span", { "aria-hidden": "true", text: "i" }));
+  const section = (id, heading, ...children) => h("section", { class: "slideout-section" },
+    h("h3", { id, class: "card-title", text: heading }), ...children);
+  const texts = [rows.length && t("details.thread_note"), hops.length && t("details.route_hint"),
+    hops.length && route.derived && t("details.route_derived_note", { name: name(route.derived.to) }),
+    hops.length && route.old && t("details.route_old"), d.advertised && t("details.thread_partition_explained")];
+  const lines = hops.length ? [routeSummary(route.r, t), stopLine(route.r, name, t), weakestText(route.r, name, t)] : [];
+  const note = (text) => (text ? h("p", { class: "muted small", text }) : null);
+  return { key, title: d.label, closeLabel: t("drawer.close"), infoLabel: about, info: texts.filter(Boolean),
+    minWidth: TABLES_MIN_WIDTH,
+    openers: { tables: h("button", { type: "button", id: "mte-tables-open", class: "button tables-button", "aria-expanded": "false",
+      on: { click: () => slideout.toggle(key) } }, t("details.tables_button"), icon("expand", 16)),
+    neighbours: rows.length ? info("neighbours") : null, route: hops.length ? info("route") : null,
+    facts: d.advertised ? info("facts") : null },
+    sections: [
+      rows.length ? section("mte-tables-neighbours", t("details.tables_neighbours"),
+        neighbourTable(rows, name, t, "mte-tables-neighbours")) : null,
+      hops.length ? section("mte-tables-route", t("details.route_title", { name: name(route.r.to) }),
+        note(lines[0]), note(lines[1]), sourceLine(route, name, t), routeTable(route.rows, name, t, "mte-tables-route"),
+        note(lines[2])) : null,
+    ].filter(Boolean) };
+}
+
+/** A table in a box that scrolls sideways where the panel is narrower; the box takes focus, so the keyboard can
+ *  scroll it too, and is named by the section's heading (`labelledBy`). */
+const tableBox = (labelledBy, cls, head, body) => h("div", { class: "scroll", tabIndex: 0, role: "group",
+  "aria-labelledby": labelledBy }, h("table", { class: cls },
+  h("thead", {}, h("tr", {}, ...head.map((text) => h("th", { scope: "col", text })))), h("tbody", {}, ...body)));
+
+/** The neighbours as a table (#25): the same rows, order and marks as the Details list (threadNeighbourRows); per
+ *  neighbour its name (row header) with parent or end device, what this device hears of it and what it hears of
+ *  this device. Null without neighbours. */
+function neighbourTable(rows, name, t, labelledBy) {
+  if (!rows.length) return null;
+  return tableBox(labelledBy, "slideout-table", [t("details.tables_head_neighbour"), t("details.tables_head_hears"),
+    t("details.tables_head_heard")], rows.map((r) => h("tr", {},
+    h("th", { scope: "row" }, name(r.id), h("span", { class: "muted", text: neighbourMark(r, t) })),
+    h("td", {}, h("span", { class: "nowrap", text: threadReception(r.hears) })),
+    h("td", {}, h("span", { class: "nowrap", text: threadReception(r.heardBy) })))));
+}
+
+/** The five-column hop table (#25, as before #22; routeRows): number, hop (row header), there and back with the
+ *  weakest and old values marked, a derived hop tagged and the source table below each value, and the cost with a
+ *  child's note. Null without rows. */
+function routeTable(rows, name, t, labelledBy) {
+  if (!rows.length) return null;
+  const td = (c, weak, derived) => h("td", { class: [weak ? "weak" : "", c && c.old ? "warn-text" : ""].filter(Boolean).join(" ") },
+    h("span", { class: "nowrap", text: hopValue(c) }),
+    derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
+    c && c.holder ? h("div", { class: "muted small source", text: sourceText(c, name, t) }) : null);
+  return tableBox(labelledBy, "slideout-table hop-table", ["#", t("details.route_head_hop"), t("details.route_head_there"),
+    t("details.route_head_back"), t("details.route_head_cost")], rows.map((row) => h("tr", {},
+    h("td", { text: row.n === null ? "" : String(row.n) }),
+    h("th", { scope: "row", class: "hop-names", text: `${name(row.from)} → ${name(row.to)}` }),
+    td(row.there, row.weakThere, false),
+    td(row.back, row.weakBack, row.backDerived),
+    h("td", {}, typeof row.cost === "number" ? String(row.cost) : "?",
+      row.child ? h("div", { class: "muted small", text: t("route.cost_child") }) : null))));
+}
+
+/** Whose table a hop value comes from: "Plug 1's table", "Plug 1's “LQI out”", or "" without a holder. */
+const sourceText = (c, name, t) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
+  { name: name(c.holder) }) : "");
 
 /** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null
  *  where the way there is incomplete. */
@@ -6736,8 +6861,6 @@ function hopValue(c) {
  *  first line, then a line for each direction that exists: its label, what the receiver hears (amber when old, derived tagged) and the
  *  table it comes from; the weakest hop of a direction marked at the left edge of that line. Null without rows. */
 function routeList(rows, name, t) {
-  const sourceText = (c) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
-    { name: name(c.holder) }) : "");
   // Spaces between the parts (ignored by flex and grid) keep the text readable for assistive technology
   // ("there −87 dBm · LQI 2 Plug 1's table").
   const line = (label, c, weak, derived) => (c ? h("div", { class: weak ? "hop-line weak" : "hop-line" },
@@ -6745,7 +6868,7 @@ function routeList(rows, name, t) {
     h("div", { class: c.old ? "warn-text" : "" },
       h("span", { class: "nowrap", text: hopValue(c) }),
       derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
-      c.holder ? h("span", { class: "muted small", text: ` ${sourceText(c)}` }) : null)) : null);
+      c.holder ? h("span", { class: "muted small", text: ` ${sourceText(c, name, t)}` }) : null)) : null);
   const cost = (row) => h("span", { class: "hop-cost" },
     h("span", { class: "nowrap", text: t("details.route_cost", { cost: typeof row.cost === "number" ? String(row.cost) : "?" }) }),
     row.child ? h("span", { class: "muted small", text: ` · ${t("route.cost_child")}` }) : null);
@@ -6760,23 +6883,29 @@ function routeList(rows, name, t) {
 
 /** The route card's lines: the way there and back by name, and where and why a way stops. */
 function routeLines(r, name, t) {
-  const reason = (code) => t(`route.reason.${code}`);
   const way = (hops) => hops.length ? [hops[0].from, ...hops.map((x) => x.to)].map(name).join(" → ") : "";
   const lines = [];
   if (r.there.hops.length) lines.push(t("details.route_there", { list: way(r.there.hops) }));
   if (r.back && r.back.hops.length) lines.push(t("details.route_back", { list: way(r.back.hops) }));
-  if (!r.there.complete) {
-    lines.push(r.there.hops.length ? t("details.route_stops", { name: name(r.there.at), reason: reason(r.there.reason) })
-      : t("details.route_none", { reason: reason(r.there.reason) }));
-  } else if (r.back && !r.back.complete && r.back.reason !== "there_incomplete") {
-    lines.push(t("details.route_stops", { name: name(r.back.at), reason: reason(r.back.reason) }));
-  }
+  const stop = stopLine(r, name, t);
+  if (stop) lines.push(stop);
   return lines;
 }
 
-/** The route card's source line: one span per table the values come from (routeHolders) with when the Matter server
+/** Where and why a way of the route stops ("The route stops at X: …", "No route: …"), or null where nothing stops. */
+function stopLine(r, name, t) {
+  const reason = (code) => t(`route.reason.${code}`);
+  if (!r.there.complete) {
+    return r.there.hops.length ? t("details.route_stops", { name: name(r.there.at), reason: reason(r.there.reason) })
+      : t("details.route_none", { reason: reason(r.there.reason) });
+  }
+  return r.back && !r.back.complete && r.back.reason !== "there_incomplete"
+    ? t("details.route_stops", { name: name(r.back.at), reason: reason(r.back.reason) }) : null;
+}
+
+/** The route's source line: one span per table the values come from (routeHolders) with when the Matter server
  *  read it, amber where it may be old, and a tooltip; null without tables. */
-function sourceLine(tables, holders, name, t, now) {
+function sourceLine({ tables, holders, now }, name, t) {
   const holderName = (x) => (x.both ? `${name(x.id)} (${t(`details.route_table_${x.table}`)})` : name(x.id));
   const minutes = Math.round((tables.observeMs ?? 600000) / 60000);
   const checked = tables.readAt === null ? "?" : t.when(tables.readAt);
@@ -6904,6 +7033,16 @@ const TEXTS$3 = Object.freeze({
   "details.route_there": "there: {list}",
   "details.route_back": "back: {list}",
   "details.route_hint": "Per hop: what the receiver hears.",
+  "details.tables_button": "Tables",
+  "details.tables_about": "About these values",
+  "details.tables_neighbours": "Neighbours",
+  "details.tables_head_neighbour": "neighbour",
+  "details.tables_head_hears": "this device hears",
+  "details.tables_head_heard": "neighbour hears",
+  "details.route_head_hop": "hop (there)",
+  "details.route_head_there": "there: receiver hears",
+  "details.route_head_back": "back: receiver hears",
+  "details.route_head_cost": "cost",
   "details.route_label_there": "there",
   "details.route_label_back": "back",
   "details.route_cost": "cost {cost}",
@@ -6923,6 +7062,7 @@ const TEXTS$3 = Object.freeze({
   "details.route_read_tip": "Read by the Matter server between {from} and {to}. The server does not report when it reads; Meshroute checks its copy every {minutes} minutes (last check {check}).",
   "details.route_read_tip_unknown": "Read at {to} or earlier; Meshroute had not seen this table before (age unknown). The server re-reads its tables about once a day.",
   "details.route_old": "Values that may be older than 4 hours in amber: the route may have changed since.",
+  "details.route_old_short": "Some values may be older than 4 hours.",
   "status.thread_tables_observed": "Table times: observed every {minutes} min",
   "status.thread_tables_observed_note": "Meshroute checks the Matter server's copy of the Thread tables this often, without radio traffic, and dates each table by the check that first saw it changed: Details show the interval in which the server read it.",
   "details.route_none": "No route: {reason}",
@@ -7140,8 +7280,8 @@ function routeEnds(r, i, at) {
 }
 
 // SPDX-License-Identifier: MIT
-// What the path history window writes for a Thread lane value (spec 5.8, board M36): RSSI over link quality, both
-// written out. Pure. npm test
+// What the path history needs of Thread (spec 5.8, 9.5, board M36): the window's text for a lane value (RSSI over link
+// quality, both written out), which devices have no history, and the History button's partner (#24). Pure. npm test
 const MINUS = "−";
 
 /** Pill text of a lane value [lqi, rssi] as the records hold it: "−75 dBm" over "LQI 3"; no RSSI leaves the first line out. */
@@ -7152,6 +7292,23 @@ function entryText(entry) {
   if (typeof rssi === "number") lines.push(`${rssi < 0 ? MINUS : ""}${Math.abs(rssi)} dBm`);
   lines.push(typeof lqi === "number" ? `LQI ${lqi}` : "LQI ?");
   return lines.join("\n");
+}
+
+/** A border router only Home Assistant's Thread integration lists (#20) has no reading the history records. */
+const historyless = (device) => device.inTopology === false;
+
+/** The partner of the "History to gateway" button of device `id` (#24, owner 2026-11-15): the border router of its
+ *  route where the way there is complete (routes.js defaultRoute, the one the route card names); without such a route
+ *  the map's only border router (also counting one only Home Assistant lists); else none, as the button must mean
+ *  one connection. None for a border router itself, and never a partner without a history. */
+function gatewayPartner(network, id) {
+  const self = network.devices.find((d) => d.id === id);
+  if (!self || self.role === "border router") return null;
+  const route = network.routing ? network.routing.defaultRoute(id) : null;
+  const all = network.devices.filter((d) => d.role === "border router");
+  const partner = route && route.there.complete ? all.find((d) => d.id === route.to)
+    : all.length === 1 ? all[0] : null;
+  return partner && !historyless(partner) ? partner.id : null;
 }
 
 // SPDX-License-Identifier: MIT
@@ -7220,11 +7377,13 @@ const thread = Object.freeze({
     anchors: anchors, labelRank: labelRank, fit: FIT }),
   /** The path history window: no routing table, so no walked route; link quality 0 to 3, RSSI under it in the pill. */
   history: Object.freeze({ walks: false, lqiMax: 3, entryText, keepsNoTable: () => false,
-    /** The role of the devices the History button pairs a device with (a border router joins the mesh to the home network). */
+    /** The role of the partner menu's first entries (a border router joins the mesh to the home network). */
     anchorRole: "border router",
     /** A border router only Home Assistant's Thread integration lists (#20) has no reading the history records: never
-     *  the History button's default partner, no pair badge on the map. */
-    historyless: (device) => device.inTopology === false }),
+     *  the History button's partner, no pair badge on the map. */
+    historyless,
+    /** The History button's partner (#24): the border router of a complete route, else the only border router. */
+    gateway: gatewayPartner }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS$3,
   /** Its own settings key: unusedRoutes. */
@@ -7658,7 +7817,8 @@ function createHistoryCache() {
 
 /** What the path history window needs to know of a network type: { walks (a routing table, so routes are walked),
  *  lqiMax (top of the LQI axis), keepsNoTable(device) (what it hears is in no record), entryText(entry) (the pill text of a lane value where there is no walk),
- *  anchorRole, historyless(device) (no default History partner, no pair badge) }. */
+ *  anchorRole (the partner menu's first entries), historyless(device) (no History partner, no pair badge), gateway(network, id)
+ *  (the History button's partner or null, #24) }. */
 const historyCaps = (network) => engineFor(network).history;
 
 /** The path history of a network over one recorded range (spec 5.8): createHistory with the network's engine and, for
@@ -10538,12 +10698,12 @@ class PanelController extends EventTarget {
 // even where a browser lets it reach its own chrome. Esc cancels; focus returns to where the dialog was opened.
 // Runs in the browser.
 
-let uid$3 = 0;
+let uid$4 = 0;
 
 /** Ask for confirmation. root: the element to attach to (inside the panel's shadow root); title; paragraphs (texts);
  *  confirm / cancel: button labels; opener: element to focus afterwards. Resolves to true (confirmed) or false. */
 function confirmDialog(root, { title, paragraphs, confirm, cancel, opener }) {
-  const id = `mte-dialog-${++uid$3}`;
+  const id = `mte-dialog-${++uid$4}`;
   return new Promise((resolve) => {
     const cancelButton = h("button", { type: "button", class: "button", text: cancel });
     const confirmButton = h("button", { type: "button", class: "button primary", text: confirm });
@@ -10957,7 +11117,7 @@ const HISTORY_TEXTS = Object.freeze({
   "history.card_rank": "rank {pct} %",
   "history.card_direct": "Direct link history ⇄",
   "history.card_route": "Route history",
-  "history.button": "History",
+  "history.gateway_button": "History to gateway",
   "history.path_link": "history ↗",
   "history.partner": "Change the partner",
   "history.partner_search": "Search a device …",
@@ -11280,8 +11440,8 @@ function localize(network, t, areas = null) {
 // Where the two panels sit and how much of the map they cover (spec 9.1):
 // the left panel (Devices, Findings, Details) and the right panel (View, Legend) are side panels on wide screens and
 // bottom sheets on narrow ones, collapsed to one line or expanded. The covered part goes to GraphView.setInsets(),
-// which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go.
-// Pure functions, no DOM. Tested in Node: npm test
+// which pans the map so the selected device stays clear of it. Also where the floating controls and the banners go,
+// and the tables panel beside the Details (#25). Pure functions, no DOM. Tested in Node: npm test
 
 /** The panel is "wide" from this width on (CSS pixels of the panel, not the window: Home Assistant's sidebar takes
  *  its share). A side panel of 320 px then still leaves 400 px of map. Own choice. */
@@ -11358,6 +11518,32 @@ function floatingLayout({ width, height, insets = {}, left = { width: 0, height:
     band: between ? { top: g, left: betweenLeft, right: betweenRight, maxHeight: height - ins.bottom - 2 * g }
       : { top: below, left: edgeLeft, right: edgeRight, maxHeight: height - ins.bottom - below - g },
   };
+}
+
+/** The tables panel beside the Details (#25, owner 2026-11-15): about 600 px wide, a 16 px gap to whatever is right of
+ *  it (the map's edge or the right panel) and at the map's bottom. */
+const SLIDEOUT_WIDTH = 600;
+const SLIDEOUT_GAP = 16;
+/** The panel's own width around its content: 2 × 16 px padding and room for a vertical scrollbar of its body, which
+ *  appears where the body scrolls (a long route, About these values expanded): allowed at 17 px, the classic scrollbar
+ *  of Windows (15 px in Chromium on Linux, measured; overlay scrollbars take none). */
+const SLIDEOUT_FRAME = 32 + 17;
+
+/** Where the tables panel goes in a map of width × height, measured from the map's own box (never the window). mode:
+ *  the left panel's ("side" or "sheet"); left: its width (side); right, bottom: the insets of the open panels; head:
+ *  the left panel's tab head height (side); need: the width the offered content needs without scrolling sideways
+ *  (the engine's). Side by side: right of the left panel, below its tab head, as wide as SLIDEOUT_WIDTH and the free
+ *  width less SLIDEOUT_GAP allow. Where that is under need + SLIDEOUT_FRAME, or on a phone, a sheet over the full
+ *  width: below the tab head (side) or from the top (phone), down to the sheet or the map's bottom.
+ *  { mode: "side" | "sheet", left, width, top, maxHeight } in CSS pixels. */
+function slideoutGeometry({ width, height, mode, need, left = 0, right = 0, bottom = 0, head = 0 }) {
+  const free = width - left - right - SLIDEOUT_GAP;
+  if (mode === "side" && free >= need + SLIDEOUT_FRAME) {
+    return { mode: "side", left, width: Math.min(SLIDEOUT_WIDTH, free), top: head,
+      maxHeight: Math.max(0, height - head - SLIDEOUT_GAP) };
+  }
+  const top = mode === "side" ? head : 0;
+  return { mode: "sheet", left: 0, width, top, maxHeight: Math.max(0, height - top - bottom) };
 }
 
 // SPDX-License-Identifier: MIT
@@ -12630,7 +12816,7 @@ const TABS = Object.freeze(["timeline", "route", "lane"]);
 let lastTab = "timeline";
 
 const FOCUSABLE = "button:not([disabled]), a[href], input, [tabindex]:not([tabindex='-1'])";
-let uid$2 = 0;
+let uid$3 = 0;
 
 /** The smallest range in `keys` that reaches `seconds` back, else the largest. */
 function rangeReaching(keys, seconds) {
@@ -12644,7 +12830,7 @@ function openHistoryWindow(ctx) {
   const { t, loader, a } = ctx;
   let b = ctx.b; // the partner: changed by the title's menu
   const now = ctx.now || (() => Date.now() / 1000);
-  const id = `mte-history-${++uid$2}`;
+  const id = `mte-history-${++uid$3}`;
   const state = { tab: ctx.tab || (ctx.lane ? "lane" : lastTab), range: "48h", ranges: rangesFor(null),
     route: { mode: "metro", index: -1, sel: null, playing: false },
     lane: ctx.lane ? { x: ctx.lane.x, y: ctx.lane.y, context: null, key: "48h", fromRow: true } : { x: a, y: b, context: null, key: "48h", fromRow: true },
@@ -13038,7 +13224,7 @@ class HistoryHost {
 
 const LEFT_TABS = Object.freeze(["devices", "findings", "details"]);
 const RIGHT_TABS = Object.freeze(["view", "legend"]);
-let uid$1 = 0;
+let uid$2 = 0;
 
 class Drawer {
   /** tabs: the tab names in order; side: "left" or "right" (its place on wide screens); onChange(): open state, tab,
@@ -13054,7 +13240,7 @@ class Drawer {
     this.opener = null;
     this.fallback = null; // where focus goes on close when the opener is gone (the map)
     this.t = (key) => key;
-    const id = `mte-drawer-${++uid$1}`;
+    const id = `mte-drawer-${++uid$2}`;
     this.tabs = new Map();
     this.panels = new Map();
     this.tablist = h("div", { role: "tablist", class: "tabs", on: { keydown: (e) => this._onTabKey(e), scroll: () => this._overflow() } });
@@ -13229,6 +13415,150 @@ class Drawer {
     e.preventDefault();
     e.stopPropagation();
     this.close();
+  }
+}
+
+// SPDX-License-Identifier: MIT
+// The tables panel beside the Details (spec 9.1, 9.2; #25, board M42 V4): the shell only (open, close, focus,
+// placement, the collapsible "About these values"); what it shows is the network engine's. The engine offers it on
+// every render of the Details (begin, offer, end), so it follows the selection: another device or no offer closes it.
+// Not modal: no backdrop, the map stays usable; nothing reacts to hover. Placed by geometry.js slideoutGeometry from
+// what panel.js measures on every layout pass and the width the offer's content needs. Esc is panel.js's, by the
+// rule takesEscape. Runs in the browser; tested with a fake DOM (npm test).
+
+let uid$1 = 0;
+
+/** Whether Esc goes to the tables panel (topmost first, owner 2026-11-15): it is open, no modal dialog is (path history
+ *  window, cluster details, scan confirmation: they make the rest inert), and the key does not come from inside one of
+ *  the open `layers` (the status pill's menu, a Direct link card; null where closed): their event `path`
+ *  (composedPath) holds them. Those keep their own Esc; a menu or card merely left open elsewhere does not, as neither
+ *  closes when focus leaves it. Without an open tables panel every Esc is as before. */
+const takesEscape = ({ open, dialog, path = [], layers = [] }) =>
+  Boolean(open && !dialog && !layers.some((layer) => layer && path.includes(layer)));
+
+class Slideout {
+  /** onLostFocus(): where focus goes when the panel closes with focus inside and neither its opener nor the current
+   *  "Tables" button can take it (panel.js: the Details, else the map). */
+  constructor({ onLostFocus = () => {} } = {}) {
+    const id = `mte-slideout-${++uid$1}`;
+    this.onLostFocus = onLostFocus;
+    this.offered = null; // the latest offer (see offer)
+    this.openKey = null;
+    this.opener = null; // which of the offer's openers opened it: "tables" or the name of an "i"
+    this.infoOpen = false;
+    this.seen = false;
+    this.summary = null;
+    this.measured = null; // what the last layout pass measured (place)
+    this.title = h("h2", { id: `${id}-title`, class: "slideout-title" });
+    this.closeButton = h("button", { type: "button", class: "icon-button", on: { click: () => this.close() } }, icon("close"));
+    this.body = h("div", { class: "slideout-body" });
+    this.el = h("div", { class: "slideout", role: "dialog", "aria-labelledby": `${id}-title`, hidden: true },
+      h("div", { class: "slideout-head" }, this.title, this.closeButton), this.body);
+  }
+
+  get isOpen() { return this.openKey !== null; }
+
+  /** A render of the Details starts: whatever is not offered again before end() goes away. */
+  begin() { this.seen = false; }
+
+  /** The engine's content for device `key`: { key, title, closeLabel, infoLabel, info (texts of "About these values"),
+   *  sections (nodes), minWidth (the width its widest table needs without scrolling sideways), openers: { tables (the
+   *  "Tables" button), and each "i" button by name } }. Refreshed in place while open for the same key; another key
+   *  closes it (focus that was inside goes to this offer's buttons). */
+  offer(spec) {
+    this.seen = true;
+    const other = this.openKey !== null && this.openKey !== spec.key;
+    this.offered = spec;
+    if (other) this.close();
+    this._expanded();
+    this._place();
+    if (this.openKey === spec.key) this._fill();
+  }
+
+  /** The render is over: an open panel nobody offered again closes (another device, another network or engine). */
+  end() {
+    if (this.seen) return;
+    this.close();
+    this.offered = null;
+  }
+
+  /** "Tables": open with "About these values" collapsed and focus on the close button, or close when open. */
+  toggle(key) {
+    if (this.openKey === key) this.close();
+    else this._open(key, "tables", false);
+  }
+
+  /** An "i" (opener name `name`): open, or stay open, with "About these values" expanded and focused. */
+  showInfo(key, name) {
+    this._open(key, name, true);
+  }
+
+  _open(key, name, info) {
+    if (!this.offered || this.offered.key !== key) return;
+    if (info || this.openKey !== key) this.infoOpen = info;
+    this.openKey = key;
+    this.opener = name;
+    this._fill();
+    this.el.hidden = false;
+    this._expanded();
+    (info && this.summary ? this.summary : this.closeButton).focus();
+  }
+
+  /** Close. Focus that was inside goes to the button that opened it, else to the current "Tables" button (the Details
+   *  may have been redrawn or show another device), else to onLostFocus; never onto the hidden panel. Focus elsewhere
+   *  (the drawer, the map) stays where it is. */
+  close() {
+    if (this.openKey === null) return;
+    const inside = this.el.contains(this.el.getRootNode().activeElement);
+    this.openKey = null;
+    this.el.hidden = true;
+    this._expanded();
+    if (!inside) return;
+    const openers = this.offered ? this.offered.openers : {};
+    const shown = (b) => Boolean(b) && b.isConnected && b.offsetParent !== null;
+    const back = [openers[this.opener], openers.tables].find(shown);
+    if (back) back.focus();
+    else this.onLostFocus();
+  }
+
+  /** What a layout pass measured (panel.js: the map's size, the left panel's mode, width and tab head, the right
+   *  panel's width, the bottom sheet's height); placed with the offer's minWidth, while hidden too, so it opens in
+   *  place. */
+  place(measured) {
+    this.measured = measured;
+    this._place();
+  }
+
+  _place() {
+    if (!this.measured || !this.offered) return;
+    const g = slideoutGeometry({ ...this.measured, need: this.offered.minWidth });
+    this.el.dataset.mode = g.mode;
+    Object.assign(this.el.style, { left: `${g.left}px`, width: `${g.width}px`, top: `${g.top}px`, maxHeight: `${g.maxHeight}px` });
+  }
+
+  /** aria-expanded: on "Tables" while open, on each "i" while open with "About these values" expanded. */
+  _expanded() {
+    if (!this.offered) return;
+    const open = this.openKey !== null && this.openKey === this.offered.key;
+    for (const [name, button] of Object.entries(this.offered.openers)) {
+      if (button) button.setAttribute("aria-expanded", String(name === "tables" ? open : open && this.infoOpen));
+    }
+  }
+
+  /** Fill from the offer; "About these values" keeps its state, a focused control is found again by its place. */
+  _fill() {
+    const s = this.offered;
+    this.title.textContent = s.title;
+    this.closeButton.setAttribute("aria-label", s.closeLabel);
+    this.closeButton.title = s.closeLabel;
+    const focusable = () => [...this.body.querySelectorAll("summary, [tabindex]")];
+    const at = focusable().indexOf(this.el.getRootNode().activeElement);
+    this.summary = s.info.length ? h("summary", { text: s.infoLabel }) : null;
+    const info = this.summary ? h("details", { class: "slideout-info", open: this.infoOpen,
+      on: { toggle: (e) => { this.infoOpen = e.currentTarget.open; this._expanded(); } } },
+    this.summary, ...s.info.map((text) => h("p", { class: "small", text }))) : null;
+    this.body.replaceChildren(...[info, ...s.sections].filter(Boolean));
+    if (at >= 0 && focusable()[at]) focusable()[at].focus();
   }
 }
 
@@ -14092,6 +14422,11 @@ p { margin: 4px 0; }
   border-radius: 12px; background: var(--mte-card); }
 .card .card-title, .card-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--mte-muted); }
 .card p { margin: 0; }
+/* #22: a device name longer than the card is wide breaks inside the word, in a card's lines and in the names of a
+   plain list, instead of widening the Details; only words that do not fit break. The link rule is limited to plain
+   lists: the reading rows shorten their link names with an ellipsis, and a max-width there would narrow them. */
+.card p, .card ul.plain { overflow-wrap: anywhere; }
+.card ul.plain button.link { max-width: 100%; text-align: left; }
 .card details > summary { margin-top: 0; }
 .card-details > summary.card-title { min-height: 24px; }
 .card-details { display: flex; flex-direction: column; gap: 6px; }
@@ -14176,8 +14511,44 @@ th { color: var(--mte-muted); font-weight: 500; }
 .route-hops .hop-line { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); padding-left: 6px; margin-top: 2px;
   overflow-wrap: anywhere; }
 .route-hops .hop-line.weak { box-shadow: inset 3px 0 0 var(--mte-error); }
-.route-hops .nowrap { white-space: nowrap; }
+.route-hops .nowrap, .slideout-table .nowrap { white-space: nowrap; }
 .scroll { overflow-x: auto; }
+/* The tables panel beside the Details (#25, board M42 V4), placed by geometry.js slideoutGeometry: side by side under
+   the left panel (z 9, so it slides out from beneath it), or a sheet over the full width above both panels. Its
+   tables scroll sideways in their own box; names and sources wrap, values do not. */
+.slideout { position: absolute; z-index: 9; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 16px 16px; overflow: hidden; background: var(--mte-card); color: var(--mte-fg);
+  border-radius: 0 12px 12px 0; box-shadow: var(--mte-shadow); animation: slideout-in 150ms ease-out; }
+.slideout[hidden] { display: none; }
+.slideout[data-mode="sheet"] { z-index: 11; border-radius: 0 0 12px 12px; animation-name: slideout-down; }
+.slideout-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.slideout-title { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.slideout p { margin: 0; }
+/* A vertical scrollbar takes its width from the tables only where the body scrolls; geometry.js SLIDEOUT_FRAME
+   allows for it. */
+.slideout-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow: auto; }
+.slideout-info { border: 1px solid var(--mte-divider); border-radius: 10px; padding: 0 12px 8px; }
+.slideout-info > summary { margin-top: 0; min-height: 36px; }
+/* Inside: the body's own scroll box would cut an outer outline. */
+.slideout-info > summary:focus-visible, .slideout .scroll:focus-visible { outline-offset: -2px; }
+.slideout-info p { margin: 4px 0 0; }
+.slideout-section { display: flex; flex-direction: column; gap: 6px; }
+.slideout-section .card-title { font-size: 14px; color: var(--mte-fg); }
+.slideout-table { font-size: 13px; border-collapse: collapse; width: 100%; }
+.slideout-table th, .slideout-table td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--mte-divider); }
+.slideout-table thead th { font-weight: 600; color: var(--mte-muted); }
+.slideout-table tbody th { font-weight: 400; color: var(--mte-fg); }
+.slideout-table tbody th, .slideout-table .source { overflow-wrap: anywhere; }
+.slideout-table td.weak { box-shadow: inset 3px 0 0 var(--mte-error); padding-left: 8px; }
+.hop-table .hop-names { min-width: 9em; }
+.title-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.tables-button { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px 0 10px; font-size: 13px; }
+.tables-button[aria-expanded="true"] { background: color-mix(in srgb, var(--mte-fg) 12%, transparent); }
+.card-head .info-button { margin: -6px -8px -6px 0; }
+@keyframes slideout-in { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes slideout-down { from { transform: translateY(-100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slideout { animation: none; } }
 .raw-table { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 details > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 4px; font-weight: 600;
   margin-top: 12px; list-style-position: inside; }
@@ -14381,7 +14752,7 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
   border-radius: 8px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px;
   pointer-events: none; white-space: nowrap; }
 .badge-tip small { color: var(--mte-muted); }
-.pair-card { position: absolute; z-index: 8; box-sizing: border-box; width: 260px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px;
+.pair-card { position: absolute; z-index: 12; box-sizing: border-box; width: 260px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px;
   padding: 8px 10px; border-radius: 10px; background: var(--mte-card); color: var(--mte-fg); box-shadow: var(--mte-shadow); font-size: 12px; outline: none; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card-close { border: none; background: none; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
@@ -14390,7 +14761,7 @@ button.menu-row { flex-direction: column; align-items: flex-start; gap: 2px; jus
 .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .card-actions .button { min-height: 28px; padding: 0 10px; font-size: 12px; }
 @media (max-width: 600px) { .pair-card { left: 8px !important; right: 8px; top: auto !important; bottom: 72px; width: auto; max-width: none; } }
-.details-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.details-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .history-button { min-height: 28px; padding: 0 10px; font-size: 13px; }
 .history-link { font-size: 12px; white-space: nowrap; }
 .hist-partner { max-width: 100%; border: none; background: none; padding: 0 4px; margin: 0 -4px; font: inherit; color: inherit; cursor: pointer;
@@ -14638,6 +15009,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.spread = h("div", { class: "zoom spread float", role: "group" }, ui.spreadMore, ui.spreadLess);
     ui.message = h("div", { class: "message" });
 
+    // The tables panel beside the Details (#25): its content is the engine's. Focus it held and cannot give back to
+    // a button goes to the Details, else to the map.
+    this._slideout = new Slideout({ onLostFocus: () => (this._left.visible("details") ? this._left.focusPanel() : ui.canvas.focus()) });
     this._left = new Drawer({ tabs: LEFT_TABS, side: "left", onChange: () => this._onDrawer() });
     this._right = new Drawer({ tabs: RIGHT_TABS, side: "right", onChange: () => this._onDrawer() });
     for (const d of [this._left, this._right]) d.fallback = ui.canvas;
@@ -14647,10 +15021,21 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     // Reading and tab order: the controls top left and top right, the map, the zoom group, the status pill, then the panels.
     ui.status = h("section", { class: "status-pill" });
     ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.spread, ui.zoom,
-      ui.status, this._left.el, this._right.el, ui.message);
+      ui.status, this._left.el, this._slideout.el, this._right.el, ui.message);
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
     ui.app = h("div", { class: "app" }, ui.map, ui.live);
+    // Esc, topmost first (#25, owner 2026-11-15): an open tables panel takes it wherever focus is in the panel, before
+    // the side panels' and the map's own Esc (capture phase); a modal dialog, and the status menu or a Direct link card
+    // where the key comes from inside them, keep their own (takesEscape).
+    ui.app.addEventListener("keydown", (e) => {
+      const card = this._history && this._history.card ? this._history.card.el : null;
+      if (e.key !== "Escape" || !takesEscape({ open: this._slideout.isOpen, dialog: Boolean(ui.app.querySelector("dialog[open]")),
+        path: e.composedPath(), layers: [ui.status.querySelector(`#${PILL_MENU_ID}`), card] })) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._slideout.close();
+    }, true);
     this._root.append(h("style", { text: STYLES }), ui.app, ui.probe);
     this._resize = new ResizeObserver(() => this._layout());
     this._retranslate();
@@ -14875,6 +15260,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.spread.hidden = !ready || !this._spreadFits;
     for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
+      this._slideout.close();
       this._left.close();
       this._right.close();
       this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message,
@@ -15011,7 +15397,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         const engine = engineFor(this._network);
         const seen = this._selected && this._observations && this._network.capabilities.observations
           ? this._observations.firstSeen(this._selected) : null;
+        this._slideout.begin();
         keepFocus(this._root, panel, () => engine.details(panel, { network: this._network, t, id: this._selected,
+          slideout: this._slideout,
           debug: this._debug, raw: this._raw, settings: this._settings.settings, sub: this._detailsSub,
           idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
@@ -15023,6 +15411,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
+        this._slideout.end();
       } else if (d.tab === "findings") {
         renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "findings") });
       } else if (d.tab === "legend") {
@@ -15050,6 +15439,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           } }));
       }
     }
+    this._closeTablesUnlessShown();
+  }
+
+  /** The tables panel belongs to the Details in view (#25): another tab, a closed or collapsed panel take it away. */
+  _closeTablesUnlessShown() {
+    if (!this._left.visible("details")) this._slideout.close();
   }
 
   /** One line for a collapsed sheet. */
@@ -15145,7 +15540,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const gr = size(this._right);
     this._left.setMode(gl.mode, gl.size);
     this._right.setMode(gr.mode, gr.size);
+    // Only now is the left panel's new mode known (a wide-to-narrow change rendered before): a collapsed sheet takes
+    // the tables panel away.
+    this._closeTablesUnlessShown();
     const insets = combinedInsets(gl.insets, gr.insets);
+    const side = gl.mode === "side";
+    this._slideout.place({ width: rect.width, height: rect.height, mode: gl.mode, left: side ? gl.size : 0,
+      right: insets.right, bottom: insets.bottom, head: side ? this._left.head.getBoundingClientRect().height : 0 });
     this._renderButtons();
     const box = (el) => {
       if (el.hidden) return { width: 0, height: 0 };

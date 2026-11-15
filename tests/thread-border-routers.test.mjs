@@ -20,7 +20,7 @@ const { buildThreadNetwork } = await import(`${F}engines/thread/model.js`);
 const { classifyLanes } = await import(`${F}engines/thread/lanes.js`);
 const { statusLine } = await import(`${F}engines/thread/status.js`);
 const { BORDER_ROUTERS_MS, DISCOVERY_MS, readThread } = await import(`${F}adapters/matter.js`);
-const { defaultPartner, partnerChoices } = await import(`${F}ui/history-partners.js`);
+const { partnerChoices } = await import(`${F}ui/history-partners.js`);
 const { ENGINES, historyCaps } = await import(`${F}engines/index.js`);
 const { translator } = await import(`${F}ui/i18n.js`);
 const { GraphView } = await import(`${F}graph/graph-view.js`);
@@ -189,20 +189,24 @@ test("#20 without the Thread integration's answers the network is today's", () =
   assert.ok(!statusLine(today, { now }).parts.some(([key]) => key === "status.thread_br_count"));
 });
 
-test("#20 an unheard border router is no route destination, has no route, and is never the default History partner", () => {
+test("#20 #24 an unheard border router is no route destination, has no route, and is never the History partner", () => {
   const routed = buildThreadNetwork(topology, { haThread, tables: { nodes: [], read_at: 1767268800, observe_seconds: 600 } });
   assert.deepEqual(routed.routing.borderRouters, [GARAGE]);
   assert.equal(routed.routing.defaultRoute(ATTIC), null);
   assert.equal(routed.routing.defaultRoute(GARAGE), null);
-  // The end device links to no border router: both are anchors without a link, and the attic one sorts first by name.
   const caps = historyCaps(net);
   assert.equal(caps.historyless(dev(net, ATTIC)), true);
   assert.equal(caps.historyless(dev(net, GARAGE)), false);
-  assert.equal(defaultPartner(net, END, caps.anchorRole, caps.historyless), GARAGE);
-  assert.equal(defaultPartner(net, END, caps.anchorRole), ATTIC, "without the engine's rule the shared code knows none");
+  // #24: no route tables, two border routers on the map (the attic one counts too): no single gateway, no button.
+  assert.equal(net.routing, null);
+  assert.equal(caps.gateway(net, END), null);
   assert.ok(partnerChoices(net, END, caps.anchorRole).some((c) => c.id === ATTIC && c.group === "anchor"), "still in the menu");
-  assert.equal(defaultPartner(net, ATTIC, caps.anchorRole, caps.historyless), null, "no neighbour: no button");
-  assert.equal(defaultPartner(buildThreadNetwork(withoutSnapshotBr(), { haThread }), END, caps.anchorRole, caps.historyless), null);
+  assert.equal(caps.gateway(net, ATTIC), null, "a border router itself: none");
+  assert.equal(caps.gateway(net, GARAGE), null, "a border router itself: none");
+  // #24: the unheard border router as the only one: it would be the partner, but it has no history.
+  assert.equal(caps.gateway(buildThreadNetwork(withoutSnapshotBr(), { haThread }), END), null);
+  // The heard border router alone (Home Assistant's list not read): the partner.
+  assert.equal(caps.gateway(buildThreadNetwork(topology, {}), END), GARAGE);
   assert.equal(ENGINES.zigbee.history.historyless({ id: "x", inTopology: false }), false, "Zigbee has no such device");
 });
 

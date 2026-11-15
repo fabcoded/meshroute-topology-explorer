@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
-// One-click entries to the path history window (owner 2026-11-05, spec 9.2, 9.5): the partner rules of the History
-// button (coordinator / strongest border router; an anchor itself: its strongest neighbour), the button and the
-// "history ↗" links in Details, the window's partner menu (order, search, tab and range kept) and the terms: no
-// user-visible "Lane". Pill hit area and click are in graph-badges.test.mjs. Fake DOM, committed samples. npm test
+// One-click entries to the path history window (owner 2026-11-05, spec 9.2, 9.5): the partner rule of the "History to
+// gateway" button (#24, owner 2026-11-15: the coordinator; Thread the border router of a complete route, else the only
+// border router; none on a coordinator or border router itself), the button and the "history ↗" links in Details, the
+// window's partner menu (order, search, tab and range kept) and the terms: no user-visible "Lane". Pill hit area and
+// click are in graph-badges.test.mjs. Expected partners come from the issue's rules and the fixtures' hand-checked
+// routes (tests/thread-routes-fixture.mjs). Fake DOM, committed samples. npm test
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -25,8 +27,9 @@ const { openHistoryWindow, forgetTab } = await import(`${F}ui/history-window.js`
 const { renderDetails } = await import(`${F}engines/zigbee/ui/details-tab.js`);
 const { renderThreadDetails } = await import(`${F}engines/thread/details.js`);
 const { buildThreadNetwork } = await import(`${F}engines/thread/model.js`);
-const { defaultPartner, neighboursByReception, partnerChoices } = await import(`${F}ui/history-partners.js`);
+const { neighboursByReception, partnerChoices } = await import(`${F}ui/history-partners.js`);
 const { HISTORY_TEXTS } = await import(`${F}ui/history-texts.js`);
+const { partnerOf } = await import(`${F}ui/history-links.js`);
 const { ENGINES, historyCaps } = await import(`${F}engines/index.js`);
 const { translator } = await import(`${F}ui/i18n.js`);
 const { resolveTheme } = await import(`${F}graph/palette.js`);
@@ -46,31 +49,48 @@ const router = network.devices.find((d) => d.role === "router").id;
 
 const matter = JSON.parse(readFileSync(new URL("./fixtures/matter-sample.json", import.meta.url), "utf8")).responses["matter/network_topology"];
 const threadNet = buildThreadNetwork(matter);
+const { idOf, threadRoutesSample } = await import("./thread-routes-fixture.mjs");
+const routes = threadRoutesSample();
+const routed = buildThreadNetwork(routes.topology, { tables: routes.tables, deviceRegistry: routes.registry });
+const gateway = (net, id) => historyCaps(net).gateway(net, id);
 
-test("partner of the History button: the coordinator; the coordinator itself: its strongest neighbour by reception", () => {
-  assert.equal(defaultPartner(network, router, anchorRole), coordinator);
-  const best = neighboursByReception(network, coordinator);
-  assert.ok(best.length > 2);
-  assert.ok(best.every((n, i) => !i || best[i - 1].score >= n.score), "sorted by reception, strongest first");
-  assert.equal(defaultPartner(network, coordinator, anchorRole), best[0].id);
-  assert.equal(defaultPartner(network, "nobody", anchorRole), null);
+test("#24 Zigbee: the partner is the coordinator, on every device but the coordinator itself", () => {
+  assert.equal(gateway(network, router), coordinator);
+  assert.ok(network.devices.filter((d) => d.id !== coordinator).every((d) => gateway(network, d.id) === coordinator));
+  assert.equal(gateway(network, coordinator), null, "the coordinator has no single gateway path");
+  assert.equal(gateway(network, "nobody"), null);
+  // A network without a coordinator, or (malformed) with two: no single gateway.
+  const dev = (id, role) => ({ id, label: id, role });
+  assert.equal(gateway({ ...network, devices: [dev("x", "router")] }, "x"), null);
+  assert.equal(gateway({ ...network, devices: [dev("x", "router"), dev("c1", "coordinator"), dev("c2", "coordinator")] }, "x"), null);
 });
 
-test("Thread: the border router with the strongest link; a border router itself: its strongest neighbour", () => {
-  const role = historyCaps(threadNet).anchorRole;
-  const brs = threadNet.devices.filter((d) => d.role === role);
-  assert.ok(brs.length >= 1);
-  const plain = threadNet.devices.find((d) => d.role !== role && neighboursByReception(threadNet, d.id).length);
-  const chosen = defaultPartner(threadNet, plain.id, role);
-  assert.ok(brs.some((b) => b.id === chosen));
-  // Two border routers, one with a measured link and a better one: the better wins (a net built for the rule).
-  const dev = (id, r) => ({ id, label: id, role: r });
-  const dir = (lqi, rssi) => ({ state: "measured", lqi, rssi });
-  const net = { devices: [dev("x", "router"), dev("b1", "border router"), dev("b2", "border router")],
-    pairs: [{ a: "b1", b: "x", ab: dir(1, -80), ba: dir(1, -82) }, { a: "b2", b: "x", ab: dir(3, -60), ba: dir(2, -70) }] };
-  assert.equal(defaultPartner(net, "x", "border router"), "b2");
-  assert.equal(defaultPartner(net, "b1", "border router"), "x", "a border router: its only neighbour");
-  assert.equal(defaultPartner({ devices: [dev("x", "router")], pairs: [] }, "x", "border router"), null, "no border router: no button");
+test("#24 Thread, two border routers with routes: the border router the route card names", () => {
+  // Hand-checked in the fixture: the motion sensor's lowest path cost goes to border router B (4), plug 1's to A (2).
+  assert.equal(gateway(routed, idOf("XS")), idOf("BRB"));
+  assert.equal(gateway(routed, idOf("P1")), idOf("BRA"));
+  assert.equal(routed.routing.defaultRoute(idOf("XS")).to, idOf("BRB"), "the route card's border router");
+  for (const br of ["BRA", "BRB"]) assert.equal(gateway(routed, idOf(br)), null, "a border router itself: none");
+});
+
+test("#24 Thread, two border routers without a complete route: no button; one border router: that one", () => {
+  // Route tables not read: no route at all, two border routers on the map.
+  const plain = buildThreadNetwork(routes.topology, { deviceRegistry: routes.registry });
+  assert.equal(plain.routing, null);
+  assert.equal(gateway(plain, idOf("XS")), null);
+  // Plug 2 offline for Matter: the motion sensor's way there stops at its parent; the card still names a border router.
+  const s = threadRoutesSample();
+  s.tables.nodes.find((x) => x.node_id === 22).available = false;
+  const stopped = buildThreadNetwork(s.topology, { tables: s.tables, deviceRegistry: s.registry });
+  const r = stopped.routing.defaultRoute(idOf("XS"));
+  assert.equal(r.there.complete, false);
+  assert.equal(gateway(stopped, idOf("XS")), null, "a stopped route among two border routers is no single path");
+  // The Matter sample: one border router, no route tables: it is the partner of every other device.
+  const br = threadNet.devices.filter((d) => d.role === "border router");
+  assert.equal(br.length, 1);
+  assert.equal(threadNet.routing, null);
+  assert.ok(threadNet.devices.filter((d) => d.role !== "border router").every((d) => gateway(threadNet, d.id) === br[0].id));
+  assert.equal(gateway(threadNet, br[0].id), null, "the border router itself: none");
 });
 
 function detailsCtx(net, id, extra = {}) {
@@ -78,41 +98,96 @@ function detailsCtx(net, id, extra = {}) {
     idPrefix: "d", pinned: false, onSub() {}, onSelect() {}, onRelease() {}, onCluster() {}, onFindings() {}, ...extra };
 }
 
-test("Details: a History button next to the name opens the pair; path lines carry 'history ↗'; none without a history host", () => {
+test("#24 Thread, a stopped route and one border router: that one; a complete route beside an unheard one: the route's", () => {
+  // The #20 fixture's snapshot alone holds one border router (garage); route tables without a node stop every route.
+  const fixture = JSON.parse(readFileSync(new URL("./fixtures/thread-border-routers.json", import.meta.url), "utf8")).responses;
+  const one = buildThreadNetwork(fixture["matter/network_topology"], { tables: { nodes: [], read_at: 1767268800, observe_seconds: 600 } });
+  const end = one.devices.find((d) => d.role === "end device").id;
+  const brs = one.devices.filter((d) => d.role === "border router");
+  assert.equal(brs.length, 1);
+  assert.equal(one.routing.defaultRoute(end).there.complete, false);
+  assert.equal(gateway(one, end), brs[0].id);
+  // The routes sample plus a border router only Home Assistant lists: three on the map; the sensor's complete route
+  // goes to border router B, which is the partner whatever else the map holds.
+  const loft = { instance_name: "Border router loft", extended_address: "aabbccdd000000ff", extended_pan_id: "aabbccddeeff0099",
+    vendor_name: "OpenThread", model_name: "BorderRouter" };
+  const three = buildThreadNetwork(routes.topology, { tables: routes.tables, deviceRegistry: routes.registry,
+    haThread: { datasets: null, routers: [loft] } });
+  assert.equal(three.devices.filter((d) => d.role === "border router").length, 3);
+  assert.equal(three.devices.find((d) => d.label === "Border router loft").inTopology, false);
+  assert.equal(three.routing.defaultRoute(idOf("XS")).there.complete, true);
+  assert.equal(gateway(three, idOf("XS")), idOf("BRB"));
+});
+
+test("#24 Zigbee path lines keep main's partner, the first anchor (of two coordinators the better linked); the button has none", () => {
+  const dev = (id, role) => ({ id, label: id, role });
+  const dir = (lqi) => ({ state: "measured", lqi, rssi: null });
+  const net = { engine: "zigbee", capabilities: {}, devices: [dev("x", "router"), dev("c1", "coordinator"), dev("c2", "coordinator")],
+    pairs: [{ a: "c1", b: "x", ab: dir(40), ba: dir(60) }, { a: "c2", b: "x", ab: dir(200), ba: dir(180) }] };
+  assert.equal(partnerOf({ network: net }, "x"), "c2", "the 'history ↗' of an up or down path line");
+  assert.equal(gateway(net, "x"), null, "the button: no single coordinator");
+  assert.equal(partnerOf({ network }, router), coordinator, "one coordinator: line and button agree");
+});
+
+test("#24 the partner menu is unchanged: anchors best linked first, then the neighbours strongest first, ties by RSSI", () => {
+  const dev = (id, role = "router") => ({ id, label: id, role });
+  const dir = (lqi, rssi) => ({ state: "measured", lqi, rssi });
+  const net = { devices: [dev("x"), dev("a"), dev("b"), dev("c"), dev("d"), dev("br1", "border router"), dev("br2", "border router")],
+    pairs: [{ a: "x", b: "a", ab: dir(3, -60), ba: dir(2, -70) }, { a: "b", b: "x", ab: dir(1, -85), ba: null },
+      { a: "x", b: "c", ab: dir(2, -75), ba: dir(2, -72) }, { a: "d", b: "x", ab: dir(3, -65), ba: dir(1, -90) },
+      { a: "x", b: "br1", ab: dir(1, -88), ba: dir(1, -90) }, { a: "br2", b: "x", ab: dir(3, -55), ba: dir(3, -58) }] };
+  // By hand, the better direction of each pair: br2 LQI 3 at -55, a 3 at -60, d 3 at -65, c 2 at -72, b 1 at -85,
+  // br1 1 at -88.
+  assert.deepEqual(neighboursByReception(net, "x").map((n) => n.id), ["br2", "a", "d", "c", "b", "br1"]);
+  assert.deepEqual(partnerChoices(net, "x", "border router").map((c) => [c.id, c.group]),
+    [["br2", "anchor"], ["br1", "anchor"], ["a", "neighbour"], ["d", "neighbour"], ["c", "neighbour"], ["b", "neighbour"]]);
+});
+
+test("#24 Details: 'History to gateway' names its partner and opens the pair; path lines carry 'history ↗'; none without a history host", () => {
   const opened = [];
   const history = { fill() {}, open: (a, b) => opened.push([a, b]) };
   const box = new FakeEl("div");
   renderDetails(box, detailsCtx(network, router, { history }));
   const [btn] = find(box, (e) => cls(e).includes("history-button"));
-  assert.equal(text(btn), "History");
-  assert.equal(btn.title, `History: ${label(router)} ⇄ ${label(coordinator)}`);
+  assert.equal(text(btn), "History to gateway");
+  assert.equal(btn.title, `Path history with ${label(coordinator)}`);
+  assert.equal(btn.getAttribute("aria-label"), `History to gateway: Path history with ${label(coordinator)}`, "the visible label first");
   btn.click({ currentTarget: btn });
   assert.deepEqual(opened.pop(), [router, coordinator]);
   const links = find(box, (e) => cls(e).includes("history-link"));
   assert.ok(links.length >= 1 && links.every((l) => text(l) === "history ↗"), "up and down path lines");
   links[0].click({ currentTarget: links[0] });
   assert.deepEqual(opened.pop(), [router, coordinator]);
-  // The coordinator's button: its strongest neighbour.
+  // The coordinator: no button (no single gateway path); its route lines keep their links to each destination.
   const cbox = new FakeEl("div");
   renderDetails(cbox, detailsCtx(network, coordinator, { history }));
-  find(cbox, (e) => cls(e).includes("history-button"))[0].click({ currentTarget: cbox });
-  assert.equal(opened.pop()[1], neighboursByReception(network, coordinator)[0].id);
+  assert.equal(find(cbox, (e) => cls(e).includes("history-button")).length, 0);
+  const routeLinks = find(cbox, (e) => cls(e).includes("history-link"));
+  assert.ok(routeLinks.length >= 1);
+  routeLinks[0].click({ currentTarget: routeLinks[0] });
+  assert.equal(opened.pop()[0], coordinator, "a route line opens the coordinator with that route's other end");
   // Non-administrators get no history host: no button and no links.
   const plain = new FakeEl("div");
   renderDetails(plain, detailsCtx(network, router, { history: null }));
   assert.equal(find(plain, (e) => cls(e).includes("history-button") || cls(e).includes("history-link")).length, 0);
 });
 
-test("Details of a Thread device: the button pairs it with its border router", () => {
-  const role = historyCaps(threadNet).anchorRole;
-  const plain = threadNet.devices.find((d) => d.role !== role && neighboursByReception(threadNet, d.id).length);
+test("#24 Details of a Thread device: the button pairs it with its route's border router; none on a border router", () => {
   const opened = [];
+  const ctx = (net, id) => ({ network: net, t, id, onSelect() {}, onFindings() {}, history: { open: (a, b) => opened.push([a, b]) } });
   const box = new FakeEl("div");
-  renderThreadDetails(box, { network: threadNet, t, id: plain.id, onSelect() {}, onFindings() {}, history: { open: (a, b) => opened.push([a, b]) } });
+  renderThreadDetails(box, ctx(routed, idOf("XS")));
   const [btn] = find(box, (e) => cls(e).includes("history-button"));
+  assert.equal(text(btn), "History to gateway");
+  assert.equal(btn.title, "Path history with Border router B");
   btn.click({ currentTarget: btn });
-  assert.equal(opened[0][0], plain.id);
-  assert.equal(threadNet.devices.find((d) => d.id === opened[0][1]).role, role);
+  assert.deepEqual(opened.pop(), [idOf("XS"), idOf("BRB")]);
+  const br = new FakeEl("div");
+  renderThreadDetails(br, ctx(routed, idOf("BRA")));
+  assert.equal(find(br, (e) => cls(e).includes("history-button")).length, 0);
+  const none = new FakeEl("div");
+  renderThreadDetails(none, ctx(buildThreadNetwork(routes.topology, {}), idOf("XS")));
+  assert.equal(find(none, (e) => cls(e).includes("history-button")).length, 0, "two border routers, no route: none");
 });
 
 async function openWindow(pair, tab) {

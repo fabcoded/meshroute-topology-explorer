@@ -15,7 +15,8 @@ export { RANGES, LANE_HALF_WINDOW } from "./history-records.js";
 
 /** What the path history window needs to know of a network type: { walks (a routing table, so routes are walked),
  *  lqiMax (top of the LQI axis), keepsNoTable(device) (what it hears is in no record), entryText(entry) (the pill text of a lane value where there is no walk),
- *  anchorRole, historyless(device) (no default History partner, no pair badge) }. */
+ *  anchorRole (the partner menu's first entries), historyless(device) (no History partner, no pair badge), gateway(network, id)
+ *  (the History button's partner or null, #24) }. */
 export const historyCaps = (network) => engineFor(network).history;
 
 /** The path history of a network over one recorded range (spec 5.8): createHistory with the network's engine and, for

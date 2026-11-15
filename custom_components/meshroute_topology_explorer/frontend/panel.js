@@ -29,13 +29,14 @@ import { combinedInsets, drawerGeometry, floatingLayout, isWide } from "./ui/geo
 import { MapButtons } from "./ui/map-buttons.js";
 import { HistoryHost } from "./ui/history-host.js";
 import { Drawer, LEFT_TABS, RIGHT_TABS } from "./ui/drawer.js";
+import { Slideout, takesEscape } from "./ui/slideout.js";
 import { DevicesTab } from "./ui/devices-tab.js";
 import { renderFindings, markFindings } from "./ui/findings-tab.js";
 import { renderLegend } from "./ui/legend-tab.js";
 import { renderView } from "./ui/view-tab.js";
 import { badgeCount } from "./ui/findings.js";
 import { ageParts } from "./ui/status.js";
-import { pillModel, statusPill } from "./ui/status-pill.js";
+import { PILL_MENU_ID, pillModel, statusPill } from "./ui/status-pill.js";
 import { activeNetwork, DEFAULT_NETWORK, loadNetworkChoice, networkChoices, saveNetworkChoice }
   from "./ui/network-switch.js";
 import { receptionText, roleText } from "./ui/format.js";
@@ -189,6 +190,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.spread = h("div", { class: "zoom spread float", role: "group" }, ui.spreadMore, ui.spreadLess);
     ui.message = h("div", { class: "message" });
 
+    // The tables panel beside the Details (#25): its content is the engine's. Focus it held and cannot give back to
+    // a button goes to the Details, else to the map.
+    this._slideout = new Slideout({ onLostFocus: () => (this._left.visible("details") ? this._left.focusPanel() : ui.canvas.focus()) });
     this._left = new Drawer({ tabs: LEFT_TABS, side: "left", onChange: () => this._onDrawer() });
     this._right = new Drawer({ tabs: RIGHT_TABS, side: "right", onChange: () => this._onDrawer() });
     for (const d of [this._left, this._right]) d.fallback = ui.canvas;
@@ -198,10 +202,21 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     // Reading and tab order: the controls top left and top right, the map, the zoom group, the status pill, then the panels.
     ui.status = h("section", { class: "status-pill" });
     ui.map = h("div", { class: "map" }, this._buttons.left, this._buttons.right, ui.canvas, ui.top, ui.spread, ui.zoom,
-      ui.status, this._left.el, this._right.el, ui.message);
+      ui.status, this._left.el, this._slideout.el, this._right.el, ui.message);
     ui.live = h("div", { class: "sr-only", "aria-live": "polite" });
     ui.probe = h("span", { class: "sr-only", "aria-hidden": "true" });
     ui.app = h("div", { class: "app" }, ui.map, ui.live);
+    // Esc, topmost first (#25, owner 2026-11-15): an open tables panel takes it wherever focus is in the panel, before
+    // the side panels' and the map's own Esc (capture phase); a modal dialog, and the status menu or a Direct link card
+    // where the key comes from inside them, keep their own (takesEscape).
+    ui.app.addEventListener("keydown", (e) => {
+      const card = this._history && this._history.card ? this._history.card.el : null;
+      if (e.key !== "Escape" || !takesEscape({ open: this._slideout.isOpen, dialog: Boolean(ui.app.querySelector("dialog[open]")),
+        path: e.composedPath(), layers: [ui.status.querySelector(`#${PILL_MENU_ID}`), card] })) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._slideout.close();
+    }, true);
     this._root.append(h("style", { text: STYLES }), ui.app, ui.probe);
     this._resize = new ResizeObserver(() => this._layout());
     this._retranslate();
@@ -426,6 +441,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     ui.spread.hidden = !ready || !this._spreadFits;
     for (const el of [ui.canvas, ui.top, ui.zoom, ui.status, this._buttons.left, this._buttons.right]) el.hidden = !ready;
     if (!ready) {
+      this._slideout.close();
       this._left.close();
       this._right.close();
       this._renderMessage(mismatch ? "version" : st.phase === "ready" ? "loading" : st.phase, st.message,
@@ -562,7 +578,9 @@ class MeshrouteTopologyExplorer extends HTMLElement {
         const engine = engineFor(this._network);
         const seen = this._selected && this._observations && this._network.capabilities.observations
           ? this._observations.firstSeen(this._selected) : null;
+        this._slideout.begin();
         keepFocus(this._root, panel, () => engine.details(panel, { network: this._network, t, id: this._selected,
+          slideout: this._slideout,
           debug: this._debug, raw: this._raw, settings: this._settings.settings, sub: this._detailsSub,
           idPrefix: "mte-details",
           observedSince: seen ? t.when(seen) : null,
@@ -574,6 +592,7 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           openDialog: (open) => this._openDialog(open),
           onFindings: (opener) => this._left.open("findings", { focus: true, opener }),
           onSelect: (id) => this._select(id, "details"), onRelease: (id) => this._release([id]) }));
+        this._slideout.end();
       } else if (d.tab === "findings") {
         renderFindings(panel, { network: this._network, t, selected: this._selected, onSelect: (id) => this._select(id, "findings") });
       } else if (d.tab === "legend") {
@@ -601,6 +620,12 @@ class MeshrouteTopologyExplorer extends HTMLElement {
           } }));
       }
     }
+    this._closeTablesUnlessShown();
+  }
+
+  /** The tables panel belongs to the Details in view (#25): another tab, a closed or collapsed panel take it away. */
+  _closeTablesUnlessShown() {
+    if (!this._left.visible("details")) this._slideout.close();
   }
 
   /** One line for a collapsed sheet. */
@@ -696,7 +721,13 @@ class MeshrouteTopologyExplorer extends HTMLElement {
     const gr = size(this._right);
     this._left.setMode(gl.mode, gl.size);
     this._right.setMode(gr.mode, gr.size);
+    // Only now is the left panel's new mode known (a wide-to-narrow change rendered before): a collapsed sheet takes
+    // the tables panel away.
+    this._closeTablesUnlessShown();
     const insets = combinedInsets(gl.insets, gr.insets);
+    const side = gl.mode === "side";
+    this._slideout.place({ width: rect.width, height: rect.height, mode: gl.mode, left: side ? gl.size : 0,
+      right: insets.right, bottom: insets.bottom, head: side ? this._left.head.getBoundingClientRect().height : 0 });
     this._renderButtons();
     const box = (el) => {
       if (el.hidden) return { width: 0, height: 0 };

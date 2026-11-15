@@ -510,6 +510,16 @@ if (q.get("lost")) {
   }, Number(q.get("lost")) * 1000);
 }
 
+/** tables=1|info (#25): press the Details' "Tables" button, or the route card's "i" (the first "i" without a route
+ *  card), once Details is shown; as a click would. */
+async function openTables() {
+  if (!q.get("tables")) return;
+  await sleep(100);
+  const root = el.shadowRoot;
+  const button = q.get("tables") === "info" ? root.querySelector(".card-head .info-button") : root.querySelector(".tables-button");
+  if (button) button.click();
+}
+
 // Drive the panel into a state for screenshots once the data is in (dev only: uses the element's internals).
 async function drive() {
   for (let i = 0; i < 100 && !el._network; i++) await sleep(50);
@@ -530,6 +540,7 @@ async function drive() {
   else if (id) el._select(id, "findings");
   if (q.get("left")) el._request("left", q.get("left"), null);
   if (q.get("right")) el._request("right", q.get("right"), null);
+  await openTables();
   // hover=<label>: the device under the pointer, as a mouse over it would set it (the preview of its lanes).
   const hover = q.get("hover")
     && (byLabel(q.get("hover")) || (el._network.devices.find((d) => d.label === q.get("hover")) || {}).id);
@@ -583,7 +594,7 @@ async function drive() {
   }
 }
 
-/** steps=click:<selector>;focus:<selector>;key:<Key>;wait:<ms>;note:<text> replays input inside the panel and records
+/** steps=click:<selector>;focus:<selector>;key:<Key>;wait:<ms>;width:<px>;note:<text> replays input inside the panel and records
  *  after each step which element has focus, what is selected and which tab is open, in body[data-log] (read it with
  *  the browser's --dump-dom). A synthetic Enter on a button clicks it, as a real key press would. */
 /** Bottom edges (px from the window top) of the status pill and the fit button, and the window height, for #4. */
@@ -603,9 +614,66 @@ const routeWidths = () => {
   return `${Math.round(widest)} card ${Math.round(list.closest(".card").getBoundingClientRect().right)}`;
 };
 
+/** #22: the Details' body against sideways scrolling (scrollWidth/clientWidth) and how far any element of a card
+ *  reaches past that card's right edge (px, overflowing text counts; 0 where nothing does); "- over -" without Details. */
+const detailsWidths = () => {
+  const cards = [...el._left.panel("details").querySelectorAll(".card")];
+  if (!el._left.visible("details") || !cards.length) return "- over -";
+  const reach = (node) => Math.max(node.getBoundingClientRect().right, node.getBoundingClientRect().left + node.scrollWidth);
+  const over = Math.max(...cards.map((c) => Math.max(...[...c.querySelectorAll("*")].map(reach)) - c.getBoundingClientRect().right));
+  return `${el._left.body.scrollWidth}/${el._left.body.clientWidth} over ${Math.max(0, Math.round(over))}`;
+};
+
+/** Where focus is relative to the tables panel: "close" (its close button), "summary", "inside" or "outside". */
+const focusIn = (panel) => {
+  const a = el.shadowRoot.activeElement;
+  if (!a || !panel.contains(a)) return "outside";
+  return a === panel.querySelector(".slideout-head button") ? "close" : a.tagName === "SUMMARY" ? "summary" : "inside";
+};
+
+/** #25: the tables panel against the map and the open side panels, as left,top,right,bottom (px, rounded from
+ *  getBoundingClientRect, after its slide): its mode and box, the map's, the left panel's (and its tab head's bottom), the right
+ *  panel's or "-"; its table boxes (how many, how many show their table without scrolling), the right edge of the
+ *  widest and each one's scroll width (a table's min-content width where it overflows); the "Tables" button's
+ *  aria-expanded and where focus is (focusIn); "slideout closed" while it is hidden. */
+const slideoutState = () => {
+  const root = el.shadowRoot;
+  const panel = root.querySelector(".slideout");
+  const expanded = (root.querySelector(".tables-button") || { getAttribute: () => "-" }).getAttribute("aria-expanded");
+  if (!panel || panel.hidden) return `slideout closed; tablesbutton ${expanded}`;
+  // Where it comes to rest: a headless run may hold the 150 ms slide at its start.
+  for (const a of panel.getAnimations()) a.finish();
+  const box = (n) => { const r = n.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom].map(Math.round).join(","); };
+  const scrolls = [...panel.querySelectorAll(".scroll")];
+  const fit = scrolls.filter((n) => n.scrollWidth <= n.clientWidth + 1).length;
+  const reach = Math.round(Math.max(0, ...scrolls.map((n) => n.getBoundingClientRect().right)));
+  return `slideout ${panel.dataset.mode} box ${box(panel)} map ${box(root.querySelector(".map"))} `
+    + `left ${el._left.isOpen ? box(el._left.el) : "-"} head ${Math.round(el._left.head.getBoundingClientRect().bottom)} `
+    + `right ${el._right.isOpen && el._right.mode === "side" ? box(el._right.el) : "-"} tables ${scrolls.length} fit ${fit} `
+    + `reach ${reach} widths ${scrolls.map((n) => n.scrollWidth).join(",") || "-"} info ${(panel.querySelector("details") || {}).open ? "open" : "closed"}; `
+    + `tablesbutton ${expanded}; panelfocus ${focusIn(panel)}`;
+};
+
 /** The shown network's source and device count (#20: the unheard border router counts), or "-"; the pill's second line. */
 const network = () => (el._network ? `source ${el._network.source}; devices ${el._network.devices.length}` : "source -; devices -")
   + `; pill ${(el.shadowRoot.querySelector(".pill-line") || {}).textContent || "-"}`;
+
+/** One step of replay(): click, focus, width (#25), pill, key; wait and note do nothing here. */
+function runStep(root, op, arg) {
+  if (op === "click") root.querySelector(arg).click();
+  else if (op === "focus") root.querySelector(arg).focus();
+  else if (op === "width") { // width:<px> narrows the panel element, width: restores it (#25)
+    el.style.width = arg ? `${arg}px` : "";
+    el._layout(); // as its ResizeObserver would: a headless run under virtual time delivers those unreliably
+  } else if (op === "pill") { // pill:<hearer label>><sender label>: the card a click on that pair's pill opens (the canvas hit test is unit-tested)
+    const [a, b] = arg.split(">").map((label) => el._network.devices.find((d) => d.label === label).id);
+    el._view._emit("pill-click", { a, b, x: 300, y: 300 });
+  } else if (op === "key") {
+    const target = root.activeElement || el;
+    const handled = !target.dispatchEvent(new KeyboardEvent("keydown", { key: arg, bubbles: true, composed: true, cancelable: true }));
+    if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
+  }
+}
 
 async function replay() {
   const list = q.get("steps");
@@ -618,16 +686,7 @@ async function replay() {
     const at = step.indexOf(":");
     const op = step.slice(0, at);
     const arg = step.slice(at + 1);
-    if (op === "click") root.querySelector(arg).click();
-    else if (op === "focus") root.querySelector(arg).focus();
-    else if (op === "pill") { // pill:<hearer label>><sender label>: the card a click on that pair's pill opens (the canvas hit test is unit-tested)
-      const [a, b] = arg.split(">").map((label) => el._network.devices.find((d) => d.label === label).id);
-      el._view._emit("pill-click", { a, b, x: 300, y: 300 });
-    } else if (op === "key") {
-      const target = root.activeElement || el;
-      const handled = !target.dispatchEvent(new KeyboardEvent("keydown", { key: arg, bubbles: true, composed: true, cancelable: true }));
-      if (!handled && (arg === "Enter" || arg === " ") && target.tagName === "BUTTON") target.click();
-    }
+    runStep(root, op, arg);
     await sleep(op === "wait" ? Number(arg) : 150);
     log.push(`${step} -> focus ${describe(root.activeElement)}; selected ${el._selected || "-"}; `
       + `left ${el._left.isOpen ? el._left.tab : "closed"}; right ${el._right.isOpen ? el._right.tab : "closed"}; `
@@ -635,13 +694,14 @@ async function replay() {
       + `openDetailsOnSelect ${el._settings && el._settings.settings.openDetailsOnSelect}; `
       + `paths ${el._settings && el._settings.settings.paths}; view ${el._view && el._view.paths}; `
       + `history ${(root.querySelector(".htab.on") || {}).textContent || "closed"}; `
+      + `${slideoutState()}; `
       + `card ${root.querySelector(".pair-card") ? "open" : "closed"}; menu ${root.querySelector("#mte-pill-menu") ? "open" : "closed"}; `
       + `${network()}; networks ${root.querySelectorAll('[role="menuitemradio"]').length}; `
       + `zigbee-inputs ${[...root.querySelectorAll("input")].filter((n) => /-(paths|sourceRoute|heard|pathMode|color-)/.test(`${n.name} ${n.id}`)).length}; `
       + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
       + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `
       + `module ${panelModules()}; `
-      + `edges ${edges()}; routehops ${routeWidths()}; `
+      + `edges ${edges()}; routehops ${routeWidths()}; detailsbody ${detailsWidths()}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");

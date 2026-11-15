@@ -66,10 +66,17 @@ export const zigbee = Object.freeze({
   history: Object.freeze({ walks: true, lqiMax: 255, entryText: null,
     /** End devices keep no neighbour table: what they hear is in no record. */
     keepsNoTable: (device) => device.role === "end device",
-    /** The role of the devices the History button pairs a device with. */
+    /** The role of the partner menu's first entry. */
     anchorRole: "coordinator",
     /** Every Zigbee device can be in a record: none is historyless. */
-    historyless: () => false }),
+    historyless: () => false,
+    /** The History button's partner (#24): the coordinator, for every device but the coordinator itself; none where
+     *  the network does not hold exactly one. */
+    gateway: (network, id) => {
+      const coordinators = network.devices.filter((d) => d.role === "coordinator");
+      const known = network.devices.some((d) => d.id === id);
+      return known && coordinators.length === 1 && coordinators[0].id !== id ? coordinators[0].id : null;
+    } }),
   /** Its own words (texts.js), merged into the panel's table by ui/i18n.js. */
   texts: TEXTS,
   /** Its own settings keys (spec 11): paths, heard, returnRoutes, sourceRoute, with their legacy readings; the shell

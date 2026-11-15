@@ -296,7 +296,7 @@ The panel reads through Home Assistant's websocket API and requires an administr
   - A border router in both: the instance name names it (after the device registry). One only Home Assistant lists
     (its extended address on no snapshot node): added as a border router without links, drawn without lanes, with
     the Details line of 9.2. Its availability is unknown (drawn as available, never offline), it is never rated, it is
-    no route destination (Routes; its tables are in no cache), never the History button's default partner and has no
+    no route destination (Routes; its tables are in no cache), never the History button's partner and has no
     pair badge (9.5). No reliable mapping to a registry device or config entry exists otherwise: registry connections
     carry no Thread address, and the OTBR entry's data needs `otbr/*`.
   - The border router named by `preferred_extended_address` of the preferred dataset of this extended PAN id is marked
@@ -889,6 +889,31 @@ One place per thing; nothing appears twice.
   in view closes the panel. Wide screens: side panels on their own side (both may be open), hiding their corner's
   buttons. Narrow screens: bottom sheets, one at a time. A panel never covers the selected device (the map pans).
   Closing (×, Esc) returns focus to where the panel was opened.
+- **Tables panel** (#25, owner 2026-11-15, board M42 V4; Thread Details only, 9.2): a third surface, opened from the
+  Details by "Tables" or a card's "i", never by hover, over the map and not modal (no backdrop, the map stays usable;
+  it does not move the map). The shell is shared (`ui/slideout.js`: open, close, focus, placement, a collapsible
+  "About these values"); the engine's Details offer its content on every render, with the width it needs, so a change
+  of selection closes it. Placement (`ui/geometry.js` `slideoutGeometry`, from the map's own box on every layout
+  pass): beside the open left side panel, below its tab head, `min(600 px, free width − 16 px)` wide, where the free
+  width is the map less both side panels; at most down to 16 px above the map's bottom. Where that width is under
+  what the content needs plus the panel's own 49 px, and on a phone, a sheet over the full map width: below the left
+  panel's tab head (side panels, above both) or from the map's top down to the bottom sheet (phone). Thread needs
+  424 px (the five-column hop table's min-content width, measured in Chromium at 13 px), so the threshold is 473 px:
+  424 + 2 × 16 px padding + 17 px for a vertical scrollbar, which the body shows where it scrolls (17 px: Windows'
+  classic scrollbar; Chromium on Linux takes 15 px; overlay scrollbars none), so the tables fit beside it too. A
+  table wider than the panel scrolls sideways in its own box, which takes focus. Slides in
+  within 150 ms, without animation under reduced motion. Head: the device's name and a close button; then "About
+  these values" (collapsed when opened by "Tables", expanded and focused when opened by an "i"), then the engine's
+  sections. Closes with its close button, Esc, a second press of "Tables", a change of selection, another tab, a
+  closed or collapsed left panel (also when a narrower map turns it into a collapsed sheet). Esc is taken topmost
+  first (one handler in `panel.js`, `takesEscape`): a modal dialog (the path history window, cluster details, the
+  scan's confirmation) keeps its Esc wherever focus is; the status pill's menu and a Direct link card keep theirs
+  where the key comes from inside them; otherwise, while it is open, Esc closes it wherever focus is in the panel
+  (side panels, map and map buttons included), and a menu or card left open stays as it is. Without it Esc does what
+  it does there. Focus moves into it on opening (close button, or "About these values" from an "i"); on closing, focus
+  that was inside goes back to the button that opened it, else to the current "Tables" button, else to the Details
+  (or the map), never onto the hidden panel; focus elsewhere stays. "Tables" carries `aria-expanded` (open), each "i"
+  `aria-expanded` (open with "About these values" expanded); both keep stable ids across a redraw of the Details.
 - **Devices:** a search field ("Name, model, area, address"), a line saying what a click does, the list (9.3), and a
   count only while a search filters. Rows: coordinator first, then by name; the name in bold, below one grey line:
   type · role ("sleeps" for a sleepy end device) · "direct to the coordinator" (an end device whose parent it is, a
@@ -954,7 +979,7 @@ One place per thing; nothing appears twice.
 - Click or tap selects a device in every view; the selection shows its paths in the node view (7.1) or plays its path
   (route view). Clicking the background or Esc clears it.
 - **Details** (left-panel tab): the name in bold, one line "type · role · vendor model" ("unavailable since …" below
-  when down; administrators: a **History** button beside the name, 9.5), then a segmented control (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a
+  when down; administrators: a **History to gateway** button beside the name, 9.5), then a segmented control (WAI-ARIA tabs, arrows move) with three sub-tabs, each a stack of cards with a
   small bold heading. At the narrowest side panel it takes less padding and type, never an ellipsis. The sub-tab stays
   when the selection changes.
   - **Communication**:
@@ -1017,11 +1042,13 @@ One place per thing; nothing appears twice.
     devices.
   - "Manage in ZHA" (`/config/zha/device/<ieee>/clusters`) and "The map is read-only: writing, reporting and binding
     are done in ZHA's device management."
-- **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, role, "Thread leader" where it
-  applies; a border router only Home Assistant's Thread integration lists: "Not in the Matter server's topology: no
+- **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, "History to gateway" (9.5) and
+  **Tables** (#25: on every device with neighbours or a route with hops, where the panel has a tables panel, 9.1;
+  `aria-expanded` follows it), role, "Thread leader" where it applies; a border router only Home Assistant's Thread integration lists: "Not in the Matter server's topology: no
   Matter device's neighbour table lists it with a live link."; the preferred border router of the preferred dataset:
   "Home Assistant's preferred border router of its preferred Thread network.", 3.2), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list
-  (#22, board M42 V2: a list with one block per hop, never a table, so names of any length wrap inside the card; a
+  (#22, board M42 V2: a list with one block per hop, never a table, so names of any length wrap inside the card, as do
+  the card's other lines and the neighbours' names, breaking inside a name only where it does not fit; a
   divider above the first and below every block; first line the hop number in bold, "A → B" wrapping freely and the
   cost as the sender counts it ("cost 1", "cost 1 · as the device receives" on a child's link, "cost ?"), which
   moves to its own line where the first line has no room; then a line "there" and a line "back" where that
@@ -1036,18 +1063,32 @@ One place per thing; nothing appears twice.
   Meshroute checks its copy every 10 minutes (last check 14:20)." or "Read at 13:50 or earlier; Meshroute had not seen
   this table before (age unknown). The server re-reads its tables about once a day."; values that may be older than
   4 hours in amber with the note "Values that may be older than 4 hours in amber: the route may have changed since.";
+  with a tables panel (#25) the card keeps values, the "derived" tag, the weakest line and every statement about the
+  route, gets an "i" at its title, and leaves "Per hop: …", the derived hop's note and the source line to the panel;
+  the amber note becomes "Some values may be older than 4 hours." in the same place and colour;
   while border routers advertise different partitions, muted, "Border routers advertise different partitions; if
   the network is split, routes from the Matter server's copy may no longer hold." (#21; the route is drawn as
   without it); none for a border router, also where the route tables could not be read, #20),
   "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
-  parent first), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
+  parent first) and the note "From the neighbour tables in the Matter server's snapshot; the tables can be many hours
+  old." (with a tables panel: an "i" at the title instead), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
   reported" where missing; where the device reported a valid partition id, not on a border router, "Thread partition
   as last read: 111111111, leader router ID 60. The read time is not reported.", without the leader part where it
   was not reported, 3.2 "Partitions", #21; a border router with an advertised partition id: "Thread partition
   111111111, as advertised 12 min ago." ("as advertised; when Home Assistant received it is not reported." where the
-  age is unknown or not a valid time), then "A partition is a part of the Thread network whose routers reach each other.", and while
+  age is unknown or not a valid time), then "A partition is a part of the Thread network whose routers reach each other."
+  (with a tables panel: in the panel, an "i" at the card's title), and while
   border routers advertise different partitions and its own advertisement is of known age "Also advertised by
   <names>." or "No other border router on this map advertises it.").
+- **Thread tables panel** (#25, 9.1): "Neighbours", one row per neighbour as in the card (same rows, order, parent and
+  end device marks), columns "neighbour" (row header), "this device hears", "neighbour hears"; then "Route to <border
+  router>" where the route has hops: the summary of a complete way there ("3 hops · path cost 4"), then where a way
+  stops ("The route stops at X: …": the way there in place of the summary, the way back under it), the source line with its amber spans and tooltips, the five-column hop table (#, hop, there, back, cost: the
+  weakest marks, amber values, the "derived" tag, each value's table, a child's cost note), the weakest line. Both
+  tables have a header row (`scope="col"`). "About these values" holds the explanations that apply, in this order:
+  the neighbours' note (with neighbours), "Per hop: what the receiver hears." (with a route), the derived hop's note,
+  the amber note, what a partition is (an advertised partition). Where no panel can be offered (no neighbours and no
+  route with hops, or no panel) the cards keep every explanation: no text is lost.
 - **Thread route on the map** (3.2, boards M38 and M40 A): selecting a device draws its route to the default border
   router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
   numbers on the way there, the weakest hop of each direction below LQI 3 wider with its pill outlined red, the
@@ -1115,8 +1156,8 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   "Direct link: A ⇄ B" (the selected device first), both directions one line each ("B hears A · 64 · rank 45 %", Thread "−75 dBm · LQI 3")
   with a 48 h sparkline (Thread: RSSI) from the loader's cache (values alone while loading; the loader's state text without a
   recording), and the buttons "Direct link history ⇄" (window on the Direct link tab, last 48 h) and "Route history" (window on
-  Timeline, same pair); × and Esc, a tap on the empty map or another pill closes or replaces it, one card at a time, a phone gets a
-  bottom sheet; hit area at least 24 px around the pill, pointer cursor, title "Direct link: A ⇄ B"; (2) the **History** button next to the name in Details (9.2); (3) "history ↗" on the lines of
+  Timeline, same pair); × and Esc, a tap on the empty map or another pill closes or replaces it, one card at a time, above the side panels and the tables panel (#25), a phone gets a
+  bottom sheet; hit area at least 24 px around the pill, pointer cursor, title "Direct link: A ⇄ B"; (2) the **History to gateway** button next to the name in Details (9.2); (3) "history ↗" on the lines of
   "Communication path with the coordinator". Terms: a **direct link** is two neighbours that hear each other (history in
   both directions), a **route** is the way between two devices.
 - **Window:** modal dialog "A ⇄ B" with ×, tabs Timeline, Route, Direct link (the last one used is remembered), ranges 48 h, 7 d,
@@ -1125,10 +1166,15 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
   live input is what the panel already holds (`network.live`).
 - **Partner menu:** the second name in the header is a menu: the coordinator (Thread: the border routers) first, then
   the first device's neighbours by reception (strongest first), and a search over all devices. A change keeps tab and
-  range. The History button's partner: the coordinator, Thread the border router with the strongest link, never one
-  only Home Assistant's Thread integration lists (3.2, #20; historyless in the engine's history caps; the menu still
-  lists it); for the coordinator or a border
-  router itself its strongest neighbour by reception.
+  range. **History to gateway** (#24, owner 2026-11-15): shown only where it can mean one connection, the device's path
+  to its gateway; the partner comes from the engine's history caps (`gateway`): Zigbee the coordinator, on every device
+  but the coordinator itself; Thread the border router of the device's route where its way there is complete (the one
+  the route card names), else the map's only border router (one only Home Assistant's Thread integration lists
+  counts), else none; never a partner without a history (3.2, #20; historyless in the history caps; the menu still
+  lists it); none on a coordinator or border router itself. A complete route of unknown path cost keeps its border
+  router as the partner: it is the route the card shows. Tooltip "Path history with <partner>"; accessible name
+  "History to gateway: Path history with <partner>". The "history ↗" of Zigbee's up and down path lines keeps the
+  partner it had: the first anchor of the partner menu (of several coordinators the best linked).
 - **Timeline** (Zigbee): per direction a band of route spans ("via X, Y", "direct"; a walk that stopped is a dashed gap
   with its reason) and under it the rank of the weakest hop at its receiver over time (0 to 100 %), a point per record, the
   weakest hop named where it changes. Weakest = by rank, never raw LQI; a hop without a reading is never the weakest; a route of one hop has none.
