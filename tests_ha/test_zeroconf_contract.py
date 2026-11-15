@@ -3,8 +3,8 @@
 Assistant 2026.10.4, 0.152.0 in 2026.11.0): what thread_border_agents.py assumes still holds. The zeroconf integration
 is set up with Home Assistant's own fixture mock_async_zeroconf (no sockets, no browser; the record cache is zeroconf's
 real DNSCache), and records are put into that cache as zeroconf's record manager would after receiving them
-(DNSPointer and DNSText with their reception time). Nothing is sent: the command touches neither the instance nor a
-browser. Run: python3 -m pytest tests_ha"""
+(DNSPointer and DNSText with their reception time; an expired pointer, a record received again). Nothing is sent:
+the command touches neither the instance nor a browser. Run: python3 -m pytest tests_ha"""
 
 from zeroconf import DNSPointer, DNSText, current_time_millis
 
@@ -21,10 +21,10 @@ def txt(*pairs):
     return b"".join(bytes([len(k) + 1 + len(v)]) + k + b"=" + v for k, v in pairs)
 
 
-def agent(cache, name, text, age_ms, ttl=4500):
+def agent(cache, name, text, age_ms, ttl=4500, pointer_ttl=4500):
     """A border agent's pointer and TXT record, received age_ms ago."""
     received = current_time_millis() - age_ms
-    cache.async_add_records([DNSPointer(TYPE, PTR, IN, 4500, f"{name}.{TYPE}", created=received),
+    cache.async_add_records([DNSPointer(TYPE, PTR, IN, pointer_ttl, f"{name}.{TYPE}", created=received),
                              DNSText(f"{name}.{TYPE}", TXT, IN | UNIQUE, ttl, text, created=received)])
 
 
@@ -45,6 +45,9 @@ async def test_21_border_agents_from_the_real_zeroconf_cache(hass, hass_ws_clien
                                (b"pt", bytes.fromhex("89abcdef")), (b"nn", b"home"), (b"id", b"\x01" * 16)), 90_000)
     agent(cache, "Attic", txt((b"xa", bytes.fromhex("aabbccdd00000111")), (b"xp", xp), (b"pt", b"\x01\x02\x03")), 30_000)
     agent(cache, "Gone", txt((b"xa", bytes(8)), (b"xp", xp)), 200_000, ttl=120)  # expired 80 s ago: left out
+    agent(cache, "Removed", txt((b"xa", b"\x11" * 8), (b"xp", xp)), 200_000, pointer_ttl=120)  # its pointer expired
+    # The attic's TXT record received again 10 s ago, as zeroconf's record manager adds an answer: it replaces the old.
+    agent(cache, "Attic", txt((b"xa", bytes.fromhex("aabbccdd00000111")), (b"xp", xp), (b"pt", b"\x01\x02\x03")), 10_000)
     calls = (list(mock_async_zeroconf.mock_calls), list(mock_async_zeroconf.zeroconf.mock_calls))
 
     await ws.send_json_auto_id(command)
@@ -55,7 +58,7 @@ async def test_21_border_agents_from_the_real_zeroconf_cache(hass, hass_ws_clien
         {"ext_address": "aabbccdd00000110", "ext_pan_id": "aabbccddeeff0101", "partition_id": 0x89ABCDEF},
         {"ext_address": "aabbccdd00000111", "ext_pan_id": "aabbccddeeff0101", "partition_id": None}]
     # The age is the time since the record was received, in seconds (zeroconf's own clock; a test runs in well under 5 s).
-    assert 90 <= agents[0]["age"] < 95 and 30 <= agents[1]["age"] < 35
+    assert 90 <= agents[0]["age"] < 95 and 10 <= agents[1]["age"] < 15
     assert isinstance(answer["result"]["read_at"], float)
     # Read only: no call on the instance or on zeroconf (no query, no browser, no service lookup).
     assert (list(mock_async_zeroconf.mock_calls), list(mock_async_zeroconf.zeroconf.mock_calls)) == calls

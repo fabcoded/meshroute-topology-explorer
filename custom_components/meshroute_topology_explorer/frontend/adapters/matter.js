@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, the border
-// routers its Thread integration knows (#20) and their advertisements in its mDNS cache (#21), and hands them to the
-// Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache. No
-// DOM. npm test
+// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, and the border
+// routers Home Assistant knows (#20, #21), and hands both to the Thread engine (engines/index.js), which builds the
+// model. Read only: a snapshot built from the server's cache. No DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
@@ -36,14 +35,12 @@ async function discoverRouters(hass, timers, found, onResult) {
   return [...found.values()];
 }
 
-/** The border routers Home Assistant knows, read only (spec 3.2 "Border routers", #20, and "Partitions", #21): the
- *  answer of thread/list_datasets (no keys), discoverRouters (the Thread integration's mDNS view; while it runs Home
- *  Assistant sends an mDNS query on the local network, no Thread radio traffic) and the integration's
- *  thread_border_agents (the border agents' advertisements in Home Assistant's mDNS cache; sends nothing), each on its
- *  own, all bounded by BORDER_ROUTERS_MS from the start. Returns { datasets, routers, agents }, each null where its
- *  command failed or did not end in time (no Thread integration or zeroconf, not an admin; routers: what came so far
- *  where the result did): the map is then built as without them, without a message. Never rejects: a lost connection
- *  comes back as { lost }. timers: { setTimeout, clearTimeout }. */
+/** The border routers Home Assistant knows, read only (spec 3.2 "Border routers" and "Partitions"): the answers of
+ *  thread/list_datasets (no keys), discoverRouters (an mDNS query meanwhile, no Thread radio traffic) and the
+ *  integration's thread_border_agents (its mDNS cache; sends nothing), each bounded by BORDER_ROUTERS_MS from the
+ *  start. Returns { datasets, routers, agents }, each null where its command failed or did not end in time (routers:
+ *  what came so far where the result did): the map is then built as without them, without a message. Never rejects:
+ *  a lost connection comes back as { lost }. timers: { setTimeout, clearTimeout }. */
 async function readBorderRouters(hass, timers) {
   const found = new Map();
   let confirmed = false;

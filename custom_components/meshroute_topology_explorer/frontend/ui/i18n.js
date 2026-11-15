@@ -254,12 +254,14 @@ export function formatLocaleOf(hass) {
   }
 }
 
-/** t(key, params) with the key itself as fallback. Also: t.formatLocale, t.number(n), t.list(items), t.time(text).
- *  strings: the table, all of the panel's by default (tests pass fewer: mergeTexts). */
+/** t(key, params) with the key itself as fallback; a parameter given as [key, params] is translated first (an
+ *  engine's status part names an age by ageParts, engines/thread/status.js). Also: t.formatLocale, t.number(n),
+ *  t.list(items), t.time(text). strings: the table, all of the panel's by default (tests pass fewer: mergeTexts). */
 export function translator(formatLocale = "en", strings = STRINGS) {
   const t = (key, params = {}) => {
     const text = strings[key] ?? key;
-    return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
+    const value = (v) => (Array.isArray(v) ? t(...v) : String(v));
+    return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? value(params[name]) : m));
   };
   t.formatLocale = formatLocale;
   t.has = (key) => key in strings;

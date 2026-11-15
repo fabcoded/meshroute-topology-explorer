@@ -183,15 +183,13 @@ export function renderThreadDetails(container, ctx) {
     advertisedItem(ctx, d, name))));
 }
 
-/** A border router's advertised partition (#21, advertised.js): its id raw and how long ago Home Assistant received
- *  the advertisement, with one sentence on what a partition is; while the border routers advertise different
- *  partitions also which others advertise the same one. Null without an advertised partition id. */
+/** A border router's advertised partition (#21, spec 9.2), or null without one. */
 function advertisedItem(ctx, d, name) {
   const { network, t } = ctx;
   if (!d.advertised) return null;
   const { partition, at } = d.advertised;
   const line = at === null ? t("details.thread_partition_advertised_unknown", { partition })
-    : t("details.thread_partition_advertised", { partition, age: t(...ageParts(new Date(at).toISOString(), ctx.now ?? Date.now())) });
+    : t("details.thread_partition_advertised", { partition, age: ageParts(at, ctx.now ?? Date.now()) });
   const others = network.advertisedPartitions ? sharingPartition(network, d) : null;
   const shared = !others ? null : others.length ? t("details.thread_partition_shared", { names: t.list(others.map(name)) })
     : t("details.thread_partition_alone");
@@ -236,8 +234,7 @@ function routeCard(ctx, d, name) {
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
     sourceLine(tables, holders, name, t, now),
     old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null,
-    // #21: the border routers advertise different partitions; routes are not changed for it (spec 3.2 "Partitions").
-    network.advertisedPartitions ? h("p", { class: "small warn-text", text: t("route.partitions_note") }) : null);
+    network.advertisedPartitions ? h("p", { class: "muted small", text: t("route.partitions_note") }) : null); // #21
 }
 
 /** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null

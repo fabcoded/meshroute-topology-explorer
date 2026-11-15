@@ -172,6 +172,10 @@ class BorderAgentsTest(unittest.TestCase):
                          "an empty string and an empty key are skipped")
         self.assertEqual(agents.txt_values(b"\x03a=b\x09pt=\x00"), {b"a": b"b"}, "a string cut short is ignored")
         self.assertEqual(agents.txt_values(txt((b"Pt", b"\x00\x00\x00\x01"))), {b"pt": b"\x00\x00\x00\x01"})
+        # A binary value may hold "=" (0x3D): only the first "=" separates key and value.
+        self.cache.pointers.clear()
+        self.add("eq", txt((b"xa", XA), (b"xp", XP), (b"pt", b"\x00=\x00\x01")))
+        self.assertEqual(self.agents()[0]["partition_id"], 0x003D0001)
 
     def test_21_two_records_of_one_border_agent_both_go_out_newest_first(self):
         self.add("Garage", txt((b"xa", XA), (b"xp", XP), (b"pt", b"\x00\x00\x00\x01")), created=1_000_000.0)

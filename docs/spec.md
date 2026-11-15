@@ -229,9 +229,10 @@ The panel reads through Home Assistant's websocket API and requires an administr
   - The panel reads the command beside `thread/list_datasets` and `thread/discover_routers`, within the same bound
     (Border routers, below); failing or late, the map is as without it, with no message. A record is matched to a
     border router of the map (the snapshot's or one only Home Assistant lists) by extended address within the
-    snapshot's extended PAN id, compared in one case; a record of another network, or at a node that is no border
-    router (a commissioned Matter node), takes no part. Of several records of one address the newest wins (one of
-    known age before one of unknown age).
+    snapshot's extended PAN id, compared in one case: of several records of one address the newest is taken (one of
+    known age before one of unknown age), then dropped where it is of another network; a record at a node that is
+    no border router (a commissioned Matter node) takes no part. An age or `read_at` that gives no valid time (not a
+    number, negative, or outside the Date range) is unknown.
   - Border routers advertising two or more different partition ids, each from a record of known age: the status
     part "Border routers advertise n partitions" (amber, 6), the line on route cards (9.2), and in Details which
     border routers advertise the same one. It is no verdict on the network: either the network is split into parts
@@ -240,14 +241,18 @@ The panel reads through Home Assistant's websocket API and requires an administr
     advertises nothing. No heuristic tells the two readings apart; a query of the border routers (#12) will.
   - Limit: the age is when Home Assistant last received the advertisement, not that the border router still runs. A
     border router that loses power sends no goodbye (RFC 6762 10.1); its TXT record stays cached until its TTL ends
-    (RFC 6762 10 recommends 75 minutes for TXT records; zeroconf's `_DNS_OTHER_TTL` 4500 s); no Passive Observation
-    Of Failures (RFC 6762 10.5) was found in zeroconf 0.152.0. If it was the leader, the other routers elect a leader
-    of a new partition (assumed: the primer says only that the leader is "dynamically self-elected for fault
-    tolerance"; `otThreadBecomeLeader` "start[s] a new partition", openthread.io API reference, Thread Router), whose
-    id the other border routers then advertise: "2 partitions" for up to the TTL. A running border router's record is
-    received again when Home Assistant's browser refreshes the type's pointer records, at 75 % of their TTL (zeroconf
-    `_services/browser.py`), about hourly with the recommended TTL, or sooner on another querier's answer or a change
-    the border router announces; so an age below that proves no border router running.
+    (RFC 6762 10 recommends 75 minutes for such records); no Passive Observation Of Failures (RFC 6762 10.5) was
+    found in zeroconf 0.152.0. If it was the leader, the other routers elect a leader of a new partition (assumed:
+    the primer says only that the leader is "dynamically self-elected for fault tolerance"; `otThreadBecomeLeader`
+    "start[s] a new partition", openthread.io API reference, Thread Router), whose id the other border routers then
+    advertise: "2 partitions" for up to the TTL. A running border router's record is received again when Home
+    Assistant's browser refreshes the type's pointer records, at 75 % of their TTL (zeroconf `_services/browser.py`),
+    the TXT record coming with the pointer answer (RFC 6763 12.1, a "SHOULD"), about hourly with the recommended
+    TTL, or sooner on another querier's answer; so an age below that does not prove that the border router still
+    runs.
+  - Assumption: a running border router announces its TXT record again as soon as its partition id changes (RFC 6762
+    8.4: a responder announces again when the rdata of a record changes; openthread.io API reference, Border Agent,
+    `otBorderAgentSetMeshCoPServiceChangedCallback`: "passes the updated encoded TXT data to the application layer").
   - Routes are neither stopped nor recomputed: router IDs are per partition, so in a split network the routes above,
     whose router IDs are mapped over all tables, can be wrong or stop. Known limit until fresh data per router (#12).
 - `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
@@ -336,7 +341,8 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 integration's Python reads from zigpy only IEEE address, network address and relays per device, from the Matter client
 only its node list and each node's ThreadNetworkDiagnostics cluster (3.2; never a read, refresh, write or command
 through the client), from Home Assistant's zeroconf instance only records in its cache (3.2 "Partitions"; never a
-browser, a service lookup, a query or an announcement), and, for the reception
+browser, a service listener or lookup, a send, an announcement, check or unregistration, a new instance, an interface
+change, a close or a cache write, nor Home Assistant's Thread router discovery), and, for the reception
 history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config, reads the topology's scan task state and attaches a
 listener to its events (never a scan of its own: the one-time scan of 10.1 goes through ZHA's command handler); network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
@@ -599,12 +605,12 @@ Code: `frontend/engines/history-records.js`, `engines/zigbee/history.js`; input 
   and Home Assistant's Thread integration knows more (m: the snapshot's and its list together, 3.2), tooltip "Home
   Assistant's Thread integration lists border routers of this network that the Matter server's topology lacks; the
   topology lists a border router only where a Matter device's neighbour table lists it with a live link."; "Border
-  routers advertise {n} partitions" (#21, 3.2 "Partitions") where they advertise different ones, tooltip "Either the
-  network is split into parts without radio contact, or a border router is off and its last advertisement still
-  stands in Home Assistant's mDNS cache. The oldest advertisement used was received {minutes} min ago." ("less than a
-  minute ago" below one); in the menu that note also as a line of its own (a tooltip does not show on touch
-  screens), then, with the route tables read, the route card's line (9.2). No banner, no
-  "unchanged since"; each table's read interval
+  routers advertise {n} partitions" (#21, 3.2 "Partitions") where they advertise different ones; in the menu under it
+  the lines (not tooltips, which touch screens do not show) "A partition is a part of the Thread network whose routers
+  reach each other.", "This happens when the network is split into parts without radio contact, and also when a
+  border router is off while its last advertisement is still in Home Assistant's mDNS cache. Home Assistant received
+  the oldest of these advertisements {age}." ({age} as "just now", "12 min ago", "2 h ago") and, with the route
+  tables read, the route card's line (9.2). No banner, no "unchanged since"; each table's read interval
   in a route's source line (3.2, 9.2).
 - **Completeness** (share of available routers with a table) is no percentage and no gate: each finding has its own
   evidence rule (5.6). Below 90 % the map carries the banner "incomplete".
@@ -1014,7 +1020,7 @@ One place per thing; nothing appears twice.
   Meshroute checks its copy every 10 minutes (last check 14:20)." or "Read at 13:50 or earlier; Meshroute had not seen
   this table before (age unknown). The server re-reads its tables about once a day."; values that may be older than
   4 hours in amber with the note "Values that may be older than 4 hours in amber: the route may have changed since.";
-  while border routers advertise different partitions, in amber, "Border routers advertise different partitions; if
+  while border routers advertise different partitions, muted, "Border routers advertise different partitions; if
   the network is split, routes from the Matter server's copy may no longer hold." (#21; the route is drawn as
   without it); none for a border router, also where the route tables could not be read, #20),
   "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
@@ -1023,9 +1029,9 @@ One place per thing; nothing appears twice.
   as last read: 111111111, leader router ID 60. The read time is not reported.", without the leader part where it
   was not reported, 3.2 "Partitions", #21; a border router with an advertised partition id: "Thread partition
   111111111, as advertised 12 min ago." ("as advertised; when Home Assistant received it is not reported." where the
-  age is unknown), then "A partition is a part of the Thread network whose routers reach each other.", and while
+  age is unknown or not a valid time), then "A partition is a part of the Thread network whose routers reach each other.", and while
   border routers advertise different partitions and its own advertisement is of known age "Also advertised by
-  <names>." or "No other border router advertises it.").
+  <names>." or "No other border router on this map advertises it.").
 - **Thread route on the map** (3.2, boards M38 and M40 A): selecting a device draws its route to the default border
   router there and back, each direction on its own lane with a pill of two numbers (RSSI over LQI), circled hop
   numbers on the way there, the weakest hop of each direction below LQI 3 wider with its pill outlined red, the

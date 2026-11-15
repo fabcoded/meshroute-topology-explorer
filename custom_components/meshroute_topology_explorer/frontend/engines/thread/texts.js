@@ -97,10 +97,9 @@ export const TEXTS = Object.freeze({
   "details.thread_partition_advertised_unknown": "Thread partition {partition}, as advertised; when Home Assistant received it is not reported.",
   "details.thread_partition_explained": "A partition is a part of the Thread network whose routers reach each other.",
   "details.thread_partition_shared": "Also advertised by {names}.",
-  "details.thread_partition_alone": "No other border router advertises it.",
+  "details.thread_partition_alone": "No other border router on this map advertises it.",
   "status.thread_partitions": "Border routers advertise {n} partitions",
-  "status.thread_partitions_note": "Either the network is split into parts without radio contact, or a border router is off and its last advertisement still stands in Home Assistant's mDNS cache. The oldest advertisement used was received {minutes} min ago.",
-  "status.thread_partitions_note_now": "Either the network is split into parts without radio contact, or a border router is off and its last advertisement still stands in Home Assistant's mDNS cache. The oldest advertisement used was received less than a minute ago.",
+  "status.thread_partitions_note": "This happens when the network is split into parts without radio contact, and also when a border router is off while its last advertisement is still in Home Assistant's mDNS cache. Home Assistant received the oldest of these advertisements {age}.",
   "route.partitions_note": "Border routers advertise different partitions; if the network is split, routes from the Matter server's copy may no longer hold.",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
 });

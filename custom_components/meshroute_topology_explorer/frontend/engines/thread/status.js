@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // The status line of a Thread network (spec 3.2, 6, 9.1). No DOM: the panel translates the parts.
 // npm test
+import { ageParts } from "../../ui/status.js";
 
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
  *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
- *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
- *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20),
- *  and the partitions the border routers advertise (partitionParts, #21). `collected_at` is the time of the request,
- *  not the read time of the Thread tables, which the snapshot does not report; the note says so. */
+ *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), "no border router
+ *  listed" or "{n} of {m} border routers" (#20), advertised partitions (#21). `collected_at` is the time of the
+ *  request, not the read time of the Thread tables, which the snapshot does not report; the note says so. */
 export function threadParts(network, { collected = null, compact = false, now = Date.now() } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];
@@ -30,20 +30,16 @@ export function threadParts(network, { collected = null, compact = false, now = 
   return [...parts, ...partitionParts(network, compact, now)];
 }
 
-/** "Border routers advertise {n} partitions" where they advertise different ones (#21, advertised.js), with a note
- *  naming both readings (a split network, or a border router that is off and whose last advertisement still stands)
- *  and the age of the oldest advertisement used, in whole minutes at `now`: its tooltip, and in the full line (the
- *  menu) a line of its own, as a tooltip does not show on touch screens; then, with the route tables read, that
- *  routes may no longer hold. No part otherwise, never "not split": equal ids do not show a whole network (a part
- *  without a border router advertises nothing). */
+/** Where border routers advertise different partitions (#21, spec 3.2 "Partitions", 6): the part; in the full line
+ *  (the menu) also what a partition is, both readings with the oldest advertisement's age, and with route tables
+ *  that routes may no longer hold. */
 function partitionParts(network, compact, now) {
   const advertised = network.advertisedPartitions;
   if (!advertised) return [];
-  const minutes = Math.floor((now - advertised.oldestAt) / 60000);
-  const note = minutes < 1 ? "status.thread_partitions_note_now" : "status.thread_partitions_note";
-  const part = ["status.thread_partitions", { n: advertised.count, minutes }, note];
-  if (compact) return [part];
-  return [part, [note, { minutes }], ...(network.routing ? [["route.partitions_note", {}]] : [])];
+  const part = ["status.thread_partitions", { n: advertised.count }];
+  return compact ? [part] : [part, ["details.thread_partition_explained", {}],
+    ["status.thread_partitions_note", { age: ageParts(advertised.oldestAt, now) }],
+    ...(network.routing ? [["route.partitions_note", {}]] : [])];
 }
 
 /** Older than this the panel's snapshot counts as old for the pill's dot (the age of the snapshot, not of the Thread
@@ -58,8 +54,7 @@ export function healthLevel(network, now = Date.now()) {
   const s = network.status;
   const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
   const missing = !s.borderRouters || s.borderRouters < s.borderRoutersKnown;
-  const advertised = Boolean(network.advertisedPartitions);
-  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS || advertised ? "warn" : "ok";
+  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS || network.advertisedPartitions ? "warn" : "ok";
 }
 
 /** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:

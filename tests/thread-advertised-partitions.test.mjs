@@ -70,27 +70,25 @@ test("#21 two border routers advertising one partition: no statement, the dot as
 test("#21 different partitions: the pill part, its note with the oldest age, the amber dot and each one's Details", () => {
   const n = build([agent(GARAGE, 111111111, 30), agent(ATTIC, 222222222, 600)]);
   assert.deepEqual(n.advertisedPartitions, { count: 2, oldestAt: now - 660000 });
-  const part = statusLine(n, { now }).parts.find(([key]) => key === "status.thread_partitions");
-  assert.deepEqual(part, ["status.thread_partitions", { n: 2, minutes: 11 }, "status.thread_partitions_note"]);
-  assert.equal(t(part[0], part[1]), "Border routers advertise 2 partitions");
-  assert.equal(t(part[2], part[1]), "Either the network is split into parts without radio contact, or a border router "
-    + "is off and its last advertisement still stands in Home Assistant's mDNS cache. The oldest advertisement used "
-    + "was received 11 min ago.");
-  assert.ok(keys(n, { compact: true }).includes("status.thread_partitions"), "in the pill's second line too");
-  assert.ok(!keys(n, { compact: true }).includes("status.thread_partitions_note"), "the note: tooltip and menu only");
-  // The menu shows the note as a line of its own (a tooltip does not show on touch screens).
-  assert.deepEqual(statusLine(n, { now }).parts.slice(-1), [["status.thread_partitions_note", { minutes: 11 }]]);
-  assert.ok(!keys(n).includes("route.partitions_note"), "no route tables read: no routes line in the menu");
+  const parts = statusLine(n, { now }).parts;
+  const at = parts.findIndex(([key]) => key === "status.thread_partitions");
+  // The menu: the part (no tooltip), what a partition is, both readings with the oldest age; no route tables here.
+  assert.deepEqual(parts.slice(at).map(([key, params, tip]) => [t(key, params), tip]), [
+    ["Border routers advertise 2 partitions", undefined], [EXPLAINED, undefined],
+    ["This happens when the network is split into parts without radio contact, and also when a border router is off "
+      + "while its last advertisement is still in Home Assistant's mDNS cache. Home Assistant received the oldest of "
+      + "these advertisements 11 min ago.", undefined]]);
+  assert.deepEqual(keys(n, { compact: true }).slice(-1), ["status.thread_partitions"], "the pill's second line: the part only");
   // The dot: amber for this part alone (the rest made clean as in #20's test), as without it otherwise.
   const clean = { ...n, status: { ...n.status, linksBoth: n.status.links, borderRoutersKnown: n.status.borderRouters } };
   assert.equal(statusLine(clean, { now }).level, "warn");
   assert.equal(statusLine({ ...clean, advertisedPartitions: null }, { now }).level, "ok");
-  // Received within the last minute: the other note.
-  const fresh = build([agent(GARAGE, 1, 0), agent(ATTIC, 2, 0)], { readAt: now / 1000 - 59 });
-  assert.equal(statusLine(fresh, { now }).parts.find(([key]) => key === "status.thread_partitions")[2],
-    "status.thread_partitions_note_now");
+  // The oldest received within the last minute, and 121 minutes ago (7200 s + 60 s): the panel's age words.
+  const note = (m) => t(...statusLine(m, { now }).parts.find(([key]) => key === "status.thread_partitions_note"));
+  assert.match(note(build([agent(GARAGE, 1, 0), agent(ATTIC, 2, 0)], { readAt: now / 1000 - 59 })), /advertisements just now\.$/);
+  assert.match(note(build([agent(GARAGE, 1, 30), agent(ATTIC, 2, 7200)])), /advertisements 2 h ago\.$/);
   const garage = details(n, GARAGE);
-  assert.ok(garage.includes(`Thread partition 111111111, as advertised 1 min ago.${EXPLAINED}No other border router advertises it.`), garage);
+  assert.ok(garage.includes(`Thread partition 111111111, as advertised 1 min ago.${EXPLAINED}No other border router on this map advertises it.`), garage);
   assert.ok(details(n, ATTIC).includes("Thread partition 222222222, as advertised 11 min ago."));
   assert.doesNotMatch(garage + details(n, ATTIC), /Network split|not split|details\.|status\./);
 });
@@ -101,7 +99,7 @@ test("#21 three border routers, two islands: two partitions; Details name who ad
   assert.equal(n.advertisedPartitions.oldestAt, now - 110000, "loft: 50 s + 60 s");
   assert.match(details(n, GARAGE), /Also advertised by Border router loft\./);
   assert.match(details(n, LOFT), /Also advertised by Border router garage\./);
-  assert.match(details(n, ATTIC), /No other border router advertises it\./);
+  assert.match(details(n, ATTIC), /No other border router on this map advertises it\./);
   // The loft's advertisement of unknown time counts for no statement, but it does name the garage's partition.
   const m = build([agent(GARAGE, 111111111, 30), agent(ATTIC, 222222222, 40), agent(LOFT, 111111111, null)], { loft: true });
   assert.deepEqual(m.advertisedPartitions, { count: 2, oldestAt: now - 100000 });
@@ -124,13 +122,34 @@ test("#21 partition ids 0 and 0xFFFFFFFF are values; a missing or malformed one 
   }
 });
 
-test("#21 an advertisement of unknown age is shown as such and takes part in no statement", () => {
-  for (const [age, readAt] of [[null, READ_AT], [undefined, READ_AT], [-5, READ_AT], ["30", READ_AT], [30, null]]) {
-    const n = build([agent(GARAGE, 111111111, 30), agent(ATTIC, 222222222, age)], { readAt });
+test("#21 an advertisement of unknown or absurd age is shown as such and takes part in no statement", () => {
+  // Ages beyond a valid Date (1e13 s back is more than 8.64e15 ms) and read_at missing or not a number.
+  for (const [age, readAt] of [[null, READ_AT], [undefined, READ_AT], [-5, READ_AT], ["30", READ_AT], [Number.NaN, READ_AT],
+    [1e13, READ_AT], [1e308, READ_AT], [Infinity, READ_AT], [30, null], [30, "1767265140"]]) {
+    const n = build([agent(GARAGE, 111111111, 30, PAN), agent(ATTIC, 222222222, age)], { readAt });
     assert.equal(n.advertisedPartitions, null, `${age} ${readAt}`);
     assert.ok(!keys(n).includes("status.thread_partitions"));
+    assert.equal(dev(n, ATTIC).advertised.at, null);
     assert.match(details(n, ATTIC), /Thread partition 222222222, as advertised; when Home Assistant received it is not reported\./);
-    assert.doesNotMatch(details(n, ATTIC), /No other border router|Also advertised/);
+    assert.doesNotMatch(details(n, ATTIC) + details(n, GARAGE), /No other border router|Also advertised|NaN|Infinity/);
+  }
+  const noReadAt = buildThreadNetwork(topology, { haThread: { ...haThread([]),
+    agents: { agents: [agent(GARAGE, 1, 30), agent(ATTIC, 2, 30)] } } });
+  assert.equal(noReadAt.advertisedPartitions, null, "read_at missing");
+  assert.deepEqual(noReadAt.devices.filter((d) => d.advertised).map((d) => d.advertised.at), [null, null]);
+});
+
+test("#21 read_at ahead of or behind the panel's clock: no NaN or Infinity, the statement stands", () => {
+  // Home Assistant's clock 10 min ahead: received in the panel's future, shown as just now.
+  const ahead = build([agent(GARAGE, 1, 30), agent(ATTIC, 2, 40)], { readAt: now / 1000 + 600 });
+  assert.equal(ahead.advertisedPartitions.count, 2);
+  assert.match(details(ahead, ATTIC), /Thread partition 2, as advertised just now\./);
+  // Three days behind: 4 320 min and more, in hours.
+  const behind = build([agent(GARAGE, 1, 30), agent(ATTIC, 2, 40)], { readAt: now / 1000 - 3 * 86400 });
+  assert.match(details(behind, GARAGE), /Thread partition 1, as advertised 72 h ago\./);
+  for (const n of [ahead, behind]) {
+    const texts = statusLine(n, { now }).parts.map(([key, params]) => t(key, params)).join(" ");
+    assert.doesNotMatch(texts + details(n, GARAGE) + details(n, ATTIC), /NaN|Infinity|\{|undefined/);
   }
 });
 
@@ -165,6 +184,11 @@ test("#21 two records of one border router: the newest wins, whatever their orde
   const n = build([older, agent(GARAGE, null, 10), agent(ATTIC, 111111111, 30)]);
   assert.equal(dev(n, GARAGE).advertised, null);
   assert.equal(n.advertisedPartitions, null);
+  // The newest record is of another network: the border router advertises nothing for this one (picked first, then
+  // compared with the network; an older record of this network does not stand in).
+  const moved = build([agent(GARAGE, 222222222, 600), agent(GARAGE, 3, 10, "aabbccddeeff0202"), agent(ATTIC, 111111111, 30)]);
+  assert.equal(dev(moved, GARAGE).advertised, null);
+  assert.equal(moved.advertisedPartitions, null);
   // A record of known age wins over one of unknown age.
   const m = build([agent(GARAGE, 222222222, 30), agent(GARAGE, 111111111, null), agent(ATTIC, 111111111, 30)]);
   assert.equal(dev(m, GARAGE).advertised.partition, 222222222);
@@ -206,12 +230,20 @@ test("#21 route card and pill menu carry one line while different partitions are
     return container.textContent;
   };
   assert.ok(card(split, "LU").includes(ROUTES_NOTE));
+  const line = (n, k) => {
+    const container = new FakeEl("div");
+    ENGINES.thread.details(container, { network: n, t, id: idOf(k), onSelect() {}, onFindings() {}, now });
+    const find = (el) => (el.textContent === ROUTES_NOTE && el.tag === "p" ? el : (el.children || []).map(find).find(Boolean));
+    return find(container);
+  };
+  assert.equal(line(split, "LU").className, "muted small", "muted: a condition, not a warning");
   assert.ok(card(split, "XS").includes(ROUTES_NOTE));
   assert.ok(!card(same, "LU").includes(ROUTES_NOTE));
   assert.ok(!card(split, "BRA").includes(ROUTES_NOTE), "no route card on a border router");
   assert.equal(t("route.partitions_note"), ROUTES_NOTE);
   const full = statusLine(split, { now }).parts.map(([key]) => key);
-  assert.deepEqual(full.slice(-3), ["status.thread_partitions", "status.thread_partitions_note", "route.partitions_note"]);
+  assert.deepEqual(full.slice(-4), ["status.thread_partitions", "details.thread_partition_explained",
+    "status.thread_partitions_note", "route.partitions_note"]);
   assert.ok(!keys(split, { compact: true }).includes("route.partitions_note"), "the menu only, not the pill's line");
   assert.ok(!keys(same).includes("route.partitions_note"));
   // Routes are neither stopped nor recomputed.
