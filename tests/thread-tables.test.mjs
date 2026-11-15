@@ -67,7 +67,7 @@ test("#25 an end device with a route: both tables, every explanation that applie
   // The neighbours' note first, then what a hop's values are, the derived hop back (Border router B -> Plug 3: what
   // Plug 3 hears), the amber note (the sensor's own table: lower bound unknown); no partition advertised.
   assert.deepEqual(offer.info, [NOTE, HINT, derivedNote("Plug 3"), OLD]);
-  assert.deepEqual(infoButtons(box), ["Route to Border router B", "Neighbours (Thread)"]);
+  assert.deepEqual(infoButtons(box), ["Neighbours (Thread)", "Route to Border router B"]);
   assert.equal(offer.title, "Motion sensor");
   assert.equal(offer.minWidth, 424, "the hop table's min-content width, measured (engines/thread/details.js)");
   // Stable ids, so a redraw of the Details finds a focused button again (panel.js keepFocus).
@@ -75,6 +75,12 @@ test("#25 an end device with a route: both tables, every explanation that applie
     ["mte-tables-open", "mte-tables-info-route", "mte-tables-info-neighbours"]);
   assert.equal(offer.closeLabel, "Close");
   assert.equal(offer.infoLabel, "About these values");
+});
+
+test("#25 the drawer's cards: head, neighbours, route, facts (the order of the tables panel)", () => {
+  const { box } = render(net, idOf("XS"));
+  const titles = box.find((el) => has(el, "card-title")).map((el) => el.textContent);
+  assert.deepEqual(titles, ["Neighbours (Thread)", "Route to Border router B", "Entity"]);
 });
 
 test("#25 a router: no amber note where every table is younger than 4 hours; a border router with neighbours only", () => {

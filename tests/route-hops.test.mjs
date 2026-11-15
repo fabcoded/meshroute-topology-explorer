@@ -104,6 +104,6 @@ test("#22 #25 the route card has no table; what each value means is said once, i
   // hop of each direction is hop 1, so exactly its two lines are marked, none of the later hops.
   const marked = container.find((el) => hasClass(el, "hop-line") && hasClass(el, "weak"));
   assert.deepEqual(marked.map(texts).map((x) => x.split(" ").slice(0, 6).join(" ")), ["there −83 dBm · LQI 2", "back −80 dBm · LQI 2"]);
-  const first = container.find((el) => el.tag === "li")[0].find((el) => hasClass(el, "hop-line"));
+  const first = container.find((el) => el.tag === "ol" && hasClass(el, "route-hops"))[0].find((el) => el.tag === "li")[0].find((el) => hasClass(el, "hop-line"));
   assert.deepEqual(marked, first);
 });

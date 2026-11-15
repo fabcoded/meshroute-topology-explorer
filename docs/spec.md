@@ -1046,7 +1046,11 @@ One place per thing; nothing appears twice.
   **Tables** (#25: on every device with neighbours or a route with hops, where the panel has a tables panel, 9.1;
   `aria-expanded` follows it), role, "Thread leader" where it applies; a border router only Home Assistant's Thread integration lists: "Not in the Matter server's topology: no
   Matter device's neighbour table lists it with a live link."; the preferred border router of the preferred dataset:
-  "Home Assistant's preferred border router of its preferred Thread network.", 3.2), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list
+  "Home Assistant's preferred border router of its preferred Thread network.", 3.2), then the cards in the order of the tables panel beside them (owner 2026-11-16, #25): "Neighbours (Thread)" with both
+  directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …", parent first) and the note "From the
+  neighbour tables in the Matter server's snapshot; the tables can be many hours old." (with a tables panel: an "i"
+  at the title instead), then
+  "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list
   (#22, board M42 V2: a list with one block per hop, never a table, so names of any length wrap inside the card, as do
   the card's other lines and the neighbours' names, breaking inside a name only where it does not fit; a
   divider above the first and below every block; first line the hop number in bold, "A → B" wrapping freely and the
@@ -1069,9 +1073,7 @@ One place per thing; nothing appears twice.
   while border routers advertise different partitions, muted, "Border routers advertise different partitions; if
   the network is split, routes from the Matter server's copy may no longer hold." (#21; the route is drawn as
   without it); none for a border router, also where the route tables could not be read, #20),
-  "Neighbours (Thread)" with both directions per neighbour ("hears X: −75 dBm · LQI 3", "heard by X: …",
-  parent first) and the note "From the neighbour tables in the Matter server's snapshot; the tables can be many hours
-  old." (with a tables panel: an "i" at the title instead), the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
+  the device's findings, and the Thread facts (role, extended address, RLOC16, Matter node id; "not
   reported" where missing; where the device reported a valid partition id, not on a border router, "Thread partition
   as last read: 111111111, leader router ID 60. The read time is not reported.", without the leader part where it
   was not reported, 3.2 "Partitions", #21; a border router with an advertised partition id: "Thread partition
