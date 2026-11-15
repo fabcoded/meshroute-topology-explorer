@@ -207,11 +207,15 @@ class GuardTest(unittest.TestCase):
                      "get_matter_fabrics(14)", "get_node_ip_addresses(14)", "enable_auto_subscription(14)",
                      "disable_auto_subscription(14)", "connect()", "disconnect()"):
             denied[f"client_{call.split('(')[0]}"] = f"await client.{call}"
-        # #21: zeroconf calls that send a query or an announcement; only cache lookups are allowed.
+        # #21: zeroconf calls that send, announce, create or close an instance or write the cache; only cache lookups
+        # are allowed.
         for call in ("AsyncServiceBrowser(zc, [TYPE], handlers=[h])", "ServiceBrowser(zc, TYPE, listener)",
                      "async_add_service_listener(TYPE, listener)", "async_get_service_info(TYPE, name)",
-                     "get_service_info(TYPE, name)", "async_request(zc, 3000)", "async_send(out)",
-                     "async_register_service(info)", "async_update_service(info)"):
+                     "get_service_info(TYPE, name)", "async_request(zc, 3000)", "async_send(out)", "send(out)",
+                     "async_register_service(info)", "async_update_service(info)", "async_unregister_all_services()",
+                     "async_check_service(info, False)", "Zeroconf(interfaces=[])", "HaAsyncZeroconf(zc=zc)",
+                     "update_interfaces([])", "close()", "cache.async_add_records([r])", "cache.async_remove_records([r])",
+                     "ThreadRouterDiscovery(hass, found, removed)"):
             denied[f"zeroconf_{call.split('(')[0]}"] = f"x = aiozc.{call}"
         for name, code in denied.items():
             with self.subTest(name):
