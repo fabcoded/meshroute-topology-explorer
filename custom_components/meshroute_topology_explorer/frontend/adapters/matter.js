@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, and the border
-// routers its Thread integration knows (#20), and hands both to the Thread engine (engines/index.js), which builds the
-// model. Read only: a snapshot built from the server's cache. No DOM. npm test
+// The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, the border
+// routers its Thread integration knows (#20) and their advertisements in its mDNS cache (#21), and hands them to the
+// Thread engine (engines/index.js), which builds the model. Read only: a snapshot built from the server's cache. No
+// DOM. npm test
 import { ENGINES } from "../engines/index.js";
 import { entryState, errorCode, errorText, isConnectionLost } from "./ws.js";
 import { TEXTS } from "./matter-texts.js";
@@ -35,34 +36,36 @@ async function discoverRouters(hass, timers, found, onResult) {
   return [...found.values()];
 }
 
-/** The border routers Home Assistant's Thread integration knows, read only (spec 3.2 "Border routers", #20): the
- *  answer of thread/list_datasets (no keys) and discoverRouters (Home Assistant's mDNS view; while it runs Home
- *  Assistant sends an mDNS query on the local network, no Thread radio traffic), each on its own, both bounded by
- *  BORDER_ROUTERS_MS from the start. Returns { datasets, routers }, each null where its command failed or did not end
- *  in time (no Thread integration, not an admin; routers: what came so far where the result did): the map is then
- *  built as without them, without a message. Never rejects: a lost connection comes back as { lost }.
- *  timers: { setTimeout, clearTimeout }. */
+/** The border routers Home Assistant knows, read only (spec 3.2 "Border routers", #20, and "Partitions", #21): the
+ *  answer of thread/list_datasets (no keys), discoverRouters (the Thread integration's mDNS view; while it runs Home
+ *  Assistant sends an mDNS query on the local network, no Thread radio traffic) and the integration's
+ *  thread_border_agents (the border agents' advertisements in Home Assistant's mDNS cache; sends nothing), each on its
+ *  own, all bounded by BORDER_ROUTERS_MS from the start. Returns { datasets, routers, agents }, each null where its
+ *  command failed or did not end in time (no Thread integration or zeroconf, not an admin; routers: what came so far
+ *  where the result did): the map is then built as without them, without a message. Never rejects: a lost connection
+ *  comes back as { lost }. timers: { setTimeout, clearTimeout }. */
 async function readBorderRouters(hass, timers) {
   const found = new Map();
   let confirmed = false;
   let timer = null;
   const limit = new Promise((resolve) => { timer = timers.setTimeout(() => resolve({ late: true }), BORDER_ROUTERS_MS); });
   const bounded = (promise) => Promise.race([promise.then((value) => ({ value }), (error) => ({ error })), limit]);
-  const [datasets, routers] = await Promise.all([
+  const [datasets, routers, agents] = await Promise.all([
     bounded((async () => hass.callWS({ type: "thread/list_datasets" }))()),
     bounded(discoverRouters(hass, timers, found, () => { confirmed = true; })),
+    bounded((async () => hass.callWS({ type: "meshroute_topology_explorer/thread_border_agents" }))()),
   ]);
   timers.clearTimeout(timer);
-  const lost = [datasets, routers].find((r) => r.error && isConnectionLost(r.error));
+  const lost = [datasets, routers, agents].find((r) => r.error && isConnectionLost(r.error));
   if (lost) return { lost: lost.error };
   return { datasets: datasets.value ?? null,
-    routers: routers.value ?? (routers.late && confirmed ? [...found.values()] : null) };
+    routers: routers.value ?? (routers.late && confirmed ? [...found.values()] : null), agents: agents.value ?? null };
 }
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
  *  sent from here), then the route tables of the same cache through the integration (thread_tables); beside them the
- *  border routers of Home Assistant's Thread integration (readBorderRouters). options.timers: { setTimeout,
+ *  border routers Home Assistant knows (readBorderRouters). options.timers: { setTimeout,
  *  clearTimeout }.
  *  Returns { status: "ok" | "not_set_up" | "not_running" | "not_supported" | "empty" | "error", network?, message?
  *  (not_running: the entry's state) }; a lost

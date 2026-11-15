@@ -7,6 +7,7 @@
 // Pure, no DOM. npm test
 import { THREAD_CAPABILITIES, THREAD_SOURCE, fromMatter } from "./from-matter.js";
 import { buildRouting } from "./routes.js";
+import { advertisedPartitions, partitionId } from "./advertised.js";
 
 const ROUTER_ROLES = new Set(["router", "border router"]);
 
@@ -24,15 +25,17 @@ function unknownReason(hearer, r) {
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
  *  registries (names, areas) and entities and states (the kind, kinds.js), and the Thread tables of the Matter cache
  *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed),
- *  and the answers of Home Assistant's Thread integration (`haThread`, from-matter.js haBorderRouters, #20).
+ *  and Home Assistant's answers on border routers (`haThread`: from-matter.js haBorderRouters, #20; its `agents`, the
+ *  answer of meshroute_topology_explorer/thread_border_agents, advertised.js, #21).
  *  Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
  *  extPanId, capabilities (routes: the tables answered), collectedAt, devices, readings, staleReadings, routes
  *  (empty: Zigbee's routing entries), routing (routes.js buildRouting, or null), routingProblem, links, pairs, status,
- *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
- *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
- *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
+ *  advertisedPartitions (advertised.js: { count, oldestAt } where border routers advertise different partitions, else
+ *  null), findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor,
+ *  model, powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16,
+ *  nodeId, threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
  *  inTopology: false for a border router only the Thread integration lists, preferred, partitionRead: partitionsRead,
- *  #21). */
+ *  advertised: a border router's advertised partition, #21). */
 export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
   tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
   const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
@@ -86,21 +89,20 @@ export function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, ent
   };
   network.routing = buildRouting(network, tables);
   partitionsRead(devices, tables);
+  network.advertisedPartitions = advertisedPartitions(devices, haThread?.agents, pan);
   if (network.routing) network.capabilities = { ...capabilities, routes: true };
   return network;
 }
 
 
-/** A partition id as Matter reports it (0/53/9, a nullable uint32), else null. */
-const partitionId = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffffff ? v : null);
 /** A router ID (LeaderRouterId 0/53/13): 0 to 62, else null. */
 const routerId = (v) => (Number.isInteger(v) && v >= 0 && v <= 62 ? v : null);
 
 /** Set each device's partitionRead (#21): { partition, leaderRouterId } as the device itself last reported them
  *  (thread_tables answer, 0/53/9 and 0/53/13; leaderRouterId null where not reported or invalid), matched by Matter
  *  node id; null where no valid partition id was read, and always for a border router. Shown in Details only: the
- *  Matter server's copy holds values of unknown and differing read times, so nothing is derived from them (spec 3.2
- *  "Partitions"). */
+ *  Matter server's copy holds values of unknown and differing read times, so nothing is derived from them, also not
+ *  with the border routers' advertisements (spec 3.2 "Partitions"). */
 function partitionsRead(devices, tables) {
   const byNode = new Map(devices.filter((d) => d.nodeId !== null).map((d) => [d.nodeId, d]));
   for (const d of devices) d.partitionRead = null;

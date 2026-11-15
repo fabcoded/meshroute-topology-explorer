@@ -5,10 +5,10 @@
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
  *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
  *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
- *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20).
- *  `collected_at` is the time of the request, not the read time of the Thread tables, which the snapshot does not
- *  report; the note says so. */
-export function threadParts(network, { collected = null, compact = false } = {}) {
+ *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20),
+ *  and the partitions the border routers advertise (partitionParts, #21). `collected_at` is the time of the request,
+ *  not the read time of the Thread tables, which the snapshot does not report; the note says so. */
+export function threadParts(network, { collected = null, compact = false, now = Date.now() } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];
   parts.push(compact ? ["status.short_thread_links", { x: s.linksBoth, y: s.links }, "status.thread_links"]
@@ -27,7 +27,22 @@ export function threadParts(network, { collected = null, compact = false } = {})
   else if (s.borderRouters < s.borderRoutersKnown) {
     parts.push(["status.thread_br_count", { n: s.borderRouters, m: s.borderRoutersKnown }, "status.thread_br_count_note"]);
   }
-  return parts;
+  return [...parts, ...partitionParts(network, compact, now)];
+}
+
+/** "Border routers advertise {n} partitions" where they advertise different ones (#21, advertised.js), with a note
+ *  naming both readings (a split network, or a border router that is off and whose last advertisement still stands)
+ *  and the age of the oldest advertisement used, in whole minutes at `now`; in the full line, with the route tables
+ *  read, that routes may no longer hold. No part otherwise, never "not split": equal ids do not show a whole
+ *  network (a part without a border router advertises nothing). */
+function partitionParts(network, compact, now) {
+  const advertised = network.advertisedPartitions;
+  if (!advertised) return [];
+  const minutes = Math.floor((now - advertised.oldestAt) / 60000);
+  const part = ["status.thread_partitions", { n: advertised.count, minutes },
+    minutes < 1 ? "status.thread_partitions_note_now" : "status.thread_partitions_note"];
+  if (compact) return [part];
+  return network.routing ? [part, ["route.partitions_note", {}]] : [part];
 }
 
 /** Older than this the panel's snapshot counts as old for the pill's dot (the age of the snapshot, not of the Thread
@@ -36,17 +51,19 @@ export function threadParts(network, { collected = null, compact = false } = {})
 export const OLD_AFTER_MS = 4 * 3600 * 1000;
 
 /** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, every known border router is in the
- *  snapshot (at least one) and the panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
+ *  snapshot (at least one), the panel's snapshot is younger than OLD_AFTER_MS and the border routers do not advertise
+ *  different partitions (#21); else "warn". */
 export function healthLevel(network, now = Date.now()) {
   const s = network.status;
   const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
   const missing = !s.borderRouters || s.borderRouters < s.borderRoutersKnown;
-  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS ? "warn" : "ok";
+  const advertised = Boolean(network.advertisedPartitions);
+  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS || advertised ? "warn" : "ok";
 }
 
 /** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:
  *  { compact, collected, now } (the snapshot time and its age, formatted by the panel). */
 export function statusLine(network, { compact = false, collected = null, now = Date.now() } = {}) {
-  return { parts: threadParts(network, { collected, compact }), right: null, incomplete: null,
+  return { parts: threadParts(network, { collected, compact, now }), right: null, incomplete: null,
     level: healthLevel(network, now) };
 }

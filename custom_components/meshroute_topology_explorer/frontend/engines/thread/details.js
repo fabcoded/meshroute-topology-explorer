@@ -4,7 +4,7 @@
 // default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
 // the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
 // receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id,
-// the partition id and leader router ID as last read, #21).
+// the partition id and leader router ID as last read; a border router's advertised partition, #21).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
 import { h } from "../../ui/dom.js";
 import { findingText } from "./findings.js";
@@ -12,6 +12,8 @@ import { roleText } from "../../ui/format.js";
 import { historyButton } from "../../ui/history-links.js";
 import { unknownGlyph } from "../unknown-reason.js";
 import { markedWeak } from "./routes.js";
+import { ageParts } from "../../ui/status.js";
+import { sharingPartition } from "./advertised.js";
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
 export function threadReception(dir) {
@@ -177,7 +179,24 @@ export function renderThreadDetails(container, ctx) {
     // #21: the device's own values, shown raw; nothing is derived from them (spec 3.2 "Partitions").
     d.partitionRead ? h("li", { text: t(d.partitionRead.leaderRouterId === null ? "details.thread_partition_read"
       : "details.thread_partition_read_leader", { partition: d.partitionRead.partition, leader: d.partitionRead.leaderRouterId }) })
-      : null)));
+      : null,
+    advertisedItem(ctx, d, name))));
+}
+
+/** A border router's advertised partition (#21, advertised.js): its id raw and how long ago Home Assistant received
+ *  the advertisement, with one sentence on what a partition is; while the border routers advertise different
+ *  partitions also which others advertise the same one. Null without an advertised partition id. */
+function advertisedItem(ctx, d, name) {
+  const { network, t } = ctx;
+  if (!d.advertised) return null;
+  const { partition, at } = d.advertised;
+  const line = at === null ? t("details.thread_partition_advertised_unknown", { partition })
+    : t("details.thread_partition_advertised", { partition, age: t(...ageParts(new Date(at).toISOString(), ctx.now ?? Date.now())) });
+  const others = network.advertisedPartitions ? sharingPartition(network, d) : null;
+  const shared = !others ? null : others.length ? t("details.thread_partition_shared", { names: t.list(others.map(name)) })
+    : t("details.thread_partition_alone");
+  return h("li", {}, h("div", { text: line }), h("div", { class: "muted small", text: t("details.thread_partition_explained") }),
+    shared ? h("div", { text: shared }) : null);
 }
 
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
@@ -216,7 +235,9 @@ function routeCard(ctx, d, name) {
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
     sourceLine(tables, holders, name, t, now),
-    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null,
+    // #21: the border routers advertise different partitions; routes are not changed for it (spec 3.2 "Partitions").
+    network.advertisedPartitions ? h("p", { class: "small warn-text", text: t("route.partitions_note") }) : null);
 }
 
 /** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null
