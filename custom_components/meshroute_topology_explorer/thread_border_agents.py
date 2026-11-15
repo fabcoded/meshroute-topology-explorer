@@ -5,7 +5,7 @@ meshroute_topology_explorer/thread_border_agents (#21).
 Spec 3.2 ("Partitions") and 3.4. Read only and in memory: for every `_meshcop._udp.local.` service in the cache of
 Home Assistant's shared zeroconf instance, the border agent's extended address (TXT key `xa`), extended PAN id (`xp`),
 partition id (`pt`) and the age of its TXT record. Nothing is sent: no query, no browser, no service lookup of its own;
-the panel's Thread engine compares the partition ids (frontend/engines/thread/split.js).
+the panel's Thread engine compares the partition ids (frontend/engines/thread/advertised.js).
 
 Where the data lives (zeroconf 0.151.5 in Home Assistant 2026.10.4, 0.152.0 in 2026.11.0; contract test
 tests_ha/test_zeroconf_contract.py):
