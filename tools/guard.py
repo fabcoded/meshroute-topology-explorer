@@ -17,7 +17,8 @@
   cluster) and, for the reception history (sources.py), call the registered handlers of `zha/devices` and
   `matter/network_topology` (refresh false) in-process, and nothing else of zigpy, ZHA or the Matter client: PY_DENY
   names the internals that hold network settings, keys or their saved copies, and the calls that send to the radio or
-  change the network.
+  change the network. From Home Assistant's zeroconf instance it may only look up records in the cache
+  (thread_border_agents.py, #21): PY_DENY names the zeroconf calls that send a query or an announcement.
 - Shipped Python must not import voluptuous (Home Assistant 2026.10 replaced it by probatio, the minimum version).
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
@@ -79,6 +80,9 @@ PY_DENY = (
     # async_dispatcher_connect(, which the integration uses
     "get_matter_fabrics(", "get_node_ip_addresses(", "enable_auto_subscription(", "disable_auto_subscription(",
     ".connect(", ".disconnect(",
+    # zeroconf (0.151.5 and 0.152.0): a browser and service lookups send mDNS queries, the others send announcements
+    # (#21; the border agents come from the cache, thread_border_agents.py). "request(" above covers async_request.
+    "ServiceBrowser", "service_listener(", "get_service_info(", "async_send(", "register_service(", "update_service(",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

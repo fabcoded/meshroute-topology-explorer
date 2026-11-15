@@ -207,6 +207,12 @@ class GuardTest(unittest.TestCase):
                      "get_matter_fabrics(14)", "get_node_ip_addresses(14)", "enable_auto_subscription(14)",
                      "disable_auto_subscription(14)", "connect()", "disconnect()"):
             denied[f"client_{call.split('(')[0]}"] = f"await client.{call}"
+        # #21: zeroconf calls that send a query or an announcement; only cache lookups are allowed.
+        for call in ("AsyncServiceBrowser(zc, [TYPE], handlers=[h])", "ServiceBrowser(zc, TYPE, listener)",
+                     "async_add_service_listener(TYPE, listener)", "async_get_service_info(TYPE, name)",
+                     "get_service_info(TYPE, name)", "async_request(zc, 3000)", "async_send(out)",
+                     "async_register_service(info)", "async_update_service(info)"):
+            denied[f"zeroconf_{call.split('(')[0]}"] = f"x = aiozc.{call}"
         for name, code in denied.items():
             with self.subTest(name):
                 root = self.tree({f"custom_components/x/{name}.py": py + code + "\n"})
@@ -215,7 +221,9 @@ class GuardTest(unittest.TestCase):
         allowed = ("app = get_zha_gateway(hass).application_controller\nrelays = [d.relays for d in app.devices.values()]\n"
                    "app.topology.add_listener(listener)\nperiod = app.config.get('topology_scan_period')\n"
                    "nodes = get_matter(hass).matter_client.get_nodes()\ncluster = nodes[0].get_cluster(0, 53)\n"
-                   "unsub = async_dispatcher_connect(hass, SIGNAL, changed)\n")
+                   "unsub = async_dispatcher_connect(hass, SIGNAL, changed)\n"
+                   "ptrs = aiozc.zeroconf.cache.async_all_by_details(TYPE, 12, 1)\n"
+                   "txt = aiozc.zeroconf.cache.get_by_details(name, 16, 1)\n")
         root = self.tree({"custom_components/x/routes.py": py + allowed, "tests/fake.py": py + "app.state.network_info\n",
                           "custom_components/x/panel.js": SPDX + "// permit joining is a raw value name\n"})
         self.assertEqual(guard.check(root), [])

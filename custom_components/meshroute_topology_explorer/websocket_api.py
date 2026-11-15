@@ -2,7 +2,8 @@
 """Websocket commands of the panel: settings and observations per network (docs/spec.md section 10).
 
 Commands: meshroute_topology_explorer/{settings,observations}/{get,set}, zigpy_routes (zigpy_routes.py: zigpy's
-route records, read only), thread_tables (thread_tables.py: the Matter client's Thread tables, read only), history/series, history/records and history/info (recorder.py, reception history, read only). Registered once per Home Assistant run
+route records, read only), thread_tables (thread_tables.py: the Matter client's Thread tables, read only),
+thread_border_agents (thread_border_agents.py: border agents in Home Assistant's mDNS cache, read only), history/series, history/records and history/info (recorder.py, reception history, read only). Registered once per Home Assistant run
 (commands cannot be unregistered). They stay answerable after the config entry is unloaded: the store lives in
 hass.data and the panel is simply gone, so nobody calls them.
 """
@@ -21,6 +22,8 @@ from .admin import check_admin
 from .const import DOMAIN, MAX_PAYLOAD_BYTES, NETWORK_ID_PATTERN
 from .recorder import async_info, get_history
 from .store import KINDS, PanelStore, StoreUnavailable
+from .thread_border_agents import COMMAND as BORDER_AGENTS_COMMAND
+from .thread_border_agents import ws_thread_border_agents
 from .thread_tables import COMMAND as THREAD_TABLES_COMMAND
 from .thread_tables import get_times, ws_thread_tables
 from .zigpy_routes import COMMAND as ZIGPY_ROUTES_COMMAND
@@ -159,7 +162,7 @@ async def async_remove_data(hass: HomeAssistant) -> None:
 
 
 def async_register_commands(hass: HomeAssistant) -> None:
-    """Register the nine commands, once per run."""
+    """Register the ten commands, once per run."""
     if hass.data.get(_REGISTERED_KEY):
         return
     for kind in KINDS:
@@ -168,6 +171,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
             websocket_api.async_register_command(hass, command, _make_handler(kind, writing), _passthrough)
     websocket_api.async_register_command(hass, ZIGPY_ROUTES_COMMAND, ws_zigpy_routes, _passthrough)
     websocket_api.async_register_command(hass, THREAD_TABLES_COMMAND, ws_thread_tables, _passthrough)
+    websocket_api.async_register_command(hass, BORDER_AGENTS_COMMAND, ws_thread_border_agents, _passthrough)
     websocket_api.async_register_command(hass, SERIES_COMMAND, ws_history_series, _passthrough)
     websocket_api.async_register_command(hass, RECORDS_COMMAND, ws_history_records, _passthrough)
     websocket_api.async_register_command(hass, INFO_COMMAND, ws_history_info, _passthrough)
