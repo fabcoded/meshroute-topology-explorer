@@ -162,10 +162,10 @@ export function renderThreadDetails(container, ctx) {
   if (d.inTopology === false) head.append(h("p", { class: "muted small", text: t("details.thread_br_unheard") }));
   if (d.preferred) head.append(h("p", { class: "muted small", text: t("details.thread_br_preferred") }));
   container.append(head);
+  // #25: neighbours above the route, as in the tables panel beside the drawer.
+  container.append(neighboursCard(ctx, name, rows, openers.neighbours));
   const routeBox = routeCard(ctx, d, name, route, openers.route);
   if (routeBox) container.append(routeBox);
-
-  container.append(neighboursCard(ctx, name, rows, openers.neighbours));
 
   const findings = (network.findings || []).filter((f) => f.device === d.id);
   if (findings.length) {

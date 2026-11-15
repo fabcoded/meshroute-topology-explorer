@@ -9,7 +9,8 @@
   route keeps every note in the drawer. Beside the drawer up to 600 px wide; where the width beside it (the free width
   minus 16 px) is under 473 px and on a phone, a sheet over the full width; tables that do not fit scroll sideways.
   Closes with ×, Esc (first, before the drawer or the map), the button again, another device or tab (#25). The Direct
-  link card now opens above the panels. Frontend only.
+  link card now opens above the panels. In the drawer the neighbours card now comes before the route card, the
+  order of the tables panel. Frontend only.
 - **History to gateway:** the Details button is called "History to gateway", names its partner in its tooltip, and
   shows only where it means one connection: Zigbee the coordinator (not on the coordinator), Thread the border router
   of a complete route, else the only border router (not on a border router) (#24). Frontend only.
