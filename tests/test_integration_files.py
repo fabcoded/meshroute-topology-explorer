@@ -64,7 +64,8 @@ class IntegrationFilesTest(unittest.TestCase):
         # zigpy_routes.py imports the ZHA helpers, so hassfest requires ZHA to be declared; the recorder reads the
         # Matter server's topology at start, so Matter loads first where it is set up (#15).
         # after_dependencies, not dependencies: the integration must also load with only one of them.
-        self.assertEqual(m.get("after_dependencies"), ["matter", "zha"])
+        # zeroconf: thread_border_agents reads its cache where it is loaded (#21); hassfest requires the entry.
+        self.assertEqual(m.get("after_dependencies"), ["matter", "zeroconf", "zha"])
         self.assertNotIn("zha", m["dependencies"])
         self.assertNotIn("matter", m["dependencies"])
         self.assertEqual(m["iot_class"], "calculated")

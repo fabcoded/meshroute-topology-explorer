@@ -1153,7 +1153,8 @@ Code: `frontend/ui/history-*.js` (window, loader, host, partners, links, route, 
 - Custom integration with a config flow; manifest `name` "Meshroute Topology Explorer", domain
   `meshroute_topology_explorer`, version, documentation, issue tracker, code owners, `brand/icon.png`, `hacs.json`;
   hassfest and HACS checks in CI. No Python dependencies beyond Home Assistant; it needs neither ZHA nor Matter and loads
-  after both where they are set up (`after_dependencies`). Minimum Home Assistant 2026.10 (owner 2026-11-06):
+  after both, and after zeroconf (whose cache `thread_border_agents` reads, 3.2), where they are set up
+  (`after_dependencies`). Minimum Home Assistant 2026.10 (owner 2026-11-06):
   forms use `probatio`, which replaced `voluptuous` there; `tools/guard.py` forbids importing `voluptuous`.
 - One admin panel (URL path `meshroute-topology`, custom element `meshroute-topology-explorer`), removed on unload. The panel
   takes the viewport's height (Home Assistant's custom-panel container has none) and brings its own sidebar button

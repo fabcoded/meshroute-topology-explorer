@@ -3,6 +3,7 @@
   "name": "Meshroute Topology Explorer",
   "after_dependencies": [
     "matter",
+    "zeroconf",
     "zha"
   ],
   "codeowners": [
