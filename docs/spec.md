@@ -220,6 +220,9 @@ The panel reads through Home Assistant's websocket API and requires an administr
     skipped, and nothing else of a record leaves (no addresses, host or instance names, border agent id, prefixes,
     domain names). TXT data per RFC 6763 6.1 to 6.4 (keys in any case, the first occurrence of a key only). Failures
     `not_supported` with "reason: text" (`zeroconf_not_loaded`, `internals_changed`, `error`).
+    `tools/capture.py --matter` records the answer within the border routers' bound; `tools/anonymize_capture.py`
+    maps its addresses and extended PAN ids as the topology's, replaces partition ids consistently (equal stay equal),
+    keeps the ages and shifts `read_at` with the topology's times.
   - Keys: "Extended Address (xa)", "ExtendedPanId (xp)" 8 bytes, "Partition Id (pt)" 4 bytes (openthread.io API
     reference, Border Agent, `OT_BORDER_AGENT_MESHCOP_SERVICE_TXT_DATA_MAX_LENGTH`, read 2026-11-15); the normative
     table is Thread 1.2 § 8.4.1.1.2, table 8-4 (cited by fuchsia.dev, `fuchsia.lowpan.thread` Meshcop), not read

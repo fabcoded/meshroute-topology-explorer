@@ -113,21 +113,29 @@ class CaptureTest(unittest.TestCase):
         with FakeServer(responses=responses) as server:
             code, _, err = self.run_tool(server, "--matter")
         self.assertEqual(code, 0, err)
-        self.assertEqual(server.commands[-2:], ["thread/list_datasets", "thread/discover_routers"])
+        self.assertEqual(server.commands[-3:], ["thread/list_datasets", "thread/discover_routers", capture.AGENTS])
         data = json.loads(self.out.read_text(encoding="utf-8"))["responses"]
         self.assertNotIn("thread/list_datasets", data)
         self.assertNotIn("thread/discover_routers", data)
+        self.assertNotIn(capture.AGENTS, data)
 
     def test_matter_border_routers_captured_and_anonymized(self):
         # #20: the datasets and the subscription's events before and after its result, anonymized with the topology.
         fixture = json.loads((ROOT / "tests" / "fixtures" / "thread-border-routers.json").read_text(encoding="utf-8").replace(
             "aabbccdd", "02124b00").replace("AABBCCDD", "02124B00").replace("Border router attic", "Cellar OTBR"))["responses"]
         responses = {**make_responses(), **fixture}
+        # #21: the border agents; the snapshot an hour later than the anonymizer's anchor, so read_at moves by -3600 s.
+        responses["matter/network_topology"]["collected_at"] += 3_600_000
+        pan = "02124b00eeff0101"
+        responses[capture.AGENTS] = {"read_at": 1767272340.0, "agents": [
+            {"ext_address": "02124b0000000110", "ext_pan_id": pan, "partition_id": 305419896, "age": 30.0},
+            {"ext_address": "02124b0000000111", "ext_pan_id": pan, "partition_id": 305419896, "age": 60.0},
+            {"ext_address": "02124b0000000199", "ext_pan_id": pan, "partition_id": 2271560481, "age": 90.0}]}
         with FakeServer(responses=responses) as server:
             code, _, err = self.run_tool(server, "--matter")
         self.assertEqual(code, 0, err)
         self.assertEqual((capture.DISCOVERY_S, capture.BORDER_ROUTERS_S), (0.15, 0.5), "the panel's bounds")
-        self.assertEqual(server.commands[-2:], ["thread/list_datasets", "thread/discover_routers"])
+        self.assertEqual(server.commands[-3:], ["thread/list_datasets", "thread/discover_routers", capture.AGENTS])
         self.assertNotIn("unsubscribe_events", server.commands, "the subscription ends with the connection")
         text = self.out.read_text(encoding="utf-8")
         for original in ("02124b00", "Cellar OTBR", "2001:db8", ".local", "border_agent_id", "dataset_id"):
@@ -139,6 +147,16 @@ class CaptureTest(unittest.TestCase):
         self.assertTrue(data["thread/list_datasets"]["datasets"][0]["preferred"])
         keys = {n["ext_address"].lower() for n in data["matter/network_topology"]["nodes"]}
         self.assertIn(events["after_result"][0]["key"], keys, "the heard border router keeps its snapshot address")
+        agents = data[capture.AGENTS]
+        self.assertNotIn("305419896", text)
+        self.assertNotIn("2271560481", text)
+        self.assertEqual(agents["read_at"], 1767268740.0)
+        self.assertEqual([a["age"] for a in agents["agents"]], [30.0, 60.0, 90.0])
+        ids = [a["partition_id"] for a in agents["agents"]]
+        self.assertTrue(ids[0] == ids[1] != ids[2] and None not in ids, ids)
+        self.assertIn(agents["agents"][0]["ext_address"], keys, "the garage keeps its snapshot address")
+        self.assertEqual({a["ext_pan_id"] for a in agents["agents"]},
+                         {n["ext_pan_id"].lower() for n in data["matter/network_topology"]["nodes"]})
 
     def test_without_matter_flag_no_topology_is_asked(self):
         with FakeServer() as server:

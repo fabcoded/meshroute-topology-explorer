@@ -6,7 +6,9 @@
 
 A capture holds the answers of the Home Assistant websocket commands the panel reads, under "responses":
 `zha/devices`, `config/device_registry/list`, `config/area_registry/list`, `config_entries/get` and, for Thread,
-`matter/network_topology`, `thread/list_datasets` and the events of `thread/discover_routers` (spec 3.2, #20). Everything
+`matter/network_topology`, `thread/list_datasets`, the events of `thread/discover_routers` (spec 3.2, #20) and the
+border agents of `meshroute_topology_explorer/thread_border_agents` (#21: partition ids replaced consistently, ages
+kept, its read time shifted with the topology's). Everything
 that identifies a home is replaced: EUI-64 addresses (also in
 neighbour tables, extended PAN ids and hex form; Thread extended addresses as bare hex, also inside border-router ids
 such as "br_<address>"), user-given device names, area ids and names, entity ids, registry and config-entry ids, Thread
@@ -51,6 +53,7 @@ _SIGNATURE = {
     "manufacturer": None,
     "model": None,
 }
+AGENTS = "meshroute_topology_explorer/thread_border_agents"  # #21
 SCHEMAS = {
     "zha/devices": ("list", {
         **{k: None for k in (
@@ -87,6 +90,7 @@ SCHEMAS = {
     "thread/discover_routers": {part: ("list", {"type": None, "key": None, "data": {k: None for k in (
         "instance_name", "brand", "extended_address", "extended_pan_id", "model_name", "network_name", "thread_version",
         "unconfigured", "vendor_name")}}) for part in ("before_result", "after_result")},
+    AGENTS: {"read_at": None, "agents": ("list", {k: None for k in ("ext_address", "ext_pan_id", "partition_id", "age")})},
 }
 THREAD_EXT = re.compile(r"^(?:0x)?[0-9a-f]{16}$", re.IGNORECASE)
 TOPOLOGY = "matter/network_topology"
@@ -216,14 +220,15 @@ def _thread_mapping(responses: dict, mapping: dict) -> None:  # noqa: PLR0912 - 
 
 INTEGRATION_EVENTS = ("router_discovered", "router_removed")
 INTEGRATION_TEXT = ("key", "extended_address", "preferred_extended_address", "extended_pan_id", "network_name",
-                    "instance_name")
+                    "instance_name", "ext_address", "ext_pan_id")
 
 
 def _integration_parts(responses: dict) -> tuple[list, list]:
     """The Thread integration's events and the dicts inside them and the datasets (#20), as (events, entries)."""
     datasets = (responses.get("thread/list_datasets") or {}).get("datasets") or []
     events = [e for part in (responses.get("thread/discover_routers") or {}).values() for e in part]
-    return events, [e["data"] for e in events if isinstance(e.get("data"), dict)] + datasets
+    agents = (responses.get(AGENTS) or {}).get("agents") or []
+    return events, [e["data"] for e in events if isinstance(e.get("data"), dict)] + datasets + agents
 
 
 def _clean_integration(responses: dict) -> None:
@@ -246,12 +251,13 @@ def _integration_mapping(responses: dict, mapping: dict) -> None:
     known = {k.lower() for k in mapping}
     used = {v.lower() for v in mapping.values()}
     for value in [e.get("key") for e in events] + [x.get(k) for x in entries
-                                                    for k in ("extended_address", "preferred_extended_address")]:
+                                                    for k in ("extended_address", "preferred_extended_address", "ext_address")]:
         if isinstance(value, str) and value and value.lower() not in known:
             fake = _fresh(used, "aabbccdd{:08x}")
             mapping[value.lower()], mapping[value.upper()] = fake, fake.upper()
             known.add(value.lower())
-    for key, fmt in (("extended_pan_id", "aabbccddeeff00{:02x}"), ("network_name", "thread-net-{:02d}"),
+    for key, fmt in (("extended_pan_id", "aabbccddeeff00{:02x}"), ("ext_pan_id", "aabbccddeeff00{:02x}"),
+                     ("network_name", "thread-net-{:02d}"),
                      ("instance_name", "Border router {:02d}")):
         for value in (x.get(key) for x in entries):
             if isinstance(value, str) and value and value.lower() not in known:
@@ -293,6 +299,9 @@ def _shift_topology(responses: dict) -> None:
     for node in topo.get("nodes", []):
         if isinstance(node.get("last_seen"), (int, float)):
             node["last_seen"] = int(node["last_seen"]) + delta
+    agents = responses.get(AGENTS)
+    if isinstance(agents, dict) and isinstance(agents.get("read_at"), (int, float)):  # #21: seconds; ages are kept
+        agents["read_at"] += delta / 1000
 
 
 def naive_utc(stamp: str) -> dt.datetime:
@@ -331,6 +340,10 @@ def anonymize(capture: dict) -> dict:
     mapping = build_mapping(responses)
     lower = {k.lower(): v for k, v in mapping.items()}
     out = walk(responses, lambda s: mapping.get(s, lower.get(s.lower(), s)))
+    agents = (out.get(AGENTS) or {}).get("agents") or []  # #21: equal partition ids stay equal, nothing else is kept
+    fake = {v: 0x10000000 + n for n, v in enumerate(dict.fromkeys(a.get("partition_id") for a in agents), 1)}
+    for a in agents:
+        a["partition_id"] = fake[a.get("partition_id")] if isinstance(a.get("partition_id"), int) else None
     out = shift_times(out)
     _shift_topology(out)
 
