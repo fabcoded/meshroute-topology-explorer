@@ -272,6 +272,11 @@ const captureTopology = fixture.responses["matter/network_topology"] || null;
 const matterMode = captureTopology ? "1" : q.get("matter") || (q.get("network") === "thread" ? "1" : null);
 const routesSample = matterMode === "routes" ? (await import("../tests/thread-routes-fixture.mjs"))
   .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }) : null; // read now: tables 1, 3 and 21 h unchanged
+// longnames=1 (with matter=routes, #22): the motion sensor's route runs over a device and a border router with long names.
+if (routesSample && flag("longnames")) {
+  routesSample.registry.find((r) => r.name === "Plug 2").name = "atelierlichtsofaobenwohnzimmerdeckenlampe"; // 41 characters, no break point
+  routesSample.topology.nodes.find((n) => n.host_name === "Border router B").host_name = "Home Assistant OpenThread Border Router #F09A";
+}
 // partitions=1 (with matter=routes, #21): border routers A and B advertise different partitions, received 3 and 40 min ago.
 const advertised = (k, partition, age) => ({ ext_address: routesSample.topology.nodes.find((n) => n.host_name === k)
   .ext_address.toLowerCase(), ext_pan_id: "aabbccddeeff0099", partition_id: partition, age });
@@ -588,6 +593,16 @@ const edges = () => {
   return `pill ${bottom(root.querySelector(".status-pill-button"))} fit ${bottom(root.querySelector(".zoom:not(.spread) .icon-button:last-child"))} window ${innerHeight}`;
 };
 
+/** Right edges (px) of the route card's widest hop-list element (overflowing text counts) and of the card's
+ *  border box, #22: the list must not reach past the card's border; "-" without a route card. */
+const routeWidths = () => {
+  const list = el.shadowRoot.querySelector(".route-hops");
+  if (!list) return "- card -";
+  const reach = (node) => Math.max(node.getBoundingClientRect().right, node.getBoundingClientRect().left + node.scrollWidth);
+  const widest = Math.max(reach(list), ...[...list.querySelectorAll("*")].map(reach));
+  return `${Math.round(widest)} card ${Math.round(list.closest(".card").getBoundingClientRect().right)}`;
+};
+
 /** The shown network's source and device count (#20: the unheard border router counts), or "-"; the pill's second line. */
 const network = () => (el._network ? `source ${el._network.source}; devices ${el._network.devices.length}` : "source -; devices -")
   + `; pill ${(el.shadowRoot.querySelector(".pill-line") || {}).textContent || "-"}`;
@@ -626,7 +641,7 @@ async function replay() {
       + `greyed ${[...root.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]')].map((n) => n.title).join(" / ") || "-"}; `
       + `message ${(root.querySelector(".message:not([hidden])") || {}).textContent || "-"}; `
       + `module ${panelModules()}; `
-      + `edges ${edges()}; `
+      + `edges ${edges()}; routehops ${routeWidths()}; `
       + `drawn ${el._view && el._view.lastDraw ? `${el._view.lastDraw.lanes} lanes ${JSON.stringify(el._view.lastDraw.classes)}` : "-"}`);
   }
   document.body.dataset.log = log.join(" | ");

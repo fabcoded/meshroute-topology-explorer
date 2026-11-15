@@ -1020,9 +1020,16 @@ One place per thing; nothing appears twice.
 - **Thread device details**: no sub-tabs (no signature, no clusters): the head (name, role, "Thread leader" where it
   applies; a border router only Home Assistant's Thread integration lists: "Not in the Matter server's topology: no
   Matter device's neighbour table lists it with a live link."; the preferred border router of the preferred dataset:
-  "Home Assistant's preferred border router of its preferred Thread network.", 3.2), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list with
-  per hop what each receiver hears there and back and whose table it comes from, the cost as the sender counts it,
-  the weakest hop of each direction below LQI 3 marked at the left edge, the derived hop's note, and one line
+  "Home Assistant's preferred border router of its preferred Thread network.", 3.2), "Route to <border router>" (3.2, board M38: hops and path cost, the way there and back, the hop list
+  (#22, board M42 V2: a list with one block per hop, never a table, so names of any length wrap inside the card; a
+  divider above the first and below every block; first line the hop number in bold, "A → B" wrapping freely and the
+  cost as the sender counts it ("cost 1", "cost 1 · as the device receives" on a child's link, "cost ?"), which
+  moves to its own line where the first line has no room; then a line "there" and a line "back" where that
+  direction has a hop, each with what the receiver hears ("−87 dBm · LQI 2", "– dBm · LQI 3", "?", amber where it
+  may be old), the tag "derived" where a hop back is mirrored, and whose table it comes from; a hop back that
+  reverses no hop there has its own block without number and "there" line; the line above the list says "Per hop:
+  what the receiver hears."), the weakest hop of each direction below LQI 3 marked red at the left edge of that
+  direction's line, the derived hop's note, and one line
   "Source: Matter server's copy · <holder> read 09:50–10:00 · …" per table the values come from (the date where not
   today: "read yesterday 22:10–08:05"; unknown lower bound: "read before 13:50", "read before 15:09 yesterday"; the table's name where a holder gives
   both), tooltip "Read by the Matter server between 09:50 and 10:00. The server does not report when it reads;

@@ -6695,7 +6695,7 @@ function routeCard(ctx, d, name) {
   const now = ctx.now ?? Date.now();
   const tables = network.routing.tables;
   const rows = routeRows(tables, r, now);
-  const table = routeTable(rows, name, t);
+  const hops = routeList(rows, name, t);
   const summary = routeSummary(r, t);
   const lines = routeLines(r, name, t);
   const weakest = (way_, k) => (k === null || k === undefined ? null : way_.hops[k]);
@@ -6708,7 +6708,8 @@ function routeCard(ctx, d, name) {
   return card(t("details.route_title", { name: name(r.to) }),
     summary ? h("p", { class: "muted small", text: summary }) : null,
     ...lines.map((text) => h("p", { class: "muted small", text })),
-    table,
+    hops ? h("p", { class: "muted small", text: t("details.route_hint") }) : null,
+    hops,
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
     sourceLine(tables, holders, name, t, now),
@@ -6724,32 +6725,37 @@ function routeSummary(r, t) {
     : t(hopCount === 1 ? "details.route_summary_one" : "details.route_summary", { hops: hopCount, cost: r.there.cost });
 }
 
-/** What a hop's receiver hears as one cell text: "−75 dBm · LQI 3", "– dBm" without RSSI, "?" without either. */
+/** What a hop's receiver hears as one value text: "−75 dBm · LQI 3", "– dBm" without RSSI, "?" without either. */
 function hopValue(c) {
   if (!c || (c.lqi === null && c.rssi === null)) return "?";
   const rssi = typeof c.rssi === "number" ? `${String(c.rssi).replace("-", "−")} dBm` : "– dBm";
   return `${rssi} · LQI ${c.lqi ?? "?"}`;
 }
 
-/** The route card's hop table (routeRows): number, hop, there and back with the weakest and old values marked, a
- *  derived hop tagged and the source table below each value, and the cost; null without rows. */
-function routeTable(rows, name, t) {
+/** The route card's hop list (#22, routeRows): one block per hop, the number and "A → B" with the cost in the
+ *  first line, then a line for each direction that exists: its label, what the receiver hears (amber when old, derived tagged) and the
+ *  table it comes from; the weakest hop of a direction marked at the left edge of that line. Null without rows. */
+function routeList(rows, name, t) {
   const sourceText = (c) => (c && c.holder ? t(c.source === "neighbours" ? "route.source.neighbours" : "route.source.lqi_out",
     { name: name(c.holder) }) : "");
-  const td = (c, weak, derived) => h("td", { class: [weak ? "weak" : "", c && c.old ? "warn-text" : ""].filter(Boolean).join(" ") },
-    h("span", { class: "nowrap", text: hopValue(c) }),
-    derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
-    c && c.holder ? h("div", { class: "muted small", text: sourceText(c) }) : null);
-  return rows.length ? h("table", { class: "route-table" },
-    h("tr", {}, ...["#", t("details.route_head_hop"), t("details.route_head_there"), t("details.route_head_back"),
-      t("details.route_head_cost")].map((text) => h("th", { text }))),
-    ...rows.map((row) => h("tr", {},
-      h("td", { text: row.n === null ? "" : String(row.n) }),
-      h("td", { text: `${name(row.from)} → ${name(row.to)}` }),
-      td(row.there, row.weakThere, false),
-      td(row.back, row.weakBack, row.backDerived),
-      h("td", {}, typeof row.cost === "number" ? String(row.cost) : "?",
-        row.child ? h("div", { class: "muted small", text: t("route.cost_child") }) : null)))) : null;
+  // Spaces between the parts (ignored by flex and grid) keep the text readable for assistive technology
+  // ("there −87 dBm · LQI 2 Plug 1's table").
+  const line = (label, c, weak, derived) => (c ? h("div", { class: weak ? "hop-line weak" : "hop-line" },
+    h("span", { class: "muted", text: t(label) }), " ",
+    h("div", { class: c.old ? "warn-text" : "" },
+      h("span", { class: "nowrap", text: hopValue(c) }),
+      derived ? h("span", { class: "tag", text: ` ${t("details.route_derived")}` }) : null,
+      c.holder ? h("span", { class: "muted small", text: ` ${sourceText(c)}` }) : null)) : null);
+  const cost = (row) => h("span", { class: "hop-cost" },
+    h("span", { class: "nowrap", text: t("details.route_cost", { cost: typeof row.cost === "number" ? String(row.cost) : "?" }) }),
+    row.child ? h("span", { class: "muted small", text: ` · ${t("route.cost_child")}` }) : null);
+  return rows.length ? h("ol", { class: "route-hops", role: "list" }, ...rows.map((row) => h("li", {},
+    h("div", { class: "hop-head" },
+      row.n === null ? null : h("strong", { text: String(row.n) }), " ",
+      h("span", { class: "hop-names", text: `${name(row.from)} → ${name(row.to)}` }), " ",
+      cost(row)),
+    line("details.route_label_there", row.there, row.weakThere, false),
+    line("details.route_label_back", row.back, row.weakBack, row.backDerived)))) : null;
 }
 
 /** The route card's lines: the way there and back by name, and where and why a way stops. */
@@ -6897,10 +6903,10 @@ const TEXTS$3 = Object.freeze({
   "details.route_summary_one": "1 hop · path cost {cost}",
   "details.route_there": "there: {list}",
   "details.route_back": "back: {list}",
-  "details.route_head_hop": "hop (there)",
-  "details.route_head_there": "there: receiver hears",
-  "details.route_head_back": "back: receiver hears",
-  "details.route_head_cost": "cost",
+  "details.route_hint": "Per hop: what the receiver hears.",
+  "details.route_label_there": "there",
+  "details.route_label_back": "back",
+  "details.route_cost": "cost {cost}",
   "details.route_derived": "derived",
   "details.route_derived_note": "Derived: which way the border router sends is mirrored from the way there; what {name} hears is measured. The border router query (#12) reads the border router's own choice.",
   "lane.unused_cost": "unused · cost {cost}",
@@ -14160,10 +14166,17 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--mte-divider); vertical-align: top; }
 th { color: var(--mte-muted); font-weight: 500; }
 .num { text-align: right; padding-right: 12px; white-space: nowrap; }
-/* Route hop list (board M38): the weakest hop of a direction marked at the cell's left edge. */
-.route-table { font-size: 12px; margin: 4px 0; }
-.route-table .nowrap { white-space: nowrap; }
-.route-table td.weak { box-shadow: inset 3px 0 0 var(--mte-error); padding-left: 6px; }
+/* Route hop list (#22, board M42 V2): one block per hop; names and values wrap, never wider than the card. The
+   weakest hop of a direction is marked at the left edge of its line (board M38). */
+.route-hops { list-style: none; margin: 4px 0; padding: 0; min-width: 0; font-size: 12px; border-top: 1px solid var(--mte-divider); }
+.route-hops li { padding: 6px 0; border-bottom: 1px solid var(--mte-divider); }
+.route-hops .hop-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding-left: 6px; }
+.route-hops .hop-names { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+.route-hops .hop-cost { flex: none; max-width: 100%; }
+.route-hops .hop-line { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); padding-left: 6px; margin-top: 2px;
+  overflow-wrap: anywhere; }
+.route-hops .hop-line.weak { box-shadow: inset 3px 0 0 var(--mte-error); }
+.route-hops .nowrap { white-space: nowrap; }
 .scroll { overflow-x: auto; }
 .raw-table { font-family: var(--ha-font-family-code, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 details > summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 4px; font-weight: 600;

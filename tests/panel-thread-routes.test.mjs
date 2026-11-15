@@ -167,7 +167,7 @@ test("#11 the weakest hop is marked only below LQI 3; Details still name it", ()
   thread.details(container, { network: net, t: translator("en"), id: idOf("P1"), onSelect() {}, onFindings() {},
     now: sample.tables.read_at * 1000 });
   assert.match(container.textContent, /Weakest there: Plug 1 → sofaoben/);
-  assert.equal(container.find((el) => el.tag === "td" && /\bweak\b/.test(el.className || "")).length, 0);
+  assert.equal(container.find((el) => /\bweak\b/.test(el.className || "")).length, 0);
   // The motion sensor's route (LQI 2 on its first hop) keeps the mark.
   const xs = thread.scene.focus(scene, at("XS"), { selected: at("XS") });
   assert.ok(xs.hops.some((x) => x.weak));

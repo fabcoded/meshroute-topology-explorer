@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Route card without the wide table:** the hops of a Thread device's route are a list with one block per hop (names, cost, then a "there" and a "back" line with value and source), so long device names wrap inside the card instead of crossing its border (#22). Frontend only.
 - **Wider status menu:** the menu above the status pill is 500 px wide instead of 300 px, so its notes wrap far less; its width follows the map, not the viewport, so it fits beside Home Assistant's sidebar and the side panels, and stays at least 300 px (#23). Frontend only.
 - **Thread routes, part one** (#11 part a: routes on the map and in Details; recording them in the history and the
   window's Route tab follow): selecting a Thread device draws its route to the border router with the lowest path cost,

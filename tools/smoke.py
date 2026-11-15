@@ -55,12 +55,23 @@ JOURNEYS = [
     ("Thread partitions advertised: pill", "network=thread&matter=routes&partitions=1&steps=wait:300",
      [r"pill [^;]*Border routers advertise 2 partitions;"]),
 ]
+# #22: the route card's hop list stays inside the card, with long names, at the default drawer and on a phone
+ROUTE_QUERY = "network=thread&matter=routes&longnames=1&select=Motion%20sensor&left=details&steps=wait:300"
 # #4: a phone window with a system bar; the dev page pads the panel's container as Home Assistant does
 INSET_JOURNEYS = [
     ("#4 phone: pill and fit button clear of the system bar", f"inset={INSET}&steps=wait:300", "412,860"),
     # the owner's phone: the app reports no top inset (the WebView sits below the status bar), only the bottom one
     ("#4 phone, no top inset: pill and fit button clear of the system bar", f"inset=0,{INSET}&steps=wait:300", "412,860"),
 ]
+
+
+def route_inside(state: str) -> list[str]:
+    """#22: the widest element of the hop list ends at or left of the card's right edge."""
+    found = re.search(r"routehops (\d+) card (\d+)", state)
+    if not found:
+        return ["no route card (routehops missing or '-')"]
+    widest, card = map(int, found.groups())
+    return [] if widest <= card else [f"hop list reaches {widest} px, the card ends at {card} px"]
 
 
 def inset_clear(state: str) -> list[str]:
@@ -101,6 +112,13 @@ def main() -> int:
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {name} ({time.monotonic() - started:.1f}s)"
                   + ("" if ok else f"\n     state: {state or 'no data-log'}\n     errors: {errors or '-'}\n     missing: {missing}"))
+        for name, size in (("#22 route hop list inside the card, desktop", "1280,800"), ("#22 route hop list inside the card, phone", "412,860")):
+            started = time.monotonic()
+            state, errors = run_journey(chrome, ROUTE_QUERY + ("&phone=1" if size.startswith("412") else ""), size)
+            problems = route_inside(state)
+            failed += bool(problems or errors)
+            print(f"{'FAIL' if problems or errors else 'ok  '} {name} ({time.monotonic() - started:.1f}s)"
+                  + (f"\n     {problems or errors}" if problems or errors else ""))
         for name, query, size in INSET_JOURNEYS:
             started = time.monotonic()
             state, errors = run_journey(chrome, query, size)
