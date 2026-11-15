@@ -243,6 +243,24 @@ class AnonymizeBorderRoutersTest(unittest.TestCase):
         for dropped in ("addresses", "server", "border_agent_id", "dataset_id", "pan_id", "created"):
             self.assertNotIn(f'"{dropped}"', self.text)
 
+    def test_21_border_agents_nothing_original_survives_malformed_values_dropped(self):
+        agents = {"read_at": "2026-11-15T12:00:00", "agents": [
+            {"ext_address": EXT_C, "ext_pan_id": "02000000000000ee", "partition_id": [7], "age": EXT_D},
+            {"ext_address": EXT_BR.lower(), "ext_pan_id": "02000000000000ee", "partition_id": 3735928559, "age": 30}]}
+        out = anon.anonymize({"responses": {**BR_CAPTURE["responses"], anon.AGENTS: agents}})["responses"]
+        text = json.dumps(out).lower()
+        for original in (EXT_C, EXT_D, EXT_BR.lower(), "02000000000000ee", "3735928559", "2026-11-15"):
+            self.assertNotIn(original, text, original)
+        answer = out[anon.AGENTS]
+        self.assertNotIn("read_at", answer, "a string read_at is dropped")
+        self.assertEqual([a["partition_id"] is None for a in answer["agents"]], [True, False], "a list: null")
+        self.assertEqual([a.get("age") for a in answer["agents"]], [None, 30], "an address as age is dropped")
+        # A numeric read_at without the topology's collection time to shift by is dropped too.
+        responses = {**BR_CAPTURE["responses"], anon.AGENTS: {**agents, "read_at": 1767268740.0}}
+        responses["matter/network_topology"] = {k: v for k, v in responses["matter/network_topology"].items()
+                                                if k != "collected_at"}
+        self.assertNotIn("read_at", anon.anonymize({"responses": responses})["responses"][anon.AGENTS])
+
     def test_mapping_matches_the_topology_in_any_case(self):
         br = self.out["matter/network_topology"]["nodes"][2]
         home = self.events["after_result"][0]

@@ -17,7 +17,9 @@
   cluster) and, for the reception history (sources.py), call the registered handlers of `zha/devices` and
   `matter/network_topology` (refresh false) in-process, and nothing else of zigpy, ZHA or the Matter client: PY_DENY
   names the internals that hold network settings, keys or their saved copies, and the calls that send to the radio or
-  change the network.
+  change the network. From Home Assistant's zeroconf instance it may only look up records in the cache
+  (thread_border_agents.py, #21): PY_DENY names zeroconf's calls that send, announce, create an instance, close it or
+  write or expire the cache, and Home Assistant's accessors that create one.
 - Shipped Python must not import voluptuous (Home Assistant 2026.10 replaced it by probatio, the minimum version).
 - Every .py, .js and .mjs file carries `SPDX-License-Identifier` in its first three lines. Vendored files under a
   `vendor/` folder keep their own licence header and are exempt from SPDX and URL checks.
@@ -79,6 +81,16 @@ PY_DENY = (
     # async_dispatcher_connect(, which the integration uses
     "get_matter_fabrics(", "get_node_ip_addresses(", "enable_auto_subscription(", "disable_auto_subscription(",
     ".connect(", ".disconnect(",
+    # zeroconf (0.151.5 and 0.152.0; #21, thread_border_agents.py reads its cache only): browsers, listeners and
+    # service lookups send queries ("request(" above covers async_request); sending, announcing, unregistering, a new
+    # instance or interfaces, closing, and writing or expiring the cache change it. ThreadRouterDiscovery starts a
+    # browser. Home Assistant's instance makes close() and async_close() no-ops; its closers are ha_close() and
+    # ha_async_close() (homeassistant/components/zeroconf/models.py), so "_close(" and not ".close(" (file objects).
+    # Home Assistant's async_get_instance and async_get_async_instance create an instance where none runs.
+    "ServiceBrowser", "service_listener(", "get_service_info(", "async_send(", ".send(", "register_service(",
+    "update_service(", "unregister_all_services(", "check_service(", "broadcast_service(", "Zeroconf(",
+    "update_interfaces(", "_close(", "add_records(", "remove_records(", "async_expire(", "records_older_than",
+    "updates_from_response(", "async_get_instance(", "get_async_instance(", "ThreadRouterDiscovery",
 )
 # Exact commands exempt from DENY: reading one attribute value, started by the user (spec 1, 3.4). Matched only as a
 # whole quoted literal, so a longer command, a concatenation or a template that starts the same way stays denied.

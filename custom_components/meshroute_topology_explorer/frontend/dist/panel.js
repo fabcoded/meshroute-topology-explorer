@@ -6160,6 +6160,55 @@ function buildRouting(network, answer) {
 }
 
 // SPDX-License-Identifier: MIT
+// The partitions the border routers advertise over mDNS (#21): the records of thread_border_agents matched to the
+// map's border routers, and whether these advertise different ones. Rules and limits: spec 3.2 "Partitions". Pure,
+// no DOM. npm test
+
+/** A partition id (Matter 0/53/9; TXT key pt): 0 to 2³²−1, else null. */
+const partitionId = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffffff ? v : null);
+/** Whether advertisement `x` takes part in a statement: a partition id received at a known time. */
+const counts = (x) => Boolean(x && x.partition !== null && x.at !== null);
+
+/** Per extended address its newest record { partition, at, pan }: at = read_at less the age in epoch ms, null unless
+ *  a valid Date (±8.64e15 ms), so NaN, Infinity or an absurd age has no time; a time beats none. */
+function newestByAddress(answer) {
+  const newest = new Map();
+  for (const a of answer && Array.isArray(answer.agents) ? answer.agents : []) {
+    const address = a ? extAddress(a.ext_address) : null;
+    const ms = typeof answer.read_at === "number" && typeof a?.age === "number" && a.age >= 0
+      ? (answer.read_at - a.age) * 1000 : Number.NaN;
+    const at = Math.abs(ms) <= 8.64e15 ? ms : null;
+    const had = address && newest.get(address);
+    if (address && (!had || (at !== null && (had.at === null || at > had.at)))) {
+      newest.set(address, { partition: partitionId(a.partition_id), at, pan: String(a.ext_pan_id).toLowerCase() });
+    }
+  }
+  return newest;
+}
+
+/** Set each border router's `advertised` ({ partition, at } from its newest record, where that record is of network
+ *  `pan` and names a partition id; else null) and return { count, oldestAt } where two or more different ids are
+ *  advertised at known times, else null. answer: thread_border_agents' answer, or null. */
+function advertisedPartitions(devices, answer, pan) {
+  const newest = newestByAddress(answer);
+  for (const d of devices) {
+    const x = d.role === "border router" && d.extAddress ? newest.get(d.extAddress) : null;
+    d.advertised = x && x.pan === pan && x.partition !== null ? { partition: x.partition, at: x.at } : null;
+  }
+  const used = devices.map((d) => d.advertised).filter(counts);
+  const ids = new Set(used.map((x) => x.partition));
+  return ids.size < 2 ? null : { count: ids.size, oldestAt: Math.min(...used.map((x) => x.at)) };
+}
+
+/** The other border routers advertising `device`'s partition (at a known time or not), or null where `device`'s own
+ *  advertisement takes part in no statement. */
+function sharingPartition(network, device) {
+  if (!counts(device.advertised)) return null;
+  return network.devices.filter((d) => d !== device && d.advertised?.partition === device.advertised.partition)
+    .map((d) => d.id);
+}
+
+// SPDX-License-Identifier: MIT
 // The Thread engine's network (spec 3.2, 4.6): from the Matter snapshot as mapped by from-matter.js it derives the
 // parent of each end device, the evidence per direction of every pair (the shared shape { a, b, ab, ba } of
 // spec 4.3), the status numbers and the findings Thread data supports. Devices, readings and pairs come in the shared
@@ -6183,15 +6232,15 @@ function unknownReason(hearer, r) {
 /** Build a Network from the answer of `matter/network_topology` and, optionally, Home Assistant's device and area
  *  registries (names, areas) and entities and states (the kind, kinds.js), and the Thread tables of the Matter cache
  *  (`tables`, the answer of meshroute_topology_explorer/thread_tables; `tablesProblem` the reason text when it failed),
- *  and the answers of Home Assistant's Thread integration (`haThread`, from-matter.js haBorderRouters, #20).
+ *  and Home Assistant's answers on border routers (`haThread`, from-matter.js haBorderRouters, #20; `agents`, #21).
  *  Returns null when the answer holds no Thread node. Shape: { engine "thread", source, id,
  *  extPanId, capabilities (routes: the tables answered), collectedAt, devices, readings, staleReadings, routes
  *  (empty: Zigbee's routing entries), routing (routes.js buildRouting, or null), routingProblem, links, pairs, status,
- *  findings, unresolved }; per device the shared fields of spec 4.2 (id, role, label, names, area, vendor, model,
- *  powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread fields (extAddress, rloc16, nodeId,
- *  threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour table came with the snapshot,
- *  inTopology: false for a border router only the Thread integration lists, preferred, partitionRead: partitionsRead,
- *  #21). */
+ *  advertisedPartitions (advertised.js), findings, unresolved }; per device the shared fields of spec 4.2 (id, role,
+ *  label, names, area, vendor, model, powerSource, kind, sleepy, available, lastSeen, parent, children) and the Thread
+ *  fields (extAddress, rloc16, nodeId, threadRole, leader, reed, matter, availabilityKnown, tableRead: its neighbour
+ *  table came with the snapshot, inTopology: false for a border router only the Thread integration lists, preferred,
+ *  partitionRead: partitionsRead, advertised: advertised.js, #21). */
 function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, states, tables = null,
   tablesProblem = null, haThread = null, capabilities = THREAD_CAPABILITIES } = {}) {
   const mapped = fromMatter(topology, { deviceRegistry, areaRegistry, entities, states, haThread });
@@ -6245,13 +6294,12 @@ function buildThreadNetwork(topology, { deviceRegistry, areaRegistry, entities, 
   };
   network.routing = buildRouting(network, tables);
   partitionsRead(devices, tables);
+  network.advertisedPartitions = advertisedPartitions(devices, haThread?.agents, pan);
   if (network.routing) network.capabilities = { ...capabilities, routes: true };
   return network;
 }
 
 
-/** A partition id as Matter reports it (0/53/9, a nullable uint32), else null. */
-const partitionId = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffffff ? v : null);
 /** A router ID (LeaderRouterId 0/53/13): 0 to 62, else null. */
 const routerId = (v) => (Number.isInteger(v) && v >= 0 && v <= 62 ? v : null);
 
@@ -6425,12 +6473,25 @@ function findingText(f, t, name) {
 }
 
 // SPDX-License-Identifier: MIT
+// The age of a time for the status line. The status line's parts are the engines' (engines/<type>/status.js); which
+// empty or error state applies before any data is shown is the controller's and the adapters' (spec 9.4). No DOM.
+// Tested in Node: npm test
+
+/** Age of a time (ISO text or epoch milliseconds) as a text key and its parameters: "just now", "{n} min ago",
+ *  "{n} h ago". */
+function ageParts(time, now = Date.now()) {
+  const minutes = Math.floor((now - (typeof time === "number" ? time : Date.parse(time))) / 60000);
+  if (!Number.isFinite(minutes) || minutes < 1) return ["status.age_now", {}];
+  return minutes < 120 ? ["status.age_minutes", { n: minutes }] : ["status.age_hours", { n: Math.floor(minutes / 60) }];
+}
+
+// SPDX-License-Identifier: MIT
 // Details of a device in a Thread network (spec 3.2, 9.2): Thread data has no signature and no clusters, so instead
 // of the three sub-tabs one stack of cards: the head (name, type · role · vendor model, the state), the route to the
 // default border router (hop list there and back, path cost, weakest hop, source and age of the tables; routes.js),
 // the neighbours with the reception in both directions (RSSI in dBm and link quality 0-3, each measured by its
 // receiver), parent or children, the findings, and the Thread facts (role, extended address, RLOC16, Matter node id,
-// the partition id and leader router ID as last read, #21).
+// the partition id and leader router ID as last read; a border router's advertised partition, #21).
 // Names are set as text. Runs in the browser; the rows are pure (threadNeighbourRows, routeRows) and tested in Node.
 
 /** A direction's reception as text: "−75 dBm · LQI 3", what is known of it, or the unknown glyph. */
@@ -6597,7 +6658,22 @@ function renderThreadDetails(container, ctx) {
     // #21: the device's own values, shown raw; nothing is derived from them (spec 3.2 "Partitions").
     d.partitionRead ? h("li", { text: t(d.partitionRead.leaderRouterId === null ? "details.thread_partition_read"
       : "details.thread_partition_read_leader", { partition: d.partitionRead.partition, leader: d.partitionRead.leaderRouterId }) })
-      : null)));
+      : null,
+    advertisedItem(ctx, d, name))));
+}
+
+/** A border router's advertised partition (#21, spec 9.2), or null without one. */
+function advertisedItem(ctx, d, name) {
+  const { network, t } = ctx;
+  if (!d.advertised) return null;
+  const { partition, at } = d.advertised;
+  const line = at === null ? t("details.thread_partition_advertised_unknown", { partition })
+    : t("details.thread_partition_advertised", { partition, age: ageParts(at, ctx.now ?? Date.now()) });
+  const others = network.advertisedPartitions ? sharingPartition(network, d) : null;
+  const shared = !others ? null : others.length ? t("details.thread_partition_shared", { names: t.list(others.map(name)) })
+    : t("details.thread_partition_alone");
+  return h("li", {}, h("div", { text: line }), h("div", { class: "muted small", text: t("details.thread_partition_explained") }),
+    shared ? h("div", { text: shared }) : null);
 }
 
 /** The route card (board M38 section 2): the route to the default border router, its hops there and back with what
@@ -6636,7 +6712,8 @@ function routeCard(ctx, d, name) {
     wt || wb ? h("p", { class: "muted small", text: t("details.route_weakest", { there: hopName(wt), back: hopName(wb) }) }) : null,
     derived ? h("p", { class: "muted small", text: t("details.route_derived_note", { name: name(derived.to) }) }) : null,
     sourceLine(tables, holders, name, t, now),
-    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null);
+    old ? h("p", { class: "small warn-text", text: t("details.route_old") }) : null,
+    network.advertisedPartitions ? h("p", { class: "muted small", text: t("route.partitions_note") }) : null); // #21
 }
 
 /** The route card's summary: hop count and path cost of a complete way there, or that its cost is unknown; null
@@ -6717,11 +6794,10 @@ function sourceLine(tables, holders, name, t, now) {
 
 /** Status parts of a Thread network: the source, the coverage "Links with both directions: x/y" instead of router
  *  tables (no source-route stage, no completeness banner: every Matter node's table comes with the snapshot), when
- *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), and "no border
- *  router listed" when the snapshot names none, "{n} of {m} border routers" when it names fewer than are known (#20).
- *  `collected_at` is the time of the request, not the read time of the Thread tables, which the snapshot does not
- *  report; the note says so. */
-function threadParts(network, { collected = null, compact = false } = {}) {
+ *  the panel's snapshot was built with its age (collected: { time, age }, formatted by the panel), "no border router
+ *  listed" or "{n} of {m} border routers" (#20), advertised partitions (#21). `collected_at` is the time of the
+ *  request, not the read time of the Thread tables, which the snapshot does not report; the note says so. */
+function threadParts(network, { collected = null, compact = false, now = Date.now() } = {}) {
   const s = network.status;
   const parts = compact ? [] : [["status.source", { source: "Thread (Matter)" }]];
   parts.push(compact ? ["status.short_thread_links", { x: s.linksBoth, y: s.links }, "status.thread_links"]
@@ -6740,7 +6816,19 @@ function threadParts(network, { collected = null, compact = false } = {}) {
   else if (s.borderRouters < s.borderRoutersKnown) {
     parts.push(["status.thread_br_count", { n: s.borderRouters, m: s.borderRoutersKnown }, "status.thread_br_count_note"]);
   }
-  return parts;
+  return [...parts, ...partitionParts(network, compact, now)];
+}
+
+/** Where border routers advertise different partitions (#21, spec 3.2 "Partitions", 6): the part; in the full line
+ *  (the menu) also what a partition is, both readings with the oldest advertisement's age, and with route tables
+ *  that routes may no longer hold. */
+function partitionParts(network, compact, now) {
+  const advertised = network.advertisedPartitions;
+  if (!advertised) return [];
+  const part = ["status.thread_partitions", { n: advertised.count }];
+  return compact ? [part] : [part, ["details.thread_partition_explained", {}],
+    ["status.thread_partitions_note", { age: ageParts(advertised.oldestAt, now) }],
+    ...(network.routing ? [["route.partitions_note", {}]] : [])];
 }
 
 /** Older than this the panel's snapshot counts as old for the pill's dot (the age of the snapshot, not of the Thread
@@ -6749,23 +6837,24 @@ function threadParts(network, { collected = null, compact = false } = {}) {
 const OLD_AFTER_MS = 4 * 3600 * 1000;
 
 /** The pill's dot (spec 6): "ok" when every linked pair is measured both ways, every known border router is in the
- *  snapshot (at least one) and the panel's snapshot is younger than OLD_AFTER_MS; else "warn". */
+ *  snapshot (at least one), the panel's snapshot is younger than OLD_AFTER_MS and the border routers do not advertise
+ *  different partitions (#21); else "warn". */
 function healthLevel(network, now = Date.now()) {
   const s = network.status;
   const age = network.collectedAt ? now - Date.parse(network.collectedAt) : 0;
   const missing = !s.borderRouters || s.borderRouters < s.borderRoutersKnown;
-  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS ? "warn" : "ok";
+  return s.linksBoth < s.links || missing || age >= OLD_AFTER_MS || network.advertisedPartitions ? "warn" : "ok";
 }
 
 /** The whole status line of the engine (engines/index.js): { parts, right: null, incomplete: null, level }. extras:
  *  { compact, collected, now } (the snapshot time and its age, formatted by the panel). */
 function statusLine(network, { compact = false, collected = null, now = Date.now() } = {}) {
-  return { parts: threadParts(network, { collected, compact }), right: null, incomplete: null,
+  return { parts: threadParts(network, { collected, compact, now }), right: null, incomplete: null,
     level: healthLevel(network, now) };
 }
 
 // SPDX-License-Identifier: MIT
-// The Thread engine's texts: the status line's link coverage and snapshot time, the
+// The Thread engine's texts: the status line's link coverage, snapshot time and advertised partitions, the
 // legend's parent and neighbour rows, the Details' Thread facts, the border router and end device roles. Merged into the panel's table by ui/i18n.js through
 // engines/index.js; every key the Thread engine emits resolves in the shared table or here
 // (tests/engine-leaks.test.mjs 13). Pure data. npm test
@@ -6859,6 +6948,14 @@ const TEXTS$3 = Object.freeze({
   "details.thread_unknown": "not reported",
   "details.thread_partition_read": "Thread partition as last read: {partition}. The read time is not reported.",
   "details.thread_partition_read_leader": "Thread partition as last read: {partition}, leader router ID {leader}. The read time is not reported.",
+  "details.thread_partition_advertised": "Thread partition {partition}, as advertised {age}.",
+  "details.thread_partition_advertised_unknown": "Thread partition {partition}, as advertised; when Home Assistant received it is not reported.",
+  "details.thread_partition_explained": "A partition is a part of the Thread network whose routers reach each other.",
+  "details.thread_partition_shared": "Also advertised by {names}.",
+  "details.thread_partition_alone": "No other border router on this map advertises it.",
+  "status.thread_partitions": "Border routers advertise {n} partitions",
+  "status.thread_partitions_note": "This happens when the network is split into parts without radio contact, and also when a border router is off while its last advertisement is still in Home Assistant's mDNS cache. Home Assistant received the oldest of these advertisements {age}.",
+  "route.partitions_note": "Border routers advertise different partitions; if the network is split, routes from the Matter server's copy may no longer hold.",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
 });
 
@@ -10068,7 +10165,7 @@ const TEXTS$1 = Object.freeze({
 
 // SPDX-License-Identifier: MIT
 // The Matter adapter (spec 3.2): reads the Thread network through Home Assistant's Matter integration, and the border
-// routers its Thread integration knows (#20), and hands both to the Thread engine (engines/index.js), which builds the
+// routers Home Assistant knows (#20, #21), and hands both to the Thread engine (engines/index.js), which builds the
 // model. Read only: a snapshot built from the server's cache. No DOM. npm test
 
 /** How long the panel collects thread/discover_routers events after the subscription's result (owner decision
@@ -10100,34 +10197,34 @@ async function discoverRouters(hass, timers, found, onResult) {
   return [...found.values()];
 }
 
-/** The border routers Home Assistant's Thread integration knows, read only (spec 3.2 "Border routers", #20): the
- *  answer of thread/list_datasets (no keys) and discoverRouters (Home Assistant's mDNS view; while it runs Home
- *  Assistant sends an mDNS query on the local network, no Thread radio traffic), each on its own, both bounded by
- *  BORDER_ROUTERS_MS from the start. Returns { datasets, routers }, each null where its command failed or did not end
- *  in time (no Thread integration, not an admin; routers: what came so far where the result did): the map is then
- *  built as without them, without a message. Never rejects: a lost connection comes back as { lost }.
- *  timers: { setTimeout, clearTimeout }. */
+/** The border routers Home Assistant knows, read only (spec 3.2 "Border routers" and "Partitions"): the answers of
+ *  thread/list_datasets (no keys), discoverRouters (an mDNS query meanwhile, no Thread radio traffic) and the
+ *  integration's thread_border_agents (its mDNS cache; sends nothing), each bounded by BORDER_ROUTERS_MS from the
+ *  start. Returns { datasets, routers, agents }, each null where its command failed or did not end in time (routers:
+ *  what came so far where the result did): the map is then built as without them, without a message. Never rejects:
+ *  a lost connection comes back as { lost }. timers: { setTimeout, clearTimeout }. */
 async function readBorderRouters(hass, timers) {
   const found = new Map();
   let confirmed = false;
   let timer = null;
   const limit = new Promise((resolve) => { timer = timers.setTimeout(() => resolve({ late: true }), BORDER_ROUTERS_MS); });
   const bounded = (promise) => Promise.race([promise.then((value) => ({ value }), (error) => ({ error })), limit]);
-  const [datasets, routers] = await Promise.all([
+  const [datasets, routers, agents] = await Promise.all([
     bounded((async () => hass.callWS({ type: "thread/list_datasets" }))()),
     bounded(discoverRouters(hass, timers, found, () => { confirmed = true; })),
+    bounded((async () => hass.callWS({ type: "meshroute_topology_explorer/thread_border_agents" }))()),
   ]);
   timers.clearTimeout(timer);
-  const lost = [datasets, routers].find((r) => r.error && isConnectionLost(r.error));
+  const lost = [datasets, routers, agents].find((r) => r.error && isConnectionLost(r.error));
   if (lost) return { lost: lost.error };
   return { datasets: datasets.value ?? null,
-    routers: routers.value ?? (routers.late && confirmed ? [...found.values()] : null) };
+    routers: routers.value ?? (routers.late && confirmed ? [...found.values()] : null), agents: agents.value ?? null };
 }
 
 /** The Thread network through Matter (spec 3.2): read only when the Matter integration is loaded, with refresh false
  *  (a snapshot built from the server's cache; refresh true reads every node's tables over the radio and is never
  *  sent from here), then the route tables of the same cache through the integration (thread_tables); beside them the
- *  border routers of Home Assistant's Thread integration (readBorderRouters). options.timers: { setTimeout,
+ *  border routers Home Assistant knows (readBorderRouters). options.timers: { setTimeout,
  *  clearTimeout }.
  *  Returns { status: "ok" | "not_set_up" | "not_running" | "not_supported" | "empty" | "error", network?, message?
  *  (not_running: the entry's state) }; a lost
@@ -11118,12 +11215,16 @@ function formatLocaleOf(hass) {
   }
 }
 
-/** t(key, params) with the key itself as fallback. Also: t.formatLocale, t.number(n), t.list(items), t.time(text).
- *  strings: the table, all of the panel's by default (tests pass fewer: mergeTexts). */
+/** t(key, params) with the key itself as fallback; a parameter given as [key, params] whose key is in the table is
+ *  translated first (an engine's status part names an age by ageParts, engines/thread/status.js), any other value
+ *  is formatted as text. Also: t.formatLocale, t.number(n), t.list(items), t.time(text). strings: the table, all of
+ *  the panel's by default (tests pass fewer: mergeTexts). */
 function translator(formatLocale = "en", strings = STRINGS) {
   const t = (key, params = {}) => {
     const text = strings[key] ?? key;
-    return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
+    const nested = (v) => Array.isArray(v) && typeof v[0] === "string" && Object.hasOwn(strings, v[0]);
+    const value = (v) => (nested(v) ? t(...v) : String(v));
+    return text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? value(params[name]) : m));
   };
   t.formatLocale = formatLocale;
   t.has = (key) => key in strings;
@@ -13707,18 +13808,6 @@ function storageText(client, t) {
   }
   if (client.error) return t("storage.error", { message: client.error.message });
   return t("storage.stored");
-}
-
-// SPDX-License-Identifier: MIT
-// The age of a time for the status line. The status line's parts are the engines' (engines/<type>/status.js); which
-// empty or error state applies before any data is shown is the controller's and the adapters' (spec 9.4). No DOM.
-// Tested in Node: npm test
-
-/** Age of a time as a text key and its parameters: "just now", "{n} min ago", "{n} h ago". */
-function ageParts(iso, now = Date.now()) {
-  const minutes = Math.floor((now - Date.parse(iso)) / 60000);
-  if (!Number.isFinite(minutes) || minutes < 1) return ["status.age_now", {}];
-  return minutes < 120 ? ["status.age_minutes", { n: minutes }] : ["status.age_hours", { n: Math.floor(minutes / 60) }];
 }
 
 // SPDX-License-Identifier: MIT

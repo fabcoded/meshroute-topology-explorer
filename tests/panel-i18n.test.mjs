@@ -29,6 +29,13 @@ test("translation helpers: placeholders, missing keys, time text", () => {
   assert.equal(t.time(null), "?");
 });
 
+test("#21 a parameter [key, params] with a key of the table is translated; any other array stays text", () => {
+  const t = translator("en");
+  assert.equal(t("status.tables", { x: ["status.age_minutes", { n: 12 }], y: 4 }), "Router tables: 12 min ago/4");
+  assert.equal(t("status.tables", { x: ["Router 1", "Router 2"], y: ["no.such.key", { n: 1 }] }),
+    "Router tables: Router 1,Router 2/no.such.key,[object Object]", "as String() formats it, as before");
+});
+
 test("the model's coordinator label is translated, user labels stay", () => {
   const network = sampleNetwork();
   const out = localize(network, translator("en"), null);

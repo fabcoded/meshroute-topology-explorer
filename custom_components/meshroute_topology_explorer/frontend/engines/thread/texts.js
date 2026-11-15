@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The Thread engine's texts: the status line's link coverage and snapshot time, the
+// The Thread engine's texts: the status line's link coverage, snapshot time and advertised partitions, the
 // legend's parent and neighbour rows, the Details' Thread facts, the border router and end device roles. Merged into the panel's table by ui/i18n.js through
 // engines/index.js; every key the Thread engine emits resolves in the shared table or here
 // (tests/engine-leaks.test.mjs 13). Pure data. npm test
@@ -93,5 +93,13 @@ export const TEXTS = Object.freeze({
   "details.thread_unknown": "not reported",
   "details.thread_partition_read": "Thread partition as last read: {partition}. The read time is not reported.",
   "details.thread_partition_read_leader": "Thread partition as last read: {partition}, leader router ID {leader}. The read time is not reported.",
+  "details.thread_partition_advertised": "Thread partition {partition}, as advertised {age}.",
+  "details.thread_partition_advertised_unknown": "Thread partition {partition}, as advertised; when Home Assistant received it is not reported.",
+  "details.thread_partition_explained": "A partition is a part of the Thread network whose routers reach each other.",
+  "details.thread_partition_shared": "Also advertised by {names}.",
+  "details.thread_partition_alone": "No other border router on this map advertises it.",
+  "status.thread_partitions": "Border routers advertise {n} partitions",
+  "status.thread_partitions_note": "This happens when the network is split into parts without radio contact, and also when a border router is off while its last advertisement is still in Home Assistant's mDNS cache. Home Assistant received the oldest of these advertisements {age}.",
+  "route.partitions_note": "Border routers advertise different partitions; if the network is split, routes from the Matter server's copy may no longer hold.",
   "details.thread_stale": "Unavailable: its last known readings are not drawn.",
 });

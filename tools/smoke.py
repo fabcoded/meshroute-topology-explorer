@@ -51,6 +51,9 @@ JOURNEYS = [
     # router make 4 devices; it adds no lane
     ("Thread border routers: 4 devices, 3 lanes", "network=thread&matter=borderrouters&steps=wait:300",
      [r"source thread; devices 4;", r"drawn 3 lanes"]),
+    # #21: border routers A and B advertise different partitions: the pill's second line says so
+    ("Thread partitions advertised: pill", "network=thread&matter=routes&partitions=1&steps=wait:300",
+     [r"pill [^;]*Border routers advertise 2 partitions;"]),
 ]
 # #4: a phone window with a system bar; the dev page pads the panel's container as Home Assistant does
 INSET_JOURNEYS = [

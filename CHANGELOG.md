@@ -30,6 +30,13 @@
   reported; nothing where none was read, nothing on a border router. Nothing is derived from them: on a healthy
   network the copy can hold several partition ids of different read times. `meshroute_topology_explorer/thread_tables`
   also returns PartitionId (0/53/9) and LeaderRouterId (0/53/13) per node. Needs a restart of Home Assistant.
+- **Thread partitions the border routers advertise** (part of #21): where border routers of one network advertise
+  different partition ids over mDNS, the status pill says "Border routers advertise 2 partitions" in amber; its menu
+  says that this happens when the network is split and also when a border router is off while its last advertisement
+  is still in Home Assistant's cache, and route cards add that routes may no longer hold. A border router's Details
+  show its advertised partition and how long ago Home Assistant received it. Read from Home Assistant's mDNS cache by
+  the new read-only command `meshroute_topology_explorer/thread_border_agents`, which sends nothing. Needs a restart
+  of Home Assistant.
 
 ## 0.2.1 – 2026-11-08
 

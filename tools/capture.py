@@ -11,7 +11,8 @@ Read only: the tool sends exactly the four commands in COMMANDS (spec 3.4) and n
 scan. --matter adds the Thread topology (spec 3.2): `matter/network_topology` with refresh false, the Matter server's
 cached snapshot (refresh true would read every node's tables over the radio and is never sent), and the border routers
 of Home Assistant's Thread integration as the panel reads them (#20): `thread/list_datasets` (no keys) and the events
-of `thread/discover_routers` (Home Assistant sends an mDNS query on the local network meanwhile), each left out where
+of `thread/discover_routers` (Home Assistant sends an mDNS query on the local network meanwhile), and the border
+agents in Home Assistant's mDNS cache (#21, `meshroute_topology_explorer/thread_border_agents`), each left out where
 Home Assistant refuses it. It talks only to the URL you give. By default the result goes through tools/anonymize_capture.py before it is
 written; --raw skips that and writes real addresses and names: do not share such a file.
 Exit codes: 0 ok, 1 usage or bad input, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout,
@@ -40,6 +41,7 @@ MATTER_COMMAND = "matter/network_topology"
 # #20, the panel's bounds (adapters/matter.js): events for 0.15 s after the subscription's result, all of it within
 # 0.5 s. The subscription ends with the connection.
 DATASETS, ROUTERS = "thread/list_datasets", "thread/discover_routers"
+AGENTS = "meshroute_topology_explorer/thread_border_agents"  # #21: Home Assistant's mDNS cache, sends nothing
 DISCOVERY_S, BORDER_ROUTERS_S = 0.15, 0.5
 EXIT = {"usage": 1, "connect": 2, "auth": 3, "command": 4, "timeout": 5, "anonymizer": 6}
 
@@ -137,7 +139,7 @@ def _converse(ws: WebSocket, token: str, timeout: float, matter: bool = False) -
 def _border_routers(ws: WebSocket, first: int) -> dict:
     """The Thread integration's answers (#20): the datasets, and the subscription's events before and after its result
     as {"before_result": [...], "after_result": [...]}; what is refused or not done in time is left out."""
-    ids = {first: DATASETS, first + 1: ROUTERS}
+    ids = {first: DATASETS, first + 1: ROUTERS, first + 2: AGENTS}
     for msg_id, command in ids.items():
         ws.send_text(json.dumps({"id": msg_id, "type": command}))
     answers, events, confirmed = {}, {"before_result": [], "after_result": []}, False
@@ -155,7 +157,7 @@ def _border_routers(ws: WebSocket, first: int) -> dict:
                 confirmed, waits[ROUTERS] = True, min(waits[ROUTERS], time.monotonic() + DISCOVERY_S)
             else:
                 waits.pop(command)
-                answers.update({DATASETS: msg.get("result")} if msg.get("success") else {})
+                answers.update({command: msg.get("result")} if msg.get("success") else {})
         waits = {k: v for k, v in waits.items() if v > time.monotonic()}
     if confirmed:
         answers[ROUTERS] = events

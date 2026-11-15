@@ -276,8 +276,11 @@ function virtualClock() {
 /** A Home Assistant with Matter loaded and the fixture's answers on `clock`. resultAt: when the subscription's result
  *  comes (null: never); "error" or "lost": the subscription is refused (unknown_command, connection lost). The
  *  fixture's events before the result come at once, the others `afterMs` after the result, `late` [{ at, event }] at
- *  their own time. datasetsAt: when list_datasets answers (null: never); datasets "error" or "lost": it fails. */
-function fakeHass(clock, { resultAt = 3, afterMs = 20, late = [], datasetsAt = 1, datasets: answer = "ok" } = {}) {
+ *  their own time. datasetsAt: when list_datasets answers (null: never); datasets "error" or "lost": it fails.
+ *  agents (#21): the answer of thread_border_agents at agentsAt (null: never), "lost" or "error" (not_supported) at
+ *  agentsAt; without it the command is unknown, as are all others. */
+function fakeHass(clock, { resultAt = 3, afterMs = 20, late = [], datasetsAt = 1, datasets: answer = "ok", agents = undefined,
+  agentsAt = 2 } = {}) {
   const log = { calls: [], subscribed: [], stopped: [] };
   const at = (ms, f) => clock.setTimeout(f, ms - clock.now());
   return {
@@ -286,6 +289,12 @@ function fakeHass(clock, { resultAt = 3, afterMs = 20, late = [], datasetsAt = 1
       log.calls.push(msg.type);
       if (msg.type === "config_entries/get") return [{ entry_id: "m", domain: "matter", state: "loaded" }];
       if (msg.type === "matter/network_topology") return topology;
+      if (msg.type === "meshroute_topology_explorer/thread_border_agents" && agents !== undefined) {
+        if (agentsAt === null) return new Promise(() => {});
+        return new Promise((resolve, reject) => at(agentsAt, () => (agents === "lost" ? reject({ code: 3 })
+          : agents === "error" ? reject({ code: "not_supported", message: "zeroconf_not_loaded: zeroconf is not loaded" })
+            : resolve(agents))));
+      }
       if (msg.type !== "thread/list_datasets") throw { code: "unknown_command", message: "Unknown command." };
       if (datasetsAt === null) return new Promise(() => {});
       return new Promise((resolve, reject) => at(datasetsAt, () => (answer === "ok" ? resolve(datasets)
@@ -324,7 +333,8 @@ test("#20 the adapter collects before and after the result and removals, and uns
   assert.equal(dev(value.network, ATTIC).preferred, true);
   assert.deepEqual(hass.log.subscribed, [{ msg: { type: "thread/discover_routers" }, options: { resubscribe: false } }]);
   assert.deepEqual([...new Set(hass.log.calls)].sort(), ["config_entries/get", "matter/network_topology",
-    "meshroute_topology_explorer/thread_tables", "thread/list_datasets"], "no other command, no keys");
+    "meshroute_topology_explorer/thread_border_agents", "meshroute_topology_explorer/thread_tables", "thread/list_datasets"],
+  "no other command, no keys (#21: thread_border_agents)");
 });
 
 test("#20 the window starts at the result: an event 140 ms after it counts, one 160 ms after it does not", async () => {
@@ -411,4 +421,40 @@ test("#20 without the Thread integration the read is today's, at once and withou
   const r2 = await read(fakeHass(c2, { datasets: "error" }), c2);
   assert.equal(dev(r2.value.network, ATTIC).label, "Border router attic");
   assert.deepEqual(r2.value.network.devices.filter((d) => d.preferred), []);
+});
+
+/** #21: the answer of thread_border_agents with the garage and the attic advertising different partitions, read at
+ *  the fixture's snapshot time (2026-01-01 12:00 UTC), received 30 s and 60 s before. */
+const AGENTS = { agents: [{ ext_address: "aabbccdd00000110", ext_pan_id: "aabbccddeeff0101", partition_id: 1, age: 30 },
+  { ext_address: "aabbccdd00000111", ext_pan_id: "aabbccddeeff0101", partition_id: 2, age: 60 }], read_at: 1767268800 };
+
+test("#21 the adapter reads thread_border_agents beside the others; its answer reaches the network", async () => {
+  const clock = virtualClock();
+  const hass = fakeHass(clock, { agents: AGENTS });
+  const { value, at } = await read(hass, clock);
+  assert.equal(at, 153, "within the subscription's window: the read does not wait longer");
+  assert.equal(hass.log.calls.filter((c) => c === "meshroute_topology_explorer/thread_border_agents").length, 1);
+  assert.deepEqual(value.network.advertisedPartitions, { count: 2, oldestAt: (1767268800 - 60) * 1000 });
+  assert.deepEqual(dev(value.network, ATTIC).advertised, { partition: 2, at: (1767268800 - 60) * 1000 });
+});
+
+test("#21 thread_border_agents missing, failing, slow or hanging: the map as without it, no message; lost fails", async () => {
+  const without = (network) => network.advertisedPartitions === null && network.devices.every((d) => d.advertised === null);
+  for (const [options, end] of [[{}, 153], [{ agents: "error", agentsAt: 40 }, 153], [{ agents: AGENTS, agentsAt: 600 }, 500],
+    [{ agents: AGENTS, agentsAt: null }, 500]]) {
+    const clock = virtualClock();
+    const { value, at } = await read(fakeHass(clock, options), clock);
+    assert.equal(at, end, JSON.stringify(options));
+    assert.deepEqual(Object.keys(value).sort(), ["network", "status"]);
+    assert.ok(without(value.network), JSON.stringify(options));
+    assert.equal(dev(value.network, ATTIC).label, "Border router attic", "the other border-router answers are kept");
+  }
+  // Slow but within the bound: the read waits for it.
+  let clock = virtualClock();
+  let r = await read(fakeHass(clock, { agents: AGENTS, agentsAt: 300 }), clock);
+  assert.equal(r.at, 300);
+  assert.equal(r.value.network.advertisedPartitions.count, 2);
+  clock = virtualClock();
+  r = await read(fakeHass(clock, { agents: "lost", agentsAt: 40 }), clock);
+  assert.equal(r.error.code, 3);
 });
