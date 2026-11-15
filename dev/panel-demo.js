@@ -272,9 +272,14 @@ const captureTopology = fixture.responses["matter/network_topology"] || null;
 const matterMode = captureTopology ? "1" : q.get("matter") || (q.get("network") === "thread" ? "1" : null);
 const routesSample = matterMode === "routes" ? (await import("../tests/thread-routes-fixture.mjs"))
   .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }) : null; // read now: tables 1, 3 and 21 h unchanged
+// partitions=1 (with matter=routes, #21): border routers A and B advertise different partitions, received 3 and 40 min ago.
+const advertised = (k, partition, age) => ({ ext_address: routesSample.topology.nodes.find((n) => n.host_name === k)
+  .ext_address.toLowerCase(), ext_pan_id: "aabbccddeeff0099", partition_id: partition, age });
 const matterResponses = captureTopology ? fixture.responses
   : routesSample ? { "matter/network_topology": routesSample.topology, "config/device_registry/list": routesSample.registry,
-    "meshroute_topology_explorer/thread_tables": routesSample.tables }
+    "meshroute_topology_explorer/thread_tables": routesSample.tables, ...(flag("partitions") ? {
+      "meshroute_topology_explorer/thread_border_agents": { agents: [advertised("Border router A", 111111111, 180),
+        advertised("Border router B", 222222222, 2400)], read_at: Date.now() / 1000 } } : {}) }
     : matterMode === "1" ? (await (await fetch("../tests/fixtures/matter-sample.json")).json()).responses
       : matterMode === "borderrouters" ? (await (await fetch("../tests/fixtures/thread-border-routers.json")).json()).responses
         : null;
@@ -369,6 +374,7 @@ async function callWS(msg) {
     case "meshroute_topology_explorer/thread_tables":
       return sampleAnswer(msg, { code: "not_supported", message: "dev page: this sample has no Thread tables" });
     case "thread/list_datasets": return sampleAnswer(msg, unknown);
+    case "meshroute_topology_explorer/thread_border_agents": return sampleAnswer(msg, unknown);
     case "zha/devices":
       if (flag("error")) throw { code: "home_assistant_error", message: "ZHA did not answer" };
       return flag("empty") ? [] : currentDevices();
@@ -582,8 +588,9 @@ const edges = () => {
   return `pill ${bottom(root.querySelector(".status-pill-button"))} fit ${bottom(root.querySelector(".zoom:not(.spread) .icon-button:last-child"))} window ${innerHeight}`;
 };
 
-/** The shown network's source and device count (#20: the unheard border router counts), or "-". */
-const network = () => (el._network ? `source ${el._network.source}; devices ${el._network.devices.length}` : "source -; devices -");
+/** The shown network's source and device count (#20: the unheard border router counts), or "-"; the pill's second line. */
+const network = () => (el._network ? `source ${el._network.source}; devices ${el._network.devices.length}` : "source -; devices -")
+  + `; pill ${(el.shadowRoot.querySelector(".pill-line") || {}).textContent || "-"}`;
 
 async function replay() {
   const list = q.get("steps");
