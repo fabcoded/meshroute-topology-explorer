@@ -143,20 +143,23 @@ test("phone width of the map: second line hidden, the short name, the dot stays"
     "room left and right for the zoom group");
 });
 
-// #23: the menu is 500 px wide, held inside the free area between the drawers (where the pill is centred); on a phone
-// that is the map's width minus 32 px, as it was. The rule's width is evaluated for map widths and drawer insets.
-test("#23: the pill menu is 500 px wide, at most the free area between the drawers minus 32 px", () => {
+// #23: the menu is 500 px wide, held inside the free part of the map between the side panels, never narrower than
+// 300 px (its width before) and never wider than the map minus 32 px. The rule's width is evaluated for map widths and
+// insets; the rule relies on .map being a size container (100cqw).
+test("#23: the pill menu is 500 px wide, within the free part of the map, 300 px at least, the map minus 32 px at most", () => {
+  assert.match(STYLES, /\.map \{ container-type: inline-size; \}/, "100cqw needs .map as the size container");
   const rule = STYLES.match(/\.pill-menu \{[^}]*?[\s;]width: ([^;]+);/);
   assert.ok(rule, "the menu has a width rule");
   const width = ({ map, left = 0, right = 0 }) => {
     const css = rule[1].replace(/100cqw/g, `${map}px`).replace(/var\(--inset-left\)/g, `${left}px`)
       .replace(/var\(--inset-right\)/g, `${right}px`).replace(/calc/g, "").replace(/px/g, "");
-    return new Function("min", `return ${css};`)(Math.min);
+    return new Function("min", "max", `return ${css};`)(Math.min, Math.max);
   };
-  assert.equal(width({ map: 1280 }), 500, "desktop, no drawer");
-  assert.equal(width({ map: 1280 - 400, left: 0, right: 0 }), 500, "desktop, one drawer's map");
-  assert.equal(width({ map: 1280, left: 340, right: 340 }), 500, "two drawers leave 600 px: room for 500");
-  assert.equal(width({ map: 900, left: 300, right: 300 }), 268, "a narrow free area limits the menu");
-  assert.equal(width({ map: 412 }), 412 - 32, "phone: the viewport minus 32 px, unchanged");
+  assert.equal(width({ map: 1280 }), 500, "desktop, no panel");
+  assert.equal(width({ map: 1000, left: 320 }), 500, "one panel, asymmetric");
+  assert.equal(width({ map: 1280, left: 340, right: 340 }), 500, "two panels leave 600 px: room for 500");
+  assert.equal(width({ map: 720, left: 320, right: 320 }), 300, "narrow, both panels: 300 px as before");
+  assert.equal(width({ map: 900, left: 300, right: 300 }), 300, "a narrow free part never goes below 300 px");
+  assert.equal(width({ map: 412 }), 412 - 32, "phone: the map's width minus 32 px, unchanged");
   assert.equal(width({ map: 360 }), 360 - 32, "small phone");
 });
