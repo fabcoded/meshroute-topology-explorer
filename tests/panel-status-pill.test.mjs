@@ -142,3 +142,21 @@ test("phone width of the map: second line hidden, the short name, the dot stays"
   assert.match(STYLES, /\.status-pill \{[^}]*max-width: calc\(100% - var\(--inset-left\) - var\(--inset-right\) - 144px\)/,
     "room left and right for the zoom group");
 });
+
+// #23: the menu is 500 px wide, held inside the free area between the drawers (where the pill is centred); on a phone
+// that is the map's width minus 32 px, as it was. The rule's width is evaluated for map widths and drawer insets.
+test("#23: the pill menu is 500 px wide, at most the free area between the drawers minus 32 px", () => {
+  const rule = STYLES.match(/\.pill-menu \{[^}]*?[\s;]width: ([^;]+);/);
+  assert.ok(rule, "the menu has a width rule");
+  const width = ({ map, left = 0, right = 0 }) => {
+    const css = rule[1].replace(/100cqw/g, `${map}px`).replace(/var\(--inset-left\)/g, `${left}px`)
+      .replace(/var\(--inset-right\)/g, `${right}px`).replace(/calc/g, "").replace(/px/g, "");
+    return new Function("min", `return ${css};`)(Math.min);
+  };
+  assert.equal(width({ map: 1280 }), 500, "desktop, no drawer");
+  assert.equal(width({ map: 1280 - 400, left: 0, right: 0 }), 500, "desktop, one drawer's map");
+  assert.equal(width({ map: 1280, left: 340, right: 340 }), 500, "two drawers leave 600 px: room for 500");
+  assert.equal(width({ map: 900, left: 300, right: 300 }), 268, "a narrow free area limits the menu");
+  assert.equal(width({ map: 412 }), 412 - 32, "phone: the viewport minus 32 px, unchanged");
+  assert.equal(width({ map: 360 }), 360 - 32, "small phone");
+});

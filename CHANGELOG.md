@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Wider status menu:** the menu above the status pill is 500 px wide instead of 300 px, so its notes wrap far less; on a phone it keeps its width, and beside open side panels it stays inside the free part of the map (#23). Frontend only.
 - **Thread routes, part one** (#11 part a: routes on the map and in Details; recording them in the history and the
   window's Route tab follow): selecting a Thread device draws its route to the border router with the lowest path cost,
   there and back, as Thread forwards it, computed from the route and neighbour tables Home Assistant's Matter client

@@ -866,7 +866,7 @@ One place per thing; nothing appears twice.
   styled like the other floating controls (48 px high, 14 px corners, theme surface, light shadow). Left to right: a
   round arrow button (30 px, light grey, chevron up; down while the menu is open), two lines (the network's name,
   bold 15 px; the data state, 12 px, 6), and the dot last. The whole pill is a WAI-ARIA menu button (`ui/status-pill.js`;
-  `menuitemradio` for networks, `menuitem` for the rest, arrows move, Esc closes and returns focus) opening upwards;
+  `menuitemradio` for networks, `menuitem` for the rest, arrows move, Esc closes and returns focus) opening upwards, 500 px wide and at most the map's width minus the drawers' insets minus 32 px (on a phone: the width minus 32 px; #23);
   hover: outline, darker arrow button, pointer. The menu holds, top to bottom: **Network** (the networks, an unreadable
   one greyed with its reason; omitted with one network, the pill still opens the menu), the full data state (6; including
   the source-route stage "Return paths assumed for 8 devices (source route)", "Source route off · 8 return paths

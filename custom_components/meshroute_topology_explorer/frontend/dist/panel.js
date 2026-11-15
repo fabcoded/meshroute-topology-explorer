@@ -14341,8 +14341,10 @@ dialog.cluster-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
   .pill-short { display: inline; }
   .status-pill-button { height: 44px; padding-right: 14px; }
 }
+/* 500 px wide, but inside the free area between the drawers, where the pill is centred (#23); on a phone that is the
+   map's width minus 32 px, as before. */
 .pill-menu { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); display: flex;
-  flex-direction: column; width: min(300px, calc(100vw - 32px)); padding: 6px 0; color: var(--mte-fg);
+  flex-direction: column; width: min(500px, calc(100cqw - var(--inset-left) - var(--inset-right) - 32px)); padding: 6px 0; color: var(--mte-fg);
   background: var(--mte-card); border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); outline: none; }
 .menu-title { padding: 6px 14px 2px; font-size: 12px; color: var(--mte-muted); }
 .menu-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 14px; font: inherit;
