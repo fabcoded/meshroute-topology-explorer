@@ -52,6 +52,7 @@ def _agent(txt: Any, now_ms: float) -> dict[str, Any] | None:
     created = txt.created
     age = (now_ms - created) / 1000 if isinstance(created, (int, float)) and not isinstance(created, bool) else None
     return {"ext_address": xa.hex(), "ext_pan_id": xp.hex(),
+            # Big-endian is an assumption from one measurement (spec 3.2 "Partitions").
             "partition_id": int.from_bytes(pt, "big") if pt is not None and len(pt) == 4 else None,
             "age": round(age, 1) if age is not None and age >= 0 else None}
 

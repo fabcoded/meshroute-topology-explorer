@@ -130,7 +130,9 @@ class CaptureTest(unittest.TestCase):
         responses[capture.AGENTS] = {"read_at": 1767272340.0, "agents": [
             {"ext_address": "02124b0000000110", "ext_pan_id": pan, "partition_id": 305419896, "age": 30.0},
             {"ext_address": "02124b0000000111", "ext_pan_id": pan, "partition_id": 305419896, "age": 60.0},
-            {"ext_address": "02124b0000000199", "ext_pan_id": pan, "partition_id": 2271560481, "age": 90.0}]}
+            {"ext_address": "02124b0000000199", "ext_pan_id": pan, "partition_id": 2271560481, "age": 90.0},
+            # malformed: an address as age, a list as partition id
+            {"ext_address": "02124b0000000110", "ext_pan_id": pan, "partition_id": [305419896], "age": "02124b0000000111"}]}
         with FakeServer(responses=responses) as server:
             code, _, err = self.run_tool(server, "--matter")
         self.assertEqual(code, 0, err)
@@ -151,9 +153,9 @@ class CaptureTest(unittest.TestCase):
         self.assertNotIn("305419896", text)
         self.assertNotIn("2271560481", text)
         self.assertEqual(agents["read_at"], 1767268740.0)
-        self.assertEqual([a["age"] for a in agents["agents"]], [30.0, 60.0, 90.0])
+        self.assertEqual([a.get("age") for a in agents["agents"]], [30.0, 60.0, 90.0, None], "no number: dropped")
         ids = [a["partition_id"] for a in agents["agents"]]
-        self.assertTrue(ids[0] == ids[1] != ids[2] and None not in ids, ids)
+        self.assertTrue(ids[0] == ids[1] != ids[2] and ids[3] is None and None not in ids[:3], ids)
         self.assertIn(agents["agents"][0]["ext_address"], keys, "the garage keeps its snapshot address")
         self.assertEqual({a["ext_pan_id"] for a in agents["agents"]},
                          {n["ext_pan_id"].lower() for n in data["matter/network_topology"]["nodes"]})

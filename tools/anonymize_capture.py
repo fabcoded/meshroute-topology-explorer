@@ -288,20 +288,46 @@ def _thread_registry(responses: dict) -> None:
             entry["identifiers"] = [["matter", f"node-{label}"]]
 
 
-def _shift_topology(responses: dict) -> None:
-    """Move the topology's times (milliseconds since the epoch) so its collection time lands on ANCHOR, gaps kept."""
+def _shift_topology(responses: dict) -> int | None:
+    """Move the topology's times (milliseconds since the epoch) so its collection time lands on ANCHOR, gaps kept;
+    returns the shift, or None without a collection time."""
     topo = responses.get(TOPOLOGY)
     if not isinstance(topo, dict) or not isinstance(topo.get("collected_at"), (int, float)):
-        return
+        return None
     anchor = int(ANCHOR.replace(tzinfo=dt.UTC).timestamp() * 1000)
     delta = anchor - int(topo["collected_at"])
     topo["collected_at"] = anchor
     for node in topo.get("nodes", []):
         if isinstance(node.get("last_seen"), (int, float)):
             node["last_seen"] = int(node["last_seen"]) + delta
-    agents = responses.get(AGENTS)
-    if isinstance(agents, dict) and isinstance(agents.get("read_at"), (int, float)):  # #21: seconds; ages are kept
-        agents["read_at"] += delta / 1000
+    return delta
+
+
+def _number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _whole(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _clean_agents(responses: dict, delta: int | None) -> None:
+    """#21: partition ids replaced consistently, from integers only (anything else null); ages kept as numbers only;
+    read_at shifted with the topology's collection time (`delta` ms), dropped without one or when no number."""
+    answer = responses.get(AGENTS)
+    if not isinstance(answer, dict):
+        return
+    agents = answer.get("agents") or []
+    fake = {v: 0x10000000 + n for n, v in enumerate(dict.fromkeys(a["partition_id"] for a in agents
+                                                                   if _whole(a.get("partition_id"))), 1)}
+    for a in agents:
+        a["partition_id"] = fake[a["partition_id"]] if _whole(a.get("partition_id")) else None
+        if not _number(a.get("age")):
+            a.pop("age", None)
+    if _number(answer.get("read_at")) and delta is not None:
+        answer["read_at"] += delta / 1000
+    else:
+        answer.pop("read_at", None)
 
 
 def naive_utc(stamp: str) -> dt.datetime:
@@ -340,12 +366,8 @@ def anonymize(capture: dict) -> dict:
     mapping = build_mapping(responses)
     lower = {k.lower(): v for k, v in mapping.items()}
     out = walk(responses, lambda s: mapping.get(s, lower.get(s.lower(), s)))
-    agents = (out.get(AGENTS) or {}).get("agents") or []  # #21: equal partition ids stay equal, nothing else is kept
-    fake = {v: 0x10000000 + n for n, v in enumerate(dict.fromkeys(a.get("partition_id") for a in agents), 1)}
-    for a in agents:
-        a["partition_id"] = fake[a.get("partition_id")] if isinstance(a.get("partition_id"), int) else None
     out = shift_times(out)
-    _shift_topology(out)
+    _clean_agents(out, _shift_topology(out))
 
     text = json.dumps(out, ensure_ascii=False).lower()
     probes = set(mapping) | {k[2:] for k in mapping if k.startswith("0x")}  # addresses also as bare hex

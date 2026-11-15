@@ -238,8 +238,9 @@ The panel reads through Home Assistant's websocket API and requires an administr
     number, negative, or outside the Date range) is unknown.
   - Border routers advertising two or more different partition ids, each from a record of known age: the status
     part "Border routers advertise n partitions" (amber, 6), the line on route cards (9.2), and in Details which
-    border routers advertise the same one. It is no verdict on the network: either the network is split into parts
-    without radio contact, or a border router is off and its last advertisement still stands. Equal ids, a single
+    border routers advertise the same one. It is no verdict on the network: this happens when the network is split
+    into parts without radio contact, and also when a border router is off while its last advertisement is still in
+    Home Assistant's mDNS cache (the menu's note, 6). Equal ids, a single
     border router, missing data or an unknown age make no statement, never "not split": a part without a border router
     advertises nothing. No heuristic tells the two readings apart; a query of the border routers (#12) will.
   - Limit: the age is when Home Assistant last received the advertisement, not that the border router still runs. A
@@ -255,7 +256,8 @@ The panel reads through Home Assistant's websocket API and requires an administr
     runs.
   - Assumption: a running border router announces its TXT record again as soon as its partition id changes (RFC 6762
     8.4: a responder announces again when the rdata of a record changes; openthread.io API reference, Border Agent,
-    `otBorderAgentSetMeshCoPServiceChangedCallback`: "passes the updated encoded TXT data to the application layer").
+    `otBorderAgentSetMeshCoPServiceChangedCallback`: "The callback is invoked when the 'Is Active' state of the Border
+    Agent or the MeshCoP service TXT data values change.", read 2026-11-15).
   - Routes are neither stopped nor recomputed: router IDs are per partition, so in a split network the routes above,
     whose router IDs are mapped over all tables, can be wrong or stop. Known limit until fresh data per router (#12).
 - `collected_at` is built by the Matter server when the request arrives (matterjs-server main 0bd06f2, 2026-10-31:
@@ -343,10 +345,12 @@ forbidden, in particular commands that return keys or change a network: `zha/net
 `zha/groups/*`, `zha/configuration/*`, and ZHA services that write attributes, issue cluster commands or bind. The
 integration's Python reads from zigpy only IEEE address, network address and relays per device, from the Matter client
 only its node list and each node's ThreadNetworkDiagnostics cluster (3.2; never a read, refresh, write or command
-through the client), from Home Assistant's zeroconf instance only records in its cache (3.2 "Partitions"; never a
-browser, a service listener or lookup, a send, an announcement, check or unregistration, a new instance, an interface
-change, a close or a cache write, nor Home Assistant's Thread router discovery), and, for the reception
-history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config, reads the topology's scan task state and attaches a
+through the client), from Home Assistant's zeroconf instance only records in its cache (3.2 "Partitions"; in shipped
+Python `tools/guard.py` PY_DENY names, and fails on, zeroconf's browsers, service listeners and lookups, sends,
+announcements, checks and unregistrations, new instances and Home Assistant's `async_get_instance` and
+`async_get_async_instance`, interface changes, closers such as `ha_close` and `ha_async_close`, cache writes and
+expiry, and Home Assistant's Thread router discovery; a text rule, so an indirect call is not caught), and, for the
+reception history (10.2), calls the registered handlers of `zha/devices` and `matter/network_topology` (`refresh: false`) and no other, reads ZHA's two scan settings from the application config, reads the topology's scan task state and attaches a
 listener to its events (never a scan of its own: the one-time scan of 10.1 goes through ZHA's command handler); network settings,
 keys, their saved copies and every call that sends to the radio stay out of reach (`tools/guard.py` PY_DENY).
 
