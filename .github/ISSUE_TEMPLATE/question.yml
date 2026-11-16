@@ -1,0 +1,14 @@
+name: Question or feedback
+description: A question, an observation or how it worked for you
+labels: [question]
+body:
+  - type: textarea
+    id: text
+    attributes:
+      label: What would you like to ask or tell us?
+      description: Does the map match what you know of your network? What was unclear? Include your Home Assistant version and whether you use Zigbee (ZHA) or Thread.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Never paste tokens, real device names or IEEE addresses. Captures only anonymized (`tools/capture.py`).

@@ -1,7 +1,7 @@
 # Meshroute Topology Explorer
 
 A map of the Zigbee and Thread networks in your Home Assistant: which device hears which and how well, the paths the
-available data supports, and how complete that data is.
+available data supports, and how complete that data is. Read only: it changes nothing in your network.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/map-dark.png">
@@ -13,25 +13,62 @@ by reception, green strong, red weak.</sub>
 ## Why
 
 You open a network map when something has stopped working: a lamp in the garden drops out, a motion sensor reports
-late, a button needs a second press. The map should help you find the cause and should not invent one.
+late, a button needs a second press. The map should help you find the cause and should not invent one. Zigbee routers
+report their neighbours and routes in tables, and Home Assistant reads those tables at different times, some of them
+never. Meshroute is built so that missing data stays visible as missing.
 
-Zigbee routers report their neighbours and routes in tables, and Home Assistant reads those tables at different times,
-some of them never. Meshroute is built so that missing data stays visible as missing:
+Home Assistant has its own ZHA and Matter network maps. Meshroute adds:
 
-- **Data status first.** The status pill at the bottom of the map says how many router tables were read and when. A device without data is
-  grey and marked unknown, never weak.
-- **Both directions.** Select a device to see its path to the coordinator and the path back, hop by hop, as far as the
-  tables support them, with the reception at each hop.
-- **Reception relative to the receiver.** Radios report LQI on different scales. Each reading is ranked among
-  everything the receiving device reports, so a low rank means low for that device.
-- **History, not only now.** After each of ZHA's own topology scans the integration keeps a record of every link's
-  reception, so you can see what changed and when ([History](#history-what-changed-and-when)).
-- **Findings with evidence.** Offline devices, routes into an offline device, end devices without a known parent:
-  each finding names the table entries it rests on and the tables that are missing.
-- **Mouse, touch and keyboard**, a phone layout, light and dark theme.
+- **Data status:** how many tables were read and when; a device without data is grey and unknown, never weak.
+- **Paths in both directions:** to the coordinator and back, hop by hop, with the reception at each hop.
+- **Findings with evidence:** offline devices, routes into them, end devices without a known parent, each naming the
+  table entries it rests on.
+- **History:** how each link's reception changed over days.
 
-Home Assistant has its own ZHA and Matter network maps. Meshroute adds the data status, paths in both directions and
-findings with their evidence.
+## Requirements
+
+- Home Assistant 2026.10 or newer.
+- For Zigbee: the ZHA integration. Zigbee2MQTT is not supported yet ([#8](https://github.com/fabcoded/meshroute-topology-explorer/issues/8)).
+- For Thread: the Matter integration. Home Assistant's Thread integration is optional; with it, every border router is
+  shown by its own name.
+- Either network alone is enough. The panel is for administrators ([#7](https://github.com/fabcoded/meshroute-topology-explorer/issues/7)).
+
+## Install
+
+1. In HACS open the three-dot menu, then Custom repositories.
+2. Add `https://github.com/fabcoded/meshroute-topology-explorer` with type Integration.
+3. Find Meshroute Topology Explorer in HACS and download it.
+4. Restart Home Assistant.
+5. Go to Settings > Devices & services > Add integration and add Meshroute Topology Explorer. A "Meshroute" entry
+   appears in the sidebar.
+
+Update: download the new version in HACS, restart Home Assistant and reload the browser page. Removal: delete the
+integration under Settings > Devices & services, then remove it in HACS and restart.
+
+Questions, observations and bug reports go to [GitHub issues](https://github.com/fabcoded/meshroute-topology-explorer/issues/new/choose).
+This is a hobby project and is still being tried out by a few people; feedback on whether the map matches your network
+is the most useful thing you can send.
+
+## Status and limits
+
+| Source | State |
+|---|---|
+| Zigbee through ZHA | 0.3.0: map, paths, findings, reception history |
+| Thread through the Matter integration | preview: map, neighbours, routes, border routers; routes are not recorded in the history yet ([#11](https://github.com/fabcoded/meshroute-topology-explorer/issues/11)) |
+| Zigbee through Zigbee2MQTT | later |
+
+- The panel is English only.
+- Zigbee route records come from an internal zigpy interface. After a Home Assistant update the panel may report "not
+  supported" for them until the project is adapted.
+- Thread tables come from the Matter server's cache and can be many hours old; the panel shows when they were read.
+
+## Settings
+
+Settings > Devices & services > Meshroute > Configure (administrators): show in the sidebar; record reception values
+(Zigbee after each of ZHA's own topology scans, Thread every 4 hours; keep 1 to 90 days, default 30), from what ZHA and
+the Matter server already hold, never starting a scan; delete the recorded history. With ZHA set up, a Zigbee section:
+allow scan and attribute reads in the panel, optionally one ZHA scan 30 minutes after each start (off by default), and
+a note on ZHA's scan period. Details: [spec](docs/spec.md#101-options-v1).
 
 ## A closer look
 
@@ -48,6 +85,17 @@ other lamps. Selecting a device fades the rest of the network. The Details panel
 </p>
 
 On a phone the panels open from the bottom: the overview, the findings, the details of one device.
+
+## Thread
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/thread-route-dark.png">
+  <img src="docs/images/thread-route-light.png" alt="Thread map with the Details of a motion sensor: its route to the border router over three hops, there and back, with RSSI and LQI at each hop and the weakest hop marked in red.">
+</picture>
+
+Selecting a Thread device draws its route to the border router, there and back, as Thread forwards it, from the route
+and neighbour tables the Matter server holds. Details list each hop with both directions, the path cost and when each
+table was read. No Thread radio traffic is caused.
 
 ## History: what changed, and when
 
@@ -91,95 +139,14 @@ synthetic series made from the sample network (`tools/history_synth.mjs`).</sub>
 - **Nothing to build at install.** Your browser loads one readable file, `frontend/dist/panel.js`, generated from the JavaScript
   beside it with its comments and committed with it; a check proves the two match.
 
-## Status
-
-| Source | State |
-|---|---|
-| Zigbee through ZHA | 0.1.1; the reception history and the settings dialog are in the main branch, not yet released |
-| Thread through the Matter integration | preview |
-| Zigbee through Zigbee2MQTT | later |
-
-## Install
-
-Requirements: Home Assistant 2026.10 or newer with ZHA (Zigbee) or the Matter integration (Thread) set up, or both.
-The panel is for administrators.
-
-1. In HACS open the three-dot menu, then Custom repositories.
-2. Add `https://github.com/fabcoded/meshroute-topology-explorer` with type Integration.
-3. Find Meshroute Topology Explorer in HACS and download it.
-4. Restart Home Assistant.
-5. Go to Settings > Devices & services > Add integration and add Meshroute Topology Explorer. A "Meshroute" entry
-   appears in the sidebar.
-
-Known limits:
-
-- Thread through the Matter integration is a preview.
-- The panel is English only.
-- Route records come from an internal zigpy interface. After a Home Assistant update the panel may report "not
-  supported" for them until the project is adapted.
-- Zigbee2MQTT is not supported yet.
-
-Update: download the new version in HACS, restart Home Assistant and reload the browser page.
-Settings: Settings > Devices & services > Meshroute > Configure (administrators). Show in the sidebar; record reception
-values (Zigbee after each of ZHA's own topology scans, Thread every 4 hours; keep 1 to 90 days, default 30), from what ZHA
-and the Matter server already hold, never starting a scan; delete the recorded history. With ZHA set up, a Zigbee section:
-allow scan and attribute reads in the panel (off hides the scan control and the attribute read; ZHA's own pages still
-offer them); optionally one ZHA scan 30 minutes after each start (off by default); ZHA's scan period with a note how to
-change it (the integration never edits configuration.yaml). Details: [spec](docs/spec.md#101-options-v1).
-
-Removal: delete the integration under Settings > Devices & services, then remove it in HACS and restart.
-
 ## Contributing
 
 Bug reports with a capture of the network are the easiest to reproduce: what to include is in
-[CONTRIBUTING.md](CONTRIBUTING.md#bug-reports), the capture tool below. Contributions from people and AI agents are
-welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md). Behaviour: [docs/spec.md](docs/spec.md). Tests and quality measures: [docs/quality.md](docs/quality.md).
-Security issues: [SECURITY.md](SECURITY.md).
-
-### Capturing your network for a bug report
-
-`tools/capture.py` reads what the panel reads (areas, devices, config entries, ZHA devices with their neighbour and
-route tables) and writes an anonymized file to attach to an issue. Python 3.10 or newer, no installation.
-
-1. In Home Assistant, create a long-lived access token in your profile (an administrator account is needed for the
-   ZHA command).
-2. Run the tool. The token comes from the environment or a prompt without echo; there is no `--token` option,
-   because a command line stays in the shell history.
-
-```sh
-read -rs HASS_TOKEN && export HASS_TOKEN      # type or paste the token, nothing is shown
-python3 tools/capture.py --url http://homeassistant.local:8123 --out capture.json
-unset HASS_TOKEN
-```
-
-- It sends exactly four read commands (`config/area_registry/list`, `config/device_registry/list`,
-  `config_entries/get`, `zha/devices`), no scan, and talks only to the given address. `https://` uses the system's
-  certificate store; `--cafile ca.pem` adds your own CA. Certificate checks cannot be switched off.
-- Addresses, names, areas and ids are replaced before the file is written (`tools/anonymize_capture.py`). Look
-  through the file before you share it. Never paste a token into an issue.
-- `--raw` writes real addresses and names. Do not share that file; run
-  `python3 tools/anonymize_capture.py raw.json safe.json` on it first.
-- Exit codes: 0 ok, 1 usage, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout, 6 anonymizer
-  refused.
-
-### How the code is organized
-
-The panel lives in `custom_components/meshroute_topology_explorer/frontend/`, plain JavaScript. One viewer engine per
-network type, one adapter per data source, and a shared shell that knows neither (spec 4.6):
-
-| Folder | What it holds |
-|---|---|
-| `engines/index.js` | The registry: `engineFor(network)` finds a network's engine and never falls back to one. |
-| `engines/zigbee/` | Zigbee semantics: ZHA schema mapping (`from-zha.js`, with ZHA's capability set), model, paths and theoretical paths, findings, lane classes and the three path views (`lanes.js`, `scene.js`), options, settings keys, status line, texts, Details (`ui/`). |
-| `engines/thread/` | Thread read through Matter: Matter mapping (`from-matter.js`), parents, pairs, status and findings (`model.js`), routes from the Matter cache's route tables (`routes.js`), parent, neighbour and route lanes (`lanes.js`, `scene.js`), status, Details, texts; `quality.js` (reception model, under review, not wired). |
-| `adapters/` | Data sources: `zha.js` (scan, observations, fingerprints) and `matter.js`, each with its texts; `index.js` lists them for the shell. |
-| `graph/` | Shared drawing: layout (springs from the engine's quality), camera, gestures, symbols, palette, labels, lane geometry and stroke looks, the renderer of the engine's scene. |
-| `ui/` | Shared frames: controller, settings client (shell keys), network switch, drawers, Devices, Findings, Legend and View tabs, status pill, shared texts (`i18n.js`). |
-| `panel.js` | The custom element that wires shell, engines and adapters together. |
-| `dist/panel.js` | Generated, do not edit: the sources above bundled into the one file Home Assistant serves (`npm run bundle`, #16). |
-
-`tests/engine-leaks.test.mjs` keeps the boundaries: no engine imports another, and shared code reaches the engines
-only through `engines/index.js` and names no network or source.
+[CONTRIBUTING.md](CONTRIBUTING.md#bug-reports), how to capture it in [docs/development.md](docs/development.md).
+Contributions from people and AI agents are welcome: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
+Behaviour: [docs/spec.md](docs/spec.md). Tests and quality measures: [docs/quality.md](docs/quality.md). How the code
+is organized: [docs/development.md](docs/development.md#how-the-code-is-organized). Security issues:
+[SECURITY.md](SECURITY.md).
 
 ## License and trademarks
 
