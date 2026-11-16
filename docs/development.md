@@ -19,8 +19,10 @@ python3 tools/capture.py --url http://homeassistant.local:8123 --out capture.jso
 unset HASS_TOKEN
 ```
 
-- It sends exactly four read commands (`config/area_registry/list`, `config/device_registry/list`,
-  `config_entries/get`, `zha/devices`), no scan, and talks only to the given address. `https://` uses the system's
+- It sends four read commands (`config/area_registry/list`, `config/device_registry/list`, `config_entries/get`,
+  `zha/devices`); `--matter` adds the Matter server's cached Thread topology (`matter/network_topology` without
+  refresh) and the border-router reads the panel uses (`thread/list_datasets`, `thread/discover_routers`,
+  `meshroute_topology_explorer/thread_border_agents`). No scan, and it talks only to the given address. `https://` uses the system's
   certificate store; `--cafile ca.pem` adds your own CA. Certificate checks cannot be switched off.
 - Addresses, names, areas and ids are replaced before the file is written (`tools/anonymize_capture.py`). Look
   through the file before you share it. Never paste a token into an issue.

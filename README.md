@@ -24,6 +24,9 @@ Home Assistant has its own ZHA and Matter network maps. Meshroute adds:
 - **Findings with evidence:** offline devices, routes into them, end devices without a known parent, each naming the
   table entries it rests on.
 - **History:** how each link's reception changed over days.
+- **Reception relative to the receiver:** radios report LQI on different scales; each reading is ranked among
+  everything the receiving device reports, so a low rank means low for that device.
+- **Mouse, touch and keyboard**, a phone layout, light and dark theme.
 
 ## Requirements
 
@@ -53,7 +56,7 @@ is the most useful thing you can send.
 
 | Source | State |
 |---|---|
-| Zigbee through ZHA | 0.3.0: map, paths, findings, reception history |
+| Zigbee through ZHA | released: map, paths, findings, reception history |
 | Thread through the Matter integration | preview: map, neighbours, routes, border routers; routes are not recorded in the history yet ([#11](https://github.com/fabcoded/meshroute-topology-explorer/issues/11)) |
 | Zigbee through Zigbee2MQTT | later |
 
@@ -67,8 +70,9 @@ is the most useful thing you can send.
 Settings > Devices & services > Meshroute > Configure (administrators): show in the sidebar; record reception values
 (Zigbee after each of ZHA's own topology scans, Thread every 4 hours; keep 1 to 90 days, default 30), from what ZHA and
 the Matter server already hold, never starting a scan; delete the recorded history. With ZHA set up, a Zigbee section:
-allow scan and attribute reads in the panel, optionally one ZHA scan 30 minutes after each start (off by default), and
-a note on ZHA's scan period. Details: [spec](docs/spec.md#101-options-v1).
+allow scan and attribute reads in the panel (off hides both; ZHA's own pages still offer them), optionally one ZHA scan
+30 minutes after each start (off by default), and ZHA's scan period with a note how to change it (the integration
+never edits configuration.yaml). Details: [spec](docs/spec.md#101-options-v1).
 
 ## A closer look
 

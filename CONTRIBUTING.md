@@ -63,7 +63,7 @@ a Dependabot pull request for `requirements-ha-latest.txt`.
 ## Bug reports
 
 Search existing issues first. Give the revision, Home Assistant version, network type, data source, steps, expected
-and actual result, and attach an anonymized capture you have looked through (see [README.md](README.md)).
+and actual result, and attach an anonymized capture you have looked through (see [docs/development.md](docs/development.md#capturing-your-network-for-a-bug-report)).
 Security issues: [SECURITY.md](SECURITY.md).
 
 ## Issues and fixes

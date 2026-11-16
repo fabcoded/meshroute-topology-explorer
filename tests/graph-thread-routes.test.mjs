@@ -29,7 +29,7 @@ function drawn(sample, density, key, engineView, width = 1400) {
 }
 
 const CASES = [["M38-shaped", threadRoutesSample(), [["XS", {}], ["P1", { unusedRoutes: true }]]],
-  ["second", threadRoutesSample({ atelier: true }), [["KF", {}], ["LU", { unusedRoutes: true }]]]];
+  ["second", threadRoutesSample({ second: true }), [["KF", {}], ["LU", { unusedRoutes: true }]]]];
 
 for (const [name, sample, selections] of CASES) {
   // "beside Details": the map's width with the left panel open at 1400 px (the dev page's xs shot, rev11a-b).

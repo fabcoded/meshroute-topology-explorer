@@ -96,11 +96,11 @@ const neighbour = (sender, [rssi, lqi], child = false) => ({
 });
 
 /** The network: { topology (matter/network_topology), tables (meshroute_topology_explorer/thread_tables), registry }.
- *  fresh: the sensors TE and KF hang on border router A (the parent change of the owner's fresh read). atelier: only
+ *  fresh: the sensors TE and KF hang on border router A (the parent change of a fresh read). second: only
  *  the second part (Lamp 1, Lamp 2, border router A, the two sensors), without the example extension. */
-export function threadRoutesSample({ fresh = false, readAt = 1767268800, atelier = false } = {}) {
+export function threadRoutesSample({ fresh = false, readAt = 1767268800, second = false } = {}) {
   const full = buildSample({ fresh, readAt });
-  if (!atelier) return full;
+  if (!second) return full;
   const keep = new Set(["LU", "LO", "BRA", "TE", "KF"].map((k) => KEYS[k].ext.toLowerCase()));
   const kept = (ext) => keep.has(String(ext).toLowerCase());
   const nodes = full.topology.nodes.filter((n) => kept(n.ext_address));
@@ -168,7 +168,7 @@ function addChildren(nodes, tables, readAt, parentOf, childHeard) {
       network_name: "thread-net-99", vendor_name: null, model_name: null, last_seen: null, ha_device_id: `routes-${k}` });
     const [, inQ] = childHeard(`${p}>${k}`);
     const [, outQ] = childHeard(`${k}>${p}`);
-    // An end device's own table: one linked entry, its parent (NextHop 0, PathCost 0 as the owner's devices report).
+    // An end device's own table: one linked entry, its parent (NextHop 0, PathCost 0 as real devices report).
     const routes = R.map((d) => ({ extAddress: KEYS[d].ext, rloc16: rloc(d), routerId: ROUTERS[d].rid, nextHop: 0,
       pathCost: 0, LQIIn: d === p ? inQ : 0, LQIOut: d === p ? outQ : 0, age: 3, allocated: true, linkEstablished: d === p }));
     tables.push({ node_id: c.node, available: true, routing_role: 2, ext_address: KEYS[k].ext.toLowerCase(), rloc16: null,
