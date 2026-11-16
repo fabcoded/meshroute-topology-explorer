@@ -1,56 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 – 2026-11-16
 
-- **Tables beside Thread Details:** a "Tables" button in a Thread device's Details opens a panel to the right of the
-  drawer with the neighbours and the route as full tables (the five-column hop table with sources, marks and the
-  source line), and the explanations of the values in a collapsible "About these values"; an "i" at a card opens it
-  there. The drawer's cards get shorter ("Some values may be older than 4 hours."); a device without neighbours or a
-  route keeps every note in the drawer. Beside the drawer up to 600 px wide; where the width beside it (the free width
-  minus 16 px) is under 473 px and on a phone, a sheet over the full width; tables that do not fit scroll sideways.
-  Closes with ×, Esc (first, before the drawer or the map), the button again, another device or tab (#25). The Direct
-  link card now opens above the panels. In the drawer the neighbours card now comes before the route card, the
-  order of the tables panel. Frontend only.
-- **History to gateway:** the Details button is called "History to gateway", names its partner in its tooltip, and
-  shows only where it means one connection: Zigbee the coordinator (not on the coordinator), Thread the border router
-  of a complete route, else the only border router (not on a border router) (#24). Frontend only.
-- **Route card without the wide table:** the hops of a Thread device's route are a list with one block per hop (names, cost, then a "there" and a "back" line with value and source), so long device names wrap inside the card instead of crossing its border; the card's other lines and the neighbours' names break a name that does not fit, so long names no longer make the Details scroll sideways (#22). Frontend only.
-- **Wider status menu:** the menu above the status pill is 500 px wide instead of 300 px, so its notes wrap far less; its width follows the map, not the viewport, so it fits beside Home Assistant's sidebar and the side panels, and stays at least 300 px (#23). Frontend only.
-- **Thread routes, part one** (#11 part a: routes on the map and in Details; recording them in the history and the
-  window's Route tab follow): selecting a Thread device draws its route to the border router with the lowest path cost,
-  there and back, as Thread forwards it, computed from the route and neighbour tables Home Assistant's Matter client
-  holds (no refresh, no radio traffic): two numbers per hop (RSSI over LQI), hop numbers, the weakest hop marked, the
-  border router's first hop back derived (dash-dot; its own choice needs the border router query, #12), a route
-  through an offline device stopped there; the other
-  links stay grey with their values. Details get the hop list with both directions, path cost and the source line
-  with the interval in which the Matter server read each table ("read 09:50–10:00", "read before 13:50" where
-  Meshroute had not seen it before), amber where a value may be older than 4 hours. The View option "Unused routes"
-  adds the alternatives routers hold but do not use. New read-only command
-  `meshroute_topology_explorer/thread_tables`; the integration checks the Matter client's copy every 10 minutes, in
-  memory and without radio traffic. Needs a restart of Home Assistant.
-- **Every Thread border router, with its own name** (#20): the panel also reads the border routers Home Assistant's
-  Thread integration knows (`thread/list_datasets` without keys, and `thread/discover_routers` for 150 ms after its
-  result; the whole read ends within 500 ms, beside the Matter reads). No Thread radio traffic; Home Assistant sends
-  an mDNS query on the local network while the subscription runs. A border router no Matter device's neighbour table
-  lists with a live link is drawn without lanes and Details say so; a Thread device the Matter server lists as
-  unknown and Home Assistant lists as a border router is shown and counted as a border router; border routers are
-  named by their mDNS instance name; Details mark Home Assistant's preferred border router and show no route card on a border router. The status
-  pill says "1 of 2 border routers" in amber when the Matter topology lacks one. Duplicate names, with or without the
-  Thread integration: a border router now carries the end of its extended address, never its RLOC16, and two devices
-  whose suffixes are equal too carry the whole extended address. Otherwise, without the Thread integration, nothing
-  changes. Frontend only.
-- **Thread partition as last read** (part of #21): Details of a Thread device show the partition id and leader
-  router ID it last reported, as the Matter server's copy holds them, with the note that their read time is not
-  reported; nothing where none was read, nothing on a border router. Nothing is derived from them: on a healthy
-  network the copy can hold several partition ids of different read times. `meshroute_topology_explorer/thread_tables`
-  also returns PartitionId (0/53/9) and LeaderRouterId (0/53/13) per node. Needs a restart of Home Assistant.
-- **Thread partitions the border routers advertise** (part of #21): where border routers of one network advertise
-  different partition ids over mDNS, the status pill says "Border routers advertise 2 partitions" in amber; its menu
-  says that this happens when the network is split and also when a border router is off while its last advertisement
-  is still in Home Assistant's cache, and route cards add that routes may no longer hold. A border router's Details
-  show its advertised partition and how long ago Home Assistant received it. Read from Home Assistant's mDNS cache by
-  the new read-only command `meshroute_topology_explorer/thread_border_agents`, which sends nothing. Needs a restart
-  of Home Assistant.
+- **Thread routes, part one** (#11): selecting a Thread device draws its route to the border router with the lowest
+  path cost, there and back, with RSSI and LQI at each hop and the weakest hop marked. Details list the hops, the path
+  cost and when each table was read, amber where a value may be older than 4 hours. Optional "Unused routes" in the
+  View tab. Routes are not recorded in the history yet. No radio traffic. Needs a restart of Home Assistant.
+- **Every Thread border router, with its own name** (#20): border routers Home Assistant's Thread integration knows
+  are shown by their mDNS name, also those no device lists as a neighbour (drawn without lanes, Details say why).
+  The status pill says "1 of 2 border routers" in amber when one is missing; Details mark the preferred border router.
+  Devices with equal names now carry a distinguishing suffix. Frontend only.
+- **Thread partitions** (#21): Details show the partition and leader router a device last reported, with a note that
+  the read time is unknown. Where border routers advertise different partitions, the status pill says so in amber, with
+  an explanation (a split network, or a border router that is off while its advertisement is still cached). Needs a
+  restart of Home Assistant.
+- **Tables beside Thread Details** (#25): a "Tables" button opens the neighbours and the route as full tables beside
+  the drawer (a sheet on a phone), with explanations of the values. Closes with ×, Esc or the button again. In the
+  drawer the neighbours card now comes before the route card. Frontend only.
+- **History to gateway** (#24): the Details button is named "History to gateway", says in its tooltip which device it
+  opens, and appears only where it means one connection. Frontend only.
+- **Route card without the wide table** (#22): the hops of a Thread route are a list, so long device names wrap and
+  no longer make Details scroll sideways. Frontend only.
+- **Wider status menu** (#23): the menu above the status pill is wider, so its notes wrap far less, and it fits beside
+  Home Assistant's sidebar. Frontend only.
 
 ## 0.2.1 – 2026-11-08
 
