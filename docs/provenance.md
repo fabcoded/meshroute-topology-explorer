@@ -121,3 +121,7 @@ from the release commit 0.1.0 on (AGENTS.md).
   or above the threshold. Against the Home Assistant frontend 20260930.4 network-map files (ha-network-graph, the ZHA
   and Matter visualization and data modules, compared as .js): total share 0.12 %, maximum pair share 3.1 %, longest
   run 44 tokens, 0 runs at or above the threshold.
+- 2026-11-16, tool at c623d8c (k 25, window 4, threshold 50 tokens), ours: 105 frontend files at 008be13. Against
+  force-graph 1.52.0, float-tooltip 1.7.5, d3-force 3.0.0, d3-zoom 3.0.0 and d3-force-3d 3.0.6: total share 0.14 %,
+  maximum pair share 3.6 %, longest run 41 tokens, 0 runs at or above the threshold. ha-zigbee-map 2.11.0 is no longer
+  downloadable at its former release locations and the Home Assistant frontend was not compared in this run.
