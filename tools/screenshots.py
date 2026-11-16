@@ -40,6 +40,9 @@ HIST = (1100, 640)
 SHOTS = [
     ("map-light", (1280, 760), 1.5, "density=dense&colors=1"),
     ("map-dark", (1280, 760), 1.5, "density=dense&colors=1&dark=1"),
+    # Thread through Matter: the synthetic sample with route tables (tests/thread-routes-fixture.mjs), a device's route in Details.
+    ("thread-route-light", (1440, 810), 1.5, "matter=routes&network=thread&select=Motion%20sensor&left=details"),
+    ("thread-route-dark", (1440, 810), 1.5, "matter=routes&network=thread&select=Motion%20sensor&left=details&dark=1"),
     ("path-router16", (1440, 810), 1.5, "density=dense&colors=1&select=Router%2016&left=details"),
     # Path history window of the pair Router 23 / Coordinator (the lane: its hop Router 32 / Router 19) on the long synthetic sample history (7 days, 6 h steps).
     ("history-timeline", HIST, 1.5, "density=dense&colors=1&history=long&select=Router%2023&pair=Coordinator&htab=timeline&hrange=7d"),
