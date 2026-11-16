@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Synthetic Thread network with route tables (#11), for the route tests and the dev page (?matter=routes). Shaped
-// after the owner's Atelier as issue #11 and the research note give it (routers 28 sofaunten / leader, 10 sofaoben,
-// 60 border router A; sofaunten <-> border router A LQI 2 at -86 dBm, the 2 = 2 tie; two sleepy sensors whose parent
+// after a real small network as issue #11 and the research note give it (routers 28 Lamp 1 / leader, 10 Lamp 2,
+// 60 border router A; Lamp 1 <-> border router A LQI 2 at -86 dBm, the 2 = 2 tie; two sleepy sensors whose parent
 // changed to border router A), plus the example extension of board M38 for routes of several hops (plugs 1-3, a motion
 // sensor, border router B). Names and addresses are invented; no capture. Pure data builder. npm test
 //
@@ -13,8 +13,8 @@
 const ext = (n) => `AABBCCDD000000${n.toString(16).padStart(2, "0").toUpperCase()}`;
 /** Routers: key -> { node (Matter node id, null for a border router), rid (router ID), name, br }. */
 export const ROUTERS = {
-  LU: { node: 14, rid: 28, name: "sofaunten", leader: true },
-  LO: { node: 15, rid: 10, name: "sofaoben" },
+  LU: { node: 14, rid: 28, name: "Lamp 1", leader: true },
+  LO: { node: 15, rid: 10, name: "Lamp 2" },
   BRA: { node: null, rid: 60, name: "Border router A", br: true },
   P1: { node: 21, rid: 40, name: "Plug 1" },
   P2: { node: 22, rid: 50, name: "Plug 2" },
@@ -23,8 +23,8 @@ export const ROUTERS = {
 };
 /** Sleepy end devices: key -> { node, name, parent (cache), fresh (parent after the parent change) }. */
 export const CHILDREN = {
-  TE: { node: 16, name: "Tür Eingang", parent: "LO", fresh: "BRA" },
-  KF: { node: 18, name: "Klima Flur", parent: "LU", fresh: "BRA" },
+  TE: { node: 16, name: "Door sensor 1", parent: "LO", fresh: "BRA" },
+  KF: { node: 18, name: "Climate sensor", parent: "LU", fresh: "BRA" },
   XS: { node: 24, name: "Motion sensor", parent: "P2" },
 };
 const KEYS = { ...ROUTERS, ...CHILDREN };
@@ -97,7 +97,7 @@ const neighbour = (sender, [rssi, lqi], child = false) => ({
 
 /** The network: { topology (matter/network_topology), tables (meshroute_topology_explorer/thread_tables), registry }.
  *  fresh: the sensors TE and KF hang on border router A (the parent change of the owner's fresh read). atelier: only
- *  the owner-shaped part (sofaunten, sofaoben, border router A, the two sensors), without the example extension. */
+ *  the second part (Lamp 1, Lamp 2, border router A, the two sensors), without the example extension. */
 export function threadRoutesSample({ fresh = false, readAt = 1767268800, atelier = false } = {}) {
   const full = buildSample({ fresh, readAt });
   if (!atelier) return full;

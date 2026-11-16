@@ -69,7 +69,7 @@ test("#11 the View option 'unused routes' adds the alternatives dash-dot in grey
   assert.equal(off.hops.some((x) => x.cls === "unused"), false);
   const unused = on.hops.filter((x) => x.cls === "unused");
   const direct = unused.find((x) => `${x.s}>${x.h}` === key("P1", "BRA"));
-  assert.ok(direct, "plug 1's direct link to border router A, unused while via sofaoben costs 2");
+  assert.ok(direct, "plug 1's direct link to border router A, unused while via Lamp 2 costs 2");
   assert.deepEqual([direct.stroke, direct.text], ["dashdot-muted", "unused · cost 4"]);
   // The route itself reads first: its lanes keep their class.
   assert.ok(on.hops.some((x) => x.cls === "route" && `${x.s}>${x.h}` === key("P1", "LO")));
@@ -128,9 +128,9 @@ test("#11 #25 Details: the route card with its hop list; source line and derived
   assert.match(text, /2 hops · path cost 2/);
   assert.equal(container.find((el) => el.tag === "ol").length, 1, "the hop list");
   assert.match(route.textContent, /Source: Matter server's copy · /);
-  assert.match(route.textContent, /sofaoben \(neighbour table\) read [^·–]+–[^·]+ · Plug 1 read /);
+  assert.match(route.textContent, /Lamp 2 \(neighbour table\) read [^·–]+–[^·]+ · Plug 1 read /);
   assert.doesNotMatch(text, /Source: |Derived: /, "the drawer leaves them to the panel");
-  assert.ok(info.includes("Derived: which way the border router sends is mirrored from the way there; what sofaoben hears is measured. The border router query (#12) reads the border router's own choice."));
+  assert.ok(info.includes("Derived: which way the border router sends is mirrored from the way there; what Lamp 2 hears is measured. The border router query (#12) reads the border router's own choice."));
   assert.doesNotMatch(text + route.textContent + info.join(""), /details\.|route\.reason|route\.source/);
   const source = route.find((el) => el.tag === "p" && /^Source:/.test(el.textContent))[0];
   assert.equal(source.find((el) => el.tag === "span" && el.title).length, 3, "one tooltip per table");
@@ -165,7 +165,7 @@ test("#11 the adapter reads thread_tables after the topology and keeps its failu
 });
 
 test("#11 the weakest hop is marked only below LQI 3; Details still name it", () => {
-  // Plug 1 -> sofaoben -> border router A: every hop LQI 3, no red mark on the map or in the hop list.
+  // Plug 1 -> Lamp 2 -> border router A: every hop LQI 3, no red mark on the map or in the hop list.
   const i = at("P1");
   const focus = thread.scene.focus(scene, i, { selected: i });
   assert.equal(focus.hops.some((x) => x.weak), false);
@@ -176,7 +176,7 @@ test("#11 the weakest hop is marked only below LQI 3; Details still name it", ()
   const container = new FakeEl("div");
   thread.details(container, { network: net, t: translator("en"), id: idOf("P1"), onSelect() {}, onFindings() {},
     now: sample.tables.read_at * 1000 });
-  assert.match(container.textContent, /Weakest there: Plug 1 → sofaoben/);
+  assert.match(container.textContent, /Weakest there: Plug 1 → Lamp 2/);
   assert.equal(container.find((el) => /\bweak\b/.test(el.className || "")).length, 0);
   // The motion sensor's route (LQI 2 on its first hop) keeps the mark.
   const xs = thread.scene.focus(scene, at("XS"), { selected: at("XS") });

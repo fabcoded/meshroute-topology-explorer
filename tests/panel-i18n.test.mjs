@@ -50,7 +50,7 @@ test("area names from Home Assistant's hass.areas win over the registry's", () =
   const t = translator("en");
   const device = network.devices.find((d) => d.areaId);
   const area = (areas) => localize(network, t, areas).devices.find((d) => d.id === device.id).area;
-  assert.equal(area({ [device.areaId]: { name: "Wohnzimmer" } }), "Wohnzimmer");
+  assert.equal(area({ [device.areaId]: { name: "Living room" } }), "Living room");
   assert.equal(area(null), device.area, "without: the registry");
   assert.equal(area({ [device.areaId]: { name: " " } }), device.area, "an empty name does not win");
 });

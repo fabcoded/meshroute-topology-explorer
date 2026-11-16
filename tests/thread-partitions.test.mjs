@@ -38,7 +38,7 @@ test("#21 Details: the device's own partition id and leader router ID as last re
     /Thread partition as last read: 111111111, leader router ID 60\. The read time is not reported\./);
   // Leader router ID 60 is border router A's router ID here: shown as a number, never named.
   assert.doesNotMatch(details(n, "LU"), /leader router ID 60[^.]*Border router A/);
-  assert.doesNotMatch(details(n, "LO"), LINE, "sofaoben reports none");
+  assert.doesNotMatch(details(n, "LO"), LINE, "Lamp 2 reports none");
 });
 
 test("#21 Details: the partition alone where the leader router ID is not reported or invalid", () => {

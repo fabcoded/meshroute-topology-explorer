@@ -12,7 +12,7 @@ import { translator } from "../custom_components/meshroute_topology_explorer/fro
 installFakeDom();
 const t = translator("en");
 const LONG = "Home Assistant OpenThread Border Router #F09A";
-const names = { sensor: "atelier-licht-sofaoben", plug: "Plug 2", br: LONG, x: "Switch" };
+const names = { sensor: "ceiling-light-lamp-2", plug: "Plug 2", br: LONG, x: "Switch" };
 const name = (id) => names[id];
 const cell = (rssi, lqi, holder, source, extra = {}) => ({ rssi, lqi, holder, source, old: false, ...extra });
 const cls = (el) => el.className || "";
@@ -47,21 +47,21 @@ test("#22 the hop list is a real list with one block per row, no table, the numb
 
 test("#22 first line: the names in full, the cost at its end, a child's hop says how it is counted", () => {
   const head = (li) => li.find((el) => hasClass(el, "hop-head"))[0];
-  assert.equal(texts(head(items[0])), "1 atelier-licht-sofaoben → Plug 2 cost 1 · as the device receives");
+  assert.equal(texts(head(items[0])), "1 ceiling-light-lamp-2 → Plug 2 cost 1 · as the device receives");
   assert.equal(texts(head(items[1])), `2 Plug 2 → ${LONG} cost ?`);
   assert.equal(texts(head(items[2])), `3 ${LONG} → Switch cost 2`);
   assert.equal(texts(head(items[3])), "Switch → Plug 2 cost 4");
   // The cost does not split; the names (the only part that wraps freely) are a separate element.
   const cost = head(items[1]).find((el) => hasClass(el, "hop-cost"))[0];
   assert.equal(cost.find((el) => hasClass(el, "nowrap"))[0].textContent, "cost ?");
-  assert.equal(head(items[0]).find((el) => hasClass(el, "hop-names"))[0].textContent, "atelier-licht-sofaoben → Plug 2");
+  assert.equal(head(items[0]).find((el) => hasClass(el, "hop-names"))[0].textContent, "ceiling-light-lamp-2 → Plug 2");
   assert.equal(head(items[1]).find((el) => hasClass(el, "hop-names"))[0].textContent, `Plug 2 → ${LONG}`);
 });
 
 test("#22 a line per direction with value, tag and source; no line is invented", () => {
   assert.deepEqual(items.map((li) => lines(li).length), [2, 2, 1, 1]);
   assert.equal(texts(lines(items[0])[0]), "there −87 dBm · LQI 2 Plug 2's table");
-  assert.equal(texts(lines(items[0])[1]), "back −70 dBm · LQI 3 atelier-licht-sofaoben's table");
+  assert.equal(texts(lines(items[0])[1]), "back −70 dBm · LQI 3 ceiling-light-lamp-2's table");
   // No RSSI: "– dBm"; a derived way back is tagged; the table's "LQI out" source.
   assert.equal(texts(lines(items[1])[0]), "there – dBm · LQI 3 Plug 2's “LQI out”");
   assert.equal(texts(lines(items[1])[1]), `back −60 dBm · LQI 1 derived ${LONG}'s “LQI out”`);

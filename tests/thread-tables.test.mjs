@@ -85,7 +85,7 @@ test("#25 the drawer's cards: head, neighbours, route, facts (the order of the t
 
 test("#25 a router: no amber note where every table is younger than 4 hours; a border router with neighbours only", () => {
   const p1 = render(net, idOf("P1")).offer;
-  assert.deepEqual(p1.info, [NOTE, HINT, derivedNote("sofaoben")], "Plug 1 and sofaoben read 3 h ago: nothing amber");
+  assert.deepEqual(p1.info, [NOTE, HINT, derivedNote("Lamp 2")], "Plug 1 and Lamp 2 read 3 h ago: nothing amber");
   const br = render(net, idOf("BRA"));
   assert.deepEqual(sectionTitles(br.offer), ["Neighbours"], "no route on a border router");
   assert.deepEqual(br.offer.info, [NOTE]);

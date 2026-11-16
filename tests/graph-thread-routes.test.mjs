@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Thread routes on the drawn map (#11, owner rule: every value readable, never silently hidden; board M38): with a
 // route selected, no two value pills intersect and no hop number sits on a pill, at the default and the densest
-// preset, for the M38-shaped sample (the motion sensor; plug 1 with unused routes on) and the owner-shaped Atelier
-// (Klima Flur; sofaunten with unused routes on), also on a phone 412 px wide. The graph view runs in Node on the fakes
+// preset, for the M38-shaped sample (the motion sensor; plug 1 with unused routes on) and a second sample with a climate sensor
+// (Climate sensor; Lamp 1 with unused routes on), also on a phone 412 px wide. The graph view runs in Node on the fakes
 // of graph-fakes.mjs. npm test
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -29,7 +29,7 @@ function drawn(sample, density, key, engineView, width = 1400) {
 }
 
 const CASES = [["M38-shaped", threadRoutesSample(), [["XS", {}], ["P1", { unusedRoutes: true }]]],
-  ["owner-shaped", threadRoutesSample({ atelier: true }), [["KF", {}], ["LU", { unusedRoutes: true }]]]];
+  ["second", threadRoutesSample({ atelier: true }), [["KF", {}], ["LU", { unusedRoutes: true }]]]];
 
 for (const [name, sample, selections] of CASES) {
   // "beside Details": the map's width with the left panel open at 1400 px (the dev page's xs shot, rev11a-b).

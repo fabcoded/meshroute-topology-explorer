@@ -274,7 +274,7 @@ const routesSample = matterMode === "routes" ? (await import("../tests/thread-ro
   .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }) : null; // read now: tables 1, 3 and 21 h unchanged
 // longnames=1 (with matter=routes, #22): the motion sensor's route runs over a device and a border router with long names.
 if (routesSample && flag("longnames")) {
-  routesSample.registry.find((r) => r.name === "Plug 2").name = "atelierlichtsofaobenwohnzimmerdeckenlampe"; // 41 characters, no break point
+  routesSample.registry.find((r) => r.name === "Plug 2").name = "examplelightceilinglampnobreakpointxxxxx"; // 41 characters, no break point
   routesSample.topology.nodes.find((n) => n.host_name === "Border router B").host_name = "Home Assistant OpenThread Border Router #F09A";
 }
 // partitions=1 (with matter=routes, #21): border routers A and B advertise different partitions, received 3 and 40 min ago.

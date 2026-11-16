@@ -32,7 +32,7 @@ test("#11 a router's own entry names its router ID and is not a router of its ow
   assert.equal(tables.idOfRouter.get(60), idOf("BRA")); // the border router from the others' tables
 });
 
-test("#11 the 2 = 2 tie takes the direct link (sofaunten to border router A)", () => {
+test("#11 the 2 = 2 tie takes the direct link (Lamp 1 to border router A)", () => {
   const step = nextHop(net.routing.tables, idOf("LU"), idOf("BRA"));
   assert.equal(step.next, idOf("BRA"));
   assert.equal(step.kind, "direct");
@@ -40,9 +40,9 @@ test("#11 the 2 = 2 tie takes the direct link (sofaunten to border router A)", (
   assert.deepEqual(step.alternative, { via: idOf("LO"), cost: 2, kind: "next hop" });
   const r = routeOf(net, "LU", "BRA");
   assert.deepEqual(ids(r.there.hops), path("LU", "BRA"));
-  // Border router A has no table: what it hears of sofaunten is sofaunten's LQI out, no RSSI.
+  // Border router A has no table: what it hears of Lamp 1 is Lamp 1's LQI out, no RSSI.
   assert.deepEqual([r.there.hops[0].lqi, r.there.hops[0].rssi, r.there.hops[0].source], [2, null, "lqi out"]);
-  // Back: the border router's choice mirrored and derived; what sofaunten hears is measured: the weak link.
+  // Back: the border router's choice mirrored and derived; what Lamp 1 hears is measured: the weak link.
   assert.deepEqual(ids(r.back.hops), path("BRA", "LU"));
   assert.equal(r.back.hops[0].derived, true);
   assert.deepEqual([r.back.hops[0].lqi, r.back.hops[0].rssi, r.back.hops[0].source], [2, -86, "neighbours"]);
@@ -51,7 +51,7 @@ test("#11 the 2 = 2 tie takes the direct link (sofaunten to border router A)", (
 test("#11 a costlier direct link loses to the next hop and is kept as an unused alternative (plug 1)", () => {
   const step = nextHop(net.routing.tables, idOf("P1"), idOf("BRA"));
   assert.equal(step.next, idOf("LO"));
-  assert.equal(step.cost, 2); // sofaoben's claimed 1 + link 1
+  assert.equal(step.cost, 2); // Lamp 2's claimed 1 + link 1
   assert.deepEqual(step.alternative, { via: idOf("BRA"), cost: 4, kind: "direct" });
 });
 
@@ -188,7 +188,7 @@ const rebuild = (sample) => buildThreadNetwork(sample.topology, { tables: sample
 
 test("#11 a next hop is resolved in the holder's own table; a global conflict never turns it into the direct link", () => {
   const sample = threadRoutesSample();
-  // Plug 2 mislabels plug 3 as router 10 (sofaoben's ID): the tables disagree on 10.
+  // Plug 2 mislabels plug 3 as router 10 (Lamp 2's ID): the tables disagree on 10.
   entryOf(tablesOf(sample, 22), 45).routerId = 10;
   const n = rebuild(sample);
   assert.equal(n.routing.tables.conflicts.has(10), true);
@@ -202,7 +202,7 @@ test("#11 a next hop is resolved in the holder's own table; a global conflict ne
   assert.equal(u.routing.routeTo(idOf("P1"), idOf("BRA")).there.reason, "next_hop_unknown");
 });
 
-test("#11 an asymmetric link costs by its weaker direction: sofaunten (in 3, out 1) goes via sofaoben", () => {
+test("#11 an asymmetric link costs by its weaker direction: Lamp 1 (in 3, out 1) goes via Lamp 2", () => {
   const sample = threadRoutesSample();
   Object.assign(entryOf(tablesOf(sample, 14), 60), { LQIIn: 3, LQIOut: 1 });
   const step = nextHop(rebuild(sample).routing.tables, idOf("LU"), idOf("BRA"));
@@ -305,7 +305,7 @@ test("#11 derived only where the border router's table is missing; its table dec
   const r = rebuild(sample).routing.routeTo(idOf("XS"), idOf("BRA"));
   assert.deepEqual(ids(r.back.hops), path("BRA", "LO", "P1", "P2", "XS"));
   assert.equal(r.back.hops[0].derived, false);
-  assert.equal(r.back.hops[0].decided, "next hop"); // its own table: plug 2 via sofaoben (3 + link 1 = 4)
+  assert.equal(r.back.hops[0].decided, "next hop"); // its own table: plug 2 via Lamp 2 (3 + link 1 = 4)
   const empty = withTable();
   const br = empty.tables.nodes.find((x) => x.node_id === 99);
   br.route_table = br.route_table.filter((e) => e.routerId !== 50); // no entry for plug 2
@@ -317,7 +317,7 @@ test("#11 derived only where the border router's table is missing; its table dec
 
 test("#11 two entries of the holder's own table claiming one router ID: the next hop is unknown", () => {
   const sample = threadRoutesSample();
-  entryOf(tablesOf(sample, 21), 45).routerId = 10; // plug 1 names plug 3 as router 10 too (sofaoben's ID)
+  entryOf(tablesOf(sample, 21), 45).routerId = 10; // plug 1 names plug 3 as router 10 too (Lamp 2's ID)
   const n = rebuild(sample);
   assert.equal(n.routing.tables.holders.get(idOf("P1")).byRouterId.get(10), null);
   assert.deepEqual(nextHop(n.routing.tables, idOf("P1"), idOf("BRA")), { next: null, reason: "next_hop_unknown" });
