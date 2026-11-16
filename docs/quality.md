@@ -33,7 +33,6 @@ Targets are trends unless a gate says otherwise.
 | Spelling | `typos` over code, docs and UI text (`_typos.toml`; fixtures, captures and the generated bundle are excluded) | no finding; project words go into the config with a reason |
 | Dead code | `knip` (`knip.jsonc`): unused files and exports in the frontend | the number falls, never rises |
 | Lint | Ruff, ESLint | no finding |
-| Mutation tests | planned: StrykerJS on the engines, weekly | baseline first, then rising |
 
 All measuring tools are development dependencies with exact pins (`requirements-quality.txt`, `tools/quality.py`);
 nothing of them ships. The type, licence and dead-code counts depend on what is installed: they are taken in the
