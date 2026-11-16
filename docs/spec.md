@@ -375,7 +375,10 @@ device powered by a battery.
 ### 4.3 Radio link
 
 A directed reading "reporter R hears subject S": value, scale (`zigbee-lqi` 0–255, `thread-lqi` 0–3, `rssi-dbm`),
-relationship if known. Each direction of a pair is a separate single reading of the last frame; on the sample the
+relationship if known. Each direction of a pair is a separate reading by its own reporter; how a stack forms the value is stack-specific
+(EmberZNet keeps per neighbour an exponentially weighted moving average of the PHY link quality of incoming packets,
+`averageLqi`, Silicon Labs EmberZNet 6.10 API, https://docs.silabs.com/zigbee/6.10/zigbee-af-api/ember-neighbor-table-entry;
+for Z-Stack no source found, so no claim). On the sample the
 two differ by a median of 8 LQI and by more than 60 in a tenth of pairs.
 
 **Evidence per direction** ("A hears B", pairs of available devices):
