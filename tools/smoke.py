@@ -68,7 +68,8 @@ TABLES_JOURNEYS = [
     ("#25 an 'i' at 1280: About these values expanded", f"{TABLES}&select=Motion%20sensor&tables=info&steps=wait:300", "1280,800", "side",
      [r"info open; tablesbutton true; panelfocus summary"]),
     ("#25 Tables at 1280 with both panels open", f"{TABLES}&select=Motion%20sensor&right=view&tables=1&steps=wait:300", "1280,800", "side",
-     [r"right \d+,0,1280,800 "]),
+     # the right panel is open to the map's right edge; its height is the window's, which differs between Chrome builds
+     [r"right \d+,0,1280,\d+ "]),
     # the boundary: a 809 px map leaves 809 - 320 - 16 = 473 px beside the drawer, exactly the hop table's 424 px plus
     # padding and scrollbar gutter; the info section expanded makes the body scroll, the hop table must still fit
     ("#25 boundary 809 px, info expanded: side by side, no table scrolls sideways", f"{TABLES}&select=Motion%20sensor&tables=info&steps=wait:300",
