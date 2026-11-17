@@ -550,7 +550,7 @@ async function drive() {
   if (q.get("info")) {
     const all = q.get("info") === "all";
     el._info = { density: all || !["reload"].includes(q.get("info")), reload: all || q.get("info") === "reload",
-      colors: all, assumed: all };
+      colors: all, assumed: all, debug: all };
   }
   // By registry or ZHA name, else by the label the panel shows (the coordinator's is the model's own word).
   const id = q.get("select") && (byLabel(q.get("select"))

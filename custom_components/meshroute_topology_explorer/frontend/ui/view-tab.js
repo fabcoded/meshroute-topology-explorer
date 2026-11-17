@@ -6,8 +6,8 @@
 // fill, labels on the map; then "Read data again" with an info button (the source's own note, from its adapter),
 // "Release all pins", and a note only when the settings are not kept in Home Assistant. Debug mode (not stored, an
 // info button says what it does, the scan below it where the source has one, #26) closes the engine's group with
-// the id "paths" under a line; without such a group it stays above "Read data again". A group the network type does not have is not shown (hidden, not
-// greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
+// the id "paths" under a line; without such a group it stays above "Read data again". A group the network type
+// does not have is not shown (hidden, not greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
 import { h } from "./dom.js";
@@ -24,8 +24,9 @@ import { FILLS, receptionStops } from "../graph/palette.js";
  *  reloadInfo (text key of the source's note on reading again, adapters/*.js; without one no info button),
  *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
  *  onInfo(key, open) }.
- *  OptionGroup = { id ("paths": debug mode closes this group), debugInfo (text key of the debug note), legend (text key; without one the group is a single line, its note), className, info ({ key,
- *  label, text }: an info button in the legend), note (a line at the end), after ("click": placed after "On click"),
+ *  OptionGroup = { id ("paths": debug mode closes this group), debugInfo (text key of the debug note), legend
+ *  (text key; without one the group is a single line, its note), className, info ({ key, label, text }: an info
+ *  button in the legend), note (a line at the end), after ("click": placed after "On click"),
  *  controls }. Control = { kind: "radio", key, layout ("rows": one per line with a hint; "plain"), options: [{ value,
  *  label, hint, tag, children (controls under that option) }] } | { kind: "checkbox", key, id, label, hint, sub (an
  *  option under a radio: indented, greyed while disabled), disabled, info } | { kind: "pathColors" } (grey or
