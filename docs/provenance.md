@@ -125,3 +125,6 @@ from the release commit 0.1.0 on (AGENTS.md).
   force-graph 1.52.0, float-tooltip 1.7.5, d3-force 3.0.0, d3-zoom 3.0.0 and d3-force-3d 3.0.6: total share 0.14 %,
   maximum pair share 3.6 %, longest run 41 tokens, 0 runs at or above the threshold. ha-zigbee-map 2.11.0 is no longer
   downloadable at its former release locations and the Home Assistant frontend was not compared in this run.
+- 2026-11-18, tool at c623d8c (k 25, window 4, threshold 50 tokens), ours: 105 frontend files at 69b14da. Against
+  the same five packages: total share 0.14 %, maximum pair share 3.6 %, longest run 41 tokens, 0 runs at or above
+  the threshold. The demo files (demo/) are data and page code outside the frontend and were not compared.

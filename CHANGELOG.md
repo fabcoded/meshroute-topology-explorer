@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 – 2026-11-18
 
 - **Online demo**: the panel on an invented house at https://fabcoded.github.io/meshroute-topology-explorer/, updated
-  with every release. Nothing changes in the integration.
+  with every release; it runs in the browser, without Home Assistant.
 - **Debug mode moved up** (#26): in the View tab the checkbox now closes the "Communication paths" group, with an
   info button saying what it shows, and "Scan topology …" (ZHA) appears right under it while debug is on.
+  Frontend only.
 
 ## 0.3.0 – 2026-11-16
 

@@ -14889,7 +14889,7 @@ function versionMismatch(panel, version) {
 // Try it without Home Assistant: dev/panel.html.
 
 // Must equal the version in manifest.json and const.py (tests/test_integration_files.py).
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const ELEMENT = "meshroute-topology-explorer";
 
 class MeshrouteTopologyExplorer extends HTMLElement {
