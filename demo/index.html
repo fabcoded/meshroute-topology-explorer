@@ -79,17 +79,17 @@
     // [id, label, query of dev/panel.html, caption]; demo=1 is added to every query.
     const SCENARIOS = [
       ["path", "Paths", "select=Front%20door%20lamp&left=details",
-        "The front door lamp: since the garage plug next to it was unplugged two days ago, only the hallway light hears it, and weakly (LQI 47). The coordinator's table still routes its way back over the unplugged plug. Select any device for its details."],
+        "The front door lamp lost its route when the garage plug next to it was unplugged two days ago. Now only the hallway light hears it, and weakly (LQI 47). The coordinator's table still routes its way back over the unplugged plug. Select any device for its details."],
       ["tables", "Routing tables", "select=Kids%27%20room%20lamp&paths=table&returns=1",
-        "The kids' room lamp's routes as the routers' tables give them, there and back: over the landing light and the hallway light."],
+        "These are the kids' room lamp's routes as the routers' tables give them, there and back, over the landing light and the hallway light."],
       ["reception", "Reception", "select=Backyard%20motion%20sensor&colors=1&right=legend",
-        "Links coloured by how well the receiving device hears the sender: the backyard motion sensor reaches the house only over the terrace light."],
+        "Links are coloured by how well the receiver hears the sender. The backyard motion sensor reaches the house only through the terrace light."],
       ["history", "History", "select=Garden%20shed%20plug&pair=Coordinator&htab=timeline",
         "The terrace light is switched off at the wall every night, and the garden shed plug behind it loses its route. For the microwave at lunch and dinner time, select the dining table lamp, then History to gateway."],
       ["findings", "Findings", "left=findings",
-        "The unplugged garage plug and the contact that lost it, routes still running into the plug, a router without a table, and the weak front door lamp."],
+        "The list shows the unplugged garage plug and the contact that lost it, routes still running into the plug, a router without a table and the weak front door lamp."],
       ["thread", "Thread (preview)", "network=thread&select=Garage%20motion%20sensor&left=details",
-        "Thread through Matter: the garage motion sensor reaches a border router only over the freezer plug behind the garage wall."],
+        "This is Thread through Matter. The garage motion sensor reaches a border router only through the freezer plug behind the garage wall."],
     ];
     const nav = document.querySelector("nav");
     const frame = document.getElementById("demo");

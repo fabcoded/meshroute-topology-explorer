@@ -938,8 +938,7 @@ One place per thing; nothing appears twice.
     Meshroute has, unfiltered: every link with the device that reported it, the raw tables in Details, the frame rate
     on the map and, for ZHA, the topology scan, which sends radio traffic. Not stored: off after a reload." Under
     the checkbox, only while debug is on and only where the source has a scan (ZHA, not Thread), "Scan topology …"
-    (6). The shell inserts the block after the engine's group with the id "paths", so it knows no engine; with no such
-    group it sits above "Read data again" (#26).
+    (6). The shell inserts the block after the engine's group with the id "paths", so it knows no engine (#26).
   - **Path display**: grey or coloured by reception, info button "Colour shows the relative reception rank, not
     connection reliability."; three colour pickers (lower, middle, higher reception rank), prefilled with the theme's
     red, yellow and green, dimmed and inert while grey, and while coloured a way back to the defaults (7.1, 8).

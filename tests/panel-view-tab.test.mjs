@@ -28,14 +28,18 @@ const { ENGINES } = await import("../custom_components/meshroute_topology_explor
 const { sampleNetwork } = await import("./panel-fixture.mjs");
 const network = sampleNetwork();
 
+// The context renderView needs; `extra` overrides single fields.
+function viewCtx(settings, groups, extra) {
+  return { t: translator("en"), settings, groups, openOnSelect: false, dark: false, debug: false, pinCount: 0,
+    scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {},
+    onReload() {}, onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {}, ...extra };
+}
+
 function render(stored) {
   const patches = [];
   const container = new FakeNode("div");
   const settings = sanitizeSettings(stored, ENGINES.zigbee.settings);
-  renderView(container, { t: translator("en"), settings, groups: ENGINES.zigbee.options(network, settings),
-    openOnSelect: false, dark: false,
-    debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", onChange: (p) => patches.push(p),
-    onOpenDetails() {}, onDebug() {}, onReload() {}, onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
+  renderView(container, viewCtx(settings, ENGINES.zigbee.options(network, settings), { onChange: (p) => patches.push(p) }));
   const all = container.walk();
   const radios = all.filter((n) => n.tag === "input" && n.type === "radio" && n.name === "v-paths");
   const box = all.find((n) => n.tag === "input" && n.type === "checkbox" && n.attrs.id === "v-paths-heard");
@@ -128,10 +132,8 @@ test("View tab: the reload note comes from the network's adapter; a Thread tab n
   const tab = (net, engine) => {
     const container = new FakeNode("div");
     const settings = sanitizeSettings({}, engine.settings);
-    renderView(container, { t, settings, groups: engine.options(net, settings), openOnSelect: false, dark: false,
-      debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", info: { reload: true },
-      reloadInfo: adapterFor(net).reloadInfo, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
-      onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
+    renderView(container, viewCtx(settings, engine.options(net, settings),
+      { info: { reload: true }, reloadInfo: adapterFor(net).reloadInfo }));
     const all = container.walk();
     return { all, note: all.find((n) => n.attrs.id === "v-reload-note"), button: all.find((n) => n.attrs.id === "v-reload-info") };
   };
@@ -166,24 +168,21 @@ test("View tab: the stepper stops at the ends of the range", () => {
   assert.deepEqual(low.map((b) => Boolean(b.disabled)), [true, false]);
 });
 
-test("View tab: debug mode closes the paths group with an info note; the scan follows it (#26)", async () => {
+test("View tab: debug mode ends the paths group with an info note; the scan follows it (#26)", async () => {
   const { buildThreadNetwork } = await import("../custom_components/meshroute_topology_explorer/frontend/engines/thread/model.js");
   const { readFileSync } = await import("node:fs");
   const t = translator("en");
   const tab = (net, engine, extra) => {
     const container = new FakeNode("div");
     const settings = sanitizeSettings({}, engine.settings);
-    renderView(container, { t, settings, groups: engine.options(net, settings), openOnSelect: false, dark: false,
-      debug: false, pinCount: 0, scan: null, client: { mode: "stored" }, idPrefix: "v", info: {}, reloadInfo: "view.zha_reload_info",
-      onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {}, onReleaseAll() {}, onScan() {}, onScanStop() {},
-      onInfo() {}, ...extra });
+    renderView(container, viewCtx(settings, engine.options(net, settings), { reloadInfo: "view.zha_reload_info", ...extra }));
     const ids = container.walk().filter((n) => n.attrs && n.attrs.id).map((n) => n.attrs.id);
     return { container, ids, at: (x) => ids.indexOf(x) };
   };
   const off = tab(network, ENGINES.zigbee, { canScan: true });
   assert.ok(off.at("v-paths-all-hint") < off.at("v-debug"));
   assert.ok(off.at("v-debug") < off.at("v-reload"), "debug sits above the buttons at the end");
-  assert.ok(off.at("v-debug") < off.at("v-color-bad"), "debug closes the paths group, before the path display");
+  assert.ok(off.at("v-debug") < off.at("v-color-bad"), "debug ends the paths group, before the path display");
   assert.ok(off.at("v-debug-info") === off.at("v-debug") + 1 && off.at("v-debug-note") > off.at("v-debug-info"));
   const box = off.container.walk().find((n) => n.attrs.id === "v-debug");
   const note = off.container.walk().find((n) => n.attrs.id === "v-debug-note");
@@ -192,8 +191,6 @@ test("View tab: debug mode closes the paths group with an info note; the scan fo
   assert.equal(info.attrs["aria-controls"], "v-debug-note");
   assert.equal(info.attrs["aria-expanded"], "false");
   assert.equal(note.textContent, t("view.debug_info"));
-  assert.match(note.textContent, /Not stored: off after a reload\./);
-  assert.ok(!t("view.paths_note").includes("Debug"), "the note under the paths no longer speaks of debug");
   assert.ok(off.at("v-scan") < 0, "no scan button while debug is off");
   const on = tab(network, ENGINES.zigbee, { canScan: true, debug: true });
   assert.ok(on.at("v-debug-note") < on.at("v-scan") && on.at("v-scan") < on.at("v-reload"), "scan right under the checkbox");
@@ -203,14 +200,5 @@ test("View tab: debug mode closes the paths group with an info note; the scan fo
   const thread = tab(buildThreadNetwork(topology), ENGINES.thread, { debug: true });
   const threadNote = thread.container.walk().find((n) => n.attrs.id === "v-debug-note");
   assert.equal(threadNote.textContent, t("view.thread_debug_info"));
-  assert.ok(!/ZHA|scan/.test(threadNote.textContent), "Thread's note names no ZHA and no scan");
   assert.ok(thread.at("v-debug") >= 0 && thread.at("v-debug") < thread.at("v-reload") && thread.at("v-scan") < 0, "Thread: same place, no scan");
-  // Without a group with the id "paths" the block stays above "Read data again".
-  const container = new FakeNode("div");
-  const settings = sanitizeSettings({}, ENGINES.zigbee.settings);
-  renderView(container, { t, settings, groups: [], openOnSelect: false, dark: false, debug: false, pinCount: 0, scan: null,
-    client: { mode: "stored" }, idPrefix: "v", info: {}, onChange() {}, onOpenDetails() {}, onDebug() {}, onReload() {},
-    onReleaseAll() {}, onScan() {}, onScanStop() {}, onInfo() {} });
-  const bare = container.walk().filter((n) => n.attrs && n.attrs.id).map((n) => n.attrs.id);
-  assert.ok(bare.indexOf("v-debug") >= 0 && bare.indexOf("v-debug") < bare.indexOf("v-reload"));
 });

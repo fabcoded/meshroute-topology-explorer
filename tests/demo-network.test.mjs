@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// The demo house (demo/demo-network.mjs) tells the story its head promises, read by the Zigbee engine where it can:
-// 25 devices per network, the unplugged garage plug with a stale route into it, the office desk plug's missing table,
-// the weak front door lamp, the nightly terrace outage and the microwave in the history, and Thread route tables that
-// follow the link costs. npm test
+// Checks the demo house of demo/demo-network.mjs: 25 devices per network, the unplugged garage plug with a stale route
+// into it, the office desk plug's missing table, the weak front door lamp, the nightly terrace outage and the microwave
+// in the history, Thread route tables that follow the link costs; read by the Zigbee engine where it can.
+// npm test
 import assert from "node:assert/strict";
 import test from "node:test";
 

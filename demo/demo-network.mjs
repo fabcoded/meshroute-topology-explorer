@@ -1,26 +1,14 @@
 // SPDX-License-Identifier: MIT
 // The demo house of the online demo (dev/panel.html?demo=1, GitHub Pages): an invented detached house with 25 Zigbee
-// and 25 Thread devices and a few weak spots that are common in real homes. Pure, deterministic data builder in the
-// answer formats the dev page fakes (zha/devices, history/records, matter/network_topology, thread_tables); names,
-// addresses and readings are invented, no capture went into it. The story holds: tests/demo-network.test.mjs
+// and 25 Thread devices and some weak spots common in real homes. A pure, deterministic builder in the formats the dev
+// page fakes (zha/devices, history/records, matter/network_topology, thread_tables); no capture went into it.
+// Checked by tests/demo-network.test.mjs.
 //
-// Zigbee (ZHA): coordinator in the utility room, 13 routers, 11 battery devices.
-//  - Front door lamp: outdoor wall light behind the facade. It reached the coordinator over the garage plug next to it
-//    until that plug was unplugged two days ago; since then only the hallway ceiling light hears it, and weakly, and
-//    the coordinator's table still routes its way back over the unplugged plug.
-//  - Garage plug: offline; the hallway light's table still routes the garage door contact through it, and the contact
-//    went offline too, six hours after it lost its parent (ZHA's default for battery devices).
-//  - Terrace light: switched off at the wall switch every night (23:30 to 06:30); the garden shed plug and the
-//    backyard motion sensor behind it drop out with it (history).
-//  - Office desk plug: never answers table requests, so its tables are empty (zigpy keeps the last table it read: an
-//    empty one was never read) and the office window contact's parent is unknown.
-//  - Kitchen: the microwave at lunch and dinner time lowers the reception on the kitchen's links (history).
-// Thread (Matter): two border routers, 10 routers, 13 sleepy devices.
-//  - Freezer plug in the garage: one weak link through the garage wall (link quality 1); the garage motion sensor and
-//    the terrace plug depend on it.
-//  - Upper floor: reached only through the landing light strip; the bathroom radiator valve hangs weakly on the kids'
-//    room plug.
-//  - Terrace plug: its tables are 20 hours old.
+// Zigbee: 13 routers, 11 battery devices. Front door lamp behind the facade lost its route when the garage plug was
+// unplugged (stale routes remain); terrace light off at night with the shed plug and motion sensor behind it; office
+// plug answers no table request; the microwave lowers the kitchen links at mealtimes.
+// Thread: 10 routers, 2 border routers, 13 sleepy devices. Weak freezer link through the garage wall; upper floor only
+// via the landing light strip; the terrace plug's tables are 20 hours old.
 
 const HOUR = 3600;
 
@@ -87,8 +75,8 @@ const ZLINKS = [
 ];
 /** What a parent hears from its sleepy child, and the child's last-hop LQI (device.lqi). */
 const CHILD_LQI = { FC: 152, HM: 171, LR: 198, LM: 183, KT: 140, KW: 96, BB: 176, OW: 158, BM: 88, MB: 61, GD: 132 };
-/** Next hop towards the coordinator (many-to-one route) of each router; the front door lamp's while the garage plug
- *  was there is upOf's. */
+/** Each router's next hop towards the coordinator; upOf() gives the front door lamp's hop while the garage plug
+ *  had power. */
 const UP = { HL: "C", LC: "C", KL: "C", OP: "C", GP: "C", LF: "LC", DL: "KL", LA: "HL", BL: "LA", KR: "LA", FD: "HL",
   TL: "LC", SP: "TL" };
 /** Routes towards a destination: [holder, destination, next hop]. C -> FD over GP and HL -> GD over GP are stale:
@@ -96,11 +84,13 @@ const UP = { HL: "C", LC: "C", KL: "C", OP: "C", GP: "C", LF: "LC", DL: "KL", LA
 const ROUTES = [
   ["C", "FD", "GP"], ["C", "LA", "HL"], ["C", "BL", "HL"], ["C", "KR", "HL"], ["C", "LF", "LC"], ["C", "TL", "LC"],
   ["C", "SP", "LC"], ["C", "DL", "KL"], ["HL", "LA", "LA"], ["HL", "BL", "LA"], ["HL", "KR", "LA"], ["HL", "FD", "FD"],
-  ["HL", "GD", "GP"], ["LA", "BL", "BL"], ["LA", "KR", "KR"], ["LC", "TL", "TL"], ["LC", "SP", "TL"], ["LC", "LF", "LF"],
+  ["HL", "GD", "GP"], ["LA", "BL", "BL"], ["LA", "KR", "KR"], ["LC", "TL", "TL"], ["LC", "SP", "TL"],
+  ["LC", "LF", "LF"],
   ["TL", "SP", "SP"], ["KL", "DL", "DL"],
 ];
 
-/** Next hop towards the coordinator of router k: the front door lamp took the garage plug (LQI 143) while it had power. */
+/** Next hop of router k towards the coordinator: the front door lamp took the garage plug (LQI 143) while it had
+ *  power. */
 const upOf = (k, gpOn) => (k === "FD" && gpOn ? "GP" : UP[k]);
 
 /** Local hour of day (fractional) of a Unix time, in the visitor's time zone. */
@@ -108,17 +98,22 @@ const localHour = (t) => { const d = new Date(t * 1000); return d.getHours() + d
 /** The terrace light hangs on a wall switch that is off at night. */
 export const terraceOff = (t) => { const h = localHour(t); return h >= 23.5 || h < 6.5; };
 /** Microwave at lunch and dinner time: the kitchen's links lose reception. */
-export const microwaveOn = (t) => { const h = localHour(t); return (h >= 11.75 && h < 12.75) || (h >= 18 && h < 19.5); };
+export const microwaveOn = (t) => {
+  const h = localHour(t);
+  return (h >= 11.75 && h < 12.75) || (h >= 18 && h < 19.5);
+};
 /** Local wall-clock time without a zone, as ZHA reports last_seen (the panel shows it as it comes). */
 function localIso(t) {
   const d = new Date(t * 1000);
   const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${date}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 const KITCHEN = new Set(["KL", "DL", "KT", "KW"]);
 
 /** The network at time t (null: the last table read, without jitter): which devices answer and what each holder
- *  hears. unplugged: the moment the garage plug lost power. Returns { available, heard: Map "rx|tx" -> lqi, tables }. */
+ *  hears. unplugged: the moment the garage plug lost power. Returns { available, heard: Map "rx|tx" -> lqi, tables,
+ *  gpOn (the garage plug has power) }. */
 function zigbeeAt(t, unplugged) {
   const gpOn = t !== null && t < unplugged;
   const gdLost = t === null || t >= unplugged + 6 * HOUR; // the orphaned contact, unavailable after ZHA's 6 h
@@ -128,19 +123,22 @@ function zigbeeAt(t, unplugged) {
   // Tables that were read: every available router except the office desk plug, which never answers.
   const tables = new Set([...available].filter((k) => isRouter(k) && k !== "OP"));
   const heard = new Map();
-  const put = (rx, tx, base, i) => {
+  const put = (rx, tx, base) => {
     if (!tables.has(rx) || !available.has(tx)) return;
     let lqi = base;
     if (t !== null) {
       const weak = rx === "FD" || tx === "FD";
       if (rx === "FD" && unit(`gap${t}${tx}`) < 0.12) return; // the lamp loses its weak neighbours now and then
       if (microwaveOn(t) && (KITCHEN.has(rx) || KITCHEN.has(tx))) lqi *= 0.45;
-      lqi += (unit(`j${t}${rx}${tx}${i}`) - 0.5) * (weak ? 36 : 10);
+      lqi += (unit(`j${t}${rx}${tx}`) - 0.5) * (weak ? 36 : 10);
     }
     heard.set(`${rx}|${tx}`, Math.max(1, Math.min(255, Math.round(lqi))));
   };
-  for (const [a, b, ab, ba] of ZLINKS) { put(a, b, ab, 0); put(b, a, ba, 1); }
-  for (const [c, lqi] of Object.entries(CHILD_LQI)) put(ZIGBEE[c][4], c, lqi, 2);
+  for (const [a, b, ab, ba] of ZLINKS) {
+    put(a, b, ab);
+    put(b, a, ba);
+  }
+  for (const [c, lqi] of Object.entries(CHILD_LQI)) put(ZIGBEE[c][4], c, lqi);
   return { available, heard, tables, gpOn };
 }
 
@@ -156,8 +154,8 @@ const SIGNATURES = {
   remote: { type: "0x0820", inputs: ["0x0000", "0x0001", "0x0003"],
     outputs: ["0x0003", "0x0004", "0x0006", "0x0008", "0x0019"] },
 };
-const MODELS = { hub: "ZB-Coordinator", light: "Ceiling light CT", outlet: "Smart plug P1", contact: "Contact sensor C2",
-  motion: "Motion sensor M3", climate: "Climate sensor T1", remote: "Remote R4" };
+const MODELS = { hub: "ZB-Coordinator", light: "Ceiling light CT", outlet: "Smart plug P1",
+  contact: "Contact sensor C2", motion: "Motion sensor M3", climate: "Climate sensor T1", remote: "Remote R4" };
 const ENTITIES = { hub: [], light: ["light", "update"], outlet: ["switch", "sensor", "sensor"],
   contact: ["binary_sensor", "sensor"], motion: ["binary_sensor", "sensor", "sensor"],
   climate: ["sensor", "sensor", "sensor"], remote: ["sensor"] };
@@ -175,8 +173,8 @@ function zhaDevice(k, state, now, unplugged) {
       extended_pan_id: "aa:bb:cc:dd:de:00:00:99", ieee: zIeee(tx), nwk: hex4(zNwk(tx)), permit_joining: "Unknown",
       depth: tx === "C" ? "0" : "1", lqi: String(lqi) };
   });
-  const route = (dest, hop, manyToOne) => ({ dest_nwk: hex4(zNwk(dest)), route_status: "Active", memory_constrained: false,
-    many_to_one: manyToOne, route_record_required: false, next_hop: hex4(zNwk(hop)) });
+  const route = (dest, hop, manyToOne) => ({ dest_nwk: hex4(zNwk(dest)), route_status: "Active",
+    memory_constrained: false, many_to_one: manyToOne, route_record_required: false, next_hop: hex4(zNwk(hop)) });
   const routes = !state.tables.has(k) ? [] : [...(UP[k] ? [route("C", UP[k], true)] : []),
     ...ROUTES.filter(([h]) => h === k).map(([, d, n]) => route(d, n, false))];
   const parentLqi = sleepy ? CHILD_LQI[k] : (state.heard.get(`${UP[k]}|${k}`) ?? null);
@@ -223,23 +221,34 @@ export function demoZha({ now = Math.round(Date.now() / 1000) } = {}) {
   };
 }
 
+const STEP = 1800;
 /** Reception history of the demo (the answer of history/records): eight days in 30-minute steps up to now, local
  *  midnight aligned, so the microwave and the wall switch show at their clock times. Unchanged steps are `{ t }`. */
-export function demoHistory({ now = Math.round(Date.now() / 1000), step = 1800 } = {}) {
+export function demoHistory({ now = Math.round(Date.now() / 1000) } = {}) {
   const unplugged = unpluggedAt(now);
   const start = new Date(now * 1000);
   start.setDate(start.getDate() - 8);
   start.setHours(0, 0, 0, 0);
-  const k = [];
+  const keys = [];
   const index = new Map();
-  const key = (x) => { const ieee = zIeee(x); if (!index.has(ieee)) { index.set(ieee, k.length); k.push(ieee); } return index.get(ieee); };
+  const key = (x) => {
+    const ieee = zIeee(x);
+    if (!index.has(ieee)) {
+      index.set(ieee, keys.length);
+      keys.push(ieee);
+    }
+    return index.get(ieee);
+  };
   const records = [];
   let previous = null;
-  for (let t = Math.round(start.getTime() / 1000); t <= now; t += step) {
+  for (let t = Math.round(start.getTime() / 1000); t <= now; t += STEP) {
     const state = zigbeeAt(t, unplugged);
-    const e = [...state.heard].map(([pair, lqi]) => { const [rx, tx] = pair.split("|"); return [key(rx), key(tx), lqi]; })
-      .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const r = [...Object.keys(UP).map((h) => [h, "C", upOf(h, state.gpOn)]), ...ROUTES].filter(([h]) => state.tables.has(h))
+    const e = [...state.heard].map(([pair, lqi]) => {
+      const [rx, tx] = pair.split("|");
+      return [key(rx), key(tx), lqi];
+    }).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const upRoutes = Object.keys(UP).map((h) => [h, "C", upOf(h, state.gpOn)]);
+    const r = [...upRoutes, ...ROUTES].filter(([h]) => state.tables.has(h))
       .map(([h, d, n]) => [key(h), key(d), key(n), "Active"]);
     const p = Object.entries(CHILD_LQI).filter(([c]) => state.heard.has(`${ZIGBEE[c][4]}|${c}`))
       .map(([c]) => [key(c), key(ZIGBEE[c][4])]);
@@ -247,7 +256,7 @@ export function demoHistory({ now = Math.round(Date.now() / 1000), step = 1800 }
     records.push(signature === previous ? { t } : { t, e, r, p });
     previous = signature;
   }
-  return { k, records };
+  return { k: keys, records };
 }
 
 // ---- Thread --------------------------------------------------------------------------------------------------------
@@ -297,7 +306,8 @@ const TLINKS = [
   ["LS", "KD", [-55, 3], [-57, 3]], ["BD", "KD", [-84, 2], [-86, 2]], ["KP", "FZ", [-93, 1], [-95, 1]],
   ["FZ", "TP", [-62, 3], [-64, 3]], ["DP", "TP", [-94, 1], [-96, 1]],
 ];
-/** What each side of a parent link hears: [rssi of the child at the parent, LQI], [rssi of the parent at the child, LQI]. */
+/** What each side of a parent link hears: [rssi of the child at the parent, LQI], [rssi of the parent at the child,
+ *  LQI]. */
 const TCHILD = {
   VL: [[-52, 3], [-50, 3]], VO: [[-47, 3], [-46, 3]], VB: [[-55, 3], [-53, 3]], VK: [[-51, 3], [-49, 3]],
   VT: [[-93, 1], [-92, 1]], WL: [[-58, 3], [-57, 3]], WB: [[-61, 3], [-60, 3]], WK: [[-64, 3], [-62, 3]],
@@ -318,7 +328,11 @@ function threadCosts() {
     const q = linkQuality(a, b);
     return [b, a === b ? 0 : q === null ? Infinity : LQ_COST[q]];
   }))]));
-  for (const m of RKEYS) for (const a of RKEYS) for (const b of RKEYS) cost[a][b] = Math.min(cost[a][b], cost[a][m] + cost[m][b]);
+  for (const m of RKEYS) {
+    for (const a of RKEYS) {
+      for (const b of RKEYS) cost[a][b] = Math.min(cost[a][b], cost[a][m] + cost[m][b]);
+    }
+  }
   return cost;
 }
 
@@ -351,32 +365,37 @@ const NET = { ext_pan_id: "aabbccddeeffde01", network_name: "demo-home" };
  *  readAt; the terrace plug's tables were read 20 h before, the others within the last hours. */
 export function demoThread({ readAt = Math.round(Date.now() / 1000) } = {}) {
   const cost = threadCosts();
-  const routers = Object.keys(THREAD_ROUTERS);
   const children = Object.keys(THREAD_CHILDREN);
-  const nodes = [...routers.map(routerNode), ...children.map(childNode)];
-  const tables = [...routers.filter((k) => !isBorder(k)).map((k) => routerTables(k, cost, readAt)),
+  const nodes = [...RKEYS.map(routerNode), ...children.map(childNode)];
+  const tables = [...RKEYS.filter((k) => !isBorder(k)).map((k) => routerTables(k, cost, readAt)),
     ...children.map((k) => childTables(k, readAt))];
   return { topology: { collected_at: readAt * 1000, nodes, connections: connectionsOf(nodes, tables) },
-    tables: { nodes: tables, read_at: readAt, observe_seconds: 600 }, registry: TKEYS.filter((k) => !isBorder(k)).map(registryEntry) };
+    tables: { nodes: tables, read_at: readAt, observe_seconds: 600 },
+    registry: TKEYS.filter((k) => !isBorder(k)).map(registryEntry) };
 }
 
 /** The snapshot node (matter/network_topology) of router or border router k. */
 function routerNode(k) {
   const [name, , node] = THREAD_ROUTERS[k];
   const border = node === null;
-  return { id: border ? `br_${tExt(k)}` : String(node), kind: border ? "border_router" : "matter", network_type: "thread",
-    node_id: node, role: k === LEADER ? "leader" : "router", available: border ? null : true, ext_address: tExt(k),
-    rloc16: null, ...NET, vendor_name: border ? "Example" : null, model_name: border ? "Border router" : null,
-    last_seen: null, ha_device_id: border ? null : `demo-${k}`, host_name: border ? name : null };
+  return { id: border ? `br_${tExt(k)}` : String(node), kind: border ? "border_router" : "matter",
+    network_type: "thread", node_id: node, role: k === LEADER ? "leader" : "router",
+    available: border ? null : true, ext_address: tExt(k), rloc16: null, ...NET,
+    vendor_name: border ? "Example" : null, model_name: border ? "Border router" : null, last_seen: null,
+    ha_device_id: border ? null : `demo-${k}`, host_name: border ? name : null };
 }
 
 /** Router k's tables (thread_tables): the routers and children it hears, its route table, when both were read. */
 function routerTables(k, cost, readAt) {
-  const heard = TLINKS.flatMap(([a, b, toB, toA]) => (b === k ? [neighbour(a, toB)] : a === k ? [neighbour(b, toA)] : []));
+  const heard = TLINKS.flatMap(([a, b, toB, toA]) => {
+    if (b === k) return [neighbour(a, toB)];
+    return a === k ? [neighbour(b, toA)] : [];
+  });
   for (const [c, [, , , parent]] of Object.entries(THREAD_CHILDREN)) {
     if (parent === k) heard.push(neighbour(c, TCHILD[c][0], true));
   }
-  const old = k === "TP"; // the terrace plug's tables are 20 h old, read before Meshroute first looked
+  // The terrace plug's tables are 20 h old, read before Meshroute first looked.
+  const old = k === "TP";
   const age = old ? 20 * HOUR : Math.round((0.5 + 3 * unit(`age${k}`)) * HOUR);
   return { node_id: THREAD_ROUTERS[k][2], available: true, routing_role: k === LEADER ? 6 : 5,
     ext_address: tExt(k).toLowerCase(), rloc16: null, neighbor_table: heard, route_table: routeTable(k, cost),
@@ -396,8 +415,8 @@ function childNode(k) {
 function childTables(k, readAt) {
   const [, , node, parent] = THREAD_CHILDREN[k];
   const [atParent, atChild] = TCHILD[k];
-  const routes = RKEYS.map((d) => ({ extAddress: tExt(d), rloc16: rid(d) << 10, routerId: rid(d), nextHop: 0, pathCost: 0,
-    LQIIn: d === parent ? atChild[1] : 0, LQIOut: d === parent ? atParent[1] : 0, age: 3, allocated: true,
+  const routes = RKEYS.map((d) => ({ extAddress: tExt(d), rloc16: rid(d) << 10, routerId: rid(d), nextHop: 0,
+    pathCost: 0, LQIIn: d === parent ? atChild[1] : 0, LQIOut: d === parent ? atParent[1] : 0, age: 3, allocated: true,
     linkEstablished: d === parent }));
   return { node_id: node, available: true, routing_role: 2, ext_address: tExt(k).toLowerCase(), rloc16: null,
     neighbor_table: [neighbour(parent, atChild)], route_table: routes,
@@ -427,8 +446,8 @@ function connectionsOf(nodes, tables) {
       const back = tables.find((x) => x.ext_address === n.extAddress.toLowerCase());
       const rev = back && back.neighbor_table.find((m) => m.extAddress.toLowerCase() === t.ext_address);
       const dir = (e) => (e ? { strength: "strong", lqi: e.lqi, rssi: e.averageRssi } : null);
-      connections.push({ source: idOf(t.ext_address), target: idOf(n.extAddress), network: "thread", source_to_target: dir(n),
-        target_to_source: dir(rev), via_route_table: null, path_cost: null });
+      connections.push({ source: idOf(t.ext_address), target: idOf(n.extAddress), network: "thread",
+        source_to_target: dir(n), target_to_source: dir(rev), via_route_table: null, path_cost: null });
     }
   }
   return connections;

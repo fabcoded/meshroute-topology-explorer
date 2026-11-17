@@ -35,7 +35,7 @@ unset HASS_TOKEN
 
 https://fabcoded.github.io/meshroute-topology-explorer/ is the dev page in demo mode (`dev/panel.html?demo=1`) inside a
 landing page (`demo/index.html`), on the invented house of `demo/demo-network.mjs` (its head tells the story; the test
-`tests/demo-network.test.mjs` keeps it true). Demo mode loads the shipped bundle, follows the visitor's colour scheme,
+`tests/demo-network.test.mjs` checks it). Demo mode loads the shipped bundle, follows the visitor's colour scheme,
 hides the dev menu and never reads `captures/`.
 
 - Build: `python3 tools/build_demo_site.py --out _site` copies an allow-list of tracked files; untracked files, above

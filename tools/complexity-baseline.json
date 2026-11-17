@@ -115,7 +115,7 @@
    "openHistoryWindow>renderTab": 23
   },
   "custom_components/meshroute_topology_explorer/frontend/ui/view-tab.js": {
-   "renderView": 18
+   "renderView": 17
   },
   "dev/panel-demo.js": {
    "callWS": 35,

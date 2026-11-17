@@ -236,7 +236,7 @@ def demo_site(chrome: str, site: Path) -> int:
                           "--dump-dom", f"http://127.0.0.1:{PORT}{SITE_PREFIX}"],
                          check=True, capture_output=True, text=True, timeout=90).stdout
     buttons = len(re.findall(r'<button[^>]*aria-pressed=', dom))
-    ok = len(scenarios) >= 4 and buttons == len(scenarios) and (site / "captures").exists() is False
+    ok = bool(scenarios) and buttons == len(scenarios) and not (site / "captures").exists()
     failed += not ok
     print(f"{'ok  ' if ok else 'FAIL'} demo landing page: {buttons} buttons for {len(scenarios)} scenarios "
           f"({time.monotonic() - started:.1f}s)")

@@ -3,8 +3,8 @@
 A map of the Zigbee and Thread networks in your Home Assistant: which device hears which and how well, the paths the
 available data supports, and how complete that data is. Read only: it changes nothing in your network.
 
-**[Try the live demo](https://fabcoded.github.io/meshroute-topology-explorer/)**: the real panel in your browser, on an
-invented house with 25 Zigbee and 25 Thread devices and a few typical weak spots. No Home Assistant needed.
+**[Try the live demo](https://fabcoded.github.io/meshroute-topology-explorer/)** runs the real panel in your browser on
+an invented house with 25 Zigbee and 25 Thread devices and a few typical weak spots. No Home Assistant needed.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/map-dark.png">

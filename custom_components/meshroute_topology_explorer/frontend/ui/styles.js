@@ -404,12 +404,10 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
   border-radius: 11px; border: 1.5px solid currentColor; font: italic 700 13px Georgia, serif; line-height: 1; }
 .info-button[aria-expanded="true"] span { background: var(--mte-fg); border-color: var(--mte-fg); color: var(--mte-card); }
 .debug-block { border-top: 1px solid var(--mte-divider); margin-top: 10px; padding-top: 6px; }
-.debug-block .actions { margin: 6px 0; }
-.debug-block .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px; }
 .view-tools { border-top: 1px solid var(--mte-divider); padding-top: 10px; }
-.view-tools .actions { margin: 6px 0; }
-.view-tools .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px;
-  border-color: color-mix(in srgb, var(--mte-fg) 25%, transparent); }
+.debug-block .actions, .view-tools .actions { margin: 6px 0; }
+.debug-block .button, .view-tools .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px; }
+.view-tools .button { border-color: color-mix(in srgb, var(--mte-fg) 25%, transparent); }
 /* The pill the map draws in a lane around a value: thin outline, rounded ends, upright number. */
 .rx-sample { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 36px;
   height: 16px; padding: 0 6px; flex: none; border: 1px solid var(--mte-fg); border-radius: 8px; font-size: 11.5px;

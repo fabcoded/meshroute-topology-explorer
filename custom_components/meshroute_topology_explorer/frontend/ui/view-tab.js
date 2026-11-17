@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: MIT
-// The View tab of the right panel (spec 9.1, 11): everything that
-// changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
-// communication paths and the path display), then what a click on a device does (open details), the engine's groups
-// placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
-// fill, labels on the map; then "Read data again" with an info button (the source's own note, from its adapter),
-// "Release all pins", and a note only when the settings are not kept in Home Assistant. Debug mode (not stored, an
-// info button says what it does, the scan below it where the source has one, #26) closes the engine's group with
-// the id "paths" under a line; without such a group it stays above "Read data again". A group the network type
-// does not have is not shown (hidden, not greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
-// so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
+// The View tab of the right panel (spec 9.1, 11): everything that changes how the map looks. The engine's option
+// groups come first (engines/*/options.js), then what a click on a device does, the engine's groups placed after it,
+// node distance, symbol fill, labels; then "Read data again", "Release all pins" and a note when the settings are not
+// kept in Home Assistant. Debug mode sits at the end of the engine's "paths" group (#26). The shell knows no engine:
+// it finds that group by its id and shows only the groups the engine gives. Real checkboxes, radios and colour inputs
+// inside labels, so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
-import { h } from "./dom.js";
+import { append, h } from "./dom.js";
 import { INTEGRATION_PATH } from "./ha-links.js";
 import { settingsLink } from "./status-pill.js";
 import { DENSITY_NAMES, PATH_STOPS, SPREAD_MAX, SPREAD_MIN, densityFactor, formatFactor, spreadStep } from "./settings.js";
 import { FILLS, receptionStops } from "../graph/palette.js";
 
-/** Fill `container`. ctx: { t, canSettings (administrator: the link to the integration's page), settings (sanitized), groups (the engine's OptionGroups: engine.options(network,
- *  settings)), canScan (the source has a user-started scan: capabilities.scan), openOnSelect (effective "Details on
- *  click"), dark (the map's theme is dark: which default colours the pickers show), debug, pinCount, scan ({ running }
- *  or null), client (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only),
+/** Fill `container`. ctx: { t, canSettings (administrator: the link to the integration's page), settings (sanitized),
+ *  groups (the engine's OptionGroups: engine.options(network, settings)), canScan (the source has a user-started scan:
+ *  capabilities.scan), openOnSelect (effective "Details on click"), dark (the map's theme is dark: which default
+ *  colours the pickers show), debug, pinCount, scan ({ running } or null),
+ *  client (SettingsClient: mode, reason, error), observations (ObservationsClient, debug mode only),
  *  idPrefix (stable, so focus is found again after a re-render), info ({ [key]: open }: which info notes are shown),
  *  reloadInfo (text key of the source's note on reading again, adapters/*.js; without one no info button),
  *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
  *  onInfo(key, open) }.
- *  OptionGroup = { id ("paths": debug mode closes this group), debugInfo (text key of the debug note), legend
+ *  OptionGroup = { id ("paths": debug mode ends this group), debugInfo (text key of the debug note), legend
  *  (text key; without one the group is a single line, its note), className, info ({ key, label, text }: an info
  *  button in the legend), note (a line at the end), after ("click": placed after "On click"),
  *  controls }. Control = { kind: "radio", key, layout ("rows": one per line with a hint; "plain"), options: [{ value,
@@ -126,28 +123,29 @@ export function renderView(container, ctx) {
     throw new Error(`unknown control kind ${c.kind}`);
   }
 
-  /** One of the engine's groups as a fieldset; a group without a legend is a single line, its note. */
+  /** One of the engine's groups as a fieldset; a group without a legend is a single line, its note. `tail` ends it. */
   const engineGroup = (g, tail) => {
     if (!g.legend) return [h("p", { class: "muted small view-note", text: t(g.note) }), tail];
     const note = infoOf(g.info);
     const legend = note ? h("legend", { class: "with-info" }, h("span", { text: t(g.legend) }), note.button)
       : h("legend", { text: t(g.legend) });
-    return h("fieldset", { class: g.className ? `view-group ${g.className}` : "view-group" }, legend, note && note.note,
-      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null, tail);
+    const cls = g.className ? `view-group ${g.className}` : "view-group";
+    return [h("fieldset", { class: cls }, legend, note && note.note,
+      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null, tail)];
   };
   const groups = ctx.groups || [];
 
-  // Debug mode (never stored, spec 9.1) closes the paths group, as it widens what those views show. The shell finds
-  // the group by its id only, so it knows no engine; the scan (radio traffic) follows the checkbox while it is on.
-  // The note's words come from the engine (OptionGroup.debugInfo): what debug adds differs per network type.
+  // Debug mode (never stored, spec 9.1) ends the paths group, as it widens what those views show. The note comes from
+  // the engine (OptionGroup.debugInfo): what debug adds differs per network type. The scan sends radio traffic, so it
+  // follows the checkbox and only while that is on.
   const debugBlock = (infoKey) => {
-    const debugNote = infoKey ? infoNote("debug", t("view.debug_info_label"), t(infoKey)) : null;
+    const debugNote = infoNote("debug", t("view.debug_info_label"), t(infoKey));
     const debugCheck = h("input", { type: "checkbox", id: `${id}-debug`, checked: Boolean(ctx.debug),
-      "aria-describedby": debugNote ? `${id}-debug-note` : null, on: { change: (e) => ctx.onDebug(e.target.checked) } });
+      "aria-describedby": `${id}-debug-note`, on: { change: (e) => ctx.onDebug(e.target.checked) } });
     const out = h("div", { class: "debug-block" },
-      h("span", { class: "with-info" }, h("label", { class: "check-row" }, debugCheck, h("span", { text: t("view.debug") })),
-        debugNote && debugNote.button),
-      debugNote && debugNote.note);
+      h("span", { class: "with-info" },
+        h("label", { class: "check-row" }, debugCheck, h("span", { text: t("view.debug") })), debugNote.button),
+      debugNote.note);
     if (ctx.debug && ctx.canScan) {
       const running = Boolean(ctx.scan && ctx.scan.running);
       const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
@@ -157,16 +155,15 @@ export function renderView(container, ctx) {
     }
     return out;
   };
-  const hasPaths = groups.some((x) => !x.after && x.id === "paths");
   for (const g of groups.filter((x) => !x.after)) {
-    container.append(...[engineGroup(g, g.id === "paths" ? debugBlock(g.debugInfo) : null)].flat().filter(Boolean));
+    append(container, engineGroup(g, g.id === "paths" ? debugBlock(g.debugInfo) : null));
   }
 
   // On click on a device: "Details on click" (the map's slide switch is the same setting); what the map shows on click
   // follows the communication paths above.
   container.append(group(t("view.on_click"),
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
-  for (const g of groups.filter((x) => x.after === "click")) container.append(...[engineGroup(g)].flat().filter(Boolean));
+  for (const g of groups.filter((x) => x.after === "click")) append(container, engineGroup(g));
 
   // The stepper of the custom node distance "− ×3.3 +": a step switches to Custom from the active factor (spec 7.1).
   const spreadStepper = () => {
@@ -197,10 +194,9 @@ export function renderView(container, ctx) {
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
   // Below a line: reading again (with the source's note, spec 6: what ZHA reads differs from what the Matter server
-  // returns, so the shared tab has no text of its own) and releasing pins; debug mode only when no paths group took it.
+  // returns, so the shared tab has no text of its own) and releasing pins.
   const reloadInfo = ctx.reloadInfo ? infoNote("reload", t("view.reload_info_label"), t(ctx.reloadInfo)) : null;
   const tools = h("div", { class: "view-tools" },
-    hasPaths ? null : debugBlock(null),
     h("div", { class: "actions" },
       h("span", { class: "with-info" },
         h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"),
