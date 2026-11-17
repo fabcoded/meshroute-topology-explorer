@@ -4,6 +4,8 @@
 
 - **Online demo**: the panel on an invented house at https://fabcoded.github.io/meshroute-topology-explorer/, updated
   with every release. Nothing changes in the integration.
+- **Debug mode moved up** (#26): in the View tab the checkbox now closes the "Communication paths" group, with an
+  info button saying what it shows, and "Scan topology …" (ZHA) appears right under it while debug is on.
 
 ## 0.3.0 – 2026-11-16
 

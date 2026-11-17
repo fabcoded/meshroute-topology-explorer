@@ -4590,7 +4590,7 @@ function zigbeeOptions(network, settings) {
   const heard = { kind: "checkbox", key: "heard", id: "paths-heard", label: "view.paths_heard",
     hint: "view.paths_heard_hint", sub: true, disabled: !tableOn };
   return [
-    { id: "paths", legend: "view.paths", className: "paths-group", note: "view.paths_note", controls: [
+    { id: "paths", legend: "view.paths", className: "paths-group", note: "view.paths_note", debugInfo: "view.debug_info", controls: [
       { kind: "radio", key: "paths", layout: "rows", options: PATH_STAGES.map((v) => ({ value: v,
         label: `view.paths_${v}`, hint: `view.paths_${v}_hint`, children: v === "table" ? [returns, heard] : [] })) },
     ] },
@@ -5280,6 +5280,7 @@ const TEXTS$4 = Object.freeze({
   "details.table_of": "Neighbour table {n} of {cap} router entries",
   "details.table_size": "Neighbour table {n} router entries",
   "details.routing_size": "Routing table {count} entries",
+  "view.debug_info": "Shows everything Meshroute has, unfiltered: every link with the device that reported it, the raw tables in Details, the frame rate on the map and, for ZHA, the topology scan, which sends radio traffic. Not stored: off after a reload.",
   "details.raw_title": "Raw data (debug mode)",
   "rank.short": "rank {pct} %",
   "node.title": "Node",
@@ -7010,6 +7011,7 @@ const TEXTS$3 = Object.freeze({
   "status.thread_br_count_note": "Home Assistant's Thread integration lists border routers of this network that the Matter server's topology lacks; the topology lists a border router only where a Matter device's neighbour table lists it with a live link.",
   "details.thread_br_unheard": "Not in the Matter server's topology: no Matter device's neighbour table lists it with a live link.",
   "details.thread_br_preferred": "Home Assistant's preferred border router of its preferred Thread network.",
+  "view.thread_debug_info": "Shows everything Meshroute has, unfiltered: every link and the frame rate on the map. Not stored: off after a reload.",
   "view.thread_paths_note": "The route tables of the Matter server's copy could not be read: only neighbours and parents are shown.",
   "view.thread_routes": "Routes",
   "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",
@@ -7328,10 +7330,10 @@ const SETTINGS = Object.freeze({ keys: Object.freeze(["unusedRoutes"]), defaults
 
 /** The View tab's Thread groups: with the Matter cache's route tables the routes group and its one option; without
  *  them one line saying why there are no routes (ui/view-tab.js renders a group without a legend as its note). */
-const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note",
+const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note", debugInfo: "view.thread_debug_info",
   controls: Object.freeze([Object.freeze({ kind: "checkbox", key: "unusedRoutes", id: "unused-routes",
     label: "view.thread_unused", hint: "view.thread_unused_hint" })]) })]);
-const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
+const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note", debugInfo: "view.thread_debug_info",
   controls: Object.freeze([]) })]);
 
 const thread = Object.freeze({
@@ -11290,7 +11292,8 @@ const SHARED = Object.freeze({
   "view.label_type": "Device type above the symbol",
   "view.label_name": "Readable name below the symbol",
   "view.label_ha": "Original HA name",
-  "view.debug": "Debug mode",
+  "view.debug": "Debug mode: show everything",
+  "view.debug_info_label": "About debug mode",
   "view.reload": "Read data again",
   "view.release": "Release all pins",
   "view.release_count": "Release all pins ({count})",
@@ -11328,7 +11331,7 @@ const SHARED = Object.freeze({
   "view.paths_all_hint": "without a selection every link any path uses (computed lighter); on click the device's trees there and back",
   "view.paths_heard": "additional heard neighbours (best 3)",
   "view.paths_heard_hint": "needs a selection: adds the device's 3 best partners with a reading and no drawn link",
-  "view.paths_note": "Each view has its own basis. Debug shows everything.",
+  "view.paths_note": "Each view has its own basis.",
   "view.reload_info_label": "About reading the data",
   "legend.option_heard": "(option under \"Routing table\", needs a selection)",
   "legend.stage": "(view {n})",
@@ -13931,9 +13934,10 @@ function markFindings(container, selected) {
 // changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
 // communication paths and the path display), then what a click on a device does (open details), the engine's groups
 // placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
-// fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (the source's own
-// note, from its adapter), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
-// are not kept in Home Assistant. A group the network type does not have is not shown (hidden, not
+// fill, labels on the map; then "Read data again" with an info button (the source's own note, from its adapter),
+// "Release all pins", and a note only when the settings are not kept in Home Assistant. Debug mode (not stored, an
+// info button says what it does, the scan below it where the source has one, #26) closes the engine's group with
+// the id "paths" under a line; without such a group it stays above "Read data again". A group the network type does not have is not shown (hidden, not
 // greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
@@ -13946,7 +13950,7 @@ function markFindings(container, selected) {
  *  reloadInfo (text key of the source's note on reading again, adapters/*.js; without one no info button),
  *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
  *  onInfo(key, open) }.
- *  OptionGroup = { id, legend (text key; without one the group is a single line, its note), className, info ({ key,
+ *  OptionGroup = { id ("paths": debug mode closes this group), debugInfo (text key of the debug note), legend (text key; without one the group is a single line, its note), className, info ({ key,
  *  label, text }: an info button in the legend), note (a line at the end), after ("click": placed after "On click"),
  *  controls }. Control = { kind: "radio", key, layout ("rows": one per line with a hint; "plain"), options: [{ value,
  *  label, hint, tag, children (controls under that option) }] } | { kind: "checkbox", key, id, label, hint, sub (an
@@ -14048,22 +14052,46 @@ function renderView(container, ctx) {
   }
 
   /** One of the engine's groups as a fieldset; a group without a legend is a single line, its note. */
-  const engineGroup = (g) => {
-    if (!g.legend) return h("p", { class: "muted small view-note", text: t(g.note) });
+  const engineGroup = (g, tail) => {
+    if (!g.legend) return [h("p", { class: "muted small view-note", text: t(g.note) }), tail];
     const note = infoOf(g.info);
     const legend = note ? h("legend", { class: "with-info" }, h("span", { text: t(g.legend) }), note.button)
       : h("legend", { text: t(g.legend) });
     return h("fieldset", { class: g.className ? `view-group ${g.className}` : "view-group" }, legend, note && note.note,
-      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null);
+      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null, tail);
   };
   const groups = ctx.groups || [];
-  for (const g of groups.filter((x) => !x.after)) container.append(engineGroup(g));
+
+  // Debug mode (never stored, spec 9.1) closes the paths group, as it widens what those views show. The shell finds
+  // the group by its id only, so it knows no engine; the scan (radio traffic) follows the checkbox while it is on.
+  // The note's words come from the engine (OptionGroup.debugInfo): what debug adds differs per network type.
+  const debugBlock = (infoKey) => {
+    const debugNote = infoKey ? infoNote("debug", t("view.debug_info_label"), t(infoKey)) : null;
+    const debugCheck = h("input", { type: "checkbox", id: `${id}-debug`, checked: Boolean(ctx.debug),
+      "aria-describedby": debugNote ? `${id}-debug-note` : null, on: { change: (e) => ctx.onDebug(e.target.checked) } });
+    const out = h("div", { class: "debug-block" },
+      h("span", { class: "with-info" }, h("label", { class: "check-row" }, debugCheck, h("span", { text: t("view.debug") })),
+        debugNote && debugNote.button),
+      debugNote && debugNote.note);
+    if (ctx.debug && ctx.canScan) {
+      const running = Boolean(ctx.scan && ctx.scan.running);
+      const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
+        text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });
+      out.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
+        id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
+    }
+    return out;
+  };
+  const hasPaths = groups.some((x) => !x.after && x.id === "paths");
+  for (const g of groups.filter((x) => !x.after)) {
+    container.append(...[engineGroup(g, g.id === "paths" ? debugBlock(g.debugInfo) : null)].flat().filter(Boolean));
+  }
 
   // On click on a device: "Details on click" (the map's slide switch is the same setting); what the map shows on click
   // follows the communication paths above.
   container.append(group(t("view.on_click"),
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
-  for (const g of groups.filter((x) => x.after === "click")) container.append(engineGroup(g));
+  for (const g of groups.filter((x) => x.after === "click")) container.append(...[engineGroup(g)].flat().filter(Boolean));
 
   // The stepper of the custom node distance "− ×3.3 +": a step switches to Custom from the active factor (spec 7.1).
   const spreadStepper = () => {
@@ -14093,12 +14121,11 @@ function renderView(container, ctx) {
     check("label-name", t("view.label_name"), lab.name, (on) => ctx.onChange({ labels: { ...lab, name: on } })),
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
-  // Below a line: debug mode (never stored, spec 9.1), reading again (with the source's note, spec 6: what
-  // ZHA reads differs from what the Matter server returns, so the shared tab has no text of its own), releasing pins,
-  // the scan (debug mode only: it causes radio traffic).
+  // Below a line: reading again (with the source's note, spec 6: what ZHA reads differs from what the Matter server
+  // returns, so the shared tab has no text of its own) and releasing pins; debug mode only when no paths group took it.
   const reloadInfo = ctx.reloadInfo ? infoNote("reload", t("view.reload_info_label"), t(ctx.reloadInfo)) : null;
   const tools = h("div", { class: "view-tools" },
-    check("debug", t("view.debug"), Boolean(ctx.debug), (on) => ctx.onDebug(on)),
+    hasPaths ? null : debugBlock(null),
     h("div", { class: "actions" },
       h("span", { class: "with-info" },
         h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"),
@@ -14108,13 +14135,6 @@ function renderView(container, ctx) {
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
         on: { click: () => ctx.onReleaseAll() } })),
     reloadInfo && reloadInfo.note);
-  if (ctx.debug && ctx.canScan) {
-    const running = Boolean(ctx.scan && ctx.scan.running);
-    const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
-      text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });
-    tools.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
-      id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
-  }
   // Where the settings live: said only when they are not kept in Home Assistant as usual (no note in spec 9.1).
   const kept = ctx.client.mode === "stored" && !ctx.client.error;
   tools.append(h("p", { class: `storage small ${ctx.client.mode === "memory" || ctx.client.error ? "warn" : ""}`.trim(),
@@ -14647,6 +14667,9 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .info-button span { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
   border-radius: 11px; border: 1.5px solid currentColor; font: italic 700 13px Georgia, serif; line-height: 1; }
 .info-button[aria-expanded="true"] span { background: var(--mte-fg); border-color: var(--mte-fg); color: var(--mte-card); }
+.debug-block { border-top: 1px solid var(--mte-divider); margin-top: 10px; padding-top: 6px; }
+.debug-block .actions { margin: 6px 0; }
+.debug-block .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px; }
 .view-tools { border-top: 1px solid var(--mte-divider); padding-top: 10px; }
 .view-tools .actions { margin: 6px 0; }
 .view-tools .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px;

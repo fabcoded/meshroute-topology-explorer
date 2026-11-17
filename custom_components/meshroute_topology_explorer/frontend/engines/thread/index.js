@@ -24,10 +24,10 @@ const SETTINGS = Object.freeze({ keys: Object.freeze(["unusedRoutes"]), defaults
 
 /** The View tab's Thread groups: with the Matter cache's route tables the routes group and its one option; without
  *  them one line saying why there are no routes (ui/view-tab.js renders a group without a legend as its note). */
-const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note",
+const ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: "view.thread_routes", note: "view.thread_routes_note", debugInfo: "view.thread_debug_info",
   controls: Object.freeze([Object.freeze({ kind: "checkbox", key: "unusedRoutes", id: "unused-routes",
     label: "view.thread_unused", hint: "view.thread_unused_hint" })]) })]);
-const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note",
+const NO_ROUTE_OPTIONS = Object.freeze([Object.freeze({ id: "paths", legend: null, note: "view.thread_paths_note", debugInfo: "view.thread_debug_info",
   controls: Object.freeze([]) })]);
 
 export const thread = Object.freeze({

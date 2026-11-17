@@ -192,6 +192,7 @@ export const TEXTS = Object.freeze({
   "details.table_of": "Neighbour table {n} of {cap} router entries",
   "details.table_size": "Neighbour table {n} router entries",
   "details.routing_size": "Routing table {count} entries",
+  "view.debug_info": "Shows everything Meshroute has, unfiltered: every link with the device that reported it, the raw tables in Details, the frame rate on the map and, for ZHA, the topology scan, which sends radio traffic. Not stored: off after a reload.",
   "details.raw_title": "Raw data (debug mode)",
   "rank.short": "rank {pct} %",
   "node.title": "Node",

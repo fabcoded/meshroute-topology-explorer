@@ -403,6 +403,9 @@ legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .info-button span { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
   border-radius: 11px; border: 1.5px solid currentColor; font: italic 700 13px Georgia, serif; line-height: 1; }
 .info-button[aria-expanded="true"] span { background: var(--mte-fg); border-color: var(--mte-fg); color: var(--mte-card); }
+.debug-block { border-top: 1px solid var(--mte-divider); margin-top: 10px; padding-top: 6px; }
+.debug-block .actions { margin: 6px 0; }
+.debug-block .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px; }
 .view-tools { border-top: 1px solid var(--mte-divider); padding-top: 10px; }
 .view-tools .actions { margin: 6px 0; }
 .view-tools .button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-size: 14px;

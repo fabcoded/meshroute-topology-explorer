@@ -16,7 +16,7 @@ export function zigbeeOptions(network, settings) {
   const heard = { kind: "checkbox", key: "heard", id: "paths-heard", label: "view.paths_heard",
     hint: "view.paths_heard_hint", sub: true, disabled: !tableOn };
   return [
-    { id: "paths", legend: "view.paths", className: "paths-group", note: "view.paths_note", controls: [
+    { id: "paths", legend: "view.paths", className: "paths-group", note: "view.paths_note", debugInfo: "view.debug_info", controls: [
       { kind: "radio", key: "paths", layout: "rows", options: PATH_STAGES.map((v) => ({ value: v,
         label: `view.paths_${v}`, hint: `view.paths_${v}_hint`, children: v === "table" ? [returns, heard] : [] })) },
     ] },

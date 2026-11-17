@@ -20,6 +20,7 @@ export const TEXTS = Object.freeze({
   "status.thread_br_count_note": "Home Assistant's Thread integration lists border routers of this network that the Matter server's topology lacks; the topology lists a border router only where a Matter device's neighbour table lists it with a live link.",
   "details.thread_br_unheard": "Not in the Matter server's topology: no Matter device's neighbour table lists it with a live link.",
   "details.thread_br_preferred": "Home Assistant's preferred border router of its preferred Thread network.",
+  "view.thread_debug_info": "Shows everything Meshroute has, unfiltered: every link and the frame rate on the map. Not stored: off after a reload.",
   "view.thread_paths_note": "The route tables of the Matter server's copy could not be read: only neighbours and parents are shown.",
   "view.thread_routes": "Routes",
   "view.thread_routes_note": "On click: the route to the border router with the lowest path cost, there and back, computed from the route tables in the Matter server's copy as Thread forwards; no radio traffic.",

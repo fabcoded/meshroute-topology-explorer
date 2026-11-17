@@ -932,8 +932,14 @@ One place per thing; nothing appears twice.
     "Each router's table names the next hop to a destination. This view follows those entries until the destination
     or a gap; a listed neighbour is reached directly." Indented under it, greyed in the other views: the checkbox
     "include return routes" ("Follow each destination's route back by the same rules.") and then "additional heard neighbours (best 3)"
-    ("needs a selection: adds the device's 3 best partners with a reading and no drawn lane"; no info button). Below
-    the group: "Each view has its own basis. Debug shows everything."
+    ("needs a selection: adds the device's 3 best partners with a reading and no drawn lane"; no info button). At the
+    end of the group: "Each view has its own basis." and, under a line, **Debug mode: show everything** with an info
+    button (a toggletip like the one of "Read data again"; the checkbox is described by its note): "Shows everything
+    Meshroute has, unfiltered: every link with the device that reported it, the raw tables in Details, the frame rate
+    on the map and, for ZHA, the topology scan, which sends radio traffic. Not stored: off after a reload." Under
+    the checkbox, only while debug is on and only where the source has a scan (ZHA, not Thread), "Scan topology …"
+    (6). The shell inserts the block after the engine's group with the id "paths", so it knows no engine; with no such
+    group it sits above "Read data again" (#26).
   - **Path display**: grey or coloured by reception, info button "Colour shows the relative reception rank, not
     connection reliability."; three colour pickers (lower, middle, higher reception rank), prefilled with the theme's
     red, yellow and green, dimmed and inert while grey, and while coloured a way back to the defaults (7.1, 8).
@@ -946,10 +952,9 @@ One place per thing; nothing appears twice.
     network. It does not show physical distance."
   - **Symbol fill**: none, role, power source. **Labels on the map**: device type above, readable name below,
     original Home Assistant name (8).
-  - Below a line: debug mode; "Read data again" with an info button whose note the adapter supplies (ZHA: reloads
+  - Below a line: "Read data again" with an info button whose note the adapter supplies (ZHA: reloads
     the tables ZHA holds, starts no radio scan, ZHA reads them itself every 4 hours by default, 6; Matter: reloads
-    the Matter server's cached topology, no radio scan, refresh false, 3.2); "Release all pins (n)"; in debug mode the
-    scan (6); a note on where settings are kept, only when not in Home Assistant (11).
+    the Matter server's cached topology, no radio scan, refresh false, 3.2); "Release all pins (n)"; a note on where settings are kept, only when not in Home Assistant (11).
   - Group titles 13 px bold; rows 32 px with a fine pointer, 44 px with a coarse one.
 - **Legend** tab, compact, in sections:
   - **Communication paths**, one row per evidence whatever the view: read from a routing table (every view);
@@ -969,7 +974,7 @@ One place per thing; nothing appears twice.
     shown (solid, thin grey), the glyphs "–"
     and "?", and "RX" as RSSI in dBm, link quality 0–3 where no RSSI was reported (`THREAD_VALUE`).
   - Longer explanations stay in this specification.
-- **Debug mode** (View tab, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
+- **Debug mode** (View tab, end of the paths group, not stored): values and reporters on both lanes, hop numbers, raw tables in Details, the
   scan, per-router "observed unchanged since". ZHA's raw value texts (power source, relationship, device type and the
   like) are translated everywhere, with the raw text beside them in debug mode.
 - **Sizes**: wide means a panel at least 720 px wide; a side panel takes 36 % of it within 320–384 px. The expanded

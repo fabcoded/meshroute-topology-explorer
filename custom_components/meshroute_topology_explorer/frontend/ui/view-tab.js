@@ -3,9 +3,10 @@
 // changes how the map looks. The network engine's option groups come first (engines/*/options.js: for Zigbee the
 // communication paths and the path display), then what a click on a device does (open details), the engine's groups
 // placed after it (Zigbee: return paths without a table entry), node distance (density) with an info button, symbol
-// fill, labels on the map; then debug mode (not stored), "Read data again" with an info button (the source's own
-// note, from its adapter), "Release all pins", the scan in debug mode where the source has one, and a note only when the settings
-// are not kept in Home Assistant. A group the network type does not have is not shown (hidden, not
+// fill, labels on the map; then "Read data again" with an info button (the source's own note, from its adapter),
+// "Release all pins", and a note only when the settings are not kept in Home Assistant. Debug mode (not stored, an
+// info button says what it does, the scan below it where the source has one, #26) closes the engine's group with
+// the id "paths" under a line; without such a group it stays above "Read data again". A group the network type does not have is not shown (hidden, not
 // greyed); an engine may say why in one line. Real checkboxes, radios and colour inputs inside labels,
 // so state is announced; rows of 32 px with a fine pointer and 44 px with a coarse one.
 // Runs in the browser.
@@ -23,7 +24,7 @@ import { FILLS, receptionStops } from "../graph/palette.js";
  *  reloadInfo (text key of the source's note on reading again, adapters/*.js; without one no info button),
  *  onChange(patch), onOpenDetails(on), onDebug(on), onReload(), onReleaseAll(), onScan(button), onScanStop(),
  *  onInfo(key, open) }.
- *  OptionGroup = { id, legend (text key; without one the group is a single line, its note), className, info ({ key,
+ *  OptionGroup = { id ("paths": debug mode closes this group), debugInfo (text key of the debug note), legend (text key; without one the group is a single line, its note), className, info ({ key,
  *  label, text }: an info button in the legend), note (a line at the end), after ("click": placed after "On click"),
  *  controls }. Control = { kind: "radio", key, layout ("rows": one per line with a hint; "plain"), options: [{ value,
  *  label, hint, tag, children (controls under that option) }] } | { kind: "checkbox", key, id, label, hint, sub (an
@@ -125,22 +126,46 @@ export function renderView(container, ctx) {
   }
 
   /** One of the engine's groups as a fieldset; a group without a legend is a single line, its note. */
-  const engineGroup = (g) => {
-    if (!g.legend) return h("p", { class: "muted small view-note", text: t(g.note) });
+  const engineGroup = (g, tail) => {
+    if (!g.legend) return [h("p", { class: "muted small view-note", text: t(g.note) }), tail];
     const note = infoOf(g.info);
     const legend = note ? h("legend", { class: "with-info" }, h("span", { text: t(g.legend) }), note.button)
       : h("legend", { text: t(g.legend) });
     return h("fieldset", { class: g.className ? `view-group ${g.className}` : "view-group" }, legend, note && note.note,
-      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null);
+      g.controls.map(control), g.note ? h("span", { class: "muted small group-note", text: t(g.note) }) : null, tail);
   };
   const groups = ctx.groups || [];
-  for (const g of groups.filter((x) => !x.after)) container.append(engineGroup(g));
+
+  // Debug mode (never stored, spec 9.1) closes the paths group, as it widens what those views show. The shell finds
+  // the group by its id only, so it knows no engine; the scan (radio traffic) follows the checkbox while it is on.
+  // The note's words come from the engine (OptionGroup.debugInfo): what debug adds differs per network type.
+  const debugBlock = (infoKey) => {
+    const debugNote = infoKey ? infoNote("debug", t("view.debug_info_label"), t(infoKey)) : null;
+    const debugCheck = h("input", { type: "checkbox", id: `${id}-debug`, checked: Boolean(ctx.debug),
+      "aria-describedby": debugNote ? `${id}-debug-note` : null, on: { change: (e) => ctx.onDebug(e.target.checked) } });
+    const out = h("div", { class: "debug-block" },
+      h("span", { class: "with-info" }, h("label", { class: "check-row" }, debugCheck, h("span", { text: t("view.debug") })),
+        debugNote && debugNote.button),
+      debugNote && debugNote.note);
+    if (ctx.debug && ctx.canScan) {
+      const running = Boolean(ctx.scan && ctx.scan.running);
+      const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
+        text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });
+      out.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
+        id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
+    }
+    return out;
+  };
+  const hasPaths = groups.some((x) => !x.after && x.id === "paths");
+  for (const g of groups.filter((x) => !x.after)) {
+    container.append(...[engineGroup(g, g.id === "paths" ? debugBlock(g.debugInfo) : null)].flat().filter(Boolean));
+  }
 
   // On click on a device: "Details on click" (the map's slide switch is the same setting); what the map shows on click
   // follows the communication paths above.
   container.append(group(t("view.on_click"),
     check("open", t("view.open_details"), Boolean(ctx.openOnSelect), (on) => ctx.onOpenDetails(on))));
-  for (const g of groups.filter((x) => x.after === "click")) container.append(engineGroup(g));
+  for (const g of groups.filter((x) => x.after === "click")) container.append(...[engineGroup(g)].flat().filter(Boolean));
 
   // The stepper of the custom node distance "− ×3.3 +": a step switches to Custom from the active factor (spec 7.1).
   const spreadStepper = () => {
@@ -170,12 +195,11 @@ export function renderView(container, ctx) {
     check("label-name", t("view.label_name"), lab.name, (on) => ctx.onChange({ labels: { ...lab, name: on } })),
     check("label-ha", t("view.label_ha"), lab.haName, (on) => ctx.onChange({ labels: { ...lab, haName: on } }))));
 
-  // Below a line: debug mode (never stored, spec 9.1), reading again (with the source's note, spec 6: what
-  // ZHA reads differs from what the Matter server returns, so the shared tab has no text of its own), releasing pins,
-  // the scan (debug mode only: it causes radio traffic).
+  // Below a line: reading again (with the source's note, spec 6: what ZHA reads differs from what the Matter server
+  // returns, so the shared tab has no text of its own) and releasing pins; debug mode only when no paths group took it.
   const reloadInfo = ctx.reloadInfo ? infoNote("reload", t("view.reload_info_label"), t(ctx.reloadInfo)) : null;
   const tools = h("div", { class: "view-tools" },
-    check("debug", t("view.debug"), Boolean(ctx.debug), (on) => ctx.onDebug(on)),
+    hasPaths ? null : debugBlock(null),
     h("div", { class: "actions" },
       h("span", { class: "with-info" },
         h("button", { type: "button", class: "button", id: `${id}-reload`, text: t("view.reload"),
@@ -185,13 +209,6 @@ export function renderView(container, ctx) {
         text: ctx.pinCount ? t("view.release_count", { count: ctx.pinCount }) : t("view.release"),
         on: { click: () => ctx.onReleaseAll() } })),
     reloadInfo && reloadInfo.note);
-  if (ctx.debug && ctx.canScan) {
-    const running = Boolean(ctx.scan && ctx.scan.running);
-    const scan = h("button", { type: "button", class: "button", id: `${id}-scan`, disabled: running,
-      text: t(running ? "view.scan_running" : "view.scan"), on: { click: (e) => ctx.onScan(e.currentTarget) } });
-    tools.append(h("div", { class: "actions" }, scan, running ? h("button", { type: "button", class: "button",
-      id: `${id}-scan-stop`, text: t("view.scan_stop"), on: { click: () => ctx.onScanStop() } }) : null));
-  }
   // Where the settings live: said only when they are not kept in Home Assistant as usual (no note in spec 9.1).
   const kept = ctx.client.mode === "stored" && !ctx.client.error;
   tools.append(h("p", { class: `storage small ${ctx.client.mode === "memory" || ctx.client.error ? "warn" : ""}`.trim(),
