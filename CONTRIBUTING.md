@@ -84,3 +84,4 @@ Security issues: [SECURITY.md](SECURITY.md).
 3. Commit with sign-off (`git commit -s`, see AGENTS.md).
 4. Tag `vX.Y.Z` on that commit and push the tag.
 5. Create the GitHub release from the tag with release notes.
+6. Check that the `pages` workflow of the tag is green and the online demo shows the new version.

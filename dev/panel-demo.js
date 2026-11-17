@@ -13,6 +13,17 @@ import { fakeZigpyRoutes } from "../tests/zigpy-fake.mjs";
 
 const q = new URLSearchParams(location.search);
 const flag = (key) => q.get(key) === "1";
+// demo=1: the public demo (GitHub Pages; demo/index.html embeds this page, tools/build_demo_site.py copies it): the
+// shipped bundle, the visitor's colour scheme, no dev menu, and only the demo house, so no link reaches captures/.
+const DEMO = flag("demo");
+if (DEMO) {
+  q.set("bundle", "1");
+  q.delete("capture");
+  q.delete("history");
+  if (!q.has("dark") && matchMedia("(prefers-color-scheme: dark)").matches) q.set("dark", "1");
+  q.set("matter", "routes"); // Thread from the demo house too, with its tables
+  for (const key of ["partitions", "longnames", "variant"]) q.delete(key);
+}
 const el = document.querySelector("meshroute-topology-explorer");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Uncaught errors and rejected promises go to body[data-errors] for tools/smoke.py (a failed import leaves data-log unset).
@@ -210,7 +221,15 @@ if (q.has("inset")) {
   el.replaceWith(container);
   container.append(el);
 }
-buildVariantMenu(); // before the sample loads, so the menu is there even if loading fails
+// Before the sample loads, so the menu is there even if loading fails. The demo has no menu; opened on its own (not
+// inside the landing page) it gets a tab back to the overview in the menu's place.
+if (!DEMO) buildVariantMenu();
+else if (window.top === window) {
+  const back = Object.assign(document.createElement("a"), { href: "../", className: "dev-burger demo-back",
+    textContent: "\u2190 Demo \u00b7 synthetic data" });
+  document.body.append(back);
+}
+if (DEMO) document.title = "Meshroute demo";
 
 /** Connection stand-in: the events home-assistant-js-websocket's Connection emits ("ready", "disconnected"). */
 /** Connection stand-in: the events home-assistant-js-websocket's Connection emits ("ready", "disconnected") and its
@@ -259,7 +278,9 @@ function currentDevices() {
 const captureName = q.get("capture");
 const fixtureUrl = captureName && /^[A-Za-z0-9._-]+$/.test(captureName) ? `../captures/${captureName}.json`
   : "../tests/fixtures/zha-sample.json";
-const fixture = await (await fetch(fixtureUrl)).json();
+// demo=1: the demo house (demo/demo-network.mjs) instead of the samples, for ZHA, its history and Thread.
+const demoHouse = DEMO ? await import("../demo/demo-network.mjs") : null;
+const fixture = demoHouse ? { responses: demoHouse.demoZha() } : await (await fetch(fixtureUrl)).json();
 // A Matter capture (capture=matter-...) has no ZHA part: ZHA then comes from the sample.
 const responses = fixture.responses["zha/devices"] ? fixture.responses
   : (await (await fetch("../tests/fixtures/zha-sample.json")).json()).responses;
@@ -270,8 +291,8 @@ const captureTopology = fixture.responses["matter/network_topology"] || null;
 // matter=routes: the synthetic network with route tables (tests/thread-routes-fixture.mjs, #11), answering
 // thread_tables too; the other samples have no tables, so the panel shows why there are no routes.
 const matterMode = captureTopology ? "1" : q.get("matter") || (q.get("network") === "thread" ? "1" : null);
-const routesSample = matterMode === "routes" ? (await import("../tests/thread-routes-fixture.mjs"))
-  .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }) : null; // read now: tables 1, 3 and 21 h unchanged
+const routesSample = matterMode !== "routes" ? null : demoHouse ? demoHouse.demoThread() : (await import("../tests/thread-routes-fixture.mjs"))
+  .threadRoutesSample({ readAt: Math.round(Date.now() / 1000) }); // read now: tables 1, 3 and 21 h unchanged
 // longnames=1 (with matter=routes, #22): the motion sensor's route runs over a device and a border router with long names.
 if (routesSample && flag("longnames")) {
   routesSample.registry.find((r) => r.name === "Plug 2").name = "examplelightceilinglampnobreakpointxxxxx"; // 41 characters, no break point
@@ -327,7 +348,7 @@ const historyName = q.get("history") || "sample";
 const historyUrl = historyName === "sample" ? "../tests/fixtures/zha-history-sample.json"
   : historyName === "long" ? "../tests/fixtures/zha-history-sample-long.json"
   : /^[A-Za-z0-9._-]+$/.test(historyName) && !["none", "off", "unsupported"].includes(historyName) ? `../captures/${historyName}.json` : null;
-const historyFile = historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
+const historyFile = demoHouse ? demoHouse.demoHistory() : historyUrl ? await (await fetch(historyUrl)).json() : { k: [], records: [] };
 const historyTimes = historyFile.records.filter((r) => Number.isFinite(r.t)).map((r) => r.t);
 const historyNewest = historyTimes.length ? Math.max(...historyTimes) : 0;
 // Shifted once the newest record is older than 48 h, the shortest range: between 48 h and a week the default range
@@ -420,7 +441,7 @@ async function callWS(msg) {
 const AREA_NAMES = ["Living room", "Kitchen", "Hall", "Garden", "Office", "Bedroom", "Bathroom", "Garage", "Attic",
   "Cellar", "Workshop", "Terrace"];
 const areas = Object.fromEntries(responses["config/area_registry/list"].map((a, i) =>
-  [a.area_id, { area_id: a.area_id, name: AREA_NAMES[i % AREA_NAMES.length] }]));
+  [a.area_id, { area_id: a.area_id, name: demoHouse ? a.name : AREA_NAMES[i % AREA_NAMES.length] }])); // the demo house names its own
 
 /** A plausible state per entity: lights on with brightness and colour temperature, switches off, sensors get the
  *  device classes their device's clusters suggest, in order. */

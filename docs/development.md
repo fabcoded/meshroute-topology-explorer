@@ -31,6 +31,25 @@ unset HASS_TOKEN
 - Exit codes: 0 ok, 1 usage, 2 cannot connect, 3 authentication failed, 4 command refused, 5 timeout, 6 anonymizer
   refused.
 
+## Online demo
+
+https://fabcoded.github.io/meshroute-topology-explorer/ is the dev page in demo mode (`dev/panel.html?demo=1`) inside a
+landing page (`demo/index.html`), on the invented house of `demo/demo-network.mjs` (its head tells the story; the test
+`tests/demo-network.test.mjs` keeps it true). Demo mode loads the shipped bundle, follows the visitor's colour scheme,
+hides the dev menu and never reads `captures/`.
+
+- Build: `python3 tools/build_demo_site.py --out _site` copies an allow-list of tracked files; untracked files, above
+  all `captures/`, cannot reach the site.
+- Check: `python3 tools/smoke.py --site` builds the site into a temporary folder, serves it under
+  `/meshroute-topology-explorer/` as Pages does, and loads the landing page and each scenario. CI runs it on every push.
+- Preview: build into `_site/meshroute-topology-explorer` and open
+  `http://127.0.0.1:8823/_site/meshroute-topology-explorer/` from a static server on the repository root.
+- Publish: `.github/workflows/pages.yml` deploys at every release tag `v*`; started by hand it deploys the branch it
+  runs on, only while `custom_components/` equals the latest tag. Repository settings, once: Pages source "GitHub
+  Actions"; environment `github-pages` allows the tag pattern `v*`.
+- Scenarios are the `SCENARIOS` list in `demo/index.html` (id, button, dev-page query, caption); the smoke test reads
+  them from there.
+
 ## How the code is organized
 
 The panel lives in `custom_components/meshroute_topology_explorer/frontend/`, plain JavaScript. One viewer engine per

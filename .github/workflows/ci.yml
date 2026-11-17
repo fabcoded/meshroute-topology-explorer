@@ -36,6 +36,7 @@ jobs:
           python-version: "3.14"
       - run: python3 -m pip install -r requirements-dev.txt
       - run: python3 tools/smoke.py --chrome "$(command -v google-chrome)"
+      - run: python3 tools/smoke.py --site --chrome "$(command -v google-chrome)"  # the online demo, as Pages serves it
       - name: Screenshots when the frontend changed
         if: github.event_name == 'pull_request'
         env:

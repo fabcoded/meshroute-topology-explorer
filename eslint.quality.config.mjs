@@ -7,7 +7,7 @@ export default [
   // The panel bundle repeats every source function (tools/bundle.mjs, issue #16): measured in the sources only.
   // No vendor/ exemption (review rev-s10 F5): no vendored code exists, and new code under any vendor/ directory is
   // measured; vendored code would be named here by its path.
-  { ignores: ["node_modules/**", "captures/**", ".venv*/**", "custom_components/*/frontend/dist/**"] },
+  { ignores: ["node_modules/**", "captures/**", ".venv*/**", "custom_components/*/frontend/dist/**", "_site/**"] },
   {
     files: ["**/*.{js,mjs,cjs}"],
     languageOptions: { ecmaVersion: 2022, sourceType: "module" },

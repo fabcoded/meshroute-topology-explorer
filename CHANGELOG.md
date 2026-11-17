@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Online demo**: the panel on an invented house at https://fabcoded.github.io/meshroute-topology-explorer/, updated
+  with every release. Nothing changes in the integration.
+
 ## 0.3.0 – 2026-11-16
 
 - **Thread routes, part one** (#11): selecting a Thread device draws its route to the border router with the lowest

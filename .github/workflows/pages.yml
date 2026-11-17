@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MIT
+# The online demo on GitHub Pages (https://fabcoded.github.io/meshroute-topology-explorer/): built at every release tag,
+# so it shows what HACS installs. Started by hand it builds the branch it runs on, but only while that branch's
+# integration equals the latest release tag (the first run, or a fix of the demo page between releases).
+# Site: tools/build_demo_site.py; check: tools/smoke.py --site. Settings: Pages source "GitHub Actions", and the
+# environment github-pages allows tags v* (docs/development.md, section "Online demo").
+name: pages
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # the tags, for the check below
+      - name: By hand only while the integration equals the latest release
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          tag=$(git describe --tags --abbrev=0 --match 'v*') || { echo "::error::no release tag v* reachable"; exit 1; }
+          git diff --quiet "$tag" HEAD -- custom_components/ \
+            || { echo "::error::custom_components/ differs from $tag: release first, the demo shows what HACS installs"; exit 1; }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: python3 -m pip install -r requirements-dev.txt
+      - run: python3 tools/build_demo_site.py --out _site
+      - run: python3 tools/smoke.py --site _site --chrome "$(command -v google-chrome)"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1

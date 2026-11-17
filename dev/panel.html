@@ -37,6 +37,7 @@
        scroll=end|theory  scroll the open panel to its end, or to the theoretical-paths card;  hover=<label>  the pointer over that device (its preview)
        tables=1|info   press "Tables" in a Thread device's Details, or the route card's "i" (#25; with select= and left=details)
        version=old     a stale panel version (asks for a reload)
+       demo=1          the public demo (GitHub Pages): bundle=1, the visitor's colour scheme, no dev menu, no captures
        bundle=1        the shipped bundle frontend/dist/panel.js instead of the source modules (rebuilt by npm run bundle)
        steps=...       replay clicks, keys and width:<px> (the panel element's width), log in body[data-log] (see panel-demo.js, replay())
        devmenu=1       open the variant menu at load (for screenshots)
@@ -101,6 +102,7 @@
     .dev-menu a:hover { background: var(--secondary-background-color); }
     .dev-menu a[aria-current] { font-weight: 600; background: var(--secondary-background-color); }
     .dev-mark { color: var(--primary-color); }
+    a.demo-back { font: 12px/20px Roboto, "Noto Sans", sans-serif; text-decoration: none; border-style: solid; opacity: 0.9; }
   </style>
 </head>
 <body>

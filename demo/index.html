@@ -1,0 +1,125 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Landing page of the online demo (GitHub Pages; tools/build_demo_site.py copies it to the site root as index.html).
+     It embeds dev/panel.html?demo=1 with one of a few scenarios; the panel runs on synthetic samples in the browser. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meshroute Topology Explorer – demo</title>
+  <meta name="description" content="Try the Meshroute Topology Explorer, a map of Zigbee and Thread networks for Home Assistant, on synthetic sample data in your browser.">
+  <link rel="icon" href="custom_components/meshroute_topology_explorer/brand/icon.png">
+  <style>
+    :root {
+      --bg: #f4f5f6; --surface: #ffffff; --text: #1d2125; --muted: #5d656d; --line: rgba(0, 0, 0, 0.12);
+      --accent: #0277bd; --accent-text: #ffffff; --chip: #e8ecef;
+      color-scheme: light dark; /* also what prefers-color-scheme reports inside the iframe: the panel follows it */
+      font-family: Roboto, "Noto Sans", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0f1113; --surface: #1a1d20; --text: #e3e5e7; --muted: #9aa2a9; --line: rgba(255, 255, 255, 0.14);
+        --accent: #4fc3f7; --accent-text: #0b1a22; --chip: #262a2e; }
+      .title img { filter: invert(1); } /* the icon is dark grey on transparent */
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+    body { display: flex; flex-direction: column; height: 100dvh; }
+    a { color: var(--accent); }
+    header { padding: 12px 16px 8px; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .title img { width: 28px; height: 28px; }
+    h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    .badge { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }
+    .links { margin-left: auto; display: flex; gap: 14px; font-size: 14px; }
+    .lead { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--muted); max-width: 70em; }
+    nav { display: flex; align-items: center; gap: 8px; padding: 8px 16px 0; overflow-x: auto; scrollbar-width: thin; }
+    nav button { flex: none; font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 16px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--chip); color: var(--text); }
+    nav button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    nav button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .full { flex: none; margin-left: auto; font-size: 14px; white-space: nowrap; }
+    .caption { margin: 0; padding: 6px 16px 8px; font-size: 14px; line-height: 1.4; min-height: 2.4em; }
+    main { flex: 1; min-height: 360px; display: flex; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+    footer { padding: 6px 16px 8px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+    .short { display: none; }
+    @media (max-width: 600px) {
+      header { padding: 10px 16px 6px; }
+      .lead { display: none; }
+      .caption { font-size: 13px; padding: 4px 16px 6px; min-height: 0; }
+      footer { font-size: 11px; padding: 4px 16px 6px; }
+      .long { display: none; }
+      .short { display: inline; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <img src="custom_components/meshroute_topology_explorer/brand/icon.png" alt="">
+      <h1>Meshroute Topology Explorer</h1>
+      <span class="badge">live demo<span id="version"></span></span>
+      <span class="links">
+        <a href="https://github.com/fabcoded/meshroute-topology-explorer#install">Install with HACS</a>
+        <a href="https://github.com/fabcoded/meshroute-topology-explorer">GitHub</a>
+      </span>
+    </div>
+    <p class="lead">A map of the Zigbee and Thread networks in your Home Assistant: which device hears which and how
+      well, the paths the available data supports, and how complete that data is. The panel below is interactive: select
+      devices, drag and zoom the map, open the panels.</p>
+  </header>
+  <nav aria-label="Scenarios"></nav>
+  <p class="caption" id="caption" aria-live="polite"></p>
+  <main><iframe id="demo" title="Meshroute panel with synthetic sample data"></iframe></main>
+  <footer><span class="long">Synthetic sample data, running entirely in your browser: not connected to any Home Assistant or
+    network. Not affiliated with or endorsed by Home Assistant, the Open Home Foundation, the Connectivity Standards
+    Alliance or the Thread Group. MIT licence.</span><span class="short">Synthetic sample data in your browser, no Home
+    Assistant connected. Not affiliated with Home Assistant, the Open Home Foundation, the CSA or the Thread Group.</span></footer>
+  <script type="module">
+    // [id, label, query of dev/panel.html, caption]; demo=1 is added to every query.
+    const SCENARIOS = [
+      ["path", "Paths", "select=Front%20door%20lamp&left=details",
+        "The front door lamp: since the garage plug next to it was unplugged two days ago, only the hallway light hears it, and weakly (LQI 47). The coordinator's table still routes its way back over the unplugged plug. Select any device for its details."],
+      ["tables", "Routing tables", "select=Kids%27%20room%20lamp&paths=table&returns=1",
+        "The kids' room lamp's routes as the routers' tables give them, there and back: over the landing light and the hallway light."],
+      ["reception", "Reception", "select=Backyard%20motion%20sensor&colors=1&right=legend",
+        "Links coloured by how well the receiving device hears the sender: the backyard motion sensor reaches the house only over the terrace light."],
+      ["history", "History", "select=Garden%20shed%20plug&pair=Coordinator&htab=timeline",
+        "The terrace light is switched off at the wall every night, and the garden shed plug behind it loses its route. For the microwave at lunch and dinner time, select the dining table lamp, then History to gateway."],
+      ["findings", "Findings", "left=findings",
+        "The unplugged garage plug and the contact that lost it, routes still running into the plug, a router without a table, and the weak front door lamp."],
+      ["thread", "Thread (preview)", "network=thread&select=Garage%20motion%20sensor&left=details",
+        "Thread through Matter: the garage motion sensor reaches a border router only over the freezer plug behind the garage wall."],
+    ];
+    const nav = document.querySelector("nav");
+    const frame = document.getElementById("demo");
+    const caption = document.getElementById("caption");
+    const full = Object.assign(document.createElement("a"), { className: "full", textContent: "Open full screen" });
+    const buttons = SCENARIOS.map(([id, label]) => {
+      const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
+      button.addEventListener("click", () => show(id, true));
+      nav.append(button);
+      return button;
+    });
+    nav.append(full);
+
+    /** Load scenario id into the frame, mark its button, and (on a click) remember it in the address as #id. */
+    function show(id, clicked) {
+      const index = Math.max(0, SCENARIOS.findIndex(([key]) => key === id));
+      const [key, , query, text] = SCENARIOS[index];
+      const src = `dev/panel.html?demo=1&${query}`;
+      frame.src = src;
+      full.href = src;
+      caption.textContent = text;
+      buttons.forEach((button, i) => button.setAttribute("aria-pressed", String(i === index)));
+      if (clicked) history.replaceState(null, "", `#${key}`);
+    }
+    show(location.hash.slice(1), false);
+    addEventListener("hashchange", () => show(location.hash.slice(1), false));
+
+    // The version comes from the integration's manifest, so the page never states one the panel does not run.
+    fetch("custom_components/meshroute_topology_explorer/manifest.json").then((r) => r.json())
+      .then((m) => { document.getElementById("version").textContent = ` · ${m.version}`; }).catch(() => {});
+  </script>
+</body>
+</html>

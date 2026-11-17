@@ -3,6 +3,10 @@
 """Browser smoke test: user journeys on the dev page's anonymised sample network, no Playwright.
 
   python3 tools/smoke.py [--chrome PATH]      exit 1 if any journey fails; one line per journey
+  python3 tools/smoke.py --site [DIR]         the online demo instead: the site in DIR (default: built by
+                                              tools/build_demo_site.py into a temporary folder), served under
+                                              /meshroute-topology-explorer/ as on GitHub Pages; the landing page and
+                                              each of its scenarios
 
 Each journey is a dev-page URL (dev/panel.html, steps replayed by dev/panel-demo.js) read with the browser's
 --dump-dom: the last step's state line in body[data-log] and uncaught errors in body[data-errors]. Serving and
@@ -18,8 +22,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from pathlib import Path
 
 from screenshots import ROOT, find_chrome, handler_for
 
@@ -204,9 +210,9 @@ def run_journey(chrome: str, query: str, size: str = "1280,800") -> tuple[str, s
     return lines[-1], errors
 
 
-def journey_log(chrome: str, query: str, size: str = "1280,800") -> tuple[list[str], str]:
+def journey_log(chrome: str, query: str, size: str = "1280,800", page: str = "/dev/panel.html") -> tuple[list[str], str]:
     """Load one dev-page URL and return (the state line after each step, errors)."""
-    url = f"http://127.0.0.1:{PORT}/dev/panel.html?{query}"
+    url = f"http://127.0.0.1:{PORT}{page}?{query}"
     # A fixed window: the overview skips lanes outside the view, and full Chrome's default window is smaller than
     # the headless shell's, so the lane count would depend on the browser (CI drew 91 of 95).
     dom = subprocess.run([chrome, "--headless", "--no-sandbox", f"--window-size={size}", "--virtual-time-budget=10000",  # noqa: S603 - fixed arguments
@@ -216,11 +222,64 @@ def journey_log(chrome: str, query: str, size: str = "1280,800") -> tuple[list[s
     return grab("log").split(" | "), grab("errors")
 
 
+SITE_PREFIX = "/meshroute-topology-explorer/"  # the project page's path on GitHub Pages
+
+
+def demo_site(chrome: str, site: Path) -> int:
+    """The online demo as GitHub Pages serves it: the landing page shows a button per scenario, and every scenario of
+    demo/index.html loads the shipped bundle on the demo house without errors. Returns the number of failures."""
+    landing = (site / "index.html").read_text(encoding="utf-8")
+    scenarios = re.findall(r'\["(\w+)", "[^"]+", "([^"]+)",', landing)
+    failed = 0
+    started = time.monotonic()
+    dom = subprocess.run([chrome, "--headless", "--no-sandbox", "--window-size=1280,800", "--virtual-time-budget=10000",  # noqa: S603 - fixed arguments
+                          "--dump-dom", f"http://127.0.0.1:{PORT}{SITE_PREFIX}"],
+                         check=True, capture_output=True, text=True, timeout=90).stdout
+    buttons = len(re.findall(r'<button[^>]*aria-pressed=', dom))
+    ok = len(scenarios) >= 4 and buttons == len(scenarios) and (site / "captures").exists() is False
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} demo landing page: {buttons} buttons for {len(scenarios)} scenarios "
+          f"({time.monotonic() - started:.1f}s)")
+    for key, query in scenarios:
+        started = time.monotonic()
+        lines, errors = journey_log(chrome, f"demo=1&{query}&steps=wait:300", page=f"{SITE_PREFIX}dev/panel.html")
+        state = lines[-1]
+        # A renamed device leaves select= unresolved: the caption would no longer match what the page shows.
+        unresolved = "select=" in query and "selected -;" in state
+        ok = bool(state) and not errors and "module dist/panel.js;" in state and not unresolved
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} demo scenario {key} ({time.monotonic() - started:.1f}s)"
+              + ("" if ok else f"\n     state: {state or 'no data-log'}\n     errors: {errors or '-'}"))
+    return failed
+
+
+def main_site(chrome: str, site: str) -> int:
+    """--site: build the demo (or take the given folder), serve it under SITE_PREFIX and check it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        served = Path(tmp) / SITE_PREFIX.strip("/")
+        if site:
+            served.symlink_to(Path(site).resolve(), target_is_directory=True)
+        else:
+            from build_demo_site import build  # only this mode needs it
+
+            build(served)
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), handler_for(Path(tmp)))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            return 1 if demo_site(chrome, served) else 0
+        finally:
+            server.shutdown()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Browser smoke test on the dev page.")
     parser.add_argument("--chrome", help="Chrome or Chromium binary (default: Playwright cache, then PATH)")
+    parser.add_argument("--site", nargs="?", const="", default=None, metavar="DIR",
+                        help="check the online demo instead (DIR: a built site; default: build one)")
     args = parser.parse_args()
     chrome = args.chrome or shutil.which("google-chrome") or shutil.which("chromium") or find_chrome(None)
+    if args.site is not None:
+        return main_site(chrome, args.site)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), handler_for(ROOT))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     failed = 0

@@ -8,3 +8,5 @@ node_modules/
 # Raw or unanonymized captures written to the root by tools/capture.py --out
 /capture*.json
 /raw*.json
+# Demo site built by tools/build_demo_site.py
+/_site/
